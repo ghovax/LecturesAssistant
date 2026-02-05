@@ -18,7 +18,9 @@ import (
 	"lectures/internal/api"
 	config "lectures/internal/configuration"
 	"lectures/internal/database"
+	"lectures/internal/documents"
 	"lectures/internal/jobs"
+	"lectures/internal/llm"
 	"lectures/internal/models"
 	"lectures/internal/transcription"
 )
@@ -61,6 +63,16 @@ func main() {
 	}
 	defer initializedDatabase.Close()
 
+	// Initialize LLM provider
+	var llmProvider llm.Provider
+	switch loadedConfiguration.LLM.Provider {
+	case "openrouter":
+		llmProvider = llm.NewOpenRouterProvider(loadedConfiguration.LLM.OpenRouter.APIKey)
+	default:
+		slog.Warn("Unknown LLM provider, falling back to openrouter with empty key", "provider", loadedConfiguration.LLM.Provider)
+		llmProvider = llm.NewOpenRouterProvider("")
+	}
+
 	// Initialize transcription provider and service
 	var transcriptionProvider transcription.Provider
 	switch loadedConfiguration.Transcription.Provider {
@@ -76,11 +88,24 @@ func main() {
 
 	transcriptionService := transcription.NewService(loadedConfiguration, transcriptionProvider)
 
+	// Initialize document processor
+	documentProcessor := documents.NewProcessor(llmProvider, loadedConfiguration.LLM.OpenRouter.DefaultModel)
+
+	// Check dependencies
+	if err := transcriptionService.CheckDependencies(); err != nil {
+		slog.Error("Transcription dependencies check failed", "error", err)
+		os.Exit(1)
+	}
+	if err := documentProcessor.CheckDependencies(); err != nil {
+		slog.Error("Document processor dependencies check failed", "error", err)
+		os.Exit(1)
+	}
+
 	// Initialize job queue
 	backgroundJobQueue := jobs.NewQueue(initializedDatabase, 4) // 4 concurrent workers
 
 	// Register job handlers
-	backgroundJobQueue.RegisterHandler(models.JobTypeTranscribeMedia, func(context context.Context, job *models.Job, updateFn func(int, string)) error {
+	backgroundJobQueue.RegisterHandler(models.JobTypeTranscribeMedia, func(jobContext context.Context, job *models.Job, updateProgress func(int, string)) error {
 		var payload struct {
 			LectureID string `json:"lecture_id"`
 		}
@@ -143,27 +168,27 @@ func main() {
 		defer os.RemoveAll(temporaryDirectory)
 
 		// 4. Run transcription
-		segments, err := transcriptionService.TranscribeLecture(context, mediaFiles, temporaryDirectory, updateFn)
+		segments, err := transcriptionService.TranscribeLecture(jobContext, mediaFiles, temporaryDirectory, updateProgress)
 		if err != nil {
 			initializedDatabase.Exec("UPDATE transcripts SET status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), transcriptID)
 			return fmt.Errorf("transcription service failed: %w", err)
 		}
 
 		// 5. Store segments in database
-		databasePointer, err := initializedDatabase.Begin()
+		databaseTransaction, err := initializedDatabase.Begin()
 		if err != nil {
 			return fmt.Errorf("failed to begin transaction: %w", err)
 		}
-		defer databasePointer.Rollback()
+		defer databaseTransaction.Rollback()
 
 		// Delete existing segments if any
-		_, err = databasePointer.Exec("DELETE FROM transcript_segments WHERE transcript_id = ?", transcriptID)
+		_, err = databaseTransaction.Exec("DELETE FROM transcript_segments WHERE transcript_id = ?", transcriptID)
 		if err != nil {
 			return fmt.Errorf("failed to delete old segments: %w", err)
 		}
 
 		for _, segment := range segments {
-			_, err = databasePointer.Exec(`
+			_, err = databaseTransaction.Exec(`
 				INSERT INTO transcript_segments (transcript_id, media_id, start_millisecond, end_millisecond, original_start_milliseconds, original_end_milliseconds, text, confidence, speaker)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`, transcriptID, segment.MediaID, segment.StartMillisecond, segment.EndMillisecond, segment.OriginalStartMilliseconds, segment.OriginalEndMilliseconds, segment.Text, segment.Confidence, segment.Speaker)
@@ -173,16 +198,102 @@ func main() {
 		}
 
 		// 6. Finalize transcript
-		_, err = databasePointer.Exec("UPDATE transcripts SET status = ?, updated_at = ? WHERE id = ?", "completed", time.Now(), transcriptID)
+		_, err = databaseTransaction.Exec("UPDATE transcripts SET status = ?, updated_at = ? WHERE id = ?", "completed", time.Now(), transcriptID)
 		if err != nil {
 			return fmt.Errorf("failed to finalize transcript status: %w", err)
 		}
 
-		if err := databasePointer.Commit(); err != nil {
+		if err := databaseTransaction.Commit(); err != nil {
 			return fmt.Errorf("failed to commit transaction: %w", err)
 		}
 
-		updateFn(100, "Transcription completed successfully")
+		updateProgress(100, "Transcription completed successfully")
+		return nil
+	})
+
+	backgroundJobQueue.RegisterHandler(models.JobTypeIngestDocuments, func(jobContext context.Context, job *models.Job, updateProgress func(int, string)) error {
+		var payload struct {
+			LectureID string `json:"lecture_id"`
+		}
+		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal job payload: %w", err)
+		}
+
+		// 1. Get reference documents for the lecture
+		rows, err := initializedDatabase.Query(`
+			SELECT id, lecture_id, document_type, title, file_path, page_count, extraction_status, created_at, updated_at
+			FROM reference_documents
+			WHERE lecture_id = ?
+		`, payload.LectureID)
+		if err != nil {
+			return fmt.Errorf("failed to query documents: %w", err)
+		}
+		defer rows.Close()
+
+		var documentsList []models.ReferenceDocument
+		for rows.Next() {
+			var document models.ReferenceDocument
+			if err := rows.Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt); err != nil {
+				return fmt.Errorf("failed to scan document: %w", err)
+			}
+			documentsList = append(documentsList, document)
+		}
+
+		totalDocuments := len(documentsList)
+		for documentIndex, document := range documentsList {
+			updateProgress(int(float64(documentIndex)/float64(totalDocuments)*100), fmt.Sprintf("Processing document: %s (%d/%d)", document.Title, documentIndex+1, totalDocuments))
+
+			// 2. Update status to processing
+			_, err = initializedDatabase.Exec("UPDATE reference_documents SET extraction_status = ?, updated_at = ? WHERE id = ?", "processing", time.Now(), document.ID)
+			if err != nil {
+				return fmt.Errorf("failed to update document status: %w", err)
+			}
+
+			// 3. Create output directory for pages
+			outputDirectory := filepath.Join(loadedConfiguration.Storage.DataDirectory, "files", "lectures", payload.LectureID, "documents", document.ID)
+
+			// 4. Run document processing
+			pages, err := documentProcessor.ProcessDocument(jobContext, document, outputDirectory, updateProgress)
+			if err != nil {
+				initializedDatabase.Exec("UPDATE reference_documents SET extraction_status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), document.ID)
+				return fmt.Errorf("document processor failed for %s: %w", document.Title, err)
+			}
+
+			// 5. Store pages in database
+			databaseTransaction, err := initializedDatabase.Begin()
+			if err != nil {
+				return fmt.Errorf("failed to begin transaction: %w", err)
+			}
+			defer databaseTransaction.Rollback()
+
+			// Delete existing pages if any
+			_, err = databaseTransaction.Exec("DELETE FROM reference_pages WHERE document_id = ?", document.ID)
+			if err != nil {
+				return fmt.Errorf("failed to delete old pages: %w", err)
+			}
+
+			for _, page := range pages {
+				_, err = databaseTransaction.Exec(`
+					INSERT INTO reference_pages (document_id, page_number, image_path, extracted_text)
+					VALUES (?, ?, ?, ?)
+				`, document.ID, page.PageNumber, page.ImagePath, page.ExtractedText)
+				if err != nil {
+					return fmt.Errorf("failed to insert page: %w", err)
+				}
+			}
+
+			// 6. Update document as completed
+			_, err = databaseTransaction.Exec("UPDATE reference_documents SET extraction_status = ?, page_count = ?, updated_at = ? WHERE id = ?", "completed", len(pages), time.Now(), document.ID)
+			if err != nil {
+				return fmt.Errorf("failed to finalize document status: %w", err)
+			}
+
+			if err := databaseTransaction.Commit(); err != nil {
+				return fmt.Errorf("failed to commit transaction: %w", err)
+			}
+		}
+
+		updateProgress(100, "Document ingestion completed successfully")
 		return nil
 	})
 

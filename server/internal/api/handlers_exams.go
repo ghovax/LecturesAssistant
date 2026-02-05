@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"lectures/internal/models"
@@ -124,7 +126,7 @@ func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, reque
 	}
 
 	// Build update query dynamically
-	updates := []interface{}{}
+	updates := []any{}
 	query := "UPDATE exams SET updated_at = ?"
 	updates = append(updates, time.Now())
 
@@ -167,6 +169,20 @@ func (server *Server) handleDeleteExam(responseWriter http.ResponseWriter, reque
 	pathVariables := mux.Vars(request)
 	examIdentifier := pathVariables["id"]
 
+	// 1. Get all lecture IDs for this exam to clean up files later
+	rows, err := server.database.Query("SELECT id FROM lectures WHERE exam_id = ?", examIdentifier)
+	var lectureIdentifiers []string
+	if err == nil {
+		for rows.Next() {
+			var lectureIdentifier string
+			if err := rows.Scan(&lectureIdentifier); err == nil {
+				lectureIdentifiers = append(lectureIdentifiers, lectureIdentifier)
+			}
+		}
+		rows.Close()
+	}
+
+	// 2. Delete from database
 	result, err := server.database.Exec("DELETE FROM exams WHERE id = ?", examIdentifier)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete exam", nil)
@@ -177,6 +193,12 @@ func (server *Server) handleDeleteExam(responseWriter http.ResponseWriter, reque
 	if rowsAffected == 0 {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
 		return
+	}
+
+	// 3. Delete lecture files from filesystem
+	for _, lectureIdentifier := range lectureIdentifiers {
+		lectureDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "files", "lectures", lectureIdentifier)
+		_ = os.RemoveAll(lectureDirectory)
 	}
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Exam deleted successfully"})

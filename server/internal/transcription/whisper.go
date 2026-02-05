@@ -46,9 +46,9 @@ type whisperSegment struct {
 
 func (whisper *WhisperProvider) Transcribe(context context.Context, audioPath string) ([]Segment, error) {
 	outputDirectory := filepath.Dir(audioPath)
-	
+
 	command := exec.CommandContext(context, "whisper", audioPath, "--model", whisper.model, "--output_format", "json", "--output_dir", outputDirectory)
-	
+
 	if err := command.Run(); err != nil {
 		return nil, fmt.Errorf("whisper execution failed: %w", err)
 	}
@@ -58,7 +58,7 @@ func (whisper *WhisperProvider) Transcribe(context context.Context, audioPath st
 	extension := filepath.Ext(baseName)
 	jsonFileName := baseName[0:len(baseName)-len(extension)] + ".json"
 	jsonPath := filepath.Join(outputDirectory, jsonFileName)
-	
+
 	defer os.Remove(jsonPath) // Cleanup
 
 	data, err := os.ReadFile(jsonPath)

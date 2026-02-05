@@ -73,6 +73,8 @@ func (server *Server) setupRoutes() {
 	// Reference Documents
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/documents", server.handleListDocuments).Methods("GET")
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/documents/{documentId}", server.handleGetDocument).Methods("GET")
+	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/documents/{documentId}/pages", server.handleGetDocumentPages).Methods("GET")
+	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/documents/{documentId}/pages/{pageNumber}/image", server.handleGetPageImage).Methods("GET")
 
 	// Tools
 	apiRouter.HandleFunc("/exams/{examId}/tools", server.handleCreateTool).Methods("POST")

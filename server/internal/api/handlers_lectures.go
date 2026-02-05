@@ -85,7 +85,7 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 		}
 
 		mediaFilePath := filepath.Join(lectureMediaDirectory, filename)
-		
+
 		// Determine media type based on extension
 		mediaType := "audio"
 		extensionLower := strings.ToLower(fileExtension)
@@ -142,13 +142,14 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 
 		documentFilePath := filepath.Join(lectureDocumentsDirectory, filename)
 		documentType := strings.TrimPrefix(strings.ToLower(fileExtension), ".")
-		if documentType == "pdf" {
+		switch documentType {
+		case "pdf":
 			documentType = "pdf"
-		} else if documentType == "pptx" {
+		case "pptx":
 			documentType = "pptx"
-		} else if documentType == "docx" {
+		case "docx":
 			documentType = "docx"
-		} else {
+		default:
 			documentType = "other"
 		}
 
@@ -282,7 +283,7 @@ func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, re
 	}
 
 	// Build update query dynamically
-	updates := []interface{}{}
+	updates := []any{}
 	query := "UPDATE lectures SET updated_at = ?"
 	updates = append(updates, time.Now())
 
@@ -325,6 +326,7 @@ func (server *Server) handleDeleteLecture(responseWriter http.ResponseWriter, re
 	pathVariables := mux.Vars(request)
 	lectureIdentifier := pathVariables["lectureId"]
 
+	// Delete from database (cascades to lecture_media, transcripts, reference_documents)
 	result, err := server.database.Exec("DELETE FROM lectures WHERE id = ?", lectureIdentifier)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete lecture", nil)
@@ -336,6 +338,10 @@ func (server *Server) handleDeleteLecture(responseWriter http.ResponseWriter, re
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found", nil)
 		return
 	}
+
+	// Delete files from filesystem
+	lectureDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "files", "lectures", lectureIdentifier)
+	_ = os.RemoveAll(lectureDirectory)
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Lecture deleted successfully"})
 }

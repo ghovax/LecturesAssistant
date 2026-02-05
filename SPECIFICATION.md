@@ -585,7 +585,7 @@ interface Citation {
 ### Chat Session Context Configuration
 
 ```typescript
-interface ChatContextConfig {
+interface ChatContextConfiguration {
     session_id: string;
     included_lectures: string[];       // Lecture UUIDs
     included_slides: string[];         // SlideDocument UUIDs

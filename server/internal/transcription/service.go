@@ -25,6 +25,14 @@ func NewService(configuration *config.Configuration, provider Provider) *Service
 	}
 }
 
+// CheckDependencies verifies that FFmpeg and the provider are available
+func (service *Service) CheckDependencies() error {
+	if err := service.ffmpeg.CheckDependencies(); err != nil {
+		return err
+	}
+	return service.provider.CheckDependencies()
+}
+
 // TranscribeLecture processes a list of media files and returns a unified list of transcript segments
 func (service *Service) TranscribeLecture(context context.Context, mediaFiles []models.LectureMedia, temporaryDirectory string, updateProgress func(int, string)) ([]models.TranscriptSegment, error) {
 	var allSegments []models.TranscriptSegment
@@ -36,17 +44,17 @@ func (service *Service) TranscribeLecture(context context.Context, mediaFiles []
 	}
 
 	totalMediaFiles := len(mediaFiles)
-	
+
 	for mediaIndex, media := range mediaFiles {
 		updateProgress(int(float64(mediaIndex)/float64(totalMediaFiles)*100), fmt.Sprintf("Processing media file %d/%d...", mediaIndex+1, totalMediaFiles))
 
 		// 1. Prepare Audio (Extract if needed, or just copy)
 		audioPath := filepath.Join(temporaryDirectory, fmt.Sprintf("source_%s.mp3", media.ID))
-		
+
 		if err := service.ffmpeg.ExtractAudio(media.FilePath, audioPath); err != nil {
 			return nil, fmt.Errorf("failed to extract audio from %s: %w", media.FilePath, err)
 		}
-		
+
 		// 2. Split Audio
 		segmentsDirectory := filepath.Join(temporaryDirectory, fmt.Sprintf("segments_%s", media.ID))
 		segmentDurationSeconds := 300 // 5 minutes
@@ -54,12 +62,12 @@ func (service *Service) TranscribeLecture(context context.Context, mediaFiles []
 		if err != nil {
 			return nil, fmt.Errorf("failed to split audio: %w", err)
 		}
-		
+
 		// Sort segment files to ensure order (segment_000.mp3, segment_001.mp3...)
 		sort.Strings(segmentFiles)
 
 		var mediaSegments []models.TranscriptSegment
-		
+
 		// 3. Transcribe Segments
 		totalSegments := len(segmentFiles)
 		for segmentIndex, segmentFile := range segmentFiles {
@@ -110,7 +118,7 @@ func (service *Service) TranscribeLecture(context context.Context, mediaFiles []
 			durationSeconds = float64(len(segmentFiles) * segmentDurationSeconds)
 		}
 		globalTimeOffsetMilliseconds += int64(durationSeconds * 1000)
-		
+
 		// Cleanup temp files for this media
 		os.Remove(audioPath)
 		os.RemoveAll(segmentsDirectory)

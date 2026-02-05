@@ -59,15 +59,15 @@ type TranscriptSegment struct {
 
 // ReferenceDocument represents a PDF, PowerPoint, or other document
 type ReferenceDocument struct {
-	ID                string    `json:"id"`
-	LectureID         string    `json:"lecture_id"`
-	DocumentType      string    `json:"document_type"`
-	Title             string    `json:"title"`
-	FilePath          string    `json:"file_path"`
-	PageCount         int       `json:"page_count"`
-	ExtractionStatus  string    `json:"extraction_status"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	ID               string    `json:"id"`
+	LectureID        string    `json:"lecture_id"`
+	DocumentType     string    `json:"document_type"`
+	Title            string    `json:"title"`
+	FilePath         string    `json:"file_path"`
+	PageCount        int       `json:"page_count"`
+	ExtractionStatus string    `json:"extraction_status"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 // ReferencePage represents a page extracted from a document
@@ -81,13 +81,13 @@ type ReferencePage struct {
 
 // Tool represents AI-generated study materials
 type Tool struct {
-	ID        string          `json:"id"`
-	ExamID    string          `json:"exam_id"`
-	Type      string          `json:"type"`
-	Title     string          `json:"title"`
-	Content   string          `json:"content"` // JSON string
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID        string    `json:"id"`
+	ExamID    string    `json:"exam_id"`
+	Type      string    `json:"type"`
+	Title     string    `json:"title"`
+	Content   string    `json:"content"` // JSON string
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // ChatSession represents a conversation scoped to an exam
@@ -111,25 +111,25 @@ type ChatMessage struct {
 
 // Job represents a background task
 type Job struct {
-	ID                    string    `json:"id"`
-	Type                  string    `json:"type"`
-	Status                string    `json:"status"`
-	Progress              int       `json:"progress"`
-	ProgressMessageText   string    `json:"progress_message_text,omitempty"`
-	Payload               string    `json:"payload"` // JSON string
-	Result                string    `json:"result,omitempty"` // JSON string
-	Error                 string    `json:"error,omitempty"`
-	CreatedAt             time.Time `json:"created_at"`
-	StartedAt             *time.Time `json:"started_at,omitempty"`
-	CompletedAt           *time.Time `json:"completed_at,omitempty"`
+	ID                  string     `json:"id"`
+	Type                string     `json:"type"`
+	Status              string     `json:"status"`
+	Progress            int        `json:"progress"`
+	ProgressMessageText string     `json:"progress_message_text,omitempty"`
+	Payload             string     `json:"payload"`          // JSON string
+	Result              string     `json:"result,omitempty"` // JSON string
+	Error               string     `json:"error,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+	StartedAt           *time.Time `json:"started_at,omitempty"`
+	CompletedAt         *time.Time `json:"completed_at,omitempty"`
 }
 
 // JobType constants
 const (
-	JobTypeTranscribeMedia  = "TRANSCRIBE_MEDIA"
-	JobTypeIngestDocuments  = "INGEST_DOCUMENTS"
-	JobTypeBuildMaterial    = "BUILD_MATERIAL"
-	JobTypePublishMaterial  = "PUBLISH_MATERIAL"
+	JobTypeTranscribeMedia = "TRANSCRIBE_MEDIA"
+	JobTypeIngestDocuments = "INGEST_DOCUMENTS"
+	JobTypeBuildMaterial   = "BUILD_MATERIAL"
+	JobTypePublishMaterial = "PUBLISH_MATERIAL"
 )
 
 // JobStatus constants

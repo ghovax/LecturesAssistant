@@ -8,82 +8,82 @@ import (
 )
 
 type Configuration struct {
-	Server        ServerConfig        `yaml:"server"`
-	Storage       StorageConfig       `yaml:"storage"`
-	Security      SecurityConfig      `yaml:"security"`
-	LLM           LLMConfig           `yaml:"llm"`
-	Transcription TranscriptionConfig `yaml:"transcription"`
-	Documents     DocumentsConfig     `yaml:"documents"`
-	Uploads       UploadsConfig       `yaml:"uploads"`
+	Server        ServerConfiguration        `yaml:"server"`
+	Storage       StorageConfiguration       `yaml:"storage"`
+	Security      SecurityConfiguration      `yaml:"security"`
+	LLM           LLMConfiguration           `yaml:"llm"`
+	Transcription TranscriptionConfiguration `yaml:"transcription"`
+	Documents     DocumentsConfiguration     `yaml:"documents"`
+	Uploads       UploadsConfiguration       `yaml:"uploads"`
 }
 
-type ServerConfig struct {
+type ServerConfiguration struct {
 	Host string `yaml:"host"`
 	Port int    `yaml:"port"`
 }
 
-type StorageConfig struct {
+type StorageConfiguration struct {
 	DataDirectory string `yaml:"data_directory"`
 }
 
-type SecurityConfig struct {
-	Auth AuthConfig `yaml:"auth"`
+type SecurityConfiguration struct {
+	Auth AuthConfiguration `yaml:"auth"`
 }
 
-type AuthConfig struct {
-	Type                 string `yaml:"type"`
-	SessionTimeoutHours  int    `yaml:"session_timeout_hours"`
-	PasswordHash         string `yaml:"password_hash"`
-	RequireHTTPS         bool   `yaml:"require_https"`
+type AuthConfiguration struct {
+	Type                string `yaml:"type"`
+	SessionTimeoutHours int    `yaml:"session_timeout_hours"`
+	PasswordHash        string `yaml:"password_hash"`
+	RequireHTTPS        bool   `yaml:"require_https"`
 }
 
-type LLMConfig struct {
-	Provider   string            `yaml:"provider"`
-	OpenRouter OpenRouterConfig  `yaml:"openrouter"`
-	Ollama     OllamaConfig      `yaml:"ollama"`
+type LLMConfiguration struct {
+	Provider   string                  `yaml:"provider"`
+	OpenRouter OpenRouterConfiguration `yaml:"openrouter"`
+	Ollama     OllamaConfiguration     `yaml:"ollama"`
 }
 
-type OpenRouterConfig struct {
+type OpenRouterConfiguration struct {
 	APIKey       string `yaml:"api_key"`
 	DefaultModel string `yaml:"default_model"`
 }
 
-type OllamaConfig struct {
+type OllamaConfiguration struct {
 	BaseURL      string `yaml:"base_url"`
 	DefaultModel string `yaml:"default_model"`
 }
 
-type TranscriptionConfig struct {
-	Provider string        `yaml:"provider"`
-	Whisper  WhisperConfig `yaml:"whisper"`
-	OpenAI   OpenAIConfig  `yaml:"openai"`
+type TranscriptionConfiguration struct {
+	Provider string               `yaml:"provider"`
+	Whisper  WhisperConfiguration `yaml:"whisper"`
+	OpenAI   OpenAIConfiguration  `yaml:"openai"`
 }
 
-type WhisperConfig struct {
+type WhisperConfiguration struct {
 	Model  string `yaml:"model"`
 	Device string `yaml:"device"`
 }
 
-type OpenAIConfig struct {
+type OpenAIConfiguration struct {
 	APIKey string `yaml:"api_key"`
 }
 
-type DocumentsConfig struct {
+type DocumentsConfiguration struct {
 	RenderDPI        int      `yaml:"render_dots_per_inch"`
 	MaximumPages     int      `yaml:"maximum_pages"`
 	SupportedFormats []string `yaml:"supported_formats"`
 }
 
-type UploadsConfig struct {
-	Media     MediaUploadConfig    `yaml:"media"`
-	Documents DocumentUploadConfig `yaml:"documents"`
+type UploadsConfiguration struct {
+	Media     MediaUploadConfiguration    `yaml:"media"`
+	Documents DocumentUploadConfiguration `yaml:"documents"`
 }
 
-type MediaUploadConfig struct {
-	MaxFileSizeMB              int                `yaml:"maximum_file_size_megabytes"`
-	MaxFilesPerLecture         int                `yaml:"maximum_files_per_lecture"`
-	SupportedFormats           MediaFormats       `yaml:"supported_formats"`
-	ChunkedUploadThresholdMB   int                `yaml:"chunked_upload_threshold_megabytes"`
+type MediaUploadConfiguration struct {
+	MaxFileSizeMB            int          `yaml:"maximum_file_size_megabytes"`
+	MaxFilesPerLecture       int          `yaml:"maximum_files_per_lecture"`
+	SupportedFormats         MediaFormats `yaml:"supported_formats"`
+	ChunkedUploadThresholdMB int          `yaml:"chunked_upload_threshold_megabytes"`
 }
 
 type MediaFormats struct {
@@ -91,7 +91,7 @@ type MediaFormats struct {
 	Audio []string `yaml:"audio"`
 }
 
-type DocumentUploadConfig struct {
+type DocumentUploadConfiguration struct {
 	MaxFileSizeMB       int      `yaml:"maximum_file_size_megabytes"`
 	MaxFilesPerLecture  int      `yaml:"maximum_files_per_lecture"`
 	MaxPagesPerDocument int      `yaml:"maximum_pages_per_document"`
@@ -148,44 +148,44 @@ func Save(configuration *Configuration, path string) error {
 func defaultConfiguration() *Configuration {
 	home, _ := os.UserHomeDir()
 	return &Configuration{
-		Server: ServerConfig{
+		Server: ServerConfiguration{
 			Host: "127.0.0.1",
 			Port: 3000,
 		},
-		Storage: StorageConfig{
+		Storage: StorageConfiguration{
 			DataDirectory: filepath.Join(home, ".lectures"),
 		},
-		Security: SecurityConfig{
-			Auth: AuthConfig{
+		Security: SecurityConfiguration{
+			Auth: AuthConfiguration{
 				Type:                "session",
 				SessionTimeoutHours: 24,
 				RequireHTTPS:        false,
 			},
 		},
-		LLM: LLMConfig{
+		LLM: LLMConfiguration{
 			Provider: "openrouter",
-			OpenRouter: OpenRouterConfig{
+			OpenRouter: OpenRouterConfiguration{
 				DefaultModel: "anthropic/claude-3.5-sonnet",
 			},
-			Ollama: OllamaConfig{
+			Ollama: OllamaConfiguration{
 				BaseURL:      "http://localhost:11434",
 				DefaultModel: "llama3.2",
 			},
 		},
-		Transcription: TranscriptionConfig{
+		Transcription: TranscriptionConfiguration{
 			Provider: "whisper-local",
-			Whisper: WhisperConfig{
+			Whisper: WhisperConfiguration{
 				Model:  "base",
 				Device: "auto",
 			},
 		},
-		Documents: DocumentsConfig{
+		Documents: DocumentsConfiguration{
 			RenderDPI:        150,
 			MaximumPages:     500,
 			SupportedFormats: []string{"pdf", "pptx", "docx"},
 		},
-		Uploads: UploadsConfig{
-			Media: MediaUploadConfig{
+		Uploads: UploadsConfiguration{
+			Media: MediaUploadConfiguration{
 				MaxFileSizeMB:      2048,
 				MaxFilesPerLecture: 50,
 				SupportedFormats: MediaFormats{
@@ -194,7 +194,7 @@ func defaultConfiguration() *Configuration {
 				},
 				ChunkedUploadThresholdMB: 100,
 			},
-			Documents: DocumentUploadConfig{
+			Documents: DocumentUploadConfiguration{
 				MaxFileSizeMB:       500,
 				MaxFilesPerLecture:  100,
 				MaxPagesPerDocument: 500,

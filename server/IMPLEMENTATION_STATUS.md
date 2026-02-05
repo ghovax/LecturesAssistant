@@ -68,22 +68,22 @@
 - [ ] Export transcript as SRT/VTT/TXT
 
 ### Document Processing
-- [ ] PDF upload and storage
-- [ ] PowerPoint (PPTX) upload
-- [ ] Word document (DOCX) upload
-- [ ] Page extraction as images (150 DPI)
-- [ ] OCR text extraction using vision LLM
-- [ ] Page retrieval endpoints
-- [ ] Job handler for INGEST_DOCUMENTS
+- [x] PDF upload and storage (Atomic with lecture creation)
+- [x] PowerPoint (PPTX) upload (Atomic with lecture creation)
+- [x] Word document (DOCX) upload (Atomic with lecture creation)
+- [x] Page extraction as images (150 DPI via Ghostscript)
+- [x] OCR text extraction using vision LLM
+- [x] Page retrieval endpoints
+- [x] Job handler for INGEST_DOCUMENTS
 
 ### LLM Integration
-- [ ] OpenRouter provider implementation
+- [x] OpenRouter provider implementation
 - [ ] Ollama provider implementation
-- [ ] Model capability detection
-- [ ] Provider registry
-- [ ] Chat request/response handling
-- [ ] Streaming support
-- [ ] Vision capability for document OCR
+- [x] Model capability detection (Implicit via provider logic)
+- [x] Provider registry (Initialized in main)
+- [x] Chat request/response handling
+- [x] Streaming support
+- [x] Vision capability for document OCR
 
 ### Chat System
 - [ ] Chat session creation and management

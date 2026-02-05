@@ -1,7 +1,7 @@
-.PHONY: build run clean test deps
+.PHONY: build run clean test deps fmt
 
 # Build the application
-build:
+build: fmt
 	go build -o lectures ./cmd/server
 
 # Run the application
@@ -16,6 +16,10 @@ clean:
 # Run tests
 test:
 	go test -v ./...
+
+# Format the code
+fmt:
+	go fmt ./...
 
 # Download dependencies
 deps:

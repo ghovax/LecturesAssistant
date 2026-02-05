@@ -15,7 +15,10 @@ type Segment struct {
 type Provider interface {
 	// Transcribe processes an audio file and returns a list of segments
 	Transcribe(context context.Context, audioPath string) ([]Segment, error)
-	
+
+	// CheckDependencies verifies that necessary external tools are installed
+	CheckDependencies() error
+
 	// Name returns the identifier of the provider
 	Name() string
 }

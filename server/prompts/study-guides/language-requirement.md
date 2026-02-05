@@ -1,0 +1,1 @@
+The user has explicitly requested that the entire response be written in {{language}} (BCP-47 code: `{{bcp_47_lang_code}}`). This is an unbreakable requirement. Failure to comply with this language requirement will result in an unacceptable response.

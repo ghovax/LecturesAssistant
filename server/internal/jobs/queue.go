@@ -26,8 +26,15 @@ type Queue struct {
 	subscribersMutex sync.RWMutex
 }
 
+// JobMetrics contains token usage and cost information
+type JobMetrics struct {
+	InputTokens   int
+	OutputTokens  int
+	EstimatedCost float64
+}
+
 // JobHandler is a function that processes a specific job type
-type JobHandler func(context context.Context, job *models.Job, updateFn func(progress int, message string)) error
+type JobHandler func(context context.Context, job *models.Job, updateProgress func(progress int, message string, metadata any, metrics JobMetrics)) error
 
 // JobUpdate represents a job progress update
 type JobUpdate struct {
@@ -35,8 +42,12 @@ type JobUpdate struct {
 	Status              string
 	Progress            int
 	ProgressMessageText string
+	Metadata            any
 	Error               string
 	Result              string
+	InputTokens         int
+	OutputTokens        int
+	EstimatedCost       float64
 }
 
 // NewQueue creates a new job queue
@@ -171,15 +182,16 @@ func (queue *Queue) processNextJob(workerID int) {
 
 	// Find and lock a pending job
 	var job models.Job
+	var metadataJSON sql.NullString
 	err = transaction.QueryRow(`
-		SELECT id, type, status, progress, progress_message_text, payload, created_at
+		SELECT id, type, status, progress, progress_message_text, payload, metadata, created_at
 		FROM jobs
 		WHERE status = ?
 		ORDER BY created_at ASC
 		LIMIT 1
 	`, models.JobStatusPending).Scan(
 		&job.ID, &job.Type, &job.Status, &job.Progress,
-		&job.ProgressMessageText, &job.Payload, &job.CreatedAt,
+		&job.ProgressMessageText, &job.Payload, &metadataJSON, &job.CreatedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -188,6 +200,10 @@ func (queue *Queue) processNextJob(workerID int) {
 	if err != nil {
 		slog.Error("Worker failed to query job", "workerID", workerID, "error", err)
 		return
+	}
+
+	if metadataJSON.Valid {
+		_ = json.Unmarshal([]byte(metadataJSON.String), &job.Metadata)
 	}
 
 	// Mark job as running
@@ -233,12 +249,17 @@ func (queue *Queue) executeJob(job *models.Job) {
 	}
 
 	// Create update function
-	updateFn := func(progress int, message string) {
+	updateProgress := func(progress int, message string, metadata any, metrics JobMetrics) {
+		var metadataJSON []byte
+		if metadata != nil {
+			metadataJSON, _ = json.Marshal(metadata)
+		}
+
 		_, err := queue.database.Exec(`
 			UPDATE jobs
-			SET progress = ?, progress_message_text = ?
+			SET progress = ?, progress_message_text = ?, metadata = ?, input_tokens = ?, output_tokens = ?, estimated_cost = ?
 			WHERE id = ?
-		`, progress, message, job.ID)
+		`, progress, message, string(metadataJSON), metrics.InputTokens, metrics.OutputTokens, metrics.EstimatedCost, job.ID)
 
 		if err != nil {
 			slog.Error("Failed to update job progress", "error", err)
@@ -249,6 +270,10 @@ func (queue *Queue) executeJob(job *models.Job) {
 			Status:              models.JobStatusRunning,
 			Progress:            progress,
 			ProgressMessageText: message,
+			Metadata:            metadata,
+			InputTokens:         metrics.InputTokens,
+			OutputTokens:        metrics.OutputTokens,
+			EstimatedCost:       metrics.EstimatedCost,
 		})
 	}
 
@@ -256,7 +281,7 @@ func (queue *Queue) executeJob(job *models.Job) {
 	context, cancel := context.WithCancel(queue.context)
 	defer cancel()
 
-	err := handler(context, job, updateFn)
+	err := handler(context, job, updateProgress)
 
 	if err != nil {
 		queue.failJob(job.ID, err.Error())
@@ -317,19 +342,25 @@ func (queue *Queue) failJob(jobID, errorMsg string) {
 func (queue *Queue) GetJob(jobID string) (*models.Job, error) {
 	var job models.Job
 	var startedAt, completedAt sql.NullTime
+	var metadataJSON sql.NullString
 
 	err := queue.database.QueryRow(`
-		SELECT id, type, status, progress, progress_message_text, payload, result, error,
-		       created_at, started_at, completed_at
+		SELECT id, type, status, progress, progress_message_text, payload, result, error, metadata,
+		       input_tokens, output_tokens, estimated_cost, created_at, started_at, completed_at
 		FROM jobs
 		WHERE id = ?
 	`, jobID).Scan(
 		&job.ID, &job.Type, &job.Status, &job.Progress, &job.ProgressMessageText,
-		&job.Payload, &job.Result, &job.Error, &job.CreatedAt, &startedAt, &completedAt,
+		&job.Payload, &job.Result, &job.Error, &metadataJSON, &job.InputTokens, &job.OutputTokens, &job.EstimatedCost,
+		&job.CreatedAt, &startedAt, &completedAt,
 	)
 
 	if err != nil {
 		return nil, err
+	}
+
+	if metadataJSON.Valid {
+		_ = json.Unmarshal([]byte(metadataJSON.String), &job.Metadata)
 	}
 
 	if startedAt.Valid {

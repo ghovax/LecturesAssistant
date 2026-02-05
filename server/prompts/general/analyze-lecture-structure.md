@@ -137,7 +137,7 @@ Your outline must be structured as follows, where each section is thoroughly det
 
 {{transcript}}
 
-{{ocr_pages}}
+{{reference_materials}}
 
 ---
 

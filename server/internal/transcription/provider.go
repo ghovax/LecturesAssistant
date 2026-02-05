@@ -16,6 +16,9 @@ type Provider interface {
 	// Transcribe processes an audio file and returns a list of segments
 	Transcribe(context context.Context, audioPath string) ([]Segment, error)
 
+	// SetPrompt sets the instructions for the transcription model
+	SetPrompt(prompt string)
+
 	// CheckDependencies verifies that necessary external tools are installed
 	CheckDependencies() error
 

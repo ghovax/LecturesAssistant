@@ -198,7 +198,8 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 
 	if len(documentFiles) > 0 {
 		server.jobQueue.Enqueue(models.JobTypeIngestDocuments, map[string]string{
-			"lecture_id": lecture.ID,
+			"lecture_id":    lecture.ID,
+			"language_code": server.configuration.LLM.Language,
 		})
 	}
 

@@ -78,8 +78,14 @@ func (provider *OpenRouterProvider) Chat(context context.Context, request ChatRe
 				}
 				if len(response.Choices) > 0 {
 					content := response.Choices[0].Delta.Content
-					if content != "" {
-						responseChannel <- ChatResponseChunk{Text: content}
+					chunk := ChatResponseChunk{Text: content}
+					if response.Usage != nil {
+						chunk.InputTokens = response.Usage.PromptTokens
+						chunk.OutputTokens = response.Usage.CompletionTokens
+						chunk.Cost = response.Usage.Cost
+					}
+					if content != "" || response.Usage != nil {
+						responseChannel <- chunk
 					}
 				}
 			}
@@ -93,7 +99,13 @@ func (provider *OpenRouterProvider) Chat(context context.Context, request ChatRe
 				return
 			}
 			if len(response.Choices) > 0 {
-				responseChannel <- ChatResponseChunk{Text: response.Choices[0].Message.Content.Text}
+				chunk := ChatResponseChunk{
+					Text:         response.Choices[0].Message.Content.Text,
+					InputTokens:  response.Usage.PromptTokens,
+					OutputTokens: response.Usage.CompletionTokens,
+					Cost:         response.Usage.Cost,
+				}
+				responseChannel <- chunk
 			}
 		}
 	}()

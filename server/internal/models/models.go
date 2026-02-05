@@ -119,6 +119,10 @@ type Job struct {
 	Payload             string     `json:"payload"`          // JSON string
 	Result              string     `json:"result,omitempty"` // JSON string
 	Error               string     `json:"error,omitempty"`
+	Metadata            any        `json:"metadata,omitempty"` // Additional context for progress
+	InputTokens         int        `json:"input_tokens,omitempty"`
+	OutputTokens        int        `json:"output_tokens,omitempty"`
+	EstimatedCost       float64    `json:"estimated_cost,omitempty"`
 	CreatedAt           time.Time  `json:"created_at"`
 	StartedAt           *time.Time `json:"started_at,omitempty"`
 	CompletedAt         *time.Time `json:"completed_at,omitempty"`

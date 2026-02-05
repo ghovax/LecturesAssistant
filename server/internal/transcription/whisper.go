@@ -12,6 +12,7 @@ import (
 type WhisperProvider struct {
 	model  string
 	device string
+	prompt string
 }
 
 func NewWhisperProvider(model, device string) *WhisperProvider {
@@ -19,6 +20,10 @@ func NewWhisperProvider(model, device string) *WhisperProvider {
 		model:  model,
 		device: device,
 	}
+}
+
+func (whisper *WhisperProvider) SetPrompt(prompt string) {
+	whisper.prompt = prompt
 }
 
 func (whisper *WhisperProvider) Name() string {
@@ -47,12 +52,22 @@ type whisperSegment struct {
 func (whisper *WhisperProvider) Transcribe(context context.Context, audioPath string) ([]Segment, error) {
 	outputDirectory := filepath.Dir(audioPath)
 
-	command := exec.CommandContext(context, "whisper", audioPath, "--model", whisper.model, "--output_format", "json", "--output_dir", outputDirectory)
+	arguments := []string{
+		audioPath,
+		"--model", whisper.model,
+		"--output_format", "json",
+		"--output_dir", outputDirectory,
+	}
+
+	if whisper.prompt != "" {
+		arguments = append(arguments, "--initial_prompt", whisper.prompt)
+	}
+
+	command := exec.CommandContext(context, "whisper", arguments...)
 
 	if err := command.Run(); err != nil {
 		return nil, fmt.Errorf("whisper execution failed: %w", err)
 	}
-
 	// Read the JSON output file
 	baseName := filepath.Base(audioPath)
 	extension := filepath.Ext(baseName)

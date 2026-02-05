@@ -2,7 +2,7 @@
 
 {{transcript}}
 
-{{ocr_content}}
+{{reference_materials}}
 
 # Structure Outline
 

@@ -236,7 +236,7 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 // Jobs
 func (server *Server) handleListJobs(responseWriter http.ResponseWriter, request *http.Request) {
 	rows, err := server.database.Query(`
-		SELECT id, type, status, progress, progress_message_text, created_at
+		SELECT id, type, status, progress, progress_message_text, input_tokens, output_tokens, estimated_cost, created_at
 		FROM jobs
 		ORDER BY created_at DESC
 		LIMIT 50
@@ -250,10 +250,11 @@ func (server *Server) handleListJobs(responseWriter http.ResponseWriter, request
 	jobs := []map[string]interface{}{}
 	for rows.Next() {
 		var id, jobType, status, progressMsg string
-		var progress int
+		var progress, inputTokens, outputTokens int
+		var estimatedCost float64
 		var createdAt string
 
-		if err := rows.Scan(&id, &jobType, &status, &progress, &progressMsg, &createdAt); err != nil {
+		if err := rows.Scan(&id, &jobType, &status, &progress, &progressMsg, &inputTokens, &outputTokens, &estimatedCost, &createdAt); err != nil {
 			continue
 		}
 
@@ -263,6 +264,9 @@ func (server *Server) handleListJobs(responseWriter http.ResponseWriter, request
 			"status":                status,
 			"progress":              progress,
 			"progress_message_text": progressMsg,
+			"input_tokens":          inputTokens,
+			"output_tokens":         outputTokens,
+			"estimated_cost":        estimatedCost,
 			"created_at":            createdAt,
 		})
 	}

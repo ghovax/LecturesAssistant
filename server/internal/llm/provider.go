@@ -26,8 +26,11 @@ type ChatRequest struct {
 
 // ChatResponseChunk represents a chunk of the streamed response
 type ChatResponseChunk struct {
-	Text  string `json:"text"`
-	Error error  `json:"error,omitempty"`
+	Text         string  `json:"text"`
+	InputTokens  int     `json:"input_tokens,omitempty"`
+	OutputTokens int     `json:"output_tokens,omitempty"`
+	Cost         float64 `json:"cost,omitempty"`
+	Error        error   `json:"error,omitempty"`
 }
 
 // Provider defines the common interface for LLM services

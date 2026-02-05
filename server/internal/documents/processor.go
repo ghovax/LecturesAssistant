@@ -11,17 +11,20 @@ import (
 
 	"lectures/internal/llm"
 	"lectures/internal/models"
+	"lectures/internal/prompts"
 )
 
 type Processor struct {
-	llmProvider llm.Provider
-	llmModel    string
+	llmProvider   llm.Provider
+	llmModel      string
+	promptManager *prompts.Manager
 }
 
-func NewProcessor(llmProvider llm.Provider, llmModel string) *Processor {
+func NewProcessor(llmProvider llm.Provider, llmModel string, promptManager *prompts.Manager) *Processor {
 	return &Processor{
-		llmProvider: llmProvider,
-		llmModel:    llmModel,
+		llmProvider:   llmProvider,
+		llmModel:      llmModel,
+		promptManager: promptManager,
 	}
 }
 
@@ -37,7 +40,7 @@ func (processor *Processor) CheckDependencies() error {
 }
 
 // ProcessDocument extracts pages as images and performs OCR using a Vision LLM
-func (processor *Processor) ProcessDocument(context context.Context, document models.ReferenceDocument, outputDirectory string, updateProgress func(int, string)) ([]models.ReferencePage, error) {
+func (processor *Processor) ProcessDocument(context context.Context, document models.ReferenceDocument, outputDirectory string, languageCode string, updateProgress func(int, string)) ([]models.ReferencePage, error) {
 	if err := os.MkdirAll(outputDirectory, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create output directory: %w", err)
 	}
@@ -60,7 +63,7 @@ func (processor *Processor) ProcessDocument(context context.Context, document mo
 		return nil, fmt.Errorf("unsupported document type: %s", extension)
 	}
 
-	return processor.processPDF(context, pdfPath, document.ID, outputDirectory, updateProgress)
+	return processor.processPDF(context, pdfPath, document.ID, outputDirectory, languageCode, updateProgress)
 }
 
 func (processor *Processor) convertToPDF(inputPath string, outputPath string) error {
@@ -92,7 +95,7 @@ func (processor *Processor) convertToPDF(inputPath string, outputPath string) er
 	return nil
 }
 
-func (processor *Processor) processPDF(context context.Context, pdfPath string, documentID string, outputDirectory string, updateProgress func(int, string)) ([]models.ReferencePage, error) {
+func (processor *Processor) processPDF(context context.Context, pdfPath string, documentID string, outputDirectory string, languageCode string, updateProgress func(int, string)) ([]models.ReferencePage, error) {
 	// gs -dSAFER -dBATCH -dNOPAUSE -sDEVICE=png16m -r150 -sOutputFile=page_%03d.png input.pdf
 	outputPattern := filepath.Join(outputDirectory, "page_%03d.png")
 	command := exec.Command("gs", "-dSAFER", "-dBATCH", "-dNOPAUSE", "-sDEVICE=png16m", "-r150", fmt.Sprintf("-sOutputFile=%s", outputPattern), pdfPath)
@@ -117,7 +120,7 @@ func (processor *Processor) processPDF(context context.Context, pdfPath string, 
 		progress := 10 + int(float64(index)/float64(totalImages)*90.0)
 		updateProgress(progress, fmt.Sprintf("Performing OCR on page %d/%d...", pageNumber, totalImages))
 
-		extractedText, err := processor.performOCR(context, imagePath)
+		extractedText, err := processor.performOCR(context, imagePath, languageCode)
 		if err != nil {
 			extractedText = fmt.Sprintf("[OCR Failed: %v]", err)
 		}
@@ -133,7 +136,7 @@ func (processor *Processor) processPDF(context context.Context, pdfPath string, 
 	return extractedPages, nil
 }
 
-func (processor *Processor) performOCR(context context.Context, imagePath string) (string, error) {
+func (processor *Processor) performOCR(context context.Context, imagePath string, languageCode string) (string, error) {
 	imageData, err := os.ReadFile(imagePath)
 	if err != nil {
 		return "", err
@@ -142,18 +145,21 @@ func (processor *Processor) performOCR(context context.Context, imagePath string
 	base64Image := base64.StdEncoding.EncodeToString(imageData)
 	dataURL := fmt.Sprintf("data:image/png;base64,%s", base64Image)
 
+	ingestPrompt, err := processor.promptManager.GetPrompt(prompts.PromptIngestDocumentPage, map[string]string{
+		"language_requirement": fmt.Sprintf("The response must be written in %s.", languageCode),
+		"latex_instructions":   "", // Optional
+	})
+	if err != nil {
+		return "", err
+	}
+
 	request := llm.ChatRequest{
 		Model: processor.llmModel,
 		Messages: []llm.Message{
 			{
-				Role: "system",
-				Content: []llm.ContentPart{
-					{Type: "text", Text: "You are an OCR assistant. Extract all text from the provided image accurately. Maintain the structure and layout where possible. Do not add any commentary, just provide the extracted text."},
-				},
-			},
-			{
 				Role: "user",
 				Content: []llm.ContentPart{
+					{Type: "text", Text: ingestPrompt},
 					{Type: "image", ImageURL: dataURL},
 				},
 			},

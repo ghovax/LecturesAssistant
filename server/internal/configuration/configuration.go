@@ -39,6 +39,7 @@ type AuthConfiguration struct {
 
 type LLMConfiguration struct {
 	Provider   string                  `yaml:"provider"`
+	Language   string                  `yaml:"language"` // Default language code (e.g. en-US)
 	OpenRouter OpenRouterConfiguration `yaml:"openrouter"`
 	Ollama     OllamaConfiguration     `yaml:"ollama"`
 }
@@ -164,6 +165,7 @@ func defaultConfiguration() *Configuration {
 		},
 		LLM: LLMConfiguration{
 			Provider: "openrouter",
+			Language: "en-US",
 			OpenRouter: OpenRouterConfiguration{
 				DefaultModel: "anthropic/claude-3.5-sonnet",
 			},

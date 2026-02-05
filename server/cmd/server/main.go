@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +23,8 @@ import (
 	"lectures/internal/jobs"
 	"lectures/internal/llm"
 	"lectures/internal/models"
+	"lectures/internal/prompts"
+	"lectures/internal/tools"
 	"lectures/internal/transcription"
 )
 
@@ -63,6 +66,9 @@ func main() {
 	}
 	defer initializedDatabase.Close()
 
+	// Initialize prompt manager
+	promptManager := prompts.NewManager("prompts")
+
 	// Initialize LLM provider
 	var llmProvider llm.Provider
 	switch loadedConfiguration.LLM.Provider {
@@ -86,10 +92,10 @@ func main() {
 		transcriptionProvider = transcription.NewWhisperProvider("base", "auto")
 	}
 
-	transcriptionService := transcription.NewService(loadedConfiguration, transcriptionProvider)
+	transcriptionService := transcription.NewService(loadedConfiguration, transcriptionProvider, llmProvider, promptManager)
 
 	// Initialize document processor
-	documentProcessor := documents.NewProcessor(llmProvider, loadedConfiguration.LLM.OpenRouter.DefaultModel)
+	documentProcessor := documents.NewProcessor(llmProvider, loadedConfiguration.LLM.OpenRouter.DefaultModel, promptManager)
 
 	// Check dependencies
 	if err := transcriptionService.CheckDependencies(); err != nil {
@@ -101,11 +107,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize guide generator
+	guideGenerator := tools.NewGuideGenerator(loadedConfiguration, llmProvider, promptManager)
+
 	// Initialize job queue
 	backgroundJobQueue := jobs.NewQueue(initializedDatabase, 4) // 4 concurrent workers
 
 	// Register job handlers
-	backgroundJobQueue.RegisterHandler(models.JobTypeTranscribeMedia, func(jobContext context.Context, job *models.Job, updateProgress func(int, string)) error {
+	backgroundJobQueue.RegisterHandler(models.JobTypeTranscribeMedia, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, jobs.JobMetrics)) error {
 		var payload struct {
 			LectureID string `json:"lecture_id"`
 		}
@@ -168,7 +177,9 @@ func main() {
 		defer os.RemoveAll(temporaryDirectory)
 
 		// 4. Run transcription
-		segments, err := transcriptionService.TranscribeLecture(jobContext, mediaFiles, temporaryDirectory, updateProgress)
+		segments, err := transcriptionService.TranscribeLecture(jobContext, mediaFiles, temporaryDirectory, func(progress int, message string, metadata any) {
+			updateProgress(progress, "Transcribing media files...", metadata, jobs.JobMetrics{})
+		})
 		if err != nil {
 			initializedDatabase.Exec("UPDATE transcripts SET status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), transcriptID)
 			return fmt.Errorf("transcription service failed: %w", err)
@@ -207,16 +218,21 @@ func main() {
 			return fmt.Errorf("failed to commit transaction: %w", err)
 		}
 
-		updateProgress(100, "Transcription completed successfully")
+		updateProgress(100, "Transcription completed", nil, jobs.JobMetrics{})
 		return nil
 	})
 
-	backgroundJobQueue.RegisterHandler(models.JobTypeIngestDocuments, func(jobContext context.Context, job *models.Job, updateProgress func(int, string)) error {
+	backgroundJobQueue.RegisterHandler(models.JobTypeIngestDocuments, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, jobs.JobMetrics)) error {
 		var payload struct {
-			LectureID string `json:"lecture_id"`
+			LectureID    string `json:"lecture_id"`
+			LanguageCode string `json:"language_code"`
 		}
 		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
 			return fmt.Errorf("failed to unmarshal job payload: %w", err)
+		}
+
+		if payload.LanguageCode == "" {
+			payload.LanguageCode = loadedConfiguration.LLM.Language
 		}
 
 		// 1. Get reference documents for the lecture
@@ -241,7 +257,12 @@ func main() {
 
 		totalDocuments := len(documentsList)
 		for documentIndex, document := range documentsList {
-			updateProgress(int(float64(documentIndex)/float64(totalDocuments)*100), fmt.Sprintf("Processing document: %s (%d/%d)", document.Title, documentIndex+1, totalDocuments))
+			metadata := map[string]any{
+				"document_index":  documentIndex + 1,
+				"total_documents": totalDocuments,
+				"document_title":  document.Title,
+			}
+			updateProgress(int(float64(documentIndex)/float64(totalDocuments)*100), "Ingesting reference documents...", metadata, jobs.JobMetrics{})
 
 			// 2. Update status to processing
 			_, err = initializedDatabase.Exec("UPDATE reference_documents SET extraction_status = ?, updated_at = ? WHERE id = ?", "processing", time.Now(), document.ID)
@@ -253,7 +274,9 @@ func main() {
 			outputDirectory := filepath.Join(loadedConfiguration.Storage.DataDirectory, "files", "lectures", payload.LectureID, "documents", document.ID)
 
 			// 4. Run document processing
-			pages, err := documentProcessor.ProcessDocument(jobContext, document, outputDirectory, updateProgress)
+			pages, err := documentProcessor.ProcessDocument(jobContext, document, outputDirectory, payload.LanguageCode, func(progress int, message string) {
+				updateProgress(progress, "Extracting and processing document pages...", metadata, jobs.JobMetrics{})
+			})
 			if err != nil {
 				initializedDatabase.Exec("UPDATE reference_documents SET extraction_status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), document.ID)
 				return fmt.Errorf("document processor failed for %s: %w", document.Title, err)
@@ -293,7 +316,93 @@ func main() {
 			}
 		}
 
-		updateProgress(100, "Document ingestion completed successfully")
+		updateProgress(100, "Document ingestion completed", nil, jobs.JobMetrics{})
+		return nil
+	})
+	backgroundJobQueue.RegisterHandler(models.JobTypeBuildMaterial, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, jobs.JobMetrics)) error {
+		var payload struct {
+			LectureID    string `json:"lecture_id"`
+			ExamID       string `json:"exam_id"`
+			Length       string `json:"length"`
+			LanguageCode string `json:"language_code"`
+		}
+		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal job payload: %w", err)
+		}
+
+		var lecture models.Lecture
+		err := initializedDatabase.QueryRow("SELECT id, exam_id, title, description FROM lectures WHERE id = ?", payload.LectureID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description)
+		if err != nil {
+			return fmt.Errorf("failed to get lecture: %w", err)
+		}
+
+		rows, err := initializedDatabase.Query(`
+			SELECT text FROM transcript_segments 
+			WHERE transcript_id = (SELECT id FROM transcripts WHERE lecture_id = ?)
+			ORDER BY start_millisecond ASC
+		`, payload.LectureID)
+		if err != nil {
+			return fmt.Errorf("failed to query transcript: %w", err)
+		}
+		defer rows.Close()
+
+		var transcriptBuilder strings.Builder
+		for rows.Next() {
+			var text string
+			if err := rows.Scan(&text); err == nil {
+				transcriptBuilder.WriteString(text + " ")
+			}
+		}
+
+		documentRows, err := initializedDatabase.Query(`
+			SELECT rd.title, rp.page_number, rp.extracted_text
+			FROM reference_documents rd
+			JOIN reference_pages rp ON rd.id = rp.document_id
+			WHERE rd.lecture_id = ?
+			ORDER BY rd.id, rp.page_number ASC
+		`, payload.LectureID)
+		if err != nil {
+			return fmt.Errorf("failed to query reference pages: %w", err)
+		}
+		defer documentRows.Close()
+
+		var referenceContentBuilder strings.Builder
+		currentDocumentTitle := ""
+		for documentRows.Next() {
+			var title, text string
+			var pageNumber int
+			if err := documentRows.Scan(&title, &pageNumber, &text); err == nil {
+				if title != currentDocumentTitle {
+					if referenceContentBuilder.Len() > 0 {
+						referenceContentBuilder.WriteString("\n")
+					}
+					fmt.Fprintf(&referenceContentBuilder, `# Reference File: %s
+
+`, title)
+					currentDocumentTitle = title
+				}
+				fmt.Fprintf(&referenceContentBuilder, `# Page %d
+%s
+
+`, pageNumber, strings.TrimSpace(text))
+			}
+		}
+
+		guideContent, guideTitle, err := guideGenerator.GenerateStudyGuide(jobContext, lecture, transcriptBuilder.String(), referenceContentBuilder.String(), payload.Length, payload.LanguageCode, updateProgress)
+		if err != nil {
+			return fmt.Errorf("guide generation failed: %w", err)
+		}
+
+		toolID := uuid.New().String()
+		_, err = initializedDatabase.Exec(`
+			INSERT INTO tools (id, exam_id, type, title, content, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`, toolID, payload.ExamID, "guide", guideTitle, guideContent, time.Now(), time.Now())
+		if err != nil {
+			return fmt.Errorf("failed to store tool: %w", err)
+		}
+
+		job.Result = fmt.Sprintf(`{"tool_id": "%s"}`, toolID)
 		return nil
 	})
 

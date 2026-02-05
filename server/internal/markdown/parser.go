@@ -2,6 +2,7 @@ package markdown
 
 import (
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -87,9 +88,11 @@ func (parser *Parser) Parse(markdown string) *Node {
 }
 
 func (parser *Parser) unwrapBacktickMath(markdown string) string {
+	// `\(...\)` -> \(...\)
 	inlineRegex := regexp.MustCompile("(?s)`\\\\\\((.*?)\\\\\\)`")
 	markdown = inlineRegex.ReplaceAllString(markdown, "\\($1\\)")
 
+	// `\[...\]` -> \[...\]
 	displayRegex := regexp.MustCompile("(?s)`\\\\\\[(.*?)\\\\\\]`")
 	markdown = displayRegex.ReplaceAllString(markdown, "\\[$1\\]")
 
@@ -98,32 +101,40 @@ func (parser *Parser) unwrapBacktickMath(markdown string) string {
 
 func (parser *Parser) escapeDollarSigns(text string) string {
 	var builder strings.Builder
-	for i := 0; i < len(text); i++ {
-		if text[i] == '$' {
-			if i == 0 || text[i-1] != '\\' {
-				builder.WriteString("\\$")
-				continue
+	runes := []rune(text)
+	for i := range runes {
+		if runes[i] == '$' {
+			// Count backslashes before this dollar sign
+			backslashCount := 0
+			for j := i - 1; j >= 0 && runes[j] == '\\'; j-- {
+				backslashCount++
+			}
+			// If backslash count is even, the dollar is unescaped
+			if backslashCount%2 == 0 {
+				builder.WriteRune('\\')
 			}
 		}
-		builder.WriteByte(text[i])
+		builder.WriteRune(runes[i])
 	}
 	return builder.String()
 }
 
 func (parser *Parser) convertLatexMathDelimiters(markdown string) string {
-	inlineRegex := regexp.MustCompile("(?s)\\\\\\(.*?\\\\\\)")
+	// \(...\) -> $...$
+	inlineRegex := regexp.MustCompile(`(?s)\\\\\(.*?\\\\\)`)
 	markdown = inlineRegex.ReplaceAllStringFunc(markdown, func(match string) string {
 		content := match[2 : len(match)-2]
 		return "$" + strings.TrimSpace(content) + "$"
 	})
 
-	displayRegex := regexp.MustCompile("(?s)\\\\\\[.*?\\\\\\]")
+	// \[...\] -> $$...$$
+	displayRegex := regexp.MustCompile(`(?s)\\\\\[.*?\\\\\]`)
 	markdown = displayRegex.ReplaceAllStringFunc(markdown, func(match string) string {
 		content := match[2 : len(match)-2]
 		return "$$" + strings.TrimSpace(content) + "$$"
 	})
 
-	standaloneRegex := regexp.MustCompile("(?m)^(\\s*)\\$([^$]+)\\$([.,]?)(\\s*)$")
+	standaloneRegex := regexp.MustCompile(`(?m)^(\s*)\$([^$]+)\$([.,]?)(\s*)$`)
 	markdown = standaloneRegex.ReplaceAllString(markdown, "$1$$$2$3$$$4")
 
 	return markdown
@@ -131,12 +142,17 @@ func (parser *Parser) convertLatexMathDelimiters(markdown string) string {
 
 func (parser *Parser) detectIndentationPattern(lines []string) int {
 	indentLevels := make(map[int]int)
-	listRegex := regexp.MustCompile(`^(\s*)([*+-]|\d+\.)\s+`)
+	// Match both unordered and ordered lists (optionally with emphasis markers)
+	listRegex := regexp.MustCompile(`^(\s*)([*+-]|(?:\*{0,2}|_{0,2})\d+\.)\s+`)
 
+	var sortedUniqueLevels []int
 	for _, line := range lines {
 		if match := listRegex.FindStringSubmatch(line); match != nil {
 			indent := len(match[1])
 			if indent > 0 {
+				if indentLevels[indent] == 0 {
+					sortedUniqueLevels = append(sortedUniqueLevels, indent)
+				}
 				indentLevels[indent]++
 			}
 		}
@@ -146,17 +162,120 @@ func (parser *Parser) detectIndentationPattern(lines []string) int {
 		return 4
 	}
 
-	// Simple logic: if 2-space pattern is present anywhere, assume 2-space
-	if indentLevels[2] > 0 || indentLevels[6] > 0 {
-		return 2
+	sort.Ints(sortedUniqueLevels)
+
+	// Arithmetic progression check (from TS)
+	if len(sortedUniqueLevels) >= 2 { // At least 2 levels needed to define a diff (0, diff, 2*diff)
+		diff := sortedUniqueLevels[0] // First level relative to 0
+		if len(sortedUniqueLevels) >= 2 {
+			diff = sortedUniqueLevels[1] - sortedUniqueLevels[0]
+		}
+
+		isConsistent := true
+		for i := 1; i < len(sortedUniqueLevels); i++ {
+			if sortedUniqueLevels[i]-sortedUniqueLevels[i-1] != diff {
+				isConsistent = false
+				break
+			}
+		}
+		if isConsistent && diff > 0 {
+			return diff
+		}
 	}
-	return 4
+
+	// Weighted frequency check
+	totalCount := 0
+	for _, count := range indentLevels {
+		totalCount += count
+	}
+
+	twoSpaceScore := 0.0
+	fourSpaceScore := 0.0
+
+	for level, count := range indentLevels {
+		weight := float64(count) / float64(totalCount)
+		if level%4 == 0 {
+			fourSpaceScore += weight
+		} else if level%2 == 0 {
+			twoSpaceScore += weight
+		}
+	}
+
+	if fourSpaceScore > 0.6 || fourSpaceScore > twoSpaceScore {
+		return 4
+	}
+	return 2
+}
+
+func (parser *Parser) splitByPipesOutsideMath(line string) []string {
+	var cells []string
+	var currentCell strings.Builder
+	inInlineMath := false
+	inDisplayMath := false
+
+	runes := []rune(line)
+	for i := 0; i < len(runes); i++ {
+		char := runes[i]
+
+		// Check for $$
+		if char == '$' && i+1 < len(runes) && runes[i+1] == '$' {
+			inDisplayMath = !inDisplayMath
+			currentCell.WriteRune(char)
+			currentCell.WriteRune(runes[i+1])
+			i++
+			continue
+		}
+
+		// Check for $
+		if char == '$' && !inDisplayMath {
+			inInlineMath = !inInlineMath
+			currentCell.WriteRune(char)
+			continue
+		}
+
+		// Split on | only if not inside math
+		if char == '|' && !inInlineMath && !inDisplayMath {
+			trimmed := strings.TrimSpace(currentCell.String())
+			if trimmed != "" {
+				cells = append(cells, trimmed)
+			}
+			currentCell.Reset()
+		} else {
+			currentCell.WriteRune(char)
+		}
+	}
+
+	trimmed := strings.TrimSpace(currentCell.String())
+	if trimmed != "" {
+		cells = append(cells, trimmed)
+	}
+
+	return cells
 }
 
 func (parser *Parser) parseMarkdownElement(line string) *Node {
 	trimmed := strings.TrimSpace(line)
 	if trimmed == "" || trimmed == "---" {
 		return nil
+	}
+
+	// Check for equation with footnote reference: $...$ [^N] or $$...$$ [^N]
+	// Go regexp doesn't support backreferences (\1), so we use a more explicit approach
+	if strings.Contains(trimmed, "[^") {
+		// Try display equation with footnote
+		if match := regexp.MustCompile(`^\$\$([^$]+)\$\$\s*(\[\^\d+\][.,]?)(.*)$`).FindStringSubmatch(trimmed); match != nil {
+			return &Node{
+				Type:    NodeDisplayEquation,
+				Content: strings.TrimSpace(match[1]),
+			}
+		}
+		// Try inline equation with footnote
+		if match := regexp.MustCompile(`^\$([^$]+)\$\s*(\[\^\d+\][.,]?)(.*)$`).FindStringSubmatch(trimmed); match != nil {
+			return &Node{
+				Type:    NodeDisplayEquation,
+				Content: strings.TrimSpace(match[1]),
+			}
+		}
 	}
 
 	headingRegex := regexp.MustCompile(`^(#{1,6})\s+(.+)$`)
@@ -179,13 +298,24 @@ func (parser *Parser) parseMarkdownElement(line string) *Node {
 		}
 	}
 
-	orderedRegex := regexp.MustCompile(`^(\s*)(\d+)\.\s+(.+)$`)
+	// Ordered list item (handles cases like "1. A", "*1. A:", and "**1. A:**")
+	orderedRegex := regexp.MustCompile(`^(\s*)(\*{0,2}|_{0,2})(\d+)\.(\*{0,2}|_{0,2})\s+(.*)$`)
 	if match := orderedRegex.FindStringSubmatch(line); match != nil {
-		depth := len(match[1]) / parser.indentUnit
-		index, _ := strconv.Atoi(match[2])
+		indentLength := len(match[1])
+		prefixAsterisks := match[2]
+		index, _ := strconv.Atoi(match[3])
+		suffixAsterisks := match[4]
+		content := prefixAsterisks + suffixAsterisks + match[5]
+
+		indentUnit := parser.indentUnit
+		if indentUnit == 0 {
+			indentUnit = 4
+		}
+		depth := indentLength / indentUnit
+
 		return &Node{
 			Type:     NodeListItem,
-			Content:  match[3],
+			Content:  content,
 			Depth:    depth,
 			ListType: ListOrdered,
 			Index:    index,
@@ -327,7 +457,7 @@ func (parser *Parser) parseTable(lines []string, startIndex int) (*Node, int) {
 		return nil, startIndex
 	}
 
-	headerCells := parser.splitTableLine(headerLine)
+	headerCells := parser.splitByPipesOutsideMath(headerLine)
 	var rows []*TableRow
 	rows = append(rows, &TableRow{Cells: headerCells, IsHeader: true})
 
@@ -337,7 +467,7 @@ func (parser *Parser) parseTable(lines []string, startIndex int) (*Node, int) {
 		if !strings.Contains(line, "|") || line == "" {
 			break
 		}
-		cells := parser.splitTableLine(line)
+		cells := parser.splitByPipesOutsideMath(line)
 		rows = append(rows, &TableRow{Cells: cells, IsHeader: false})
 		currentIndex++
 	}
@@ -346,15 +476,6 @@ func (parser *Parser) parseTable(lines []string, startIndex int) (*Node, int) {
 		Type: NodeTable,
 		Rows: rows,
 	}, currentIndex - 1
-}
-
-func (parser *Parser) splitTableLine(line string) []string {
-	parts := strings.Split(strings.Trim(line, "|"), "|")
-	var cells []string
-	for _, p := range parts {
-		cells = append(cells, strings.TrimSpace(p))
-	}
-	return cells
 }
 
 func (parser *Parser) parseFootnote(lines []string, startIndex int) (*Node, int) {

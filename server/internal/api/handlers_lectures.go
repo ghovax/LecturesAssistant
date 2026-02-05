@@ -22,7 +22,7 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	pathVariables := mux.Vars(request)
 	examIdentifier := pathVariables["examId"]
 
-	// Parse multipart form (max 5GB total for everything)
+	// Parse multipart form (maximum 5GB total for everything)
 	if err := request.ParseMultipartForm(5120 << 20); err != nil {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Failed to parse form or files too large", nil)
 		return
@@ -174,10 +174,15 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 			return
 		}
 
+		// Normalize title: replace spaces and dashes with underscores
+		normalizedTitle := fileHeader.Filename
+		normalizedTitle = strings.ReplaceAll(normalizedTitle, " ", "_")
+		normalizedTitle = strings.ReplaceAll(normalizedTitle, "-", "_")
+
 		_, err = transaction.Exec(`
 			INSERT INTO reference_documents (id, lecture_id, document_type, title, file_path, page_count, extraction_status, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, documentIdentifier, lecture.ID, documentType, fileHeader.Filename, documentFilePath, 0, "pending", time.Now(), time.Now())
+		`, documentIdentifier, lecture.ID, documentType, normalizedTitle, documentFilePath, 0, "pending", time.Now(), time.Now())
 
 		if err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to create document record", nil)

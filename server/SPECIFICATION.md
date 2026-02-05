@@ -1058,7 +1058,7 @@ transcription:
 
 documents:
   render_dots_per_inch: 150       # Resolution for rendering document pages to images
-  maximum_pages: 500               # Max pages per document
+  maximum_pages: 500               # maximum pages per document
   supported_formats: [pdf, pptx, docx]
 
 storage:

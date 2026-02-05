@@ -406,8 +406,10 @@ func (server *Server) getLectureContext(sessionID string) string {
 
 func (server *Server) processAIResponse(sessionID string, history []llm.Message, lectureContext string) {
 	// Prepare system prompt
+	latexInstructions, _ := server.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+
 	systemPrompt, promptError := server.promptManager.GetPrompt(prompts.PromptReadingAssistantMultiChat, map[string]string{
-		"latex_instructions": "", // Optional
+		"latex_instructions": latexInstructions,
 	})
 	if promptError != nil {
 		slog.Error("Failed to load system prompt", "error", promptError)
@@ -474,13 +476,18 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 		})
 	}
 
+	// Post-process response: Parse citations and convert to standard footnotes
+	markdownReconstructor = markdown.NewReconstructor()
+	finalContent, citations := markdownReconstructor.ParseCitations(completeResponseBuilder.String())
+	finalContent = markdownReconstructor.AppendCitations(finalContent, citations)
+
 	// Save complete response
 	assistantMessage := models.ChatMessage{
 		ID:        uuid.New().String(),
 		SessionID: sessionID,
 		Role:      "assistant",
-		Content:   completeResponseBuilder.String(),
-		ModelUsed: server.configuration.LLM.OpenRouter.DefaultModel,
+		Content:   finalContent,
+		ModelUsed: model,
 		CreatedAt: time.Now(),
 	}
 

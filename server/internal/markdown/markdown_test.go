@@ -194,3 +194,237 @@ func TestListNestingStructure(tester *testing.T) {
 		tester.Errorf("Expected 'Back to 0' depth 0, got '%s' depth %d", backToRootItem.Content, backToRootItem.Depth)
 	}
 }
+
+func TestTableWithMath(tester *testing.T) {
+	markdownContent := `| Heading 1 | Heading 2 |
+| --- | --- |
+| $a | b$ | Cell 2 |`
+
+	markdownParser := NewParser()
+	documentAST := markdownParser.Parse(markdownContent)
+
+	if len(documentAST.Children) != 1 {
+		tester.Fatalf("Expected 1 child (Table), got %d", len(documentAST.Children))
+	}
+
+	table := documentAST.Children[0]
+	if table.Type != NodeTable {
+		tester.Fatalf("Expected NodeTable, got %s", table.Type)
+	}
+
+	if len(table.Rows) != 2 {
+		tester.Fatalf("Expected 2 rows, got %d", len(table.Rows))
+	}
+
+	// Verify the math cell didn't split on the pipe
+	mathRow := table.Rows[1]
+	if len(mathRow.Cells) != 2 {
+		tester.Errorf("Expected 2 cells in math row, got %d. Cell contents: %v", len(mathRow.Cells), mathRow.Cells)
+	} else if mathRow.Cells[0] != `\$a | b\$` {
+		tester.Errorf("Expected cell 1 to be `\\$a | b\\$`, got '%s'", mathRow.Cells[0])
+	}
+}
+
+func TestFootnoteSpaceTrimming(tester *testing.T) {
+	markdownContent := "Some text [^1]"
+
+	markdownParser := NewParser()
+	documentAST := markdownParser.Parse(markdownContent)
+
+	markdownReconstructor := NewReconstructor()
+	reconstructed := markdownReconstructor.Reconstruct(documentAST)
+
+	expected := "Some text[^1]\n"
+	if reconstructed != expected {
+		tester.Errorf("Expected footnote space to be trimmed. \nExpected: %q\nGot:      %q", expected, reconstructed)
+	}
+}
+
+func TestArithmeticProgressionIndentation(tester *testing.T) {
+	// Pattern: 0, 3, 6 (Consistent 3-space difference)
+	lines := []string{
+		"- Level 0",
+		"   - Level 1",
+		"      - Level 2",
+	}
+
+	markdownParser := NewParser()
+	indent := markdownParser.detectIndentationPattern(lines)
+
+	if indent != 3 {
+		tester.Errorf("Expected indent unit 3 from arithmetic progression, got %d", indent)
+	}
+}
+
+func TestEscapeDollarSigns(tester *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Simple dollar",
+			input:    "$100",
+			expected: `\$100`,
+		},
+		{
+			name:     "Already escaped",
+			input:    `\$100`,
+			expected: `\$100`,
+		},
+		{
+			name:     "Double backslash even parity",
+			input:    `\\$100`, // The \\ escapes each other, the $ is raw
+			expected: `\\\$100`,
+		},
+		{
+			name:     "Triple backslash odd parity",
+			input:    `\\\$100`, // The first two escape each other, the third escapes the $
+			expected: `\\\$100`,
+		},
+	}
+
+	markdownParser := NewParser()
+	for _, testCase := range testCases {
+		tester.Run(testCase.name, func(subTester *testing.T) {
+			result := markdownParser.escapeDollarSigns(testCase.input)
+			if result != testCase.expected {
+				subTester.Errorf("Expected: %s, Got: %s", testCase.expected, result)
+			}
+		})
+	}
+}
+
+func TestIndentationDetectionRobustness(tester *testing.T) {
+	markdownParser := NewParser()
+	lines := []string{"- Item 1", "  - Item 1.1", "  - Item 1.2", "- Item 2", "    - Item 2.1", "    - Item 2.2"}
+
+	// Should favor 2-space if frequency is higher or clear multiple
+	indent := markdownParser.detectIndentationPattern(lines)
+	if indent != 2 {
+		tester.Errorf("Expected indent unit 2, got %d", indent)
+	}
+}
+
+func TestCitationRobustness(tester *testing.T) {
+	reconstructor := NewReconstructor()
+
+	testCases := []struct {
+		name              string
+		input             string
+		expectedMarkdown  string
+		expectedCitations []ParsedCitation
+	}{
+		{
+			name:             "Simple citation",
+			input:            "Referencing {{{Desc-file.pdf-p1}}}",
+			expectedMarkdown: "Referencing [^1]",
+			expectedCitations: []ParsedCitation{
+				{Number: 1, Description: "Desc", File: "file.pdf", Pages: []int{1}},
+			},
+		},
+		{
+			name:             "Description with dashes",
+			input:            "Referencing {{{A-complex-desc-file.pdf-p1}}}",
+			expectedMarkdown: "Referencing [^1]",
+			expectedCitations: []ParsedCitation{
+				{Number: 1, Description: "A-complex-desc", File: "file.pdf", Pages: []int{1}},
+			},
+		},
+		{
+			name:             "File with dots and no pages",
+			input:            "Referencing {{{Desc-my.file.name.pdf}}}",
+			expectedMarkdown: "Referencing [^1]",
+			expectedCitations: []ParsedCitation{
+				{Number: 1, Description: "Desc", File: "my.file.name.pdf", Pages: nil},
+			},
+		},
+		{
+			name:             "Multiple citations",
+			input:            "First {{{D1-f1.pdf-p1}}} and second {{{D2-f2.pdf-p2}}}",
+			expectedMarkdown: "First [^1] and second [^2]",
+			expectedCitations: []ParsedCitation{
+				{Number: 1, Description: "D1", File: "f1.pdf", Pages: []int{1}},
+				{Number: 2, Description: "D2", File: "f2.pdf", Pages: []int{2}},
+			},
+		},
+		{
+			name:             "Page range",
+			input:            "Range {{{Desc-file.pdf-p1-3}}}",
+			expectedMarkdown: "Range [^1]",
+			expectedCitations: []ParsedCitation{
+				{Number: 1, Description: "Desc", File: "file.pdf", Pages: []int{1, 2, 3}},
+			},
+		},
+		{
+			name:             "Complex pages",
+			input:            "Complex {{{Desc-file.pdf-p1, 3, 5-7}}}",
+			expectedMarkdown: "Complex [^1]",
+			expectedCitations: []ParsedCitation{
+				{Number: 1, Description: "Desc", File: "file.pdf", Pages: []int{1, 3, 5, 6, 7}},
+			},
+		},
+		{
+			name:             "Messy spacing",
+			input:            "Messy {{{  Desc  -  file.pdf  -p1  }}}",
+			expectedMarkdown: "Messy [^1]",
+			expectedCitations: []ParsedCitation{
+				{Number: 1, Description: "Desc", File: "file.pdf", Pages: []int{1}},
+			},
+		},
+		{
+			name:             "Filename with underscore",
+			input:            "Referencing {{{Description-file_name.pdf-p1}}}",
+			expectedMarkdown: "Referencing [^1]",
+			expectedCitations: []ParsedCitation{
+				{Number: 1, Description: "Description", File: "file_name.pdf", Pages: []int{1}},
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		tester.Run(testCase.name, func(subTester *testing.T) {
+			md, citations := reconstructor.ParseCitations(testCase.input)
+			if md != testCase.expectedMarkdown {
+				subTester.Errorf("Markdown mismatch. Expected: %q, Got: %q", testCase.expectedMarkdown, md)
+			}
+			if len(citations) != len(testCase.expectedCitations) {
+				subTester.Fatalf("Citation count mismatch. Expected: %d, Got: %d", len(testCase.expectedCitations), len(citations))
+			}
+			for i := range citations {
+				if citations[i].Description != testCase.expectedCitations[i].Description {
+					subTester.Errorf("Citation %d description mismatch. Expected: %q, Got: %q", i, testCase.expectedCitations[i].Description, citations[i].Description)
+				}
+				if citations[i].File != testCase.expectedCitations[i].File {
+					subTester.Errorf("Citation %d file mismatch. Expected: %q, Got: %q", i, testCase.expectedCitations[i].File, citations[i].File)
+				}
+				if len(citations[i].Pages) != len(testCase.expectedCitations[i].Pages) {
+					subTester.Errorf("Citation %d pages count mismatch. Expected: %v, Got: %v", i, testCase.expectedCitations[i].Pages, citations[i].Pages)
+				} else {
+					for j := range citations[i].Pages {
+						if citations[i].Pages[j] != testCase.expectedCitations[i].Pages[j] {
+							subTester.Errorf("Citation %d page %d mismatch. Expected: %d, Got: %d", i, j, testCase.expectedCitations[i].Pages[j], citations[i].Pages[j])
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestListEmphasisNumbering(tester *testing.T) {
+	markdownContent := `**1.** Item One
+**2.** Item Two`
+
+	markdownParser := NewParser()
+	documentAST := markdownParser.Parse(markdownContent)
+
+	if len(documentAST.Children) != 2 {
+		tester.Fatalf("Expected 2 list items, got %d", len(documentAST.Children))
+	}
+
+	item := documentAST.Children[0]
+	if item.Type != NodeListItem || item.Index != 1 {
+		tester.Errorf("Expected list item index 1, got %s index %d", item.Type, item.Index)
+	}
+}

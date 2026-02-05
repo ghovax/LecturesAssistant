@@ -99,9 +99,23 @@ func (client *WSClient) isSubscribed(channel string) bool {
 
 // handleWebSocket handles the WebSocket connection upgrade
 func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, request *http.Request) {
-	conn, err := upgrader.Upgrade(responseWriter, request, nil)
-	if err != nil {
-		slog.Error("WebSocket upgrade failed", "error", err)
+	sessionToken := server.getSessionToken(request)
+	if sessionToken == "" {
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTH_ERROR", "Authentication required", nil)
+		return
+	}
+
+	// Verify session
+	var expiresAt time.Time
+	databaseError := server.database.QueryRow("SELECT expires_at FROM auth_sessions WHERE id = ?", sessionToken).Scan(&expiresAt)
+	if databaseError != nil || time.Now().After(expiresAt) {
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTH_ERROR", "Invalid or expired session", nil)
+		return
+	}
+
+	conn, upgradeError := upgrader.Upgrade(responseWriter, request, nil)
+	if upgradeError != nil {
+		slog.Error("WebSocket upgrade failed", "error", upgradeError)
 		return
 	}
 

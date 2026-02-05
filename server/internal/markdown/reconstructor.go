@@ -2,6 +2,7 @@ package markdown
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -21,7 +22,41 @@ func NewReconstructor() *Reconstructor {
 func (reconstructor *Reconstructor) Reconstruct(node *Node) string {
 	var lines []string
 	reconstructor.reconstructNode(node, &lines)
+
+	result := strings.Join(lines, "\n")
+
+	// Remove spaces before footnote references: "text [^1]" -> "text[^1]"
+	result = strings.ReplaceAll(result, " [^", "[^")
+
+	return strings.TrimSpace(result) + "\n"
+}
+
+// AppendCitations appends footnote definitions to the end of the markdown content
+func (reconstructor *Reconstructor) AppendCitations(content string, citations []ParsedCitation) string {
+	if len(citations) == 0 {
+		return content
+	}
+
+	var lines []string
+	lines = append(lines, strings.TrimSpace(content))
+
+	for _, citation := range citations {
+		reconstructor.reconstructNode(&Node{
+			Type:           NodeFootnote,
+			FootnoteNumber: citation.Number,
+			Content:        citation.Description,
+			SourceFile:     citation.File,
+			SourcePages:    citation.Pages,
+		}, &lines)
+	}
+
 	return strings.Join(lines, "\n")
+}
+
+func (reconstructor *Reconstructor) ensureBlankLine(lines *[]string) {
+	if len(*lines) > 0 && (*lines)[len(*lines)-1] != "" {
+		*lines = append(*lines, "")
+	}
 }
 
 func (reconstructor *Reconstructor) reconstructNode(node *Node, lines *[]string) {
@@ -37,55 +72,66 @@ func (reconstructor *Reconstructor) reconstructNode(node *Node, lines *[]string)
 
 	case NodeSection:
 		if node.Title != "" {
-			if len(*lines) > 0 && (*lines)[len(*lines)-1] != "" {
-				*lines = append(*lines, "")
-			}
+			reconstructor.ensureBlankLine(lines)
 			*lines = append(*lines, fmt.Sprintf("%s %s", strings.Repeat("#", node.Level), node.Title))
-			*lines = append(*lines, "")
 		}
 		for _, child := range node.Children {
 			reconstructor.reconstructNode(child, lines)
 		}
 
 	case NodeParagraph:
-		if len(*lines) > 0 && (*lines)[len(*lines)-1] != "" {
-			*lines = append(*lines, "")
-		}
+		reconstructor.ensureBlankLine(lines)
 		*lines = append(*lines, node.Content)
-		*lines = append(*lines, "")
 
 	case NodeHeading:
-		if len(*lines) > 0 && (*lines)[len(*lines)-1] != "" {
-			*lines = append(*lines, "")
-		}
+		reconstructor.ensureBlankLine(lines)
 		*lines = append(*lines, fmt.Sprintf("%s %s", strings.Repeat("#", node.Level), node.Content))
-		*lines = append(*lines, "")
 
 	case NodeListItem:
+		// Items in a list don't strictly need blank lines between them unless they are "loose"
+		// We'll follow the rule: top-level list (depth 0) first item gets a blank line before it.
+		// Consecutive list items at the same depth don't get blank lines.
 		indent := strings.Repeat(" ", node.Depth*reconstructor.indentUnit)
 		bullet := "- "
 		if node.ListType == ListOrdered {
 			bullet = fmt.Sprintf("%d. ", node.Index)
 		}
+
+		// If it's a top-level list, ensure there's a blank line before the whole list
+		if node.Depth == 0 && len(*lines) > 0 && !strings.HasPrefix(strings.TrimSpace((*lines)[len(*lines)-1]), "-") && !regexp.MustCompile(`^\d+\.`).MatchString(strings.TrimSpace((*lines)[len(*lines)-1])) {
+			reconstructor.ensureBlankLine(lines)
+		}
+
 		*lines = append(*lines, fmt.Sprintf("%s%s%s", indent, bullet, node.Content))
 		for _, child := range node.Children {
 			reconstructor.reconstructNode(child, lines)
 		}
-		if node.Depth == 0 {
-			*lines = append(*lines, "")
+
+	case NodeFootnote:
+		reconstructor.ensureBlankLine(lines)
+
+		footnoteText := node.Content
+		if node.SourceFile != "" {
+			pageInfo := ""
+			if len(node.SourcePages) > 0 {
+				formattedPages := FormatPageNumbers(node.SourcePages)
+				if len(node.SourcePages) == 1 {
+					pageInfo = ", p. " + formattedPages
+				} else {
+					pageInfo = ", pp. " + formattedPages
+				}
+			}
+			footnoteText = fmt.Sprintf("%s (`%s` %s)", footnoteText, node.SourceFile, pageInfo)
 		}
+
+		*lines = append(*lines, fmt.Sprintf("[^%d]: %s", node.FootnoteNumber, footnoteText))
 
 	case NodeTable:
-		if len(*lines) > 0 && (*lines)[len(*lines)-1] != "" {
-			*lines = append(*lines, "")
-		}
+		reconstructor.ensureBlankLine(lines)
 		reconstructor.reconstructTable(node, lines)
-		*lines = append(*lines, "")
 
 	case NodeDisplayEquation:
-		if len(*lines) > 0 && (*lines)[len(*lines)-1] != "" {
-			*lines = append(*lines, "")
-		}
+		reconstructor.ensureBlankLine(lines)
 		if node.IsMultiline {
 			*lines = append(*lines, "$$")
 			*lines = append(*lines, node.Content)
@@ -93,23 +139,16 @@ func (reconstructor *Reconstructor) reconstructNode(node *Node, lines *[]string)
 		} else {
 			*lines = append(*lines, fmt.Sprintf("$$%s$$", node.Content))
 		}
-		*lines = append(*lines, "")
 
 	case NodeCodeBlock:
-		if len(*lines) > 0 && (*lines)[len(*lines)-1] != "" {
-			*lines = append(*lines, "")
-		}
+		reconstructor.ensureBlankLine(lines)
 		*lines = append(*lines, "```")
 		*lines = append(*lines, node.Content)
 		*lines = append(*lines, "```")
-		*lines = append(*lines, "")
 
 	case NodeHorizontalRule:
-		if len(*lines) > 0 && (*lines)[len(*lines)-1] != "" {
-			*lines = append(*lines, "")
-		}
+		reconstructor.ensureBlankLine(lines)
 		*lines = append(*lines, "---")
-		*lines = append(*lines, "")
 	}
 }
 

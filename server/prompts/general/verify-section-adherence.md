@@ -40,10 +40,12 @@ Evaluate whether the generated section content:
 
 ## Output Format
 
-Return your evaluation in the following format:
+Return your evaluation as a valid JSON object with a single field "coverage_score".
 
-```
-<coverage_score>[Number from 1-100]</coverage_score>
+```json
+{
+  "coverage_score": [Number from 1-100]
+}
 ```
 
 **Coverage Score Guidelines:**
@@ -134,5 +136,4 @@ Return your evaluation in the following format:
 **Important:**
 
 - The `coverage_score` must be a number between 1 and 100
-
-Return **only** the specified format above, with no additional text or formatting.
+- Return **only** the JSON object, with no additional text, explanation, or meta-commentary.

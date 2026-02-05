@@ -98,9 +98,32 @@ func (converter *Converter) HTMLToPDF(htmlContent string, outputPath string, opt
 		"-o", outputPath,
 	}
 
-	switch options.Language {
-	case "ja", "ko", "zh":
-		arguments = append(arguments, "-V", "CJKmainfont=Noto Serif CJK SC")
+	// Add font settings based on language
+	languageFontMap := map[string]struct {
+		mainfont   string
+		cjkOptions string
+	}{
+		"ja": {mainfont: "Noto Serif JP", cjkOptions: "AutoFakeBold"},
+		"ko": {mainfont: "Noto Serif KR", cjkOptions: "AutoFakeBold"},
+		"zh": {mainfont: "Noto Serif SC", cjkOptions: "AutoFakeBold"},
+		"ar": {mainfont: "Noto Serif Arabic", cjkOptions: ""},
+		"he": {mainfont: "Noto Serif Hebrew", cjkOptions: ""},
+		"th": {mainfont: "Noto Serif Thai", cjkOptions: ""},
+		"hi": {mainfont: "Noto Serif Devanagari", cjkOptions: ""},
+		"bn": {mainfont: "Noto Serif Bengali", cjkOptions: ""},
+		"ta": {mainfont: "Noto Serif Tamil", cjkOptions: ""},
+		"hy": {mainfont: "Noto Serif Armenian", cjkOptions: ""},
+		"ka": {mainfont: "Noto Serif Georgian", cjkOptions: ""},
+		"ru": {mainfont: "Noto Serif", cjkOptions: ""},
+	}
+
+	if fontInfo, ok := languageFontMap[options.Language]; ok {
+		if fontInfo.mainfont != "" {
+			arguments = append(arguments, "-V", "mainfont="+fontInfo.mainfont)
+		}
+		if fontInfo.cjkOptions != "" {
+			arguments = append(arguments, "-V", "CJKoptions="+fontInfo.cjkOptions)
+		}
 	}
 
 	command := exec.Command("pandoc", arguments...)

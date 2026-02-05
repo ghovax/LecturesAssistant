@@ -49,6 +49,9 @@ type Node struct {
 	Children       []*Node          `json:"children,omitempty"`
 	Rows           []*TableRow      `json:"rows,omitempty"`
 	Alignments     []TableAlignment `json:"alignments,omitempty"`
+	// Metadata for citations/footnotes
+	SourceFile  string `json:"source_file,omitempty"`
+	SourcePages []int  `json:"source_pages,omitempty"`
 }
 
 // TableRow represents a row in a markdown table

@@ -22,7 +22,7 @@ func (provider *OpenRouterProvider) Name() string {
 	return "openrouter"
 }
 
-func (provider *OpenRouterProvider) Chat(context context.Context, request ChatRequest) (<-chan ChatResponseChunk, error) {
+func (provider *OpenRouterProvider) Chat(jobContext context.Context, request ChatRequest) (<-chan ChatResponseChunk, error) {
 	responseChannel := make(chan ChatResponseChunk)
 
 	var chatMessages []openrouter.ChatCompletionMessage
@@ -56,7 +56,7 @@ func (provider *OpenRouterProvider) Chat(context context.Context, request ChatRe
 		defer close(responseChannel)
 
 		if request.Stream {
-			stream, err := provider.client.CreateChatCompletionStream(context, openrouter.ChatCompletionRequest{
+			stream, err := provider.client.CreateChatCompletionStream(jobContext, openrouter.ChatCompletionRequest{
 				Model:    request.Model,
 				Messages: chatMessages,
 				Stream:   true,
@@ -90,7 +90,7 @@ func (provider *OpenRouterProvider) Chat(context context.Context, request ChatRe
 				}
 			}
 		} else {
-			response, err := provider.client.CreateChatCompletion(context, openrouter.ChatCompletionRequest{
+			response, err := provider.client.CreateChatCompletion(jobContext, openrouter.ChatCompletionRequest{
 				Model:    request.Model,
 				Messages: chatMessages,
 			})

@@ -437,11 +437,24 @@ func main() {
 			return fmt.Errorf("tool generation failed: %w", genErr)
 		}
 
+		// Parse citations and convert to standard footnotes
+
+		finalToolContent, citations := markdownReconstructor.ParseCitations(toolContent)
+
+		// If it's a guide, append the footnote definitions to the end
+
+		if payload.Type == "guide" {
+
+			finalToolContent = markdownReconstructor.AppendCitations(finalToolContent, citations)
+
+		}
+
 		toolID := uuid.New().String()
+
 		_, err = initializedDatabase.Exec(`
 			INSERT INTO tools (id, exam_id, type, title, content, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, toolID, payload.ExamID, payload.Type, toolTitle, toolContent, time.Now(), time.Now())
+		`, toolID, payload.ExamID, payload.Type, toolTitle, finalToolContent, time.Now(), time.Now())
 		if err != nil {
 			return fmt.Errorf("failed to store tool: %w", err)
 		}

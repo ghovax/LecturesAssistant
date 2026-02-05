@@ -1,0 +1,163 @@
+package markdown
+
+import (
+	"fmt"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+)
+
+// ParsedCitation represents metadata extracted from a {{{...}}} marker
+type ParsedCitation struct {
+	Number      int
+	Description string
+	File        string
+	Pages       []int
+}
+
+func (reconstructor *Reconstructor) ParseCitations(text string) (string, []ParsedCitation) {
+	// Refined regex:
+	// 1. {{{
+	// 2. (.*) - non-greedy match for everything until the last dash before either a -p or the closing }}}
+	// 3. (?:-(p[\d\s\-,]+))? - optional page marker starting with -p
+	// 4. \s*}}}
+	// Actually, a simpler way to handle "description-file-p1" where description has dashes
+	// is to match the whole content and then split it from the end.
+
+	citationRegex := regexp.MustCompile(`\{\{\{(.*?)\s*\}\}\}`)
+	matches := citationRegex.FindAllStringSubmatch(text, -1)
+
+	var citations []ParsedCitation
+	result := text
+
+	for i, match := range matches {
+		fullMatch := match[0]
+		content := strings.TrimSpace(match[1])
+
+		// Split logic:
+		// We expect [description]-[file]-p[pages] or [description]-[file]
+		// Let's find if there is a -p[digits] at the end
+
+		var description, filename, pageString string
+
+		pageRegex := regexp.MustCompile(`-p([\d\s\-,]+)$`)
+		pageMatch := pageRegex.FindStringSubmatch(content)
+
+		remaining := content
+		if pageMatch != nil {
+			pageString = pageMatch[1]
+			remaining = content[:len(content)-len(pageMatch[0])]
+		}
+
+		// Now remaining should be [description]-[file]
+		// Since filenames are normalized to not contain dashes, the last dash
+		// must be the separator between description and filename.
+		lastDash := strings.LastIndex(remaining, "-")
+
+		if lastDash != -1 {
+			description = strings.TrimSpace(remaining[:lastDash])
+			filename = strings.TrimSpace(remaining[lastDash+1:])
+		} else {
+			// Fallback if no dash found
+			description = remaining
+			filename = "unknown"
+		}
+
+		citationNumber := i + 1
+		pages := parsePageString(pageString)
+
+		citations = append(citations, ParsedCitation{
+			Number:      citationNumber,
+			Description: description,
+			File:        filename,
+			Pages:       pages,
+		})
+
+		// Replace marker with [^N]
+		result = strings.Replace(result, fullMatch, fmt.Sprintf("[^%d]", citationNumber), 1)
+	}
+
+	return result, citations
+}
+
+// parsePageString converts "1, 2, 5-10" to []int{1, 2, 5, 6, 7, 8, 9, 10}
+func parsePageString(pageString string) []int {
+	var pages []int
+	if pageString == "" {
+		return pages
+	}
+
+	parts := strings.Split(pageString, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		part = strings.TrimPrefix(part, "p")
+
+		if strings.Contains(part, "-") {
+			rangeParts := strings.Split(part, "-")
+			if len(rangeParts) == 2 {
+				start, _ := strconv.Atoi(strings.TrimSpace(rangeParts[0]))
+				end, _ := strconv.Atoi(strings.TrimSpace(rangeParts[1]))
+				if start > 0 && end >= start {
+					for i := start; i <= end; i++ {
+						pages = append(pages, i)
+					}
+				}
+			}
+		} else {
+			pageNum, _ := strconv.Atoi(part)
+			if pageNum > 0 {
+				pages = append(pages, pageNum)
+			}
+		}
+	}
+	return pages
+}
+
+// FormatPageNumbers converts []int{1, 2, 3, 5} to "1–3, 5"
+func FormatPageNumbers(pages []int) string {
+	if len(pages) == 0 {
+		return ""
+	}
+
+	// Deduplicate and sort
+	uniqueMap := make(map[int]bool)
+	for _, p := range pages {
+		uniqueMap[p] = true
+	}
+	var sortedPages []int
+	for p := range uniqueMap {
+		sortedPages = append(sortedPages, p)
+	}
+	sort.Ints(sortedPages)
+
+	var ranges []string
+	if len(sortedPages) == 0 {
+		return ""
+	}
+
+	rangeStart := sortedPages[0]
+	rangeEnd := sortedPages[0]
+
+	for i := 1; i < len(sortedPages); i++ {
+		if sortedPages[i] == rangeEnd+1 {
+			rangeEnd = sortedPages[i]
+		} else {
+			if rangeStart == rangeEnd {
+				ranges = append(ranges, strconv.Itoa(rangeStart))
+			} else {
+				ranges = append(ranges, fmt.Sprintf("%d–%d", rangeStart, rangeEnd))
+			}
+			rangeStart = sortedPages[i]
+			rangeEnd = sortedPages[i]
+		}
+	}
+
+	if rangeStart == rangeEnd {
+		ranges = append(ranges, strconv.Itoa(rangeStart))
+	} else {
+		ranges = append(ranges, fmt.Sprintf("%d–%d", rangeStart, rangeEnd))
+	}
+
+	return strings.Join(ranges, ", ")
+}

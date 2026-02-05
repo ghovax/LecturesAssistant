@@ -86,7 +86,7 @@ Your outline must be structured as follows, where each section is thoroughly det
    - Real-world applications or implications discussed
    - Any analogies, metaphors, or teaching aids used by the lecturer
 4. **Concept-Level Emphasis Analysis:** For each concept in the **Introduces** field, you must analyze and assign an emphasis level based on:
-   - **Time spent**: Approximate duration the professor discussed this concept (ranges: <5 min = Low, 5-10 min = Medium, >10 min = High)
+   - **Time spent**: Approximate duration the professor discussed this concept (ranges: <5 minimum = Low, 5-10 minimum = Medium, >10 minimum = High)
    - **Informational depth**: Amount of detail, explanations, and elaborations provided
    - **Examples and demonstrations**: Number of examples or case studies given
    - **Repetition and emphasis**: Whether the professor returned to this concept multiple times or explicitly emphasized its importance

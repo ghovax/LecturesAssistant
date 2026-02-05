@@ -175,9 +175,11 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 }
 
 func (service *Service) cleanupTranscriptChunk(jobContext context.Context, rawText string) (string, error) {
+	latexInstructions, _ := service.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+
 	cleanupPrompt, err := service.promptManager.GetPrompt(prompts.PromptCleanTranscript, map[string]string{
 		"transcript":         rawText,
-		"latex_instructions": "", // Optional
+		"latex_instructions": latexInstructions,
 	})
 	if err != nil {
 		return "", err

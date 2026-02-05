@@ -211,22 +211,22 @@ func (server *Server) handleListLectures(responseWriter http.ResponseWriter, req
 	pathVariables := mux.Vars(request)
 	examIdentifier := pathVariables["examId"]
 
-	rows, err := server.database.Query(`
+	lectureRows, databaseError := server.database.Query(`
 		SELECT id, exam_id, title, description, created_at, updated_at
 		FROM lectures
 		WHERE exam_id = ?
 		ORDER BY created_at DESC
 	`, examIdentifier)
-	if err != nil {
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list lectures", nil)
 		return
 	}
-	defer rows.Close()
+	defer lectureRows.Close()
 
 	lectures := []models.Lecture{}
-	for rows.Next() {
+	for lectureRows.Next() {
 		var lecture models.Lecture
-		if err := rows.Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.CreatedAt, &lecture.UpdatedAt); err != nil {
+		if err := lectureRows.Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.CreatedAt, &lecture.UpdatedAt); err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to scan lecture", nil)
 			return
 		}
@@ -368,26 +368,26 @@ func (server *Server) handleGetTranscript(responseWriter http.ResponseWriter, re
 	}
 
 	// Get segments in order
-	rows, err := server.database.Query(`
+	transcriptRows, databaseError := server.database.Query(`
 		SELECT id, transcript_id, media_id, start_millisecond, end_millisecond, text, confidence, speaker
 		FROM transcript_segments
 		WHERE transcript_id = ?
 		ORDER BY start_millisecond ASC
 	`, transcriptID)
-	if err != nil {
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get segments", nil)
 		return
 	}
-	defer rows.Close()
+	defer transcriptRows.Close()
 
 	var segments []map[string]any
-	for rows.Next() {
+	for transcriptRows.Next() {
 		var id int
 		var transcriptID, mediaID, text, speaker sql.NullString
 		var startMs, endMs int64
 		var confidence sql.NullFloat64
 
-		if err := rows.Scan(&id, &transcriptID, &mediaID, &startMs, &endMs, &text, &confidence, &speaker); err != nil {
+		if err := transcriptRows.Scan(&id, &transcriptID, &mediaID, &startMs, &endMs, &text, &confidence, &speaker); err != nil {
 			continue
 		}
 

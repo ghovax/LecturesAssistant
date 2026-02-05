@@ -22,6 +22,7 @@ import (
 	"lectures/internal/documents"
 	"lectures/internal/jobs"
 	"lectures/internal/llm"
+	"lectures/internal/markdown"
 	"lectures/internal/models"
 	"lectures/internal/prompts"
 	"lectures/internal/tools"
@@ -97,6 +98,9 @@ func main() {
 	// Initialize document processor
 	documentProcessor := documents.NewProcessor(llmProvider, loadedConfiguration.LLM.OpenRouter.DefaultModel, promptManager)
 
+	// Initialize markdown converter
+	markdownConverter := markdown.NewConverter(loadedConfiguration.Storage.DataDirectory)
+
 	// Check dependencies
 	if err := transcriptionService.CheckDependencies(); err != nil {
 		slog.Error("Transcription dependencies check failed", "error", err)
@@ -105,6 +109,9 @@ func main() {
 	if err := documentProcessor.CheckDependencies(); err != nil {
 		slog.Error("Document processor dependencies check failed", "error", err)
 		os.Exit(1)
+	}
+	if err := markdownConverter.CheckDependencies(); err != nil {
+		slog.Warn("Markdown converter dependencies check failed (PDF export may not work)", "error", err)
 	}
 
 	// Initialize guide generator
@@ -123,21 +130,21 @@ func main() {
 		}
 
 		// 1. Get lecture media files in order
-		rows, err := initializedDatabase.Query(`
+		mediaRows, databaseError := initializedDatabase.Query(`
 			SELECT id, lecture_id, media_type, sequence_order, file_path, created_at
 			FROM lecture_media
 			WHERE lecture_id = ?
 			ORDER BY sequence_order ASC
 		`, payload.LectureID)
-		if err != nil {
-			return fmt.Errorf("failed to query media files: %w", err)
+		if databaseError != nil {
+			return fmt.Errorf("failed to query media files: %w", databaseError)
 		}
-		defer rows.Close()
+		defer mediaRows.Close()
 
 		var mediaFiles []models.LectureMedia
-		for rows.Next() {
+		for mediaRows.Next() {
 			var media models.LectureMedia
-			if err := rows.Scan(&media.ID, &media.LectureID, &media.MediaType, &media.SequenceOrder, &media.FilePath, &media.CreatedAt); err != nil {
+			if err := mediaRows.Scan(&media.ID, &media.LectureID, &media.MediaType, &media.SequenceOrder, &media.FilePath, &media.CreatedAt); err != nil {
 				return fmt.Errorf("failed to scan media file: %w", err)
 			}
 			mediaFiles = append(mediaFiles, media)
@@ -236,20 +243,20 @@ func main() {
 		}
 
 		// 1. Get reference documents for the lecture
-		rows, err := initializedDatabase.Query(`
+		documentRows, databaseError := initializedDatabase.Query(`
 			SELECT id, lecture_id, document_type, title, file_path, page_count, extraction_status, created_at, updated_at
 			FROM reference_documents
 			WHERE lecture_id = ?
 		`, payload.LectureID)
-		if err != nil {
-			return fmt.Errorf("failed to query documents: %w", err)
+		if databaseError != nil {
+			return fmt.Errorf("failed to query documents: %w", databaseError)
 		}
-		defer rows.Close()
+		defer documentRows.Close()
 
 		var documentsList []models.ReferenceDocument
-		for rows.Next() {
+		for documentRows.Next() {
 			var document models.ReferenceDocument
-			if err := rows.Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt); err != nil {
+			if err := documentRows.Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt); err != nil {
 				return fmt.Errorf("failed to scan document: %w", err)
 			}
 			documentsList = append(documentsList, document)
@@ -319,6 +326,7 @@ func main() {
 		updateProgress(100, "Document ingestion completed", nil, jobs.JobMetrics{})
 		return nil
 	})
+
 	backgroundJobQueue.RegisterHandler(models.JobTypeBuildMaterial, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, jobs.JobMetrics)) error {
 		var payload struct {
 			LectureID    string `json:"lecture_id"`
@@ -336,59 +344,67 @@ func main() {
 			return fmt.Errorf("failed to get lecture: %w", err)
 		}
 
-		rows, err := initializedDatabase.Query(`
+		transcriptRows, databaseError := initializedDatabase.Query(`
 			SELECT text FROM transcript_segments 
 			WHERE transcript_id = (SELECT id FROM transcripts WHERE lecture_id = ?)
 			ORDER BY start_millisecond ASC
 		`, payload.LectureID)
-		if err != nil {
-			return fmt.Errorf("failed to query transcript: %w", err)
+		if databaseError != nil {
+			return fmt.Errorf("failed to query transcript: %w", databaseError)
 		}
-		defer rows.Close()
+		defer transcriptRows.Close()
 
 		var transcriptBuilder strings.Builder
-		for rows.Next() {
+		for transcriptRows.Next() {
 			var text string
-			if err := rows.Scan(&text); err == nil {
+			if err := transcriptRows.Scan(&text); err == nil {
 				transcriptBuilder.WriteString(text + " ")
 			}
 		}
 
-		documentRows, err := initializedDatabase.Query(`
-			SELECT rd.title, rp.page_number, rp.extracted_text
-			FROM reference_documents rd
-			JOIN reference_pages rp ON rd.id = rp.document_id
-			WHERE rd.lecture_id = ?
-			ORDER BY rd.id, rp.page_number ASC
+		documentRows, databaseError := initializedDatabase.Query(`
+			SELECT reference_documents.title, reference_pages.page_number, reference_pages.extracted_text
+			FROM reference_documents
+			JOIN reference_pages ON reference_documents.id = reference_pages.document_id
+			WHERE reference_documents.lecture_id = ?
+			ORDER BY reference_documents.id, reference_pages.page_number ASC
 		`, payload.LectureID)
-		if err != nil {
-			return fmt.Errorf("failed to query reference pages: %w", err)
+		if databaseError != nil {
+			return fmt.Errorf("failed to query reference pages: %w", databaseError)
 		}
 		defer documentRows.Close()
 
-		var referenceContentBuilder strings.Builder
+		markdownReconstructor := markdown.NewReconstructor()
+		rootNode := &markdown.Node{Type: markdown.NodeDocument}
 		currentDocumentTitle := ""
+
 		for documentRows.Next() {
 			var title, text string
 			var pageNumber int
 			if err := documentRows.Scan(&title, &pageNumber, &text); err == nil {
 				if title != currentDocumentTitle {
-					if referenceContentBuilder.Len() > 0 {
-						referenceContentBuilder.WriteString("\n")
-					}
-					fmt.Fprintf(&referenceContentBuilder, `# Reference File: %s
-
-`, title)
+					rootNode.Children = append(rootNode.Children, &markdown.Node{
+						Type:    markdown.NodeHeading,
+						Level:   1,
+						Content: "Reference File: " + title,
+					})
 					currentDocumentTitle = title
 				}
-				fmt.Fprintf(&referenceContentBuilder, `# Page %d
-%s
-
-`, pageNumber, strings.TrimSpace(text))
+				rootNode.Children = append(rootNode.Children, &markdown.Node{
+					Type:    markdown.NodeHeading,
+					Level:   2,
+					Content: fmt.Sprintf("Page %d", pageNumber),
+				})
+				rootNode.Children = append(rootNode.Children, &markdown.Node{
+					Type:    markdown.NodeParagraph,
+					Content: strings.TrimSpace(text),
+				})
 			}
 		}
 
-		guideContent, guideTitle, err := guideGenerator.GenerateStudyGuide(jobContext, lecture, transcriptBuilder.String(), referenceContentBuilder.String(), payload.Length, payload.LanguageCode, updateProgress)
+		referenceFilesContent := markdownReconstructor.Reconstruct(rootNode)
+
+		guideContent, guideTitle, err := guideGenerator.GenerateStudyGuide(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.Length, payload.LanguageCode, updateProgress)
 		if err != nil {
 			return fmt.Errorf("guide generation failed: %w", err)
 		}
@@ -403,6 +419,48 @@ func main() {
 		}
 
 		job.Result = fmt.Sprintf(`{"tool_id": "%s"}`, toolID)
+		return nil
+	})
+
+	backgroundJobQueue.RegisterHandler(models.JobTypePublishMaterial, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, jobs.JobMetrics)) error {
+		var payload struct {
+			ToolID string `json:"tool_id"`
+		}
+		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal job payload: %w", err)
+		}
+
+		var tool models.Tool
+		err := initializedDatabase.QueryRow("SELECT id, type, title, content, created_at FROM tools WHERE id = ?", payload.ToolID).Scan(&tool.ID, &tool.Type, &tool.Title, &tool.Content, &tool.CreatedAt)
+		if err != nil {
+			return fmt.Errorf("failed to get tool: %w", err)
+		}
+
+		exportDirectory := filepath.Join(loadedConfiguration.Storage.DataDirectory, "files", "exports", tool.ID)
+		if err := os.MkdirAll(exportDirectory, 0755); err != nil {
+			return fmt.Errorf("failed to create export directory: %w", err)
+		}
+		pdfPath := filepath.Join(exportDirectory, "export.pdf")
+
+		updateProgress(20, "Converting markdown to HTML...", nil, jobs.JobMetrics{})
+		htmlContent, err := markdownConverter.MarkdownToHTML(tool.Content)
+		if err != nil {
+			return fmt.Errorf("failed to convert to HTML: %w", err)
+		}
+
+		updateProgress(50, "Generating PDF document...", nil, jobs.JobMetrics{})
+		options := markdown.ConversionOptions{
+			Language:     loadedConfiguration.LLM.Language,
+			CreationDate: tool.CreatedAt,
+		}
+
+		err = markdownConverter.HTMLToPDF(htmlContent, pdfPath, options)
+		if err != nil {
+			return fmt.Errorf("failed to generate PDF: %w", err)
+		}
+
+		updateProgress(100, "Export completed", map[string]string{"pdf_path": pdfPath}, jobs.JobMetrics{})
+		job.Result = fmt.Sprintf(`{"pdf_path": "%s"}`, pdfPath)
 		return nil
 	})
 

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"lectures/internal/llm"
+	"lectures/internal/markdown"
 	"lectures/internal/models"
 	"lectures/internal/prompts"
 
@@ -27,15 +28,15 @@ func (server *Server) handleCreateChatSession(responseWriter http.ResponseWriter
 		Title string `json:"title"`
 	}
 
-	if err := json.NewDecoder(request.Body).Decode(&createSessionRequest); err != nil {
+	if decodeError := json.NewDecoder(request.Body).Decode(&createSessionRequest); decodeError != nil {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
 		return
 	}
 
 	// Verify exam exists
 	var examExists bool
-	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ?)", examIdentifier).Scan(&examExists)
-	if err != nil || !examExists {
+	databaseError := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ?)", examIdentifier).Scan(&examExists)
+	if databaseError != nil || !examExists {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
 		return
 	}
@@ -48,35 +49,35 @@ func (server *Server) handleCreateChatSession(responseWriter http.ResponseWriter
 		UpdatedAt: time.Now(),
 	}
 
-	transaction, err := server.database.Begin()
-	if err != nil {
+	databaseTransaction, databaseError := server.database.Begin()
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to start transaction", nil)
 		return
 	}
-	defer transaction.Rollback()
+	defer databaseTransaction.Rollback()
 
-	_, err = transaction.Exec(`
+	_, databaseError = databaseTransaction.Exec(`
 		INSERT INTO chat_sessions (id, exam_id, title, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?)
 	`, session.ID, session.ExamID, session.Title, session.CreatedAt, session.UpdatedAt)
 
-	if err != nil {
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to create chat session", nil)
 		return
 	}
 
 	// Initialize empty context config
-	_, err = transaction.Exec(`
-		INSERT INTO chat_context_configuration (session_id, included_lecture_ids, included_tool_ids)
+	_, databaseError = databaseTransaction.Exec(`
+		INSERT INTO chat_context_config (session_id, included_lecture_ids, included_tool_ids)
 		VALUES (?, ?, ?)
 	`, session.ID, "[]", "[]")
 
-	if err != nil {
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to initialize chat context", nil)
 		return
 	}
 
-	if err := transaction.Commit(); err != nil {
+	if commitError := databaseTransaction.Commit(); commitError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to commit transaction", nil)
 		return
 	}
@@ -89,22 +90,22 @@ func (server *Server) handleListChatSessions(responseWriter http.ResponseWriter,
 	pathVariables := mux.Vars(request)
 	examIdentifier := pathVariables["examId"]
 
-	rows, err := server.database.Query(`
+	sessionRows, databaseError := server.database.Query(`
 		SELECT id, exam_id, title, created_at, updated_at
 		FROM chat_sessions
 		WHERE exam_id = ?
 		ORDER BY updated_at DESC
 	`, examIdentifier)
-	if err != nil {
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list chat sessions", nil)
 		return
 	}
-	defer rows.Close()
+	defer sessionRows.Close()
 
 	var sessions []models.ChatSession
-	for rows.Next() {
+	for sessionRows.Next() {
 		var session models.ChatSession
-		if err := rows.Scan(&session.ID, &session.ExamID, &session.Title, &session.CreatedAt, &session.UpdatedAt); err != nil {
+		if scanError := sessionRows.Scan(&session.ID, &session.ExamID, &session.Title, &session.CreatedAt, &session.UpdatedAt); scanError != nil {
 			continue
 		}
 		sessions = append(sessions, session)
@@ -119,52 +120,52 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 	sessionIdentifier := pathVariables["sessionId"]
 
 	var session models.ChatSession
-	err := server.database.QueryRow(`
+	databaseError := server.database.QueryRow(`
 		SELECT id, exam_id, title, created_at, updated_at
 		FROM chat_sessions
 		WHERE id = ?
 	`, sessionIdentifier).Scan(&session.ID, &session.ExamID, &session.Title, &session.CreatedAt, &session.UpdatedAt)
 
-	if err == sql.ErrNoRows {
+	if databaseError == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Chat session not found", nil)
 		return
 	}
-	if err != nil {
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get chat session", nil)
 		return
 	}
 
 	// Get context config
 	var includedLectureIDsJSON, includedToolIDsJSON string
-	err = server.database.QueryRow(`
+	databaseError = server.database.QueryRow(`
 		SELECT included_lecture_ids, included_tool_ids 
-		FROM chat_context_configuration 
+		FROM chat_context_config 
 		WHERE session_id = ?
 	`, sessionIdentifier).Scan(&includedLectureIDsJSON, &includedToolIDsJSON)
 
 	var includedLectureIDs, includedToolIDs []string
-	if err == nil {
+	if databaseError == nil {
 		json.Unmarshal([]byte(includedLectureIDsJSON), &includedLectureIDs)
 		json.Unmarshal([]byte(includedToolIDsJSON), &includedToolIDs)
 	}
 
 	// Get messages
-	rows, err := server.database.Query(`
+	messageRows, databaseError := server.database.Query(`
 		SELECT id, session_id, role, content, model_used, created_at
 		FROM chat_messages
 		WHERE session_id = ?
 		ORDER BY created_at ASC
 	`, sessionIdentifier)
-	if err != nil {
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get messages", nil)
 		return
 	}
-	defer rows.Close()
+	defer messageRows.Close()
 
 	var messages []models.ChatMessage
-	for rows.Next() {
+	for messageRows.Next() {
 		var message models.ChatMessage
-		if err := rows.Scan(&message.ID, &message.SessionID, &message.Role, &message.Content, &message.ModelUsed, &message.CreatedAt); err != nil {
+		if scanError := messageRows.Scan(&message.ID, &message.SessionID, &message.Role, &message.Content, &message.ModelUsed, &message.CreatedAt); scanError != nil {
 			continue
 		}
 		messages = append(messages, message)
@@ -185,8 +186,8 @@ func (server *Server) handleDeleteChatSession(responseWriter http.ResponseWriter
 	pathVariables := mux.Vars(request)
 	sessionIdentifier := pathVariables["sessionId"]
 
-	result, err := server.database.Exec("DELETE FROM chat_sessions WHERE id = ?", sessionIdentifier)
-	if err != nil {
+	result, databaseError := server.database.Exec("DELETE FROM chat_sessions WHERE id = ?", sessionIdentifier)
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete chat session", nil)
 		return
 	}
@@ -210,7 +211,7 @@ func (server *Server) handleUpdateChatContext(responseWriter http.ResponseWriter
 		IncludedToolIDs    []string `json:"included_tool_ids"`
 	}
 
-	if err := json.NewDecoder(request.Body).Decode(&updateContextRequest); err != nil {
+	if decodeError := json.NewDecoder(request.Body).Decode(&updateContextRequest); decodeError != nil {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
 		return
 	}
@@ -218,13 +219,13 @@ func (server *Server) handleUpdateChatContext(responseWriter http.ResponseWriter
 	lectureIDsJSON, _ := json.Marshal(updateContextRequest.IncludedLectureIDs)
 	toolIDsJSON, _ := json.Marshal(updateContextRequest.IncludedToolIDs)
 
-	_, err := server.database.Exec(`
+	_, databaseError := server.database.Exec(`
 		UPDATE chat_context_config
 		SET included_lecture_ids = ?, included_tool_ids = ?
 		WHERE session_id = ?
 	`, string(lectureIDsJSON), string(toolIDsJSON), sessionIdentifier)
 
-	if err != nil {
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to update chat context", nil)
 		return
 	}
@@ -241,7 +242,7 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 		Content string `json:"content"`
 	}
 
-	if err := json.NewDecoder(request.Body).Decode(&sendMessageRequest); err != nil {
+	if decodeError := json.NewDecoder(request.Body).Decode(&sendMessageRequest); decodeError != nil {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
 		return
 	}
@@ -253,8 +254,8 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 
 	// 1. Verify session and save user message
 	var session models.ChatSession
-	err := server.database.QueryRow("SELECT id, exam_id FROM chat_sessions WHERE id = ?", sessionIdentifier).Scan(&session.ID, &session.ExamID)
-	if err != nil {
+	databaseError := server.database.QueryRow("SELECT id, exam_id FROM chat_sessions WHERE id = ?", sessionIdentifier).Scan(&session.ID, &session.ExamID)
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Chat session not found", nil)
 		return
 	}
@@ -267,12 +268,12 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 		CreatedAt: time.Now(),
 	}
 
-	_, err = server.database.Exec(`
+	_, databaseError = server.database.Exec(`
 		INSERT INTO chat_messages (id, session_id, role, content, created_at)
 		VALUES (?, ?, ?, ?, ?)
 	`, userMessage.ID, userMessage.SessionID, userMessage.Role, userMessage.Content, userMessage.CreatedAt)
 
-	if err != nil {
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to save user message", nil)
 		return
 	}
@@ -288,20 +289,20 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 }
 
 func (server *Server) getChatHistory(sessionID string) []llm.Message {
-	rows, err := server.database.Query(`
+	messageRows, databaseError := server.database.Query(`
 		SELECT role, content FROM chat_messages 
 		WHERE session_id = ? 
 		ORDER BY created_at ASC
 	`, sessionID)
-	if err != nil {
+	if databaseError != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer messageRows.Close()
 
 	var messages []llm.Message
-	for rows.Next() {
+	for messageRows.Next() {
 		var role, content string
-		if err := rows.Scan(&role, &content); err == nil {
+		if scanError := messageRows.Scan(&role, &content); scanError == nil {
 			messages = append(messages, llm.Message{
 				Role: role,
 				Content: []llm.ContentPart{
@@ -315,8 +316,8 @@ func (server *Server) getChatHistory(sessionID string) []llm.Message {
 
 func (server *Server) getLectureContext(sessionID string) string {
 	var includedLectureIDsJSON string
-	err := server.database.QueryRow("SELECT included_lecture_ids FROM chat_context_configuration WHERE session_id = ?", sessionID).Scan(&includedLectureIDsJSON)
-	if err != nil {
+	databaseError := server.database.QueryRow("SELECT included_lecture_ids FROM chat_context_config WHERE session_id = ?", sessionID).Scan(&includedLectureIDsJSON)
+	if databaseError != nil {
 		return ""
 	}
 
@@ -327,84 +328,123 @@ func (server *Server) getLectureContext(sessionID string) string {
 		return ""
 	}
 
-	var contextBuilder strings.Builder
+	markdownReconstructor := markdown.NewReconstructor()
+	rootNode := &markdown.Node{Type: markdown.NodeDocument}
+
 	for _, lectureID := range includedLectureIDs {
 		var title string
 		server.database.QueryRow("SELECT title FROM lectures WHERE id = ?", lectureID).Scan(&title)
 
-		contextBuilder.WriteString(fmt.Sprintf("\n# Document: %s\n", title))
+		rootNode.Children = append(rootNode.Children, &markdown.Node{
+			Type:    markdown.NodeHeading,
+			Level:   1,
+			Content: title,
+		})
 
 		// Add transcript
-		rows, err := server.database.Query(`
+		transcriptRows, databaseError := server.database.Query(`
 			SELECT text FROM transcript_segments 
 			WHERE transcript_id = (SELECT id FROM transcripts WHERE lecture_id = ?)
 			ORDER BY start_millisecond ASC
 		`, lectureID)
-		if err == nil {
-			for rows.Next() {
+		if databaseError == nil {
+			var transcriptBuilder strings.Builder
+			for transcriptRows.Next() {
 				var text string
-				if err := rows.Scan(&text); err == nil {
-					contextBuilder.WriteString(text + " ")
+				if scanError := transcriptRows.Scan(&text); scanError == nil {
+					transcriptBuilder.WriteString(text + " ")
 				}
 			}
-			rows.Close()
+			transcriptRows.Close()
+			if transcriptBuilder.Len() > 0 {
+				rootNode.Children = append(rootNode.Children, &markdown.Node{
+					Type:    markdown.NodeParagraph,
+					Content: strings.TrimSpace(transcriptBuilder.String()),
+				})
+			}
 		}
 
 		// Add reference documents
-		docRows, err := server.database.Query(`
-			SELECT rd.title, rp.page_number, rp.extracted_text
-			FROM reference_documents rd
-			JOIN reference_pages rp ON rd.id = rp.document_id
-			WHERE rd.lecture_id = ?
-			ORDER BY rd.id, rp.page_number ASC
+		documentRows, databaseError := server.database.Query(`
+			SELECT reference_documents.title, reference_pages.page_number, reference_pages.extracted_text
+			FROM reference_documents
+			JOIN reference_pages ON reference_documents.id = reference_pages.document_id
+			WHERE reference_documents.lecture_id = ?
+			ORDER BY reference_documents.id, reference_pages.page_number ASC
 		`, lectureID)
-		if err == nil {
+		if databaseError == nil {
 			currentDocTitle := ""
-			for docRows.Next() {
+			for documentRows.Next() {
 				var title, text string
 				var pageNumber int
-				if err := docRows.Scan(&title, &pageNumber, &text); err == nil {
+				if scanError := documentRows.Scan(&title, &pageNumber, &text); scanError == nil {
 					if title != currentDocTitle {
-						contextBuilder.WriteString(fmt.Sprintf("\n## Reference File: %s\n", title))
+						rootNode.Children = append(rootNode.Children, &markdown.Node{
+							Type:    markdown.NodeHeading,
+							Level:   2,
+							Content: "Reference File: " + title,
+						})
 						currentDocTitle = title
 					}
-					contextBuilder.WriteString(fmt.Sprintf("\n### Page %d\n%s\n", pageNumber, text))
+					rootNode.Children = append(rootNode.Children, &markdown.Node{
+						Type:    markdown.NodeHeading,
+						Level:   3,
+						Content: fmt.Sprintf("Page %d", pageNumber),
+					})
+					rootNode.Children = append(rootNode.Children, &markdown.Node{
+						Type:    markdown.NodeParagraph,
+						Content: strings.TrimSpace(text),
+					})
 				}
 			}
-			docRows.Close()
+			documentRows.Close()
 		}
 	}
 
-	return contextBuilder.String()
+	return markdownReconstructor.Reconstruct(rootNode)
 }
 
 func (server *Server) processAIResponse(sessionID string, history []llm.Message, lectureContext string) {
 	// Prepare system prompt
-	systemPrompt, err := server.promptManager.GetPrompt(prompts.PromptReadingAssistantMultiChat, map[string]string{
+	systemPrompt, promptError := server.promptManager.GetPrompt(prompts.PromptReadingAssistantMultiChat, map[string]string{
 		"latex_instructions": "", // Optional
 	})
-	if err != nil {
-		slog.Error("Failed to load system prompt", "error", err)
+	if promptError != nil {
+		slog.Error("Failed to load system prompt", "error", promptError)
 		return
 	}
 
-	// Add lecture context to system prompt or first message
+	markdownReconstructor := markdown.NewReconstructor()
+	rootNode := &markdown.Node{Type: markdown.NodeDocument}
+
+	// Add the base system prompt as a paragraph
+	rootNode.Children = append(rootNode.Children, &markdown.Node{
+		Type:    markdown.NodeParagraph,
+		Content: systemPrompt,
+	})
+
+	// Add lecture context if available
 	if lectureContext != "" {
-		systemPrompt += "\n\nContext from lectures:\n" + lectureContext
+		// Parse and append the lectureContext (which is already markdown reconstructed)
+		contextParser := markdown.NewParser()
+		contextAST := contextParser.Parse(lectureContext)
+		rootNode.Children = append(rootNode.Children, contextAST.Children...)
 	}
 
+	finalSystemPrompt := markdownReconstructor.Reconstruct(rootNode)
+
 	fullMessages := append([]llm.Message{
-		{Role: "system", Content: []llm.ContentPart{{Type: "text", Text: systemPrompt}}},
+		{Role: "system", Content: []llm.ContentPart{{Type: "text", Text: finalSystemPrompt}}},
 	}, history...)
 
-	responseChannel, err := server.llmProvider.Chat(context.Background(), llm.ChatRequest{
+	responseChannel, chatError := server.llmProvider.Chat(context.Background(), llm.ChatRequest{
 		Model:    server.configuration.LLM.OpenRouter.DefaultModel,
 		Messages: fullMessages,
 		Stream:   true,
 	})
 
-	if err != nil {
-		slog.Error("LLM chat failed", "error", err)
+	if chatError != nil {
+		slog.Error("LLM chat failed", "error", chatError)
 		return
 	}
 
@@ -439,13 +479,13 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 		CreatedAt: time.Now(),
 	}
 
-	_, err = server.database.Exec(`
+	_, databaseError := server.database.Exec(`
 		INSERT INTO chat_messages (id, session_id, role, content, model_used, created_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, assistantMessage.ID, assistantMessage.SessionID, assistantMessage.Role, assistantMessage.Content, assistantMessage.ModelUsed, assistantMessage.CreatedAt)
 
-	if err != nil {
-		slog.Error("Failed to save assistant message", "error", err)
+	if databaseError != nil {
+		slog.Error("Failed to save assistant message", "error", databaseError)
 	}
 
 	// Broadcast complete message

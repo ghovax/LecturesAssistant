@@ -8,26 +8,26 @@ import (
 
 // handleListJobs lists recent background jobs
 func (server *Server) handleListJobs(responseWriter http.ResponseWriter, request *http.Request) {
-	rows, err := server.database.Query(`
+	jobRows, databaseError := server.database.Query(`
 		SELECT id, type, status, progress, progress_message_text, input_tokens, output_tokens, estimated_cost, created_at
 		FROM jobs
 		ORDER BY created_at DESC
 		LIMIT 50
 	`)
-	if err != nil {
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list jobs", nil)
 		return
 	}
-	defer rows.Close()
+	defer jobRows.Close()
 
 	var jobsList []map[string]any
-	for rows.Next() {
+	for jobRows.Next() {
 		var id, jobType, status, progressMsg string
 		var progress, inputTokens, outputTokens int
 		var estimatedCost float64
 		var createdAt string
 
-		if err := rows.Scan(&id, &jobType, &status, &progress, &progressMsg, &inputTokens, &outputTokens, &estimatedCost, &createdAt); err != nil {
+		if err := jobRows.Scan(&id, &jobType, &status, &progress, &progressMsg, &inputTokens, &outputTokens, &estimatedCost, &createdAt); err != nil {
 			continue
 		}
 

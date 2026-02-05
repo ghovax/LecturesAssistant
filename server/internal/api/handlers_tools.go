@@ -92,17 +92,17 @@ func (server *Server) handleListTools(responseWriter http.ResponseWriter, reques
 
 	query += " ORDER BY created_at DESC"
 
-	rows, err := server.database.Query(query, arguments...)
-	if err != nil {
+	toolRows, databaseError := server.database.Query(query, arguments...)
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list tools", nil)
 		return
 	}
-	defer rows.Close()
+	defer toolRows.Close()
 
 	var toolsList []models.Tool
-	for rows.Next() {
+	for toolRows.Next() {
 		var tool models.Tool
-		if err := rows.Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.CreatedAt, &tool.UpdatedAt); err != nil {
+		if err := toolRows.Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.CreatedAt, &tool.UpdatedAt); err != nil {
 			continue
 		}
 		toolsList = append(toolsList, tool)

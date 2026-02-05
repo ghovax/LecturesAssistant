@@ -56,19 +56,32 @@ func (generator *GuideGenerator) GenerateStudyGuide(jobContext context.Context, 
 	metrics.OutputTokens += structureMetrics.OutputTokens
 	metrics.EstimatedCost += structureMetrics.EstimatedCost
 
+	reconstructor := markdown.NewReconstructor()
+
+	var sections []sectionInfo
+
 	// 2. Parse Structure
 	title := generator.parseTitle(structureResponse)
 	if title == "" {
 		title = lecture.Title // Fallback
 	}
 
-	sections := generator.parseStructure(structureResponse)
+	sections = generator.parseStructure(structureResponse)
 	if len(sections) == 0 {
 		return "", "", fmt.Errorf("failed to parse sections from LLM response")
 	}
 
-	var fullGuideBuilder strings.Builder
-	fullGuideBuilder.WriteString("# " + title + "\n\n")
+	// Create root document node
+	rootNode := &markdown.Node{
+		Type: markdown.NodeDocument,
+	}
+
+	// Add title
+	rootNode.Children = append(rootNode.Children, &markdown.Node{
+		Type:    markdown.NodeHeading,
+		Level:   1,
+		Content: title,
+	})
 
 	// 3. Generate Section by Section
 	totalSections := len(sections)
@@ -132,7 +145,10 @@ func (generator *GuideGenerator) GenerateStudyGuide(jobContext context.Context, 
 
 			score := generator.parseScore(verifyResponse)
 			if score >= 70 || attempt == 2 {
-				fullGuideBuilder.WriteString(sectionContent + "\n\n")
+				// Parse the generated section and append its children to the document
+				sectionParser := markdown.NewParser()
+				sectionAST := sectionParser.Parse(sectionContent)
+				rootNode.Children = append(rootNode.Children, sectionAST.Children...)
 				break
 			}
 
@@ -145,10 +161,10 @@ func (generator *GuideGenerator) GenerateStudyGuide(jobContext context.Context, 
 		}
 	}
 
+	finalMarkdown := reconstructor.Reconstruct(rootNode)
 	updateProgress(100, "Study guide generation completed", nil, metrics)
-	return fullGuideBuilder.String(), title, nil
+	return finalMarkdown, title, nil
 }
-
 func (generator *GuideGenerator) callLLM(context context.Context, prompt string) (string, jobs.JobMetrics, error) {
 	responseChannel, err := generator.llmProvider.Chat(context, llm.ChatRequest{
 		Model:    generator.configuration.LLM.OpenRouter.DefaultModel,
@@ -180,10 +196,15 @@ type sectionInfo struct {
 }
 
 func (generator *GuideGenerator) parseTitle(structure string) string {
-	lines := strings.Split(structure, "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "# ") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "# "))
+	markdownParser := markdown.NewParser()
+	documentAST := markdownParser.Parse(structure)
+
+	for _, child := range documentAST.Children {
+		if child.Type == markdown.NodeSection && child.Level == 1 {
+			return child.Title
+		}
+		if child.Type == markdown.NodeHeading && child.Level == 1 {
+			return child.Content
 		}
 	}
 	return ""

@@ -14,23 +14,23 @@ func (server *Server) handleListMedia(responseWriter http.ResponseWriter, reques
 	pathVariables := mux.Vars(request)
 	lectureIdentifier := pathVariables["lectureId"]
 
-	rows, err := server.database.Query(`
+	mediaRows, databaseError := server.database.Query(`
 		SELECT id, lecture_id, media_type, sequence_order, duration_milliseconds, file_path, created_at
 		FROM lecture_media
 		WHERE lecture_id = ?
 		ORDER BY sequence_order ASC
 	`, lectureIdentifier)
-	if err != nil {
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list media", nil)
 		return
 	}
-	defer rows.Close()
+	defer mediaRows.Close()
 
 	mediaList := []models.LectureMedia{}
-	for rows.Next() {
+	for mediaRows.Next() {
 		var media models.LectureMedia
 		var duration sql.NullInt64
-		if err := rows.Scan(&media.ID, &media.LectureID, &media.MediaType, &media.SequenceOrder, &duration, &media.FilePath, &media.CreatedAt); err != nil {
+		if err := mediaRows.Scan(&media.ID, &media.LectureID, &media.MediaType, &media.SequenceOrder, &duration, &media.FilePath, &media.CreatedAt); err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to scan media", nil)
 			return
 		}

@@ -54,21 +54,21 @@ func (server *Server) handleCreateExam(responseWriter http.ResponseWriter, reque
 
 // handleListExams lists all exams
 func (server *Server) handleListExams(responseWriter http.ResponseWriter, request *http.Request) {
-	rows, err := server.database.Query(`
+	examRows, databaseError := server.database.Query(`
 		SELECT id, title, description, created_at, updated_at
 		FROM exams
 		ORDER BY created_at DESC
 	`)
-	if err != nil {
+	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list exams", nil)
 		return
 	}
-	defer rows.Close()
+	defer examRows.Close()
 
 	exams := []models.Exam{}
-	for rows.Next() {
+	for examRows.Next() {
 		var exam models.Exam
-		if err := rows.Scan(&exam.ID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt); err != nil {
+		if err := examRows.Scan(&exam.ID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt); err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to scan exam", nil)
 			return
 		}
@@ -170,16 +170,16 @@ func (server *Server) handleDeleteExam(responseWriter http.ResponseWriter, reque
 	examIdentifier := pathVariables["id"]
 
 	// 1. Get all lecture IDs for this exam to clean up files later
-	rows, err := server.database.Query("SELECT id FROM lectures WHERE exam_id = ?", examIdentifier)
+	lectureRows, queryError := server.database.Query("SELECT id FROM lectures WHERE exam_id = ?", examIdentifier)
 	var lectureIdentifiers []string
-	if err == nil {
-		for rows.Next() {
+	if queryError == nil {
+		for lectureRows.Next() {
 			var lectureIdentifier string
-			if err := rows.Scan(&lectureIdentifier); err == nil {
+			if err := lectureRows.Scan(&lectureIdentifier); err == nil {
 				lectureIdentifiers = append(lectureIdentifiers, lectureIdentifier)
 			}
 		}
-		rows.Close()
+		lectureRows.Close()
 	}
 
 	// 2. Delete from database

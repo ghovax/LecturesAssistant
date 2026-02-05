@@ -11,62 +11,62 @@ import (
 )
 
 // Health check
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	s.writeJSON(w, http.StatusOK, map[string]string{
+func (server *Server) handleHealth(responseWriter http.ResponseWriter, request *http.Request) {
+	server.writeJSON(responseWriter, http.StatusOK, map[string]string{
 		"status":  "healthy",
 		"version": "1.0.0",
 	})
 }
 
 // Transcripts
-func (s *Server) handleTranscribe(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	lectureID := vars["lecture_id"]
+func (server *Server) handleTranscribe(responseWriter http.ResponseWriter, request *http.Request) {
+	pathVariables := mux.Vars(request)
+	lectureIdentifier := pathVariables["lectureId"]
 
 	// Create transcription job
-	jobID, err := s.jobQueue.Enqueue(models.JobTypeTranscribeMedia, map[string]string{
-		"lecture_id": lectureID,
+	jobIdentifier, err := server.jobQueue.Enqueue(models.JobTypeTranscribeMedia, map[string]string{
+		"lecture_id": lectureIdentifier,
 	})
 
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "JOB_ERROR", "Failed to create transcription job", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "JOB_ERROR", "Failed to create transcription job", nil)
 		return
 	}
 
-	s.writeJSON(w, http.StatusAccepted, map[string]string{
-		"job_id":  jobID,
+	server.writeJSON(responseWriter, http.StatusAccepted, map[string]string{
+		"job_id":  jobIdentifier,
 		"message": "Transcription job created",
 	})
 }
 
-func (s *Server) handleGetTranscript(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	lectureID := vars["lecture_id"]
+func (server *Server) handleGetTranscript(responseWriter http.ResponseWriter, request *http.Request) {
+	pathVariables := mux.Vars(request)
+	lectureIdentifier := pathVariables["lectureId"]
 
 	// Get transcript
 	var transcriptID, status string
-	err := s.db.QueryRow(`
+	err := server.database.QueryRow(`
 		SELECT id, status FROM transcripts WHERE lecture_id = ?
-	`, lectureID).Scan(&transcriptID, &status)
+	`, lectureIdentifier).Scan(&transcriptID, &status)
 
 	if err == sql.ErrNoRows {
-		s.writeError(w, http.StatusNotFound, "NOT_FOUND", "Transcript not found", nil)
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Transcript not found", nil)
 		return
 	}
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get transcript", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get transcript", nil)
 		return
 	}
 
 	// Get segments
-	rows, err := s.db.Query(`
+	rows, err := server.database.Query(`
 		SELECT id, transcript_id, media_id, start_millisecond, end_millisecond, text, confidence, speaker
 		FROM transcript_segments
 		WHERE transcript_id = ?
 		ORDER BY start_millisecond ASC
 	`, transcriptID)
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get segments", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get segments", nil)
 		return
 	}
 	defer rows.Close()
@@ -97,7 +97,7 @@ func (s *Server) handleGetTranscript(w http.ResponseWriter, r *http.Request) {
 		segments = append(segments, segment)
 	}
 
-	s.writeJSON(w, http.StatusOK, map[string]interface{}{
+	server.writeJSON(responseWriter, http.StatusOK, map[string]interface{}{
 		"transcript_id": transcriptID,
 		"status":        status,
 		"segments":      segments,
@@ -105,70 +105,70 @@ func (s *Server) handleGetTranscript(w http.ResponseWriter, r *http.Request) {
 }
 
 // Documents
-func (s *Server) handleUploadDocument(w http.ResponseWriter, r *http.Request) {
-	s.writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Document upload not yet implemented", nil)
+func (server *Server) handleUploadDocument(responseWriter http.ResponseWriter, request *http.Request) {
+	server.writeError(responseWriter, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Document upload not yet implemented", nil)
 }
 
-func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
-	s.writeJSON(w, http.StatusOK, []interface{}{})
+func (server *Server) handleListDocuments(responseWriter http.ResponseWriter, request *http.Request) {
+	server.writeJSON(responseWriter, http.StatusOK, []interface{}{})
 }
 
-func (s *Server) handleGetDocument(w http.ResponseWriter, r *http.Request) {
-	s.writeError(w, http.StatusNotFound, "NOT_FOUND", "Document not found", nil)
+func (server *Server) handleGetDocument(responseWriter http.ResponseWriter, request *http.Request) {
+	server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Document not found", nil)
 }
 
-func (s *Server) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
-	s.writeError(w, http.StatusNotFound, "NOT_FOUND", "Document not found", nil)
+func (server *Server) handleDeleteDocument(responseWriter http.ResponseWriter, request *http.Request) {
+	server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Document not found", nil)
 }
 
 // Tools
-func (s *Server) handleCreateTool(w http.ResponseWriter, r *http.Request) {
-	s.writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Tool creation not yet implemented", nil)
+func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, request *http.Request) {
+	server.writeError(responseWriter, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Tool creation not yet implemented", nil)
 }
 
-func (s *Server) handleListTools(w http.ResponseWriter, r *http.Request) {
-	s.writeJSON(w, http.StatusOK, []interface{}{})
+func (server *Server) handleListTools(responseWriter http.ResponseWriter, request *http.Request) {
+	server.writeJSON(responseWriter, http.StatusOK, []interface{}{})
 }
 
-func (s *Server) handleGetTool(w http.ResponseWriter, r *http.Request) {
-	s.writeError(w, http.StatusNotFound, "NOT_FOUND", "Tool not found", nil)
+func (server *Server) handleGetTool(responseWriter http.ResponseWriter, request *http.Request) {
+	server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found", nil)
 }
 
-func (s *Server) handleDeleteTool(w http.ResponseWriter, r *http.Request) {
-	s.writeError(w, http.StatusNotFound, "NOT_FOUND", "Tool not found", nil)
+func (server *Server) handleDeleteTool(responseWriter http.ResponseWriter, request *http.Request) {
+	server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found", nil)
 }
 
 // Chat
-func (s *Server) handleCreateChatSession(w http.ResponseWriter, r *http.Request) {
-	s.writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Chat not yet implemented", nil)
+func (server *Server) handleCreateChatSession(responseWriter http.ResponseWriter, request *http.Request) {
+	server.writeError(responseWriter, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Chat not yet implemented", nil)
 }
 
-func (s *Server) handleListChatSessions(w http.ResponseWriter, r *http.Request) {
-	s.writeJSON(w, http.StatusOK, []interface{}{})
+func (server *Server) handleListChatSessions(responseWriter http.ResponseWriter, request *http.Request) {
+	server.writeJSON(responseWriter, http.StatusOK, []interface{}{})
 }
 
-func (s *Server) handleGetChatSession(w http.ResponseWriter, r *http.Request) {
-	s.writeError(w, http.StatusNotFound, "NOT_FOUND", "Chat session not found", nil)
+func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, request *http.Request) {
+	server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Chat session not found", nil)
 }
 
-func (s *Server) handleDeleteChatSession(w http.ResponseWriter, r *http.Request) {
-	s.writeError(w, http.StatusNotFound, "NOT_FOUND", "Chat session not found", nil)
+func (server *Server) handleDeleteChatSession(responseWriter http.ResponseWriter, request *http.Request) {
+	server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Chat session not found", nil)
 }
 
-func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
-	s.writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Chat not yet implemented", nil)
+func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, request *http.Request) {
+	server.writeError(responseWriter, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Chat not yet implemented", nil)
 }
 
 // Jobs
-func (s *Server) handleListJobs(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.db.Query(`
+func (server *Server) handleListJobs(responseWriter http.ResponseWriter, request *http.Request) {
+	rows, err := server.database.Query(`
 		SELECT id, type, status, progress, progress_message_text, created_at
 		FROM jobs
 		ORDER BY created_at DESC
 		LIMIT 50
 	`)
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list jobs", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list jobs", nil)
 		return
 	}
 	defer rows.Close()
@@ -193,60 +193,60 @@ func (s *Server) handleListJobs(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	s.writeJSON(w, http.StatusOK, jobs)
+	server.writeJSON(responseWriter, http.StatusOK, jobs)
 }
 
-func (s *Server) handleGetJob(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	jobID := vars["id"]
+func (server *Server) handleGetJob(responseWriter http.ResponseWriter, request *http.Request) {
+	pathVariables := mux.Vars(request)
+	jobIdentifier := pathVariables["id"]
 
-	job, err := s.jobQueue.GetJob(jobID)
+	job, err := server.jobQueue.GetJob(jobIdentifier)
 	if err != nil {
-		s.writeError(w, http.StatusNotFound, "NOT_FOUND", "Job not found", nil)
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Job not found", nil)
 		return
 	}
 
-	s.writeJSON(w, http.StatusOK, job)
+	server.writeJSON(responseWriter, http.StatusOK, job)
 }
 
-func (s *Server) handleCancelJob(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	jobID := vars["id"]
+func (server *Server) handleCancelJob(responseWriter http.ResponseWriter, request *http.Request) {
+	pathVariables := mux.Vars(request)
+	jobIdentifier := pathVariables["id"]
 
-	if err := s.jobQueue.CancelJob(jobID); err != nil {
-		s.writeError(w, http.StatusInternalServerError, "JOB_ERROR", "Failed to cancel job", nil)
+	if err := server.jobQueue.CancelJob(jobIdentifier); err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "JOB_ERROR", "Failed to cancel job", nil)
 		return
 	}
 
-	s.writeJSON(w, http.StatusOK, map[string]string{"message": "Job cancelled"})
+	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Job cancelled"})
 }
 
 // Settings
-func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
-	s.writeJSON(w, http.StatusOK, map[string]interface{}{
+func (server *Server) handleGetSettings(responseWriter http.ResponseWriter, request *http.Request) {
+	server.writeJSON(responseWriter, http.StatusOK, map[string]interface{}{
 		"llm": map[string]string{
-			"provider": s.config.LLM.Provider,
-			"model":    s.config.LLM.OpenRouter.DefaultModel,
+			"provider": server.configuration.LLM.Provider,
+			"model":    server.configuration.LLM.OpenRouter.DefaultModel,
 		},
 		"transcription": map[string]string{
-			"provider": s.config.Transcription.Provider,
+			"provider": server.configuration.Transcription.Provider,
 		},
 	})
 }
 
-func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleUpdateSettings(responseWriter http.ResponseWriter, request *http.Request) {
 	var req map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
+	if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
 		return
 	}
 
 	// TODO: Update settings in database and config
-	s.writeJSON(w, http.StatusOK, req)
+	server.writeJSON(responseWriter, http.StatusOK, req)
 }
 
 // WebSocket
-func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, request *http.Request) {
 	// TODO: Implement WebSocket protocol
-	s.writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "WebSocket not yet implemented", nil)
+	server.writeError(responseWriter, http.StatusNotImplemented, "NOT_IMPLEMENTED", "WebSocket not yet implemented", nil)
 }

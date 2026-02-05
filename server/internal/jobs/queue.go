@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -16,14 +16,14 @@ import (
 
 // Queue manages background job processing
 type Queue struct {
-	db          *sql.DB
-	workers     int
-	ctx         context.Context
-	cancel      context.CancelFunc
-	wg          sync.WaitGroup
-	handlers    map[string]JobHandler
-	subscribers map[string][]chan JobUpdate
-	subMutex    sync.RWMutex
+	database          *sql.DB
+	workers           int
+	context           context.Context
+	cancel            context.CancelFunc
+	waitGroup         sync.WaitGroup
+	handlers          map[string]JobHandler
+	subscribers       map[string][]chan JobUpdate
+	subscribersMutex  sync.RWMutex
 }
 
 // JobHandler is a function that processes a specific job type
@@ -40,42 +40,42 @@ type JobUpdate struct {
 }
 
 // NewQueue creates a new job queue
-func NewQueue(db *sql.DB, workers int) *Queue {
-	ctx, cancel := context.WithCancel(context.Background())
+func NewQueue(database *sql.DB, workers int) *Queue {
+	context, cancel := context.WithCancel(context.Background())
 	return &Queue{
-		db:          db,
-		workers:     workers,
-		ctx:         ctx,
-		cancel:      cancel,
-		handlers:    make(map[string]JobHandler),
-		subscribers: make(map[string][]chan JobUpdate),
+		database:         database,
+		workers:          workers,
+		context:          context,
+		cancel:           cancel,
+		handlers:         make(map[string]JobHandler),
+		subscribers:      make(map[string][]chan JobUpdate),
 	}
 }
 
 // RegisterHandler registers a handler for a specific job type
-func (q *Queue) RegisterHandler(jobType string, handler JobHandler) {
-	q.handlers[jobType] = handler
+func (queue *Queue) RegisterHandler(jobType string, handler JobHandler) {
+	queue.handlers[jobType] = handler
 }
 
 // Start begins processing jobs
-func (q *Queue) Start() {
-	for i := 0; i < q.workers; i++ {
-		q.wg.Add(1)
-		go q.worker(i)
+func (queue *Queue) Start() {
+	for i := 0; i < queue.workers; i++ {
+		queue.waitGroup.Add(1)
+		go queue.worker(i)
 	}
-	log.Printf("Job queue started with %d workers", q.workers)
+	slog.Info("Job queue started", "workers", queue.workers)
 }
 
 // Stop gracefully shuts down the job queue
-func (q *Queue) Stop() {
-	log.Println("Stopping job queue...")
-	q.cancel()
-	q.wg.Wait()
-	log.Println("Job queue stopped")
+func (queue *Queue) Stop() {
+	slog.Info("Stopping job queue...")
+	queue.cancel()
+	queue.waitGroup.Wait()
+	slog.Info("Job queue stopped")
 }
 
 // Enqueue creates a new job and adds it to the queue
-func (q *Queue) Enqueue(jobType string, payload interface{}) (string, error) {
+func (queue *Queue) Enqueue(jobType string, payload interface{}) (string, error) {
 	jobID := uuid.New().String()
 
 	payloadJSON, err := json.Marshal(payload)
@@ -83,7 +83,7 @@ func (q *Queue) Enqueue(jobType string, payload interface{}) (string, error) {
 		return "", fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	_, err = q.db.Exec(`
+	_, err = queue.database.Exec(`
 		INSERT INTO jobs (id, type, status, progress, payload, created_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, jobID, jobType, models.JobStatusPending, 0, string(payloadJSON), time.Now())
@@ -92,48 +92,48 @@ func (q *Queue) Enqueue(jobType string, payload interface{}) (string, error) {
 		return "", fmt.Errorf("failed to insert job: %w", err)
 	}
 
-	log.Printf("Enqueued job %s of type %s", jobID, jobType)
+	slog.Info("Enqueued job", "jobID", jobID, "type", jobType)
 	return jobID, nil
 }
 
 // Subscribe subscribes to updates for a specific job
-func (q *Queue) Subscribe(jobID string) <-chan JobUpdate {
-	q.subMutex.Lock()
-	defer q.subMutex.Unlock()
+func (queue *Queue) Subscribe(jobID string) <-chan JobUpdate {
+	queue.subscribersMutex.Lock()
+	defer queue.subscribersMutex.Unlock()
 
-	ch := make(chan JobUpdate, 10)
-	q.subscribers[jobID] = append(q.subscribers[jobID], ch)
-	return ch
+	channel := make(chan JobUpdate, 10)
+	queue.subscribers[jobID] = append(queue.subscribers[jobID], channel)
+	return channel
 }
 
 // Unsubscribe removes a subscription
-func (q *Queue) Unsubscribe(jobID string, ch <-chan JobUpdate) {
-	q.subMutex.Lock()
-	defer q.subMutex.Unlock()
+func (queue *Queue) Unsubscribe(jobID string, channel <-chan JobUpdate) {
+	queue.subscribersMutex.Lock()
+	defer queue.subscribersMutex.Unlock()
 
-	subs := q.subscribers[jobID]
-	for i, sub := range subs {
-		if sub == ch {
-			q.subscribers[jobID] = append(subs[:i], subs[i+1:]...)
-			close(sub)
+	subscribersList := queue.subscribers[jobID]
+	for i, subscriber := range subscribersList {
+		if subscriber == channel {
+			queue.subscribers[jobID] = append(subscribersList[:i], subscribersList[i+1:]...)
+			close(subscriber)
 			break
 		}
 	}
 
-	if len(q.subscribers[jobID]) == 0 {
-		delete(q.subscribers, jobID)
+	if len(queue.subscribers[jobID]) == 0 {
+		delete(queue.subscribers, jobID)
 	}
 }
 
 // publishUpdate sends an update to all subscribers of a job
-func (q *Queue) publishUpdate(update JobUpdate) {
-	q.subMutex.RLock()
-	defer q.subMutex.RUnlock()
+func (queue *Queue) publishUpdate(update JobUpdate) {
+	queue.subscribersMutex.RLock()
+	defer queue.subscribersMutex.RUnlock()
 
-	if subs, ok := q.subscribers[update.JobID]; ok {
-		for _, ch := range subs {
+	if subscribersList, ok := queue.subscribers[update.JobID]; ok {
+		for _, channel := range subscribersList {
 			select {
-			case ch <- update:
+			case channel <- update:
 			default:
 				// Channel full, skip
 			}
@@ -142,36 +142,36 @@ func (q *Queue) publishUpdate(update JobUpdate) {
 }
 
 // worker processes jobs from the queue
-func (q *Queue) worker(id int) {
-	defer q.wg.Done()
-	log.Printf("Worker %d started", id)
+func (queue *Queue) worker(id int) {
+	defer queue.waitGroup.Done()
+	slog.Debug("Worker started", "workerID", id)
 
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-q.ctx.Done():
-			log.Printf("Worker %d stopping", id)
+		case <-queue.context.Done():
+			slog.Debug("Worker stopping", "workerID", id)
 			return
 		case <-ticker.C:
-			q.processNextJob(id)
+			queue.processNextJob(id)
 		}
 	}
 }
 
 // processNextJob picks up and processes the next pending job
-func (q *Queue) processNextJob(workerID int) {
-	tx, err := q.db.Begin()
+func (queue *Queue) processNextJob(workerID int) {
+	transaction, err := queue.database.Begin()
 	if err != nil {
-		log.Printf("Worker %d: failed to begin transaction: %v", workerID, err)
+		slog.Error("Worker failed to begin transaction", "workerID", workerID, "error", err)
 		return
 	}
-	defer tx.Rollback()
+	defer transaction.Rollback()
 
 	// Find and lock a pending job
 	var job models.Job
-	err = tx.QueryRow(`
+	err = transaction.QueryRow(`
 		SELECT id, type, status, progress, progress_message_text, payload, created_at
 		FROM jobs
 		WHERE status = ?
@@ -186,65 +186,65 @@ func (q *Queue) processNextJob(workerID int) {
 		return // No pending jobs
 	}
 	if err != nil {
-		log.Printf("Worker %d: failed to query job: %v", workerID, err)
+		slog.Error("Worker failed to query job", "workerID", workerID, "error", err)
 		return
 	}
 
 	// Mark job as running
 	now := time.Now()
-	_, err = tx.Exec(`
+	_, err = transaction.Exec(`
 		UPDATE jobs
 		SET status = ?, started_at = ?
 		WHERE id = ?
 	`, models.JobStatusRunning, now, job.ID)
 
 	if err != nil {
-		log.Printf("Worker %d: failed to update job status: %v", workerID, err)
+		slog.Error("Worker failed to update job status", "workerID", workerID, "error", err)
 		return
 	}
 
-	if err := tx.Commit(); err != nil {
-		log.Printf("Worker %d: failed to commit transaction: %v", workerID, err)
+	if err := transaction.Commit(); err != nil {
+		slog.Error("Worker failed to commit transaction", "workerID", workerID, "error", err)
 		return
 	}
 
 	job.Status = models.JobStatusRunning
 	job.StartedAt = &now
 
-	log.Printf("Worker %d: processing job %s (type: %s)", workerID, job.ID, job.Type)
+	slog.Info("Worker processing job", "workerID", workerID, "jobID", job.ID, "type", job.Type)
 
 	// Publish initial update
-	q.publishUpdate(JobUpdate{
+	queue.publishUpdate(JobUpdate{
 		JobID:    job.ID,
 		Status:   models.JobStatusRunning,
 		Progress: 0,
 	})
 
 	// Execute job
-	q.executeJob(&job)
+	queue.executeJob(&job)
 }
 
 // executeJob runs the job handler and updates the database
-func (q *Queue) executeJob(job *models.Job) {
-	handler, ok := q.handlers[job.Type]
+func (queue *Queue) executeJob(job *models.Job) {
+	handler, ok := queue.handlers[job.Type]
 	if !ok {
-		q.failJob(job.ID, fmt.Sprintf("no handler registered for job type: %s", job.Type))
+		queue.failJob(job.ID, fmt.Sprintf("no handler registered for job type: %s", job.Type))
 		return
 	}
 
 	// Create update function
 	updateFn := func(progress int, message string) {
-		_, err := q.db.Exec(`
+		_, err := queue.database.Exec(`
 			UPDATE jobs
 			SET progress = ?, progress_message_text = ?
 			WHERE id = ?
 		`, progress, message, job.ID)
 
 		if err != nil {
-			log.Printf("Failed to update job progress: %v", err)
+			slog.Error("Failed to update job progress", "error", err)
 		}
 
-		q.publishUpdate(JobUpdate{
+		queue.publishUpdate(JobUpdate{
 			JobID:               job.ID,
 			Status:              models.JobStatusRunning,
 			Progress:            progress,
@@ -253,36 +253,36 @@ func (q *Queue) executeJob(job *models.Job) {
 	}
 
 	// Execute handler
-	ctx, cancel := context.WithCancel(q.ctx)
+	context, cancel := context.WithCancel(queue.context)
 	defer cancel()
 
-	err := handler(ctx, job, updateFn)
+	err := handler(context, job, updateFn)
 
 	if err != nil {
-		q.failJob(job.ID, err.Error())
+		queue.failJob(job.ID, err.Error())
 		return
 	}
 
-	q.completeJob(job.ID, job.Result)
+	queue.completeJob(job.ID, job.Result)
 }
 
 // completeJob marks a job as completed
-func (q *Queue) completeJob(jobID, result string) {
+func (queue *Queue) completeJob(jobID, result string) {
 	now := time.Now()
-	_, err := q.db.Exec(`
+	_, err := queue.database.Exec(`
 		UPDATE jobs
 		SET status = ?, progress = 100, completed_at = ?, result = ?
 		WHERE id = ?
 	`, models.JobStatusCompleted, now, result, jobID)
 
 	if err != nil {
-		log.Printf("Failed to mark job as completed: %v", err)
+		slog.Error("Failed to mark job as completed", "error", err)
 		return
 	}
 
-	log.Printf("Job %s completed successfully", jobID)
+	slog.Info("Job completed successfully", "jobID", jobID)
 
-	q.publishUpdate(JobUpdate{
+	queue.publishUpdate(JobUpdate{
 		JobID:    jobID,
 		Status:   models.JobStatusCompleted,
 		Progress: 100,
@@ -291,22 +291,22 @@ func (q *Queue) completeJob(jobID, result string) {
 }
 
 // failJob marks a job as failed
-func (q *Queue) failJob(jobID, errorMsg string) {
+func (queue *Queue) failJob(jobID, errorMsg string) {
 	now := time.Now()
-	_, err := q.db.Exec(`
+	_, err := queue.database.Exec(`
 		UPDATE jobs
 		SET status = ?, completed_at = ?, error = ?
 		WHERE id = ?
 	`, models.JobStatusFailed, now, errorMsg, jobID)
 
 	if err != nil {
-		log.Printf("Failed to mark job as failed: %v", err)
+		slog.Error("Failed to mark job as failed", "error", err)
 		return
 	}
 
-	log.Printf("Job %s failed: %s", jobID, errorMsg)
+	slog.Error("Job failed", "jobID", jobID, "error", errorMsg)
 
-	q.publishUpdate(JobUpdate{
+	queue.publishUpdate(JobUpdate{
 		JobID:  jobID,
 		Status: models.JobStatusFailed,
 		Error:  errorMsg,
@@ -314,11 +314,11 @@ func (q *Queue) failJob(jobID, errorMsg string) {
 }
 
 // GetJob retrieves a job by ID
-func (q *Queue) GetJob(jobID string) (*models.Job, error) {
+func (queue *Queue) GetJob(jobID string) (*models.Job, error) {
 	var job models.Job
 	var startedAt, completedAt sql.NullTime
 
-	err := q.db.QueryRow(`
+	err := queue.database.QueryRow(`
 		SELECT id, type, status, progress, progress_message_text, payload, result, error,
 		       created_at, started_at, completed_at
 		FROM jobs
@@ -343,8 +343,8 @@ func (q *Queue) GetJob(jobID string) (*models.Job, error) {
 }
 
 // CancelJob cancels a running or pending job
-func (q *Queue) CancelJob(jobID string) error {
-	_, err := q.db.Exec(`
+func (queue *Queue) CancelJob(jobID string) error {
+	_, err := queue.database.Exec(`
 		UPDATE jobs
 		SET status = ?, completed_at = ?
 		WHERE id = ? AND status IN (?, ?)
@@ -354,7 +354,7 @@ func (q *Queue) CancelJob(jobID string) error {
 		return err
 	}
 
-	q.publishUpdate(JobUpdate{
+	queue.publishUpdate(JobUpdate{
 		JobID:  jobID,
 		Status: models.JobStatusCancelled,
 	})

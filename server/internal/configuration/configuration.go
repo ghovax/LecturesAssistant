@@ -7,7 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Config struct {
+type Configuration struct {
 	Server        ServerConfig        `yaml:"server"`
 	Storage       StorageConfig       `yaml:"storage"`
 	Security      SecurityConfig      `yaml:"security"`
@@ -99,7 +99,7 @@ type DocumentUploadConfig struct {
 }
 
 // Load reads the configuration from a file or creates a default one
-func Load(path string) (*Config, error) {
+func Load(path string) (*Configuration, error) {
 	if path == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -111,14 +111,14 @@ func Load(path string) (*Config, error) {
 	// Check if file exists
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		// Create default config
-		cfg := defaultConfig()
+		configuration := defaultConfiguration()
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return nil, err
 		}
-		if err := Save(cfg, path); err != nil {
+		if err := Save(configuration, path); err != nil {
 			return nil, err
 		}
-		return cfg, nil
+		return configuration, nil
 	}
 
 	// Read existing config
@@ -127,27 +127,27 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
-	cfg := &Config{}
-	if err := yaml.Unmarshal(data, cfg); err != nil {
+	configuration := &Configuration{}
+	if err := yaml.Unmarshal(data, configuration); err != nil {
 		return nil, err
 	}
 
-	return cfg, nil
+	return configuration, nil
 }
 
 // Save writes the configuration to a file
-func Save(cfg *Config, path string) error {
-	data, err := yaml.Marshal(cfg)
+func Save(configuration *Configuration, path string) error {
+	data, err := yaml.Marshal(configuration)
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(path, data, 0600)
 }
 
-// defaultConfig returns a configuration with sensible defaults
-func defaultConfig() *Config {
+// defaultConfiguration returns a configuration with sensible defaults
+func defaultConfiguration() *Configuration {
 	home, _ := os.UserHomeDir()
-	return &Config{
+	return &Configuration{
 		Server: ServerConfig{
 			Host: "127.0.0.1",
 			Port: 3000,

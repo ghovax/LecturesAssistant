@@ -13,52 +13,52 @@ import (
 )
 
 // handleCreateExam creates a new exam
-func (s *Server) handleCreateExam(w http.ResponseWriter, r *http.Request) {
-	var req struct {
+func (server *Server) handleCreateExam(responseWriter http.ResponseWriter, request *http.Request) {
+	var createExamRequest struct {
 		Title       string `json:"title"`
 		Description string `json:"description"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
+	if err := json.NewDecoder(request.Body).Decode(&createExamRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
 		return
 	}
 
-	if req.Title == "" {
-		s.writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Title is required", nil)
+	if createExamRequest.Title == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Title is required", nil)
 		return
 	}
 
 	exam := models.Exam{
 		ID:          uuid.New().String(),
-		Title:       req.Title,
-		Description: req.Description,
+		Title:       createExamRequest.Title,
+		Description: createExamRequest.Description,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
 
-	_, err := s.db.Exec(`
+	_, err := server.database.Exec(`
 		INSERT INTO exams (id, title, description, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?)
 	`, exam.ID, exam.Title, exam.Description, exam.CreatedAt, exam.UpdatedAt)
 
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to create exam", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to create exam", nil)
 		return
 	}
 
-	s.writeJSON(w, http.StatusCreated, exam)
+	server.writeJSON(responseWriter, http.StatusCreated, exam)
 }
 
 // handleListExams lists all exams
-func (s *Server) handleListExams(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.db.Query(`
+func (server *Server) handleListExams(responseWriter http.ResponseWriter, request *http.Request) {
+	rows, err := server.database.Query(`
 		SELECT id, title, description, created_at, updated_at
 		FROM exams
 		ORDER BY created_at DESC
 	`)
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list exams", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list exams", nil)
 		return
 	}
 	defer rows.Close()
@@ -67,59 +67,59 @@ func (s *Server) handleListExams(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var exam models.Exam
 		if err := rows.Scan(&exam.ID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt); err != nil {
-			s.writeError(w, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to scan exam", nil)
+			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to scan exam", nil)
 			return
 		}
 		exams = append(exams, exam)
 	}
 
-	s.writeJSON(w, http.StatusOK, exams)
+	server.writeJSON(responseWriter, http.StatusOK, exams)
 }
 
 // handleGetExam retrieves a specific exam
-func (s *Server) handleGetExam(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	examID := vars["id"]
+func (server *Server) handleGetExam(responseWriter http.ResponseWriter, request *http.Request) {
+	pathVariables := mux.Vars(request)
+	examIdentifier := pathVariables["id"]
 
 	var exam models.Exam
-	err := s.db.QueryRow(`
+	err := server.database.QueryRow(`
 		SELECT id, title, description, created_at, updated_at
 		FROM exams
 		WHERE id = ?
-	`, examID).Scan(&exam.ID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt)
+	`, examIdentifier).Scan(&exam.ID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt)
 
 	if err == sql.ErrNoRows {
-		s.writeError(w, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
 		return
 	}
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get exam", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get exam", nil)
 		return
 	}
 
-	s.writeJSON(w, http.StatusOK, exam)
+	server.writeJSON(responseWriter, http.StatusOK, exam)
 }
 
 // handleUpdateExam updates an exam
-func (s *Server) handleUpdateExam(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	examID := vars["id"]
+func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, request *http.Request) {
+	pathVariables := mux.Vars(request)
+	examIdentifier := pathVariables["id"]
 
-	var req struct {
+	var updateExamRequest struct {
 		Title       *string `json:"title"`
 		Description *string `json:"description"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.writeError(w, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
+	if err := json.NewDecoder(request.Body).Decode(&updateExamRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
 		return
 	}
 
 	// Check if exam exists
 	var exists bool
-	err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ?)", examID).Scan(&exists)
+	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ?)", examIdentifier).Scan(&exists)
 	if err != nil || !exists {
-		s.writeError(w, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
 		return
 	}
 
@@ -128,56 +128,56 @@ func (s *Server) handleUpdateExam(w http.ResponseWriter, r *http.Request) {
 	query := "UPDATE exams SET updated_at = ?"
 	updates = append(updates, time.Now())
 
-	if req.Title != nil {
+	if updateExamRequest.Title != nil {
 		query += ", title = ?"
-		updates = append(updates, *req.Title)
+		updates = append(updates, *updateExamRequest.Title)
 	}
-	if req.Description != nil {
+	if updateExamRequest.Description != nil {
 		query += ", description = ?"
-		updates = append(updates, *req.Description)
+		updates = append(updates, *updateExamRequest.Description)
 	}
 
 	query += " WHERE id = ?"
-	updates = append(updates, examID)
+	updates = append(updates, examIdentifier)
 
-	_, err = s.db.Exec(query, updates...)
+	_, err = server.database.Exec(query, updates...)
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to update exam", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to update exam", nil)
 		return
 	}
 
 	// Fetch updated exam
 	var exam models.Exam
-	err = s.db.QueryRow(`
+	err = server.database.QueryRow(`
 		SELECT id, title, description, created_at, updated_at
 		FROM exams
 		WHERE id = ?
-	`, examID).Scan(&exam.ID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt)
+	`, examIdentifier).Scan(&exam.ID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt)
 
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to fetch updated exam", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to fetch updated exam", nil)
 		return
 	}
 
-	s.writeJSON(w, http.StatusOK, exam)
+	server.writeJSON(responseWriter, http.StatusOK, exam)
 }
 
 // handleDeleteExam deletes an exam and all associated data
-func (s *Server) handleDeleteExam(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	examID := vars["id"]
+func (server *Server) handleDeleteExam(responseWriter http.ResponseWriter, request *http.Request) {
+	pathVariables := mux.Vars(request)
+	examIdentifier := pathVariables["id"]
 
-	result, err := s.db.Exec("DELETE FROM exams WHERE id = ?", examID)
+	result, err := server.database.Exec("DELETE FROM exams WHERE id = ?", examIdentifier)
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete exam", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete exam", nil)
 		return
 	}
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		s.writeError(w, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
 		return
 	}
 
-	s.writeJSON(w, http.StatusOK, map[string]string{"message": "Exam deleted successfully"})
+	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Exam deleted successfully"})
 }

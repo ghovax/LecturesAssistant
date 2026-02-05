@@ -9,25 +9,25 @@ import (
 
 // Initialize creates and initializes the SQLite database
 func Initialize(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", path+"?_foreign_keys=on")
+	database, err := sql.Open("sqlite3", path+"?_foreign_keys=on")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
 	// Test connection
-	if err := db.Ping(); err != nil {
+	if err := database.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
 	// Create schema
-	if err := createSchema(db); err != nil {
+	if err := createSchema(database); err != nil {
 		return nil, fmt.Errorf("failed to create schema: %w", err)
 	}
 
-	return db, nil
+	return database, nil
 }
 
-func createSchema(db *sql.DB) error {
+func createSchema(database *sql.DB) error {
 	schema := `
 	-- Root: Exams
 	CREATE TABLE IF NOT EXISTS exams (
@@ -207,6 +207,6 @@ func createSchema(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 	`
 
-	_, err := db.Exec(schema)
+	_, err := database.Exec(schema)
 	return err
 }

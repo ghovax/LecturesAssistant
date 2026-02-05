@@ -44,6 +44,7 @@ func createSchema(database *sql.DB) error {
 		exam_id TEXT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
 		title TEXT NOT NULL,
 		description TEXT,
+		status TEXT CHECK(status IN ('processing', 'ready', 'failed')) DEFAULT 'processing',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -195,16 +196,16 @@ func createSchema(database *sql.DB) error {
 	);
 
 	-- Create indexes for common queries
-	CREATE INDEX IF NOT EXISTS idx_lectures_exam_id ON lectures(exam_id);
-	CREATE INDEX IF NOT EXISTS idx_lecture_media_lecture_id ON lecture_media(lecture_id);
-	CREATE INDEX IF NOT EXISTS idx_transcripts_lecture_id ON transcripts(lecture_id);
-	CREATE INDEX IF NOT EXISTS idx_transcript_segments_transcript_id ON transcript_segments(transcript_id);
-	CREATE INDEX IF NOT EXISTS idx_reference_documents_lecture_id ON reference_documents(lecture_id);
-	CREATE INDEX IF NOT EXISTS idx_reference_pages_document_id ON reference_pages(document_id);
-	CREATE INDEX IF NOT EXISTS idx_tools_exam_id ON tools(exam_id);
-	CREATE INDEX IF NOT EXISTS idx_chat_sessions_exam_id ON chat_sessions(exam_id);
-	CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON chat_messages(session_id);
-	CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+	CREATE INDEX IF NOT EXISTS index_lectures_exam_id ON lectures(exam_id);
+	CREATE INDEX IF NOT EXISTS index_lecture_media_lecture_id ON lecture_media(lecture_id);
+	CREATE INDEX IF NOT EXISTS index_transcripts_lecture_id ON transcripts(lecture_id);
+	CREATE INDEX IF NOT EXISTS index_transcript_segments_transcript_id ON transcript_segments(transcript_id);
+	CREATE INDEX IF NOT EXISTS index_reference_documents_lecture_id ON reference_documents(lecture_id);
+	CREATE INDEX IF NOT EXISTS index_reference_pages_document_id ON reference_pages(document_id);
+	CREATE INDEX IF NOT EXISTS index_tools_exam_id ON tools(exam_id);
+	CREATE INDEX IF NOT EXISTS index_chat_sessions_exam_id ON chat_sessions(exam_id);
+	CREATE INDEX IF NOT EXISTS index_chat_messages_session_id ON chat_messages(session_id);
+	CREATE INDEX IF NOT EXISTS index_jobs_status ON jobs(status);
 	`
 
 	_, err := database.Exec(schema)

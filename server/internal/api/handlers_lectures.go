@@ -49,6 +49,7 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 		ExamID:      examIdentifier,
 		Title:       title,
 		Description: description,
+		Status:      "processing",
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -62,9 +63,9 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	defer transaction.Rollback()
 
 	_, err = transaction.Exec(`
-		INSERT INTO lectures (id, exam_id, title, description, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, lecture.ID, lecture.ExamID, lecture.Title, lecture.Description, lecture.CreatedAt, lecture.UpdatedAt)
+		INSERT INTO lectures (id, exam_id, title, description, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, lecture.ID, lecture.ExamID, lecture.Title, lecture.Description, lecture.Status, lecture.CreatedAt, lecture.UpdatedAt)
 
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to create lecture record", nil)
@@ -326,6 +327,14 @@ func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, re
 func (server *Server) handleDeleteLecture(responseWriter http.ResponseWriter, request *http.Request) {
 	pathVariables := mux.Vars(request)
 	lectureIdentifier := pathVariables["lectureId"]
+
+	// Check if lecture is currently processing
+	var status string
+	err := server.database.QueryRow("SELECT status FROM lectures WHERE id = ?", lectureIdentifier).Scan(&status)
+	if err == nil && status == "processing" {
+		server.writeError(responseWriter, http.StatusConflict, "LECTURE_BUSY", "Cannot delete lecture while it is being processed.", nil)
+		return
+	}
 
 	// Delete from database (cascades to lecture_media, transcripts, reference_documents)
 	result, err := server.database.Exec("DELETE FROM lectures WHERE id = ?", lectureIdentifier)

@@ -183,8 +183,13 @@ func (service *Service) cleanupTranscriptChunk(jobContext context.Context, rawTe
 		return "", err
 	}
 
+	model := service.configuration.LLM.OpenRouter.DefaultModel
+	if service.configuration.LLM.Provider == "ollama" {
+		model = service.configuration.LLM.Ollama.DefaultModel
+	}
+
 	responseChannel, err := service.llmProvider.Chat(jobContext, llm.ChatRequest{
-		Model: service.configuration.LLM.OpenRouter.DefaultModel,
+		Model: model,
 		Messages: []llm.Message{
 			{Role: "user", Content: []llm.ContentPart{{Type: "text", Text: cleanupPrompt}}},
 		},

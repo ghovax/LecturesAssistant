@@ -102,11 +102,15 @@ type DocumentUploadConfiguration struct {
 // Load reads the configuration from a file or creates a default one
 func Load(path string) (*Configuration, error) {
 	if path == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, err
+		dataDir := os.Getenv("STORAGE_DATA_DIRECTORY")
+		if dataDir == "" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return nil, err
+			}
+			dataDir = filepath.Join(home, ".lectures")
 		}
-		path = filepath.Join(home, ".lectures", "configuration.yaml")
+		path = filepath.Join(dataDir, "configuration.yaml")
 	}
 
 	// Check if file exists

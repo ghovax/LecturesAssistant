@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -72,12 +73,19 @@ func main() {
 
 	// Initialize LLM provider
 	var llmProvider llm.Provider
+	var defaultLLMModel string
+
 	switch loadedConfiguration.LLM.Provider {
 	case "openrouter":
 		llmProvider = llm.NewOpenRouterProvider(loadedConfiguration.LLM.OpenRouter.APIKey)
+		defaultLLMModel = loadedConfiguration.LLM.OpenRouter.DefaultModel
+	case "ollama":
+		llmProvider = llm.NewOllamaProvider(loadedConfiguration.LLM.Ollama.BaseURL)
+		defaultLLMModel = loadedConfiguration.LLM.Ollama.DefaultModel
 	default:
 		slog.Warn("Unknown LLM provider, falling back to openrouter with empty key", "provider", loadedConfiguration.LLM.Provider)
 		llmProvider = llm.NewOpenRouterProvider("")
+		defaultLLMModel = loadedConfiguration.LLM.OpenRouter.DefaultModel
 	}
 
 	// Initialize transcription provider and service
@@ -96,7 +104,7 @@ func main() {
 	transcriptionService := transcription.NewService(loadedConfiguration, transcriptionProvider, llmProvider, promptManager)
 
 	// Initialize document processor
-	documentProcessor := documents.NewProcessor(llmProvider, loadedConfiguration.LLM.OpenRouter.DefaultModel, promptManager)
+	documentProcessor := documents.NewProcessor(llmProvider, defaultLLMModel, promptManager)
 
 	// Initialize markdown converter
 	markdownConverter := markdown.NewConverter(loadedConfiguration.Storage.DataDirectory)
@@ -114,8 +122,8 @@ func main() {
 		slog.Warn("Markdown converter dependencies check failed (PDF export may not work)", "error", err)
 	}
 
-	// Initialize guide generator
-	guideGenerator := tools.NewGuideGenerator(loadedConfiguration, llmProvider, promptManager)
+	// Initialize tool generator
+	toolGenerator := tools.NewToolGenerator(loadedConfiguration, llmProvider, promptManager)
 
 	// Initialize job queue
 	backgroundJobQueue := jobs.NewQueue(initializedDatabase, 4) // 4 concurrent workers
@@ -189,6 +197,7 @@ func main() {
 		})
 		if err != nil {
 			initializedDatabase.Exec("UPDATE transcripts SET status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), transcriptID)
+			initializedDatabase.Exec("UPDATE lectures SET status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), payload.LectureID)
 			return fmt.Errorf("transcription service failed: %w", err)
 		}
 
@@ -225,6 +234,7 @@ func main() {
 			return fmt.Errorf("failed to commit transaction: %w", err)
 		}
 
+		checkLectureReadiness(initializedDatabase, payload.LectureID)
 		updateProgress(100, "Transcription completed", nil, jobs.JobMetrics{})
 		return nil
 	})
@@ -286,6 +296,7 @@ func main() {
 			})
 			if err != nil {
 				initializedDatabase.Exec("UPDATE reference_documents SET extraction_status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), document.ID)
+				initializedDatabase.Exec("UPDATE lectures SET status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), payload.LectureID)
 				return fmt.Errorf("document processor failed for %s: %w", document.Title, err)
 			}
 
@@ -323,6 +334,7 @@ func main() {
 			}
 		}
 
+		checkLectureReadiness(initializedDatabase, payload.LectureID)
 		updateProgress(100, "Document ingestion completed", nil, jobs.JobMetrics{})
 		return nil
 	})
@@ -331,11 +343,16 @@ func main() {
 		var payload struct {
 			LectureID    string `json:"lecture_id"`
 			ExamID       string `json:"exam_id"`
+			Type         string `json:"type"`
 			Length       string `json:"length"`
 			LanguageCode string `json:"language_code"`
 		}
 		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
 			return fmt.Errorf("failed to unmarshal job payload: %w", err)
+		}
+
+		if payload.Type == "" {
+			payload.Type = "guide"
 		}
 
 		var lecture models.Lecture
@@ -404,16 +421,27 @@ func main() {
 
 		referenceFilesContent := markdownReconstructor.Reconstruct(rootNode)
 
-		guideContent, guideTitle, err := guideGenerator.GenerateStudyGuide(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.Length, payload.LanguageCode, updateProgress)
-		if err != nil {
-			return fmt.Errorf("guide generation failed: %w", err)
+		var toolContent, toolTitle string
+		var genErr error
+
+		switch payload.Type {
+		case "flashcard":
+			toolContent, toolTitle, genErr = toolGenerator.GenerateFlashcards(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.LanguageCode, updateProgress)
+		case "quiz":
+			toolContent, toolTitle, genErr = toolGenerator.GenerateQuiz(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.LanguageCode, updateProgress)
+		default:
+			toolContent, toolTitle, genErr = toolGenerator.GenerateStudyGuide(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.Length, payload.LanguageCode, updateProgress)
+		}
+
+		if genErr != nil {
+			return fmt.Errorf("tool generation failed: %w", genErr)
 		}
 
 		toolID := uuid.New().String()
 		_, err = initializedDatabase.Exec(`
 			INSERT INTO tools (id, exam_id, type, title, content, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, toolID, payload.ExamID, "guide", guideTitle, guideContent, time.Now(), time.Now())
+		`, toolID, payload.ExamID, payload.Type, toolTitle, toolContent, time.Now(), time.Now())
 		if err != nil {
 			return fmt.Errorf("failed to store tool: %w", err)
 		}
@@ -442,8 +470,70 @@ func main() {
 		}
 		pdfPath := filepath.Join(exportDirectory, "export.pdf")
 
+		// 3. Prepare content for PDF (convert JSON to Markdown if needed)
+		contentToConvert := tool.Content
+		if tool.Type == "flashcard" || tool.Type == "quiz" {
+			markdownReconstructor := markdown.NewReconstructor()
+			rootNode := &markdown.Node{Type: markdown.NodeDocument}
+
+			rootNode.Children = append(rootNode.Children, &markdown.Node{
+				Type:    markdown.NodeHeading,
+				Level:   1,
+				Content: tool.Title,
+			})
+
+			switch tool.Type {
+			case "flashcard":
+				var flashcards []map[string]string
+				if err := json.Unmarshal([]byte(tool.Content), &flashcards); err == nil {
+					for _, flashcard := range flashcards {
+						rootNode.Children = append(rootNode.Children, &markdown.Node{
+							Type:    markdown.NodeHeading,
+							Level:   2,
+							Content: flashcard["front"],
+						})
+						rootNode.Children = append(rootNode.Children, &markdown.Node{
+							Type:    markdown.NodeParagraph,
+							Content: flashcard["back"],
+						})
+					}
+				}
+			case "quiz":
+				var quiz []map[string]any
+				if err := json.Unmarshal([]byte(tool.Content), &quiz); err == nil {
+					for _, quizItem := range quiz {
+						rootNode.Children = append(rootNode.Children, &markdown.Node{
+							Type:    markdown.NodeHeading,
+							Level:   2,
+							Content: fmt.Sprintf("%v", quizItem["question"]),
+						})
+
+						if options, ok := quizItem["options"].([]any); ok {
+							for _, option := range options {
+								rootNode.Children = append(rootNode.Children, &markdown.Node{
+									Type:     markdown.NodeListItem,
+									Content:  fmt.Sprintf("%v", option),
+									ListType: markdown.ListUnordered,
+								})
+							}
+						}
+
+						rootNode.Children = append(rootNode.Children, &markdown.Node{
+							Type:    markdown.NodeParagraph,
+							Content: fmt.Sprintf("**Correct Answer:** %v", quizItem["correct_answer"]),
+						})
+						rootNode.Children = append(rootNode.Children, &markdown.Node{
+							Type:    markdown.NodeParagraph,
+							Content: fmt.Sprintf("*Explanation:* %v", quizItem["explanation"]),
+						})
+					}
+				}
+			}
+			contentToConvert = markdownReconstructor.Reconstruct(rootNode)
+		}
+
 		updateProgress(20, "Converting markdown to HTML...", nil, jobs.JobMetrics{})
-		htmlContent, err := markdownConverter.MarkdownToHTML(tool.Content)
+		htmlContent, err := markdownConverter.MarkdownToHTML(contentToConvert)
 		if err != nil {
 			return fmt.Errorf("failed to convert to HTML: %w", err)
 		}
@@ -478,6 +568,29 @@ func main() {
 	if err := http.ListenAndServe(serverAddress, apiServer.Handler()); err != nil {
 		slog.Error("Server failed", "error", err)
 		os.Exit(1)
+	}
+}
+
+func checkLectureReadiness(database *sql.DB, lectureID string) {
+	// 1. Check transcript status
+	var transcriptStatus string
+	err := database.QueryRow("SELECT status FROM transcripts WHERE lecture_id = ?", lectureID).Scan(&transcriptStatus)
+	if err != nil && err != sql.ErrNoRows {
+		return
+	}
+
+	// 2. Check all reference documents extraction status
+	var pendingDocuments int
+	database.QueryRow("SELECT COUNT(*) FROM reference_documents WHERE lecture_id = ? AND extraction_status != 'completed'", lectureID).Scan(&pendingDocuments)
+
+	// A lecture is ready if the transcript is completed (if it exists)
+	// AND all reference documents are completed
+	isTranscriptReady := transcriptStatus == "completed" || transcriptStatus == ""
+	isDocumentsReady := pendingDocuments == 0
+
+	if isTranscriptReady && isDocumentsReady {
+		_, _ = database.Exec("UPDATE lectures SET status = 'ready', updated_at = ? WHERE id = ?", time.Now(), lectureID)
+		slog.Info("Lecture is now READY", "lectureID", lectureID)
 	}
 }
 

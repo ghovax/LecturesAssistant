@@ -63,6 +63,8 @@ const (
 	PromptCitationInstructions                = "study-guides/citation-instructions.md"
 	PromptDocumentWithCitationsExample        = "study-guides/document-with-citations-example.md"
 	PromptDocumentWithoutCitationsExample     = "study-guides/document-without-citations-example.md"
+	PromptGenerateFlashcards                  = "study-guides/generate-flashcards.md"
+	PromptGenerateQuiz                        = "study-guides/generate-quiz.md"
 	PromptLanguageRequirement                 = "study-guides/language-requirement.md"
 	PromptLatexInstructions                   = "study-guides/latex-instructions.md"
 	PromptSectionWithCitationsExample         = "study-guides/section-with-citations-example.md"

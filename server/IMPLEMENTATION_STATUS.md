@@ -12,6 +12,7 @@
 - [x] Logging middleware
 - [x] Standard API response format
 - [x] Error handling with codes
+- [x] Dockerfile and Docker Compose support
 
 ### Job Queue System
 - [x] Asynchronous job queue with configurable workers (default: 4)
@@ -21,6 +22,7 @@
 - [x] Job cancellation support
 - [x] Database persistence for jobs
 - [x] Automatic job pickup and processing
+- [x] Concurrency limits for heavy tasks (Whisper/Vision LLM)
 
 ### Transcription
 - [x] Whisper integration (via local CLI)
@@ -29,6 +31,7 @@
 - [x] Time offset adjustment for combined transcripts
 - [x] Job handler for TRANSCRIBE_MEDIA
 - [x] Multi-segment processing (5-minute chunks)
+- [x] LLM cleanup and polishing of transcripts
 
 ### Exam Management
 - [x] POST /api/exams - Create exam
@@ -38,11 +41,12 @@
 - [x] DELETE /api/exams/:id - Delete exam (cascades)
 
 ### Lecture Management
-- [x] POST /api/exams/:exam_id/lectures - Create lecture
+- [x] POST /api/exams/:exam_id/lectures - Create lecture (Atomic with files)
 - [x] GET /api/exams/:exam_id/lectures - List lectures
 - [x] GET /api/exams/:exam_id/lectures/:lecture_id - Get lecture
 - [x] PATCH /api/exams/:exam_id/lectures/:lecture_id - Update lecture
 - [x] DELETE /api/exams/:exam_id/lectures/:lecture_id - Delete lecture
+- [x] Status Gate (processing → ready) for material generation
 
 ### Media Management
 - [x] POST /api/exams/:exam_id/lectures/:lecture_id/media/upload - Upload media file
@@ -59,13 +63,7 @@
 ### System
 - [x] GET /api/health - Health check endpoint
 - [x] GET /api/settings - Get settings
-- [x] PATCH /api/settings - Update settings (stub)
-
-## 🚧 In Progress / Not Implemented
-
-### Transcription
-- [ ] Speaker diarization
-- [ ] Export transcript as SRT/VTT/TXT
+- [x] PATCH /api/settings - Update settings
 
 ### Document Processing
 - [x] PDF upload and storage (Atomic with lecture creation)
@@ -78,7 +76,7 @@
 
 ### LLM Integration
 - [x] OpenRouter provider implementation
-- [ ] Ollama provider implementation
+- [x] Ollama provider implementation
 - [x] Model capability detection (Implicit via provider logic)
 - [x] Provider registry (Initialized in main)
 - [x] Chat request/response handling
@@ -95,12 +93,12 @@
 
 ### Study Tools
 - [x] Tool generation (guides)
-- [ ] Tool generation (flashcards, quizzes)
+- [x] Tool generation (flashcards, quizzes)
 - [x] Source reference tracking
 - [x] Tool content storage and retrieval
-- [ ] Export as PDF/Markdown
+- [x] Export as PDF (Markdown, Flashcards, Quiz)
 - [x] Job handler for BUILD_MATERIAL
-- [ ] Job handler for PUBLISH_MATERIAL
+- [x] Job handler for PUBLISH_MATERIAL
 
 ### WebSocket Protocol
 - [x] WebSocket connection handling
@@ -108,6 +106,14 @@
 - [x] Real-time job progress updates
 - [x] Chat message streaming
 - [x] Heartbeat/keepalive
+
+## 🚧 In Progress / Not Implemented
+
+### Transcription
+- [ ] Speaker diarization
+- [ ] Export transcript as SRT/VTT/TXT
+
+### WebSocket Protocol
 - [ ] Reconnection with state recovery
 
 ### Authentication & Security
@@ -129,88 +135,18 @@
 ## 📋 Next Steps
 
 ### High Priority
-1. **Transcription System**
-   - Integrate Whisper for speech-to-text
-   - Implement job handler for transcription
-   - Handle multiple media files with time offsets
+1. **Authentication & Security**
+   - Implement password setup and session-based auth
+   - Add security middleware to all API routes
 
-2. **WebSocket Protocol**
-   - Real-time job progress updates
-   - Chat streaming support
-
-3. **LLM Integration**
-   - OpenRouter provider for cloud models
-   - Ollama provider for local models
+2. **File Management**
+   - Implement chunked upload for large media files
 
 ### Medium Priority
-4. **Document Processing**
-   - PDF page extraction and OCR
-   - PowerPoint and Word document support
-
-5. **Authentication**
-   - Basic password protection
-   - Session management
-
-6. **Chat System**
-   - Session and message management
-   - Context assembly and token budgeting
+3. **Transcription**
+   - Add transcript export (SRT/VTT)
+   - Investigate speaker diarization options
 
 ### Low Priority
-7. **Study Tools**
-   - AI-generated content creation
-   - Export functionality
-
-8. **Advanced Features**
-   - Chunked file uploads
-   - Media reordering
-   - Advanced settings management
-
-## 🏗️ Architecture Notes
-
-### Job Queue Design
-The job queue is designed to handle multiple jobs concurrently:
-- Workers run in separate goroutines
-- Jobs are picked up from the database with proper locking
-- Progress updates are broadcast to subscribers
-- Failed jobs retain error information for debugging
-
-### Database Schema
-All tables follow the specification with:
-- Foreign key constraints enabled
-- Cascading deletes where appropriate
-- Proper indexes for common queries
-- JSON columns for flexible data storage
-
-### API Design
-Following RESTful principles:
-- Standard response envelope with data and meta
-- Consistent error responses with codes
-- Request ID tracking
-- Proper HTTP status codes
-
-## 🧪 Testing
-
-### Manual Testing
-```bash
-# Start server
-make run
-
-# Create exam
-curl -X POST http://localhost:3000/api/exams \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Test Exam","description":"Test"}'
-
-# List exams
-curl http://localhost:3000/api/exams
-
-# Upload media
-curl -X POST http://localhost:3000/api/exams/{exam_id}/lectures/{lecture_id}/media/upload \
-  -F "file=@video.mp4" \
-  -F "media_type=video"
-```
-
-### Automated Tests
-- [ ] Unit tests for handlers
-- [ ] Integration tests for job queue
-- [ ] Database migration tests
-- [ ] API endpoint tests
+4. **WebSocket**
+   - Add reconnection logic with state recovery

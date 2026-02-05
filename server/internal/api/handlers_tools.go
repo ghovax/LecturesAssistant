@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"lectures/internal/models"
@@ -33,10 +34,15 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 	}
 
 	// Verify exam and lecture exist
-	var exists bool
-	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM lectures WHERE id = ? AND exam_id = ?)", createToolRequest.LectureID, examIdentifier).Scan(&exists)
-	if err != nil || !exists {
+	var lecture models.Lecture
+	err := server.database.QueryRow("SELECT id, status FROM lectures WHERE id = ? AND exam_id = ?", createToolRequest.LectureID, examIdentifier).Scan(&lecture.ID, &lecture.Status)
+	if err != nil {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found in this exam", nil)
+		return
+	}
+
+	if lecture.Status != "ready" {
+		server.writeError(responseWriter, http.StatusConflict, "LECTURE_NOT_READY", fmt.Sprintf("Lecture is currently in status: %s. Please wait for processing to complete.", lecture.Status), nil)
 		return
 	}
 

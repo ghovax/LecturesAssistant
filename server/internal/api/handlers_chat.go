@@ -437,8 +437,13 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 		{Role: "system", Content: []llm.ContentPart{{Type: "text", Text: finalSystemPrompt}}},
 	}, history...)
 
+	model := server.configuration.LLM.OpenRouter.DefaultModel
+	if server.configuration.LLM.Provider == "ollama" {
+		model = server.configuration.LLM.Ollama.DefaultModel
+	}
+
 	responseChannel, chatError := server.llmProvider.Chat(context.Background(), llm.ChatRequest{
-		Model:    server.configuration.LLM.OpenRouter.DefaultModel,
+		Model:    model,
 		Messages: fullMessages,
 		Stream:   true,
 	})

@@ -16,14 +16,15 @@ import (
 
 // Queue manages background job processing
 type Queue struct {
-	database         *sql.DB
-	workers          int
-	context          context.Context
-	cancel           context.CancelFunc
-	waitGroup        sync.WaitGroup
-	handlers         map[string]JobHandler
-	subscribers      map[string][]chan JobUpdate
-	subscribersMutex sync.RWMutex
+	database           *sql.DB
+	workers            int
+	context            context.Context
+	cancel             context.CancelFunc
+	waitGroup          sync.WaitGroup
+	handlers           map[string]JobHandler
+	subscribers        map[string][]chan JobUpdate
+	subscribersMutex   sync.RWMutex
+	heavyTaskSemaphore chan struct{}
 }
 
 // JobMetrics contains token usage and cost information
@@ -54,12 +55,13 @@ type JobUpdate struct {
 func NewQueue(database *sql.DB, workers int) *Queue {
 	context, cancel := context.WithCancel(context.Background())
 	return &Queue{
-		database:    database,
-		workers:     workers,
-		context:     context,
-		cancel:      cancel,
-		handlers:    make(map[string]JobHandler),
-		subscribers: make(map[string][]chan JobUpdate),
+		database:           database,
+		workers:            workers,
+		context:            context,
+		cancel:             cancel,
+		handlers:           make(map[string]JobHandler),
+		subscribers:        make(map[string][]chan JobUpdate),
+		heavyTaskSemaphore: make(chan struct{}, 1), // Only 1 heavy task at a time
 	}
 }
 
@@ -246,6 +248,17 @@ func (queue *Queue) executeJob(job *models.Job) {
 	if !ok {
 		queue.failJob(job.ID, fmt.Sprintf("no handler registered for job type: %s", job.Type))
 		return
+	}
+
+	// Handle resource-intensive tasks sequentially
+	isHeavyTask := job.Type == models.JobTypeTranscribeMedia || job.Type == models.JobTypeIngestDocuments
+	if isHeavyTask {
+		select {
+		case queue.heavyTaskSemaphore <- struct{}{}:
+			defer func() { <-queue.heavyTaskSemaphore }()
+		case <-queue.context.Done():
+			return
+		}
 	}
 
 	// Create update function

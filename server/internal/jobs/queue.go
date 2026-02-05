@@ -16,18 +16,18 @@ import (
 
 // Queue manages background job processing
 type Queue struct {
-	database          *sql.DB
-	workers           int
-	context           context.Context
-	cancel            context.CancelFunc
-	waitGroup         sync.WaitGroup
-	handlers          map[string]JobHandler
-	subscribers       map[string][]chan JobUpdate
-	subscribersMutex  sync.RWMutex
+	database         *sql.DB
+	workers          int
+	context          context.Context
+	cancel           context.CancelFunc
+	waitGroup        sync.WaitGroup
+	handlers         map[string]JobHandler
+	subscribers      map[string][]chan JobUpdate
+	subscribersMutex sync.RWMutex
 }
 
 // JobHandler is a function that processes a specific job type
-type JobHandler func(ctx context.Context, job *models.Job, updateFn func(progress int, message string)) error
+type JobHandler func(context context.Context, job *models.Job, updateFn func(progress int, message string)) error
 
 // JobUpdate represents a job progress update
 type JobUpdate struct {
@@ -43,12 +43,12 @@ type JobUpdate struct {
 func NewQueue(database *sql.DB, workers int) *Queue {
 	context, cancel := context.WithCancel(context.Background())
 	return &Queue{
-		database:         database,
-		workers:          workers,
-		context:          context,
-		cancel:           cancel,
-		handlers:         make(map[string]JobHandler),
-		subscribers:      make(map[string][]chan JobUpdate),
+		database:    database,
+		workers:     workers,
+		context:     context,
+		cancel:      cancel,
+		handlers:    make(map[string]JobHandler),
+		subscribers: make(map[string][]chan JobUpdate),
 	}
 }
 

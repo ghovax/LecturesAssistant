@@ -65,19 +65,14 @@ func (server *Server) setupRoutes() {
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}", server.handleDeleteLecture).Methods("DELETE")
 
 	// Media
-	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/media/upload", server.handleUploadMedia).Methods("POST")
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/media", server.handleListMedia).Methods("GET")
-	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/media/{mediaId}", server.handleDeleteMedia).Methods("DELETE")
 
 	// Transcripts
-	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/transcribe", server.handleTranscribe).Methods("POST")
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/transcript", server.handleGetTranscript).Methods("GET")
 
 	// Reference Documents
-	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/documents/upload", server.handleUploadDocument).Methods("POST")
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/documents", server.handleListDocuments).Methods("GET")
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/documents/{documentId}", server.handleGetDocument).Methods("GET")
-	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/documents/{documentId}", server.handleDeleteDocument).Methods("DELETE")
 
 	// Tools
 	apiRouter.HandleFunc("/exams/{examId}/tools", server.handleCreateTool).Methods("POST")

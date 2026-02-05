@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"lectures/internal/models"
-
 	"github.com/gorilla/mux"
 )
 
@@ -19,26 +17,6 @@ func (server *Server) handleHealth(responseWriter http.ResponseWriter, request *
 }
 
 // Transcripts
-func (server *Server) handleTranscribe(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	lectureIdentifier := pathVariables["lectureId"]
-
-	// Create transcription job
-	jobIdentifier, err := server.jobQueue.Enqueue(models.JobTypeTranscribeMedia, map[string]string{
-		"lecture_id": lectureIdentifier,
-	})
-
-	if err != nil {
-		server.writeError(responseWriter, http.StatusInternalServerError, "JOB_ERROR", "Failed to create transcription job", nil)
-		return
-	}
-
-	server.writeJSON(responseWriter, http.StatusAccepted, map[string]string{
-		"job_id":  jobIdentifier,
-		"message": "Transcription job created",
-	})
-}
-
 func (server *Server) handleGetTranscript(responseWriter http.ResponseWriter, request *http.Request) {
 	pathVariables := mux.Vars(request)
 	lectureIdentifier := pathVariables["lectureId"]
@@ -105,19 +83,11 @@ func (server *Server) handleGetTranscript(responseWriter http.ResponseWriter, re
 }
 
 // Documents
-func (server *Server) handleUploadDocument(responseWriter http.ResponseWriter, request *http.Request) {
-	server.writeError(responseWriter, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Document upload not yet implemented", nil)
-}
-
 func (server *Server) handleListDocuments(responseWriter http.ResponseWriter, request *http.Request) {
 	server.writeJSON(responseWriter, http.StatusOK, []interface{}{})
 }
 
 func (server *Server) handleGetDocument(responseWriter http.ResponseWriter, request *http.Request) {
-	server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Document not found", nil)
-}
-
-func (server *Server) handleDeleteDocument(responseWriter http.ResponseWriter, request *http.Request) {
 	server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Document not found", nil)
 }
 

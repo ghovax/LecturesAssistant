@@ -175,7 +175,7 @@ server/
 
 ```go
 // Register handler in main.go
-jobQueue.RegisterHandler(models.JobTypeTranscribeMedia, func(ctx context.Context, job *models.Job, updateFn func(int, string)) error {
+jobQueue.RegisterHandler(models.JobTypeTranscribeMedia, func(context context.Context, job *models.Job, updateFn func(int, string)) error {
     updateFn(50, "Processing audio...")
     // Do work here
     updateFn(100, "Complete")

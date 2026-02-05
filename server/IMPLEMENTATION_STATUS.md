@@ -22,6 +22,14 @@
 - [x] Database persistence for jobs
 - [x] Automatic job pickup and processing
 
+### Transcription
+- [x] Whisper integration (via local CLI)
+- [x] Audio/video processing (via FFmpeg)
+- [x] Transcript generation from multiple media files
+- [x] Time offset adjustment for combined transcripts
+- [x] Job handler for TRANSCRIBE_MEDIA
+- [x] Multi-segment processing (5-minute chunks)
+
 ### Exam Management
 - [x] POST /api/exams - Create exam
 - [x] GET /api/exams - List all exams
@@ -56,13 +64,8 @@
 ## 🚧 In Progress / Not Implemented
 
 ### Transcription
-- [ ] Whisper integration
-- [ ] Audio/video processing
-- [ ] Transcript generation from multiple media files
-- [ ] Time offset adjustment for combined transcripts
 - [ ] Speaker diarization
 - [ ] Export transcript as SRT/VTT/TXT
-- [ ] Job handler for TRANSCRIBE_MEDIA
 
 ### Document Processing
 - [ ] PDF upload and storage

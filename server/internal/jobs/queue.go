@@ -27,15 +27,8 @@ type Queue struct {
 	heavyTaskSemaphore chan struct{}
 }
 
-// JobMetrics contains token usage and cost information
-type JobMetrics struct {
-	InputTokens   int
-	OutputTokens  int
-	EstimatedCost float64
-}
-
 // JobHandler is a function that processes a specific job type
-type JobHandler func(context context.Context, job *models.Job, updateProgress func(progress int, message string, metadata any, metrics JobMetrics)) error
+type JobHandler func(context context.Context, job *models.Job, updateProgress func(progress int, message string, metadata any, metrics models.JobMetrics)) error
 
 // JobUpdate represents a job progress update
 type JobUpdate struct {
@@ -184,7 +177,7 @@ func (queue *Queue) processNextJob(workerID int) {
 
 	// Find and lock a pending job
 	var job models.Job
-	var metadataJSON sql.NullString
+	var metadataJSON, progressMessageText sql.NullString
 	err = transaction.QueryRow(`
 		SELECT id, type, status, progress, progress_message_text, payload, metadata, created_at
 		FROM jobs
@@ -193,7 +186,7 @@ func (queue *Queue) processNextJob(workerID int) {
 		LIMIT 1
 	`, models.JobStatusPending).Scan(
 		&job.ID, &job.Type, &job.Status, &job.Progress,
-		&job.ProgressMessageText, &job.Payload, &metadataJSON, &job.CreatedAt,
+		&progressMessageText, &job.Payload, &metadataJSON, &job.CreatedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -206,6 +199,9 @@ func (queue *Queue) processNextJob(workerID int) {
 
 	if metadataJSON.Valid {
 		_ = json.Unmarshal([]byte(metadataJSON.String), &job.Metadata)
+	}
+	if progressMessageText.Valid {
+		job.ProgressMessageText = progressMessageText.String
 	}
 
 	// Mark job as running
@@ -262,7 +258,7 @@ func (queue *Queue) executeJob(job *models.Job) {
 	}
 
 	// Create update function
-	updateProgress := func(progress int, message string, metadata any, metrics JobMetrics) {
+	updateProgress := func(progress int, message string, metadata any, metrics models.JobMetrics) {
 		var metadataJSON []byte
 		if metadata != nil {
 			metadataJSON, _ = json.Marshal(metadata)

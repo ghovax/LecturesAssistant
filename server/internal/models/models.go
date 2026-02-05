@@ -110,6 +110,13 @@ type ChatMessage struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// JobMetrics contains token usage and cost information
+type JobMetrics struct {
+	InputTokens   int
+	OutputTokens  int
+	EstimatedCost float64
+}
+
 // Job represents a background task
 type Job struct {
 	ID                  string     `json:"id"`

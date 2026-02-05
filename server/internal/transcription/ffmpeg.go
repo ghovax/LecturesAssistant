@@ -10,6 +10,14 @@ import (
 	"strings"
 )
 
+// MediaProcessor defines the interface for media processing operations
+type MediaProcessor interface {
+	CheckDependencies() error
+	ExtractAudio(inputPath string, outputPath string) error
+	SplitAudio(inputPath string, outputDirectory string, segmentDuration int) ([]string, error)
+	GetDuration(inputPath string) (float64, error)
+}
+
 // FFmpeg handles media processing using the ffmpeg CLI tool
 type FFmpeg struct{}
 

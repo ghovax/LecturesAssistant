@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"lectures/internal/configuration"
-	"lectures/internal/jobs"
 	"lectures/internal/llm"
 	"lectures/internal/markdown"
 	"lectures/internal/models"
@@ -31,8 +30,8 @@ func NewToolGenerator(configuration *configuration.Configuration, llmProvider ll
 }
 
 // GenerateStudyGuide creates a comprehensive study guide section by section using sequential chat
-func (generator *ToolGenerator) GenerateStudyGuide(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, length string, languageCode string, updateProgress func(int, string, any, jobs.JobMetrics)) (string, string, error) {
-	var metrics jobs.JobMetrics
+func (generator *ToolGenerator) GenerateStudyGuide(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, length string, languageCode string, updateProgress func(int, string, any, models.JobMetrics)) (string, string, error) {
+	var metrics models.JobMetrics
 
 	// 1. Identify Relevant Pages
 	updateProgress(5, "Identifying relevant reference materials...", nil, metrics)
@@ -208,8 +207,8 @@ func (generator *ToolGenerator) GenerateStudyGuide(jobContext context.Context, l
 }
 
 // GenerateFlashcards creates a set of flashcards from the lecture content
-func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, updateProgress func(int, string, any, jobs.JobMetrics)) (string, string, error) {
-	var metrics jobs.JobMetrics
+func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, updateProgress func(int, string, any, models.JobMetrics)) (string, string, error) {
+	var metrics models.JobMetrics
 	updateProgress(10, "Preparing flashcard generation...", nil, metrics)
 
 	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
@@ -238,8 +237,8 @@ func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, l
 }
 
 // GenerateQuiz creates a multiple-choice quiz from the lecture content
-func (generator *ToolGenerator) GenerateQuiz(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, updateProgress func(int, string, any, jobs.JobMetrics)) (string, string, error) {
-	var metrics jobs.JobMetrics
+func (generator *ToolGenerator) GenerateQuiz(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, updateProgress func(int, string, any, models.JobMetrics)) (string, string, error) {
+	var metrics models.JobMetrics
 	updateProgress(10, "Preparing quiz generation...", nil, metrics)
 
 	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
@@ -267,11 +266,11 @@ func (generator *ToolGenerator) GenerateQuiz(jobContext context.Context, lecture
 	return quizResponse, "Quiz: " + lecture.Title, nil
 }
 
-func (generator *ToolGenerator) callLLM(jobContext context.Context, prompt string) (string, jobs.JobMetrics, error) {
+func (generator *ToolGenerator) callLLM(jobContext context.Context, prompt string) (string, models.JobMetrics, error) {
 	return generator.callLLMWithHistory(jobContext, prompt, nil)
 }
 
-func (generator *ToolGenerator) callLLMWithHistory(jobContext context.Context, prompt string, history []llm.Message) (string, jobs.JobMetrics, error) {
+func (generator *ToolGenerator) callLLMWithHistory(jobContext context.Context, prompt string, history []llm.Message) (string, models.JobMetrics, error) {
 	model := generator.configuration.LLM.OpenRouter.DefaultModel
 	if generator.configuration.LLM.Provider == "ollama" {
 		model = generator.configuration.LLM.Ollama.DefaultModel
@@ -288,14 +287,14 @@ func (generator *ToolGenerator) callLLMWithHistory(jobContext context.Context, p
 		Stream:   false,
 	})
 	if err != nil {
-		return "", jobs.JobMetrics{}, err
+		return "", models.JobMetrics{}, err
 	}
 
 	var resultBuilder strings.Builder
-	var metrics jobs.JobMetrics
+	var metrics models.JobMetrics
 	for chunk := range responseChannel {
 		if chunk.Error != nil {
-			return "", jobs.JobMetrics{}, chunk.Error
+			return "", models.JobMetrics{}, chunk.Error
 		}
 		resultBuilder.WriteString(chunk.Text)
 		metrics.InputTokens += chunk.InputTokens
@@ -306,9 +305,9 @@ func (generator *ToolGenerator) callLLMWithHistory(jobContext context.Context, p
 	return resultBuilder.String(), metrics, nil
 }
 
-func (generator *ToolGenerator) getRelevantMaterials(jobContext context.Context, transcript string, fullMaterials string) (string, jobs.JobMetrics, error) {
+func (generator *ToolGenerator) getRelevantMaterials(jobContext context.Context, transcript string, fullMaterials string) (string, models.JobMetrics, error) {
 	if fullMaterials == "" {
-		return "", jobs.JobMetrics{}, nil
+		return "", models.JobMetrics{}, nil
 	}
 
 	prompt, err := generator.promptManager.GetPrompt(prompts.PromptGetRelevantPages, map[string]string{
@@ -316,7 +315,7 @@ func (generator *ToolGenerator) getRelevantMaterials(jobContext context.Context,
 		"reference_files": fullMaterials,
 	})
 	if err != nil {
-		return fullMaterials, jobs.JobMetrics{}, err
+		return fullMaterials, models.JobMetrics{}, err
 	}
 
 	response, metrics, err := generator.callLLM(jobContext, prompt)

@@ -172,8 +172,12 @@ func createSchema(database *sql.DB) error {
 		progress INTEGER DEFAULT 0,
 		progress_message_text TEXT,
 		payload JSON NOT NULL,
+		metadata JSON,
 		result JSON,
 		error TEXT,
+		input_tokens INTEGER DEFAULT 0,
+		output_tokens INTEGER DEFAULT 0,
+		estimated_cost REAL DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		started_at DATETIME,
 		completed_at DATETIME

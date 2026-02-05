@@ -68,7 +68,7 @@ func (server *Server) handleCreateChatSession(responseWriter http.ResponseWriter
 
 	// Initialize empty context config
 	_, databaseError = databaseTransaction.Exec(`
-		INSERT INTO chat_context_config (session_id, included_lecture_ids, included_tool_ids)
+		INSERT INTO chat_context_configuration (session_id, included_lecture_ids, included_tool_ids)
 		VALUES (?, ?, ?)
 	`, session.ID, "[]", "[]")
 
@@ -139,7 +139,7 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 	var includedLectureIDsJSON, includedToolIDsJSON string
 	databaseError = server.database.QueryRow(`
 		SELECT included_lecture_ids, included_tool_ids 
-		FROM chat_context_config 
+		FROM chat_context_configuration 
 		WHERE session_id = ?
 	`, sessionIdentifier).Scan(&includedLectureIDsJSON, &includedToolIDsJSON)
 
@@ -220,7 +220,7 @@ func (server *Server) handleUpdateChatContext(responseWriter http.ResponseWriter
 	toolIDsJSON, _ := json.Marshal(updateContextRequest.IncludedToolIDs)
 
 	_, databaseError := server.database.Exec(`
-		UPDATE chat_context_config
+		UPDATE chat_context_configuration
 		SET included_lecture_ids = ?, included_tool_ids = ?
 		WHERE session_id = ?
 	`, string(lectureIDsJSON), string(toolIDsJSON), sessionIdentifier)
@@ -316,7 +316,7 @@ func (server *Server) getChatHistory(sessionID string) []llm.Message {
 
 func (server *Server) getLectureContext(sessionID string) string {
 	var includedLectureIDsJSON string
-	databaseError := server.database.QueryRow("SELECT included_lecture_ids FROM chat_context_config WHERE session_id = ?", sessionID).Scan(&includedLectureIDsJSON)
+	databaseError := server.database.QueryRow("SELECT included_lecture_ids FROM chat_context_configuration WHERE session_id = ?", sessionID).Scan(&includedLectureIDsJSON)
 	if databaseError != nil {
 		return ""
 	}

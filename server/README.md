@@ -13,6 +13,7 @@ Backend server for the Lectures Assistant application written in Go.
 ## Features
 
 ### Implemented
+
 - ✅ Exam management (CRUD operations)
 - ✅ Lecture management (CRUD operations)
 - ✅ Media file upload and storage
@@ -23,6 +24,7 @@ Backend server for the Lectures Assistant application written in Go.
 - ✅ Job monitoring and cancellation
 
 ### In Progress
+
 - 🚧 Transcription integration (Whisper)
 - 🚧 Document processing (PDF, PPTX, DOCX)
 - 🚧 LLM integration (OpenRouter, Ollama)
@@ -52,6 +54,7 @@ Or specify a custom configuration file:
 ```
 
 The server will:
+
 1. Create the configuration file if it doesn't exist (`~/.lectures/configuration.yaml`)
 2. Initialize the SQLite database (`~/.lectures/database.db`)
 3. Start the job queue with 4 concurrent workers
@@ -88,6 +91,7 @@ transcription:
 ## API Endpoints
 
 ### Exams
+
 - `POST /api/exams` - Create exam
 - `GET /api/exams` - List exams
 - `GET /api/exams/:id` - Get exam
@@ -95,6 +99,7 @@ transcription:
 - `DELETE /api/exams/:id` - Delete exam
 
 ### Lectures
+
 - `POST /api/exams/:exam_id/lectures` - Create lecture
 - `GET /api/exams/:exam_id/lectures` - List lectures
 - `GET /api/exams/:exam_id/lectures/:lecture_id` - Get lecture
@@ -102,20 +107,24 @@ transcription:
 - `DELETE /api/exams/:exam_id/lectures/:lecture_id` - Delete lecture
 
 ### Media
+
 - `POST /api/exams/:exam_id/lectures/:lecture_id/media/upload` - Upload media
 - `GET /api/exams/:exam_id/lectures/:lecture_id/media` - List media
 - `DELETE /api/exams/:exam_id/lectures/:lecture_id/media/:media_id` - Delete media
 
 ### Transcripts
+
 - `POST /api/exams/:exam_id/lectures/:lecture_id/transcribe` - Start transcription
 - `GET /api/exams/:exam_id/lectures/:lecture_id/transcript` - Get transcript
 
 ### Jobs
+
 - `GET /api/jobs` - List jobs
 - `GET /api/jobs/:id` - Get job status
 - `DELETE /api/jobs/:id` - Cancel job
 
 ### System
+
 - `GET /api/health` - Health check
 - `GET /api/settings` - Get settings
 - `PATCH /api/settings` - Update settings
@@ -123,12 +132,14 @@ transcription:
 ## Job Queue
 
 The job queue supports multiple concurrent workers and handles:
+
 - Transcription jobs (`TRANSCRIBE_MEDIA`)
 - Document ingestion (`INGEST_DOCUMENTS`)
 - Tool generation (`BUILD_MATERIAL`)
 - Export generation (`PUBLISH_MATERIAL`)
 
 Jobs have the following states:
+
 - `PENDING` - Waiting to be processed
 - `RUNNING` - Currently being processed
 - `COMPLETED` - Successfully finished
@@ -138,6 +149,7 @@ Jobs have the following states:
 ## Database Schema
 
 The SQLite database includes:
+
 - `exams` - Course/exam groupings
 - `lectures` - Individual lessons
 - `lecture_media` - Audio/video files
@@ -157,6 +169,7 @@ All tables have proper foreign key constraints and cascading deletes.
 ## Development
 
 ### Project Structure
+
 ```
 server/
 ├── cmd/

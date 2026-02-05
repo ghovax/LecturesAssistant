@@ -16,7 +16,7 @@ import (
 
 type Service struct {
 	configuration *configuration.Configuration
-	ffmpeg        *FFmpeg
+	mediaProcessor MediaProcessor
 	provider      Provider
 	llmProvider   llm.Provider
 	promptManager *prompts.Manager
@@ -25,16 +25,21 @@ type Service struct {
 func NewService(configuration *configuration.Configuration, provider Provider, llmProvider llm.Provider, promptManager *prompts.Manager) *Service {
 	return &Service{
 		configuration: configuration,
-		ffmpeg:        NewFFmpeg(),
+		mediaProcessor: NewFFmpeg(),
 		provider:      provider,
 		llmProvider:   llmProvider,
 		promptManager: promptManager,
 	}
 }
 
+// SetMediaProcessor allows overriding the default media processor (useful for testing)
+func (service *Service) SetMediaProcessor(processor MediaProcessor) {
+	service.mediaProcessor = processor
+}
+
 // CheckDependencies verifies that FFmpeg and the provider are available
 func (service *Service) CheckDependencies() error {
-	if err := service.ffmpeg.CheckDependencies(); err != nil {
+	if err := service.mediaProcessor.CheckDependencies(); err != nil {
 		return err
 	}
 	return service.provider.CheckDependencies()
@@ -46,7 +51,7 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 	var globalTimeOffsetMilliseconds int64 = 0
 
 	// Validate FFmpeg
-	if err := service.ffmpeg.CheckDependencies(); err != nil {
+	if err := service.mediaProcessor.CheckDependencies(); err != nil {
 		return nil, fmt.Errorf("ffmpeg dependency check failed: %w", err)
 	}
 
@@ -68,14 +73,14 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 
 		// 1. Prepare Audio
 		audioPath := filepath.Join(temporaryDirectory, fmt.Sprintf("source_%s.mp3", media.ID))
-		if err := service.ffmpeg.ExtractAudio(media.FilePath, audioPath); err != nil {
+		if err := service.mediaProcessor.ExtractAudio(media.FilePath, audioPath); err != nil {
 			return nil, fmt.Errorf("failed to extract audio from %s: %w", media.FilePath, err)
 		}
 
 		// 2. Split Audio
 		segmentsDirectory := filepath.Join(temporaryDirectory, fmt.Sprintf("segments_%s", media.ID))
 		segmentDurationSeconds := 300 // 5 minutes
-		segmentFiles, err := service.ffmpeg.SplitAudio(audioPath, segmentsDirectory, segmentDurationSeconds)
+		segmentFiles, err := service.mediaProcessor.SplitAudio(audioPath, segmentsDirectory, segmentDurationSeconds)
 		if err != nil {
 			return nil, fmt.Errorf("failed to split audio: %w", err)
 		}
@@ -161,7 +166,7 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 
 		allSegments = append(allSegments, mediaSegments...)
 
-		durationSeconds, err := service.ffmpeg.GetDuration(audioPath)
+		durationSeconds, err := service.mediaProcessor.GetDuration(audioPath)
 		if err != nil {
 			durationSeconds = float64(len(segmentFiles) * segmentDurationSeconds)
 		}

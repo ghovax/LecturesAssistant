@@ -346,3 +346,69 @@ func (server *Server) handleDeleteLecture(responseWriter http.ResponseWriter, re
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Lecture deleted successfully"})
 }
+
+// handleGetTranscript retrieves the unified transcript for a lecture
+func (server *Server) handleGetTranscript(responseWriter http.ResponseWriter, request *http.Request) {
+	pathVariables := mux.Vars(request)
+	lectureIdentifier := pathVariables["lectureId"]
+
+	// Get transcript metadata
+	var transcriptID, status string
+	err := server.database.QueryRow(`
+		SELECT id, status FROM transcripts WHERE lecture_id = ?
+	`, lectureIdentifier).Scan(&transcriptID, &status)
+
+	if err == sql.ErrNoRows {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Transcript not found", nil)
+		return
+	}
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get transcript", nil)
+		return
+	}
+
+	// Get segments in order
+	rows, err := server.database.Query(`
+		SELECT id, transcript_id, media_id, start_millisecond, end_millisecond, text, confidence, speaker
+		FROM transcript_segments
+		WHERE transcript_id = ?
+		ORDER BY start_millisecond ASC
+	`, transcriptID)
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get segments", nil)
+		return
+	}
+	defer rows.Close()
+
+	var segments []map[string]any
+	for rows.Next() {
+		var id int
+		var transcriptID, mediaID, text, speaker sql.NullString
+		var startMs, endMs int64
+		var confidence sql.NullFloat64
+
+		if err := rows.Scan(&id, &transcriptID, &mediaID, &startMs, &endMs, &text, &confidence, &speaker); err != nil {
+			continue
+		}
+
+		segment := map[string]any{
+			"id":                id,
+			"start_millisecond": startMs,
+			"end_millisecond":   endMs,
+			"text":              text.String,
+		}
+		if confidence.Valid {
+			segment["confidence"] = confidence.Float64
+		}
+		if speaker.Valid {
+			segment["speaker"] = speaker.String
+		}
+		segments = append(segments, segment)
+	}
+
+	server.writeJSON(responseWriter, http.StatusOK, map[string]any{
+		"transcript_id": transcriptID,
+		"status":        status,
+		"segments":      segments,
+	})
+}

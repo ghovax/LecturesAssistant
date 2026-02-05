@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"time"
 
-	config "lectures/internal/configuration"
+	"lectures/internal/configuration"
 	"lectures/internal/jobs"
+	"lectures/internal/llm"
 	"lectures/internal/models"
+	"lectures/internal/prompts"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -16,21 +18,28 @@ import (
 
 // Server represents the API server
 type Server struct {
-	configuration *config.Configuration
+	configuration *configuration.Configuration
 	database      *sql.DB
 	jobQueue      *jobs.Queue
 	router        *mux.Router
+	wsHub         *Hub
+	llmProvider   llm.Provider
+	promptManager *prompts.Manager
 }
 
 // NewServer creates a new API server
-func NewServer(configuration *config.Configuration, database *sql.DB, jobQueue *jobs.Queue) *Server {
+func NewServer(configuration *configuration.Configuration, database *sql.DB, jobQueue *jobs.Queue, llmProvider llm.Provider, promptManager *prompts.Manager) *Server {
 	server := &Server{
 		configuration: configuration,
 		database:      database,
 		jobQueue:      jobQueue,
 		router:        mux.NewRouter(),
+		wsHub:         NewHub(),
+		llmProvider:   llmProvider,
+		promptManager: promptManager,
 	}
 
+	go server.wsHub.Run()
 	server.setupRoutes()
 	return server
 }
@@ -86,6 +95,7 @@ func (server *Server) setupRoutes() {
 	apiRouter.HandleFunc("/exams/{examId}/chat/sessions", server.handleCreateChatSession).Methods("POST")
 	apiRouter.HandleFunc("/exams/{examId}/chat/sessions", server.handleListChatSessions).Methods("GET")
 	apiRouter.HandleFunc("/exams/{examId}/chat/sessions/{sessionId}", server.handleGetChatSession).Methods("GET")
+	apiRouter.HandleFunc("/exams/{examId}/chat/sessions/{sessionId}/context", server.handleUpdateChatContext).Methods("PATCH")
 	apiRouter.HandleFunc("/exams/{examId}/chat/sessions/{sessionId}", server.handleDeleteChatSession).Methods("DELETE")
 	apiRouter.HandleFunc("/exams/{examId}/chat/sessions/{sessionId}/messages", server.handleSendMessage).Methods("POST")
 

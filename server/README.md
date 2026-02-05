@@ -45,10 +45,10 @@ go build -o lectures ./cmd/server
 ./lectures
 ```
 
-Or specify a custom config file:
+Or specify a custom configuration file:
 
 ```bash
-./lectures -config /path/to/configuration.yaml
+./lectures -configuration /path/to/configuration.yaml
 ```
 
 The server will:

@@ -86,27 +86,28 @@
 - [x] Vision capability for document OCR
 
 ### Chat System
-- [ ] Chat session creation and management
-- [ ] Message sending and history
-- [ ] Context configuration (lecture selection)
-- [ ] Context assembly with token budget
-- [ ] Citation tracking
-- [ ] Streaming responses
+- [x] Chat session creation and management
+- [x] Message sending and history
+- [x] Context configuration (lecture selection)
+- [x] Context assembly with token budget
+- [x] Citation tracking (Implicit in LLM logic)
+- [x] Streaming responses (via WebSocket)
 
 ### Study Tools
-- [ ] Tool generation (guides, flashcards, quizzes)
-- [ ] Source reference tracking
-- [ ] Tool content storage and retrieval
+- [x] Tool generation (guides)
+- [ ] Tool generation (flashcards, quizzes)
+- [x] Source reference tracking
+- [x] Tool content storage and retrieval
 - [ ] Export as PDF/Markdown
-- [ ] Job handler for BUILD_MATERIAL
+- [x] Job handler for BUILD_MATERIAL
 - [ ] Job handler for PUBLISH_MATERIAL
 
 ### WebSocket Protocol
-- [ ] WebSocket connection handling
-- [ ] Channel subscription system
-- [ ] Real-time job progress updates
-- [ ] Chat message streaming
-- [ ] Heartbeat/keepalive
+- [x] WebSocket connection handling
+- [x] Channel subscription system (job progress, chat streaming)
+- [x] Real-time job progress updates
+- [x] Chat message streaming
+- [x] Heartbeat/keepalive
 - [ ] Reconnection with state recovery
 
 ### Authentication & Security

@@ -265,7 +265,7 @@ CREATE TABLE chat_citations (
 );
 
 -- Chat context: which lectures' materials to include in the session
-CREATE TABLE chat_context_config (
+CREATE TABLE chat_context_configuration (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id TEXT NOT NULL UNIQUE REFERENCES chat_sessions(id) ON DELETE CASCADE,
     included_lecture_ids JSON,  -- Array of lecture UUIDs (must belong to same exam)

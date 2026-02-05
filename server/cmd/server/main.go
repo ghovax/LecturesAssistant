@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	"lectures/internal/api"
-	config "lectures/internal/configuration"
+	"lectures/internal/configuration"
 	"lectures/internal/database"
 	"lectures/internal/documents"
 	"lectures/internal/jobs"
@@ -30,11 +30,11 @@ import (
 
 func main() {
 	// Parse command-line flags
-	configurationPath := flag.String("config", "", "Path to configuration file")
+	configurationPath := flag.String("configuration", "", "Path to configuration file")
 	flag.Parse()
 
 	// Load configuration
-	loadedConfiguration, err := config.Load(*configurationPath)
+	loadedConfiguration, err := configuration.Load(*configurationPath)
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
@@ -410,7 +410,7 @@ func main() {
 	defer backgroundJobQueue.Stop()
 
 	// Create API server
-	apiServer := api.NewServer(loadedConfiguration, initializedDatabase, backgroundJobQueue)
+	apiServer := api.NewServer(loadedConfiguration, initializedDatabase, backgroundJobQueue, llmProvider, promptManager)
 
 	// Start HTTP server
 	serverAddress := fmt.Sprintf("%s:%d", loadedConfiguration.Server.Host, loadedConfiguration.Server.Port)

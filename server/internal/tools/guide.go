@@ -6,20 +6,21 @@ import (
 	"strconv"
 	"strings"
 
-	config "lectures/internal/configuration"
+	"lectures/internal/configuration"
 	"lectures/internal/jobs"
 	"lectures/internal/llm"
+	"lectures/internal/markdown"
 	"lectures/internal/models"
 	"lectures/internal/prompts"
 )
 
 type GuideGenerator struct {
-	configuration *config.Configuration
+	configuration *configuration.Configuration
 	llmProvider   llm.Provider
 	promptManager *prompts.Manager
 }
 
-func NewGuideGenerator(configuration *config.Configuration, llmProvider llm.Provider, promptManager *prompts.Manager) *GuideGenerator {
+func NewGuideGenerator(configuration *configuration.Configuration, llmProvider llm.Provider, promptManager *prompts.Manager) *GuideGenerator {
 	return &GuideGenerator{
 		configuration: configuration,
 		llmProvider:   llmProvider,
@@ -189,25 +190,33 @@ func (generator *GuideGenerator) parseTitle(structure string) string {
 }
 
 func (generator *GuideGenerator) parseStructure(structure string) []sectionInfo {
-	var sections []sectionInfo
-	lines := strings.Split(structure, "\n")
-	var currentSection *sectionInfo
+	parser := markdown.NewParser()
+	documentAST := parser.Parse(structure)
+	reconstructor := markdown.NewReconstructor()
 
-	for _, line := range lines {
-		if strings.HasPrefix(line, "## ") {
-			if currentSection != nil {
-				sections = append(sections, *currentSection)
+	var sections []sectionInfo
+
+	// Helper function to recursively find sections at level 2
+	var findSections func(*markdown.Node)
+	findSections = func(node *markdown.Node) {
+		if node.Type == markdown.NodeSection && node.Level == 2 {
+			// Reconstruct coverage from children
+			coverage := reconstructor.Reconstruct(&markdown.Node{
+				Type:     markdown.NodeDocument,
+				Children: node.Children,
+			})
+			sections = append(sections, sectionInfo{
+				Title:    node.Title,
+				Coverage: coverage,
+			})
+		} else {
+			for _, child := range node.Children {
+				findSections(child)
 			}
-			currentSection = &sectionInfo{
-				Title: strings.TrimSpace(strings.TrimPrefix(line, "## ")),
-			}
-		} else if currentSection != nil {
-			currentSection.Coverage += line + "\n"
 		}
 	}
-	if currentSection != nil {
-		sections = append(sections, *currentSection)
-	}
+
+	findSections(documentAST)
 	return sections
 }
 

@@ -156,7 +156,7 @@ func createSchema(database *sql.DB) error {
 	);
 
 	-- Chat context: which lectures' materials to include in the session
-	CREATE TABLE IF NOT EXISTS chat_context_config (
+	CREATE TABLE IF NOT EXISTS chat_context_configuration (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		session_id TEXT NOT NULL UNIQUE REFERENCES chat_sessions(id) ON DELETE CASCADE,
 		included_lecture_ids JSON,

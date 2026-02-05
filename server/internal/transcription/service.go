@@ -8,21 +8,21 @@ import (
 	"sort"
 	"strings"
 
-	config "lectures/internal/configuration"
+	"lectures/internal/configuration"
 	"lectures/internal/llm"
 	"lectures/internal/models"
 	"lectures/internal/prompts"
 )
 
 type Service struct {
-	configuration *config.Configuration
+	configuration *configuration.Configuration
 	ffmpeg        *FFmpeg
 	provider      Provider
 	llmProvider   llm.Provider
 	promptManager *prompts.Manager
 }
 
-func NewService(configuration *config.Configuration, provider Provider, llmProvider llm.Provider, promptManager *prompts.Manager) *Service {
+func NewService(configuration *configuration.Configuration, provider Provider, llmProvider llm.Provider, promptManager *prompts.Manager) *Service {
 	return &Service{
 		configuration: configuration,
 		ffmpeg:        NewFFmpeg(),

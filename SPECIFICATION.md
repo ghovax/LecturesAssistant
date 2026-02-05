@@ -367,7 +367,7 @@ This is the complete API surface for your platform, organized by functional doma
 | `DELETE` | `/api/exams/:exam_id/lectures/:lecture_id/documents/:document_id` | Delete a specific reference document. |
 | `GET` | `/api/exams/:exam_id/lectures/:lecture_id/documents/:document_id/pages` | List pages with their respective image URLs. |
 | `GET` | `/api/exams/:exam_id/lectures/:lecture_id/documents/:document_id/pages/:page_number/image` | Serve the actual PNG/JPG for a specific page. |
-| `POST` | `/api/exams/:exam_id/lectures/:lecture_id/documents/:document_id/extract-text` | Run AI OCR to extract text from pages. |
+| `POST` | `/api/exams/:exam_id/lectures/:lecture_id/documents/:document_id/extract` | Run AI OCR to extract text from pages. |
 
 ---
 
@@ -1180,7 +1180,7 @@ services:
     volumes:
       - lectures-data:/data
     environment:
-      - DATA_DIR=/data
+      - DATA_DIRECTORY=/data
       - SERVER_PORT=3000
       - SERVER_HOST=0.0.0.0    # Listen on all interfaces inside container
       - LOG_LEVEL=info
@@ -1215,7 +1215,7 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-# Stage 2: Build backend (Go/Rust)
+# Stage 2: Build backend (Go)
 FROM golang:1.22-alpine AS backend-builder
 WORKDIR /app
 COPY go.* ./
@@ -1307,7 +1307,7 @@ Each release produces the following artifacts:
 | --- | --- | --- | --- |
 | macOS (Intel) | `.dmg` + `.zip` | ~150MB | Code-signed and notarized |
 | macOS (ARM64) | `.dmg` + `.zip` | ~150MB | Native Apple Silicon |
-| Windows (x86_64) | `.exe` + `.zip` | ~160MB | Includes MSVC runtimes |
+| Windows (x86_64) | `.exe` + `.zip` | ~160MB | Statically compiled, no dependencies |
 | Linux (x86_64) | `.tar.gz` + `.deb` | ~140MB | Also available on Package managers |
 | Linux (ARM64) | `.tar.gz` | ~140MB | For Raspberry Pi, etc. |
 | Docker | `ghcr.io/your-org/lectures:vX.Y.Z` | ~200MB | Pre-built multi-arch image |

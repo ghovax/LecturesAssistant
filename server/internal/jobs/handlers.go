@@ -28,7 +28,7 @@ func RegisterHandlers(
 	transcriptionService *transcription.Service,
 	documentProcessor *documents.Processor,
 	toolGenerator *tools.ToolGenerator,
-	markdownConverter *markdown.Converter,
+	markdownConverter markdown.MarkdownConverter,
 	checkReadiness func(*sql.DB, string),
 ) {
 	queue.RegisterHandler(models.JobTypeTranscribeMedia, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, models.JobMetrics)) error {

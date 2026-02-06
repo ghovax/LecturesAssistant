@@ -10,20 +10,27 @@ import (
 	"time"
 )
 
-// Converter handles document format conversions using Pandoc
-type Converter struct {
+// MarkdownConverter defines the interface for document format conversions
+type MarkdownConverter interface {
+	CheckDependencies() error
+	MarkdownToHTML(markdownText string) (string, error)
+	HTMLToPDF(htmlContent string, outputPath string, options ConversionOptions) error
+}
+
+// ExternalConverter handles document format conversions using Pandoc
+type ExternalConverter struct {
 	dataDirectory string
 }
 
 // NewConverter creates a new document converter
-func NewConverter(dataDirectory string) *Converter {
-	return &Converter{
+func NewConverter(dataDirectory string) MarkdownConverter {
+	return &ExternalConverter{
 		dataDirectory: dataDirectory,
 	}
 }
 
 // CheckDependencies verifies that pandoc and tectonic are installed
-func (converter *Converter) CheckDependencies() error {
+func (converter *ExternalConverter) CheckDependencies() error {
 	if _, err := exec.LookPath("pandoc"); err != nil {
 		return fmt.Errorf("pandoc not found in PATH")
 	}
@@ -56,7 +63,7 @@ type ConversionOptions struct {
 }
 
 // MarkdownToHTML converts markdown text to HTML string
-func (converter *Converter) MarkdownToHTML(markdownText string) (string, error) {
+func (converter *ExternalConverter) MarkdownToHTML(markdownText string) (string, error) {
 	command := exec.Command("pandoc",
 		"-f", "gfm+smart",
 		"-t", "html",
@@ -80,7 +87,7 @@ func (converter *Converter) MarkdownToHTML(markdownText string) (string, error) 
 }
 
 // HTMLToPDF converts HTML content to a PDF file
-func (converter *Converter) HTMLToPDF(htmlContent string, outputPath string, options ConversionOptions) error {
+func (converter *ExternalConverter) HTMLToPDF(htmlContent string, outputPath string, options ConversionOptions) error {
 	metadataPath := filepath.Join(os.TempDir(), fmt.Sprintf("metadata-%d.yaml", time.Now().UnixNano()))
 	if err := converter.writeMetadataFile(metadataPath, options); err != nil {
 		return fmt.Errorf("failed to write metadata file: %w", err)
@@ -138,7 +145,7 @@ func (converter *Converter) HTMLToPDF(htmlContent string, outputPath string, opt
 	return nil
 }
 
-func (converter *Converter) writeMetadataFile(path string, options ConversionOptions) error {
+func (converter *ExternalConverter) writeMetadataFile(path string, options ConversionOptions) error {
 	var builder strings.Builder
 
 	if options.Description != "" {

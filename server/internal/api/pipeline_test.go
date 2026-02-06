@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -25,44 +26,54 @@ import (
 	"lectures/internal/prompts"
 	"lectures/internal/tools"
 	"lectures/internal/transcription"
+
+	"github.com/gorilla/websocket"
 )
 
-// MockLLMProvider simulates LLM responses
 type MockLLMProvider struct {
 	ResponseText string
+	Delay        time.Duration
+	Error        error
 }
 
 func (mock *MockLLMProvider) Chat(ctx context.Context, request llm.ChatRequest) (<-chan llm.ChatResponseChunk, error) {
-	responseChannel := make(chan llm.ChatResponseChunk, 1)
-	
-	text := mock.ResponseText
-	
-	// Intelligent mocking based on prompt content
-	if len(request.Messages) > 0 {
-		lastMessage := request.Messages[len(request.Messages)-1].Content[0].Text
-		
-		if strings.Contains(lastMessage, "page_ranges") {
-			text = `{"page_ranges": [{"start": 1, "end": 1}]}`
-		} else if strings.Contains(lastMessage, "coverage_score") {
-			text = `{"coverage_score": 95}`
-		} else if strings.Contains(lastMessage, "analyze-lecture-structure") {
-			text = `# Outline
-## Introduction
-Coverage: Basics
-Introduces: 
-- Concept 1 - Emphasis: High (Spent lots of time)
-`
-		}
+	if mock.Error != nil {
+		return nil, mock.Error
 	}
-	
-	responseChannel <- llm.ChatResponseChunk{Text: text}
-	close(responseChannel)
+
+	responseChannel := make(chan llm.ChatResponseChunk, 1)
+
+	go func() {
+		if mock.Delay > 0 {
+			select {
+			case <-time.After(mock.Delay):
+			case <-ctx.Done():
+				close(responseChannel)
+				return
+			}
+		}
+
+		text := mock.ResponseText
+		if len(request.Messages) > 0 {
+			lastMessage := request.Messages[len(request.Messages)-1].Content[0].Text
+			if strings.Contains(lastMessage, "page_ranges") {
+				text = `{"page_ranges": [{"start": 1, "end": 1}]}`
+			} else if strings.Contains(lastMessage, "coverage_score") {
+				text = `{"coverage_score": 95}`
+			} else if strings.Contains(lastMessage, "analyze-lecture-structure") {
+				text = "# Outline\n## Introduction\nCoverage: Basics\nIntroduces: \n- Concept 1 - Emphasis: High (Spent lots of time)\n"
+			}
+		}
+
+		responseChannel <- llm.ChatResponseChunk{Text: text}
+		close(responseChannel)
+	}()
+
 	return responseChannel, nil
 }
 
 func (mock *MockLLMProvider) Name() string { return "mock-llm" }
 
-// MockTranscriptionProvider simulates transcription
 type MockTranscriptionProvider struct {
 	Segments []transcription.Segment
 }
@@ -71,106 +82,95 @@ func (mock *MockTranscriptionProvider) Transcribe(ctx context.Context, audioPath
 	return mock.Segments, nil
 }
 
-func (mock *MockTranscriptionProvider) SetPrompt(prompt string) {}
+func (mock *MockTranscriptionProvider) SetPrompt(prompt string)  {}
 func (mock *MockTranscriptionProvider) CheckDependencies() error { return nil }
-func (mock *MockTranscriptionProvider) Name() string            { return "mock-transcription" }
+func (mock *MockTranscriptionProvider) Name() string             { return "mock-transcription" }
 
-// MockMediaProcessor mocks FFmpeg
 type MockMediaProcessor struct{}
 
-func (m *MockMediaProcessor) CheckDependencies() error { return nil }
-func (m *MockMediaProcessor) ExtractAudio(inputPath string, outputPath string) error {
+func (mediaProcessor *MockMediaProcessor) CheckDependencies() error { return nil }
+
+func (mediaProcessor *MockMediaProcessor) ExtractAudio(inputPath, outputPath string) error {
 	return os.WriteFile(outputPath, []byte("fake audio"), 0644)
 }
-func (m *MockMediaProcessor) SplitAudio(inputPath string, outputDirectory string, duration int) ([]string, error) {
-	os.MkdirAll(outputDirectory, 0755)
+
+func (mediaProcessor *MockMediaProcessor) SplitAudio(inputPath, outputDirectory string, segmentDuration int) ([]string, error) {
+	if err := os.MkdirAll(outputDirectory, 0755); err != nil {
+		return nil, err
+	}
+
 	segmentPath := filepath.Join(outputDirectory, "segment_001.mp3")
-	os.WriteFile(segmentPath, []byte("fake segment"), 0644)
+	if err := os.WriteFile(segmentPath, []byte("fake segment"), 0644); err != nil {
+		return nil, err
+	}
+
 	return []string{segmentPath}, nil
 }
-func (m *MockMediaProcessor) GetDuration(inputPath string) (float64, error) { return 10.0, nil }
 
-// MockDocumentConverter mocks GS and LibreOffice
+func (mediaProcessor *MockMediaProcessor) GetDuration(inputPath string) (float64, error) {
+	return 10.0, nil
+}
+
 type MockDocumentConverter struct{}
 
-func (m *MockDocumentConverter) CheckDependencies() error { return nil }
-func (m *MockDocumentConverter) ConvertToPDF(inputPath string, outputPath string) error {
+func (documentConverter *MockDocumentConverter) CheckDependencies() error { return nil }
+
+func (documentConverter *MockDocumentConverter) ConvertToPDF(inputPath, outputPath string) error {
 	return os.WriteFile(outputPath, []byte("fake pdf"), 0644)
 }
-func (m *MockDocumentConverter) ExtractPagesAsImages(pdfPath string, outputDirectory string) ([]string, error) {
-	os.MkdirAll(outputDirectory, 0755)
+
+func (documentConverter *MockDocumentConverter) ExtractPagesAsImages(pdfPath, outputDirectory string) ([]string, error) {
+	if err := os.MkdirAll(outputDirectory, 0755); err != nil {
+		return nil, err
+	}
+
 	imagePath := filepath.Join(outputDirectory, "page_001.png")
-	os.WriteFile(imagePath, []byte("fake image"), 0644)
+	if err := os.WriteFile(imagePath, []byte("fake image"), 0644); err != nil {
+		return nil, err
+	}
+
 	return []string{imagePath}, nil
 }
 
-func TestFullPipeline(tester *testing.T) {
-	// 1. Setup temporary environment
+func TestFullPipeline(t *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-test-*")
 	if err != nil {
-		tester.Fatalf("Failed to create temporary directory: %v", err)
+		t.Fatalf("Failed to create temporary directory: %v", err)
 	}
 	defer os.RemoveAll(temporaryDirectory)
 
 	databasePath := filepath.Join(temporaryDirectory, "test.db")
 	initializedDatabase, err := database.Initialize(databasePath)
 	if err != nil {
-		tester.Fatalf("Failed to initialize database: %v", err)
+		t.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer initializedDatabase.Close()
 
 	config := &configuration.Configuration{
-		Storage: configuration.StorageConfiguration{
-			DataDirectory: temporaryDirectory,
-		},
-		Server: configuration.ServerConfiguration{
-			Host: "127.0.0.1",
-			Port: 0,
-		},
+		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
+		Server:  configuration.ServerConfiguration{Host: "127.0.0.1", Port: 0},
 		Security: configuration.SecurityConfiguration{
-			Auth: configuration.AuthConfiguration{
-				Type:                "session",
-				SessionTimeoutHours: 24,
-			},
+			Auth: configuration.AuthConfiguration{Type: "session", SessionTimeoutHours: 24},
 		},
-		LLM: configuration.LLMConfiguration{
-			Language: "en-US",
-		},
+		LLM: configuration.LLMConfiguration{Language: "en-US"},
 	}
 
 	promptManager := prompts.NewManager("../../prompts")
 	mockLLM := &MockLLMProvider{ResponseText: "Mocked AI Response"}
-	
-	// Mock transcription service
-	mockTranscriptionProvider := &MockTranscriptionProvider{
-		Segments: []transcription.Segment{
-			{Start: 0, End: 5, Text: "Hello, this is a test lecture."},
-		},
-	}
-	transcriptionService := transcription.NewService(config, mockTranscriptionProvider, mockLLM, promptManager)
+
+	transcriptionService := transcription.NewService(config, &MockTranscriptionProvider{
+		Segments: []transcription.Segment{{Start: 0, End: 5, Text: "Hello, test lecture."}},
+	}, mockLLM, promptManager)
 	transcriptionService.SetMediaProcessor(&MockMediaProcessor{})
-	
-	// Mock document processor
+
 	documentProcessor := documents.NewProcessor(mockLLM, "mock-model", promptManager)
 	documentProcessor.SetConverter(&MockDocumentConverter{})
-	
+
 	markdownConverter := markdown.NewConverter(temporaryDirectory)
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, promptManager)
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
-	
-	// Register real handlers using mocks
-	jobs.RegisterHandlers(
-		jobQueue,
-		initializedDatabase,
-		config,
-		transcriptionService,
-		documentProcessor,
-		toolGenerator,
-		markdownConverter,
-		database.CheckLectureReadiness,
-	)
-	
+	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, transcriptionService, documentProcessor, toolGenerator, markdownConverter, database.CheckLectureReadiness)
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
@@ -180,85 +180,117 @@ func TestFullPipeline(tester *testing.T) {
 
 	httpClient := testServer.Client()
 
-	// 2. Authentication Setup
-	setupPayload, _ := json.Marshal(map[string]string{"password": "password123"})
-	setupResponse, err := httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
-	if err != nil || setupResponse.StatusCode != http.StatusOK {
-		tester.Fatalf("Auth setup failed: %v, status: %d", err, setupResponse.StatusCode)
+	// Setup initial password
+	setupPayload, err := json.Marshal(map[string]string{"password": "password123"})
+	if err != nil {
+		t.Fatalf("Failed to marshal setup payload: %v", err)
 	}
 
-	// 3. Login
-	loginPayload, _ := json.Marshal(map[string]string{"password": "password123"})
-	loginResponse, err := httpClient.Post(testServer.URL+"/api/auth/login", "application/json", bytes.NewBuffer(loginPayload))
-	if err != nil || loginResponse.StatusCode != http.StatusOK {
-		tester.Fatalf("Login failed: %v", err)
+	setupResponse, err := httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
+	if err != nil {
+		t.Fatalf("Auth setup request failed: %v", err)
 	}
-	
+	setupResponse.Body.Close()
+
+	// Login to get session token
+	loginPayload, err := json.Marshal(map[string]string{"password": "password123"})
+	if err != nil {
+		t.Fatalf("Failed to marshal login payload: %v", err)
+	}
+
+	loginResponse, err := httpClient.Post(testServer.URL+"/api/auth/login", "application/json", bytes.NewBuffer(loginPayload))
+	if err != nil {
+		t.Fatalf("Login request failed: %v", err)
+	}
+	defer loginResponse.Body.Close()
+
 	var loginData struct {
 		Data struct {
 			Token string `json:"token"`
 		} `json:"data"`
 	}
-	json.NewDecoder(loginResponse.Body).Decode(&loginData)
+	if err := json.NewDecoder(loginResponse.Body).Decode(&loginData); err != nil {
+		t.Fatalf("Failed to decode login response: %v", err)
+	}
 	sessionToken := loginData.Data.Token
 
-	// Helper to add auth header
+	// Helper to create authenticated requests
 	createAuthenticatedRequest := func(method, url string, body io.Reader) *http.Request {
-		request, _ := http.NewRequest(method, url, body)
-		request.Header.Set("Authorization", "Bearer "+sessionToken)
-		return request
+		httpRequest, err := http.NewRequest(method, url, body)
+		if err != nil {
+			t.Fatalf("Failed to create request: %v", err)
+		}
+		httpRequest.Header.Set("Authorization", "Bearer "+sessionToken)
+		return httpRequest
 	}
 
-	// 4. Create Exam
-	examPayload, _ := json.Marshal(map[string]string{
+	// Create Exam
+	examPayload, err := json.Marshal(map[string]string{
 		"title":       "Test Course",
 		"description": "Integration testing",
 	})
+	if err != nil {
+		t.Fatalf("Failed to marshal exam payload: %v", err)
+	}
+
 	examRequest := createAuthenticatedRequest("POST", testServer.URL+"/api/exams", bytes.NewBuffer(examPayload))
 	examRequest.Header.Set("Content-Type", "application/json")
+
 	examResponse, err := httpClient.Do(examRequest)
-	if err != nil || examResponse.StatusCode != http.StatusCreated {
-		tester.Fatalf("Exam creation failed: %v, status: %d", err, examResponse.StatusCode)
+	if err != nil {
+		t.Fatalf("Exam creation request failed: %v", err)
 	}
-	
-	var examResult struct {
+	defer examResponse.Body.Close()
+
+	var examResponseData struct {
 		Data models.Exam `json:"data"`
 	}
-	json.NewDecoder(examResponse.Body).Decode(&examResult)
-	examID := examResult.Data.ID
+	if err := json.NewDecoder(examResponse.Body).Decode(&examResponseData); err != nil {
+		t.Fatalf("Failed to decode exam response: %v", err)
+	}
+	examID := examResponseData.Data.ID
 
-	// 5. Create Lecture with Uploads
+	// Create Lecture with media and documents
 	requestBody := &bytes.Buffer{}
 	multipartWriter := multipart.NewWriter(requestBody)
-	multipartWriter.WriteField("title", "Lecture 1")
-	multipartWriter.WriteField("description", "First lecture")
-	
-	mediaPart, _ := multipartWriter.CreateFormFile("media", "test-audio.mp3")
-	mediaPart.Write([]byte("fake audio content"))
-	
-	documentPart, _ := multipartWriter.CreateFormFile("documents", "test-slides.pdf")
-	documentPart.Write([]byte("fake pdf content"))
+	_ = multipartWriter.WriteField("title", "Lecture 1")
+	_ = multipartWriter.WriteField("description", "First lecture")
+
+	mediaPart, err := multipartWriter.CreateFormFile("media", "test-audio.mp3")
+	if err != nil {
+		t.Fatalf("Failed to create media form file: %v", err)
+	}
+	_, _ = mediaPart.Write([]byte("fake audio content"))
+
+	documentPart, err := multipartWriter.CreateFormFile("documents", "test-slides.pdf")
+	if err != nil {
+		t.Fatalf("Failed to create document form file: %v", err)
+	}
+	_, _ = documentPart.Write([]byte("fake pdf content"))
 	multipartWriter.Close()
 
 	lectureRequest := createAuthenticatedRequest("POST", fmt.Sprintf("%s/api/exams/%s/lectures", testServer.URL, examID), requestBody)
 	lectureRequest.Header.Set("Content-Type", multipartWriter.FormDataContentType())
-	lectureResponse, err := httpClient.Do(lectureRequest)
-	if err != nil || lectureResponse.StatusCode != http.StatusCreated {
-		tester.Fatalf("Lecture creation failed: %v, status: %d", err, lectureResponse.StatusCode)
-	}
 
-	var lectureResult struct {
+	lectureResponse, err := httpClient.Do(lectureRequest)
+	if err != nil {
+		t.Fatalf("Lecture creation request failed: %v", err)
+	}
+	defer lectureResponse.Body.Close()
+
+	var lectureResponseData struct {
 		Data models.Lecture `json:"data"`
 	}
-	json.NewDecoder(lectureResponse.Body).Decode(&lectureResult)
-	lectureID := lectureResult.Data.ID
+	if err := json.NewDecoder(lectureResponse.Body).Decode(&lectureResponseData); err != nil {
+		t.Fatalf("Failed to decode lecture response: %v", err)
+	}
+	lectureID := lectureResponseData.Data.ID
 
-	// 6. Wait for background processing
-	// We poll until status is 'ready' or timeout
+	// Wait for background jobs to complete (Lecture status -> 'ready')
 	deadline := time.Now().Add(10 * time.Second)
 	var lectureStatus string
 	for time.Now().Before(deadline) {
-		initializedDatabase.QueryRow("SELECT status FROM lectures WHERE id = ?", lectureID).Scan(&lectureStatus)
+		_ = initializedDatabase.QueryRow("SELECT status FROM lectures WHERE id = ?", lectureID).Scan(&lectureStatus)
 		if lectureStatus == "ready" {
 			break
 		}
@@ -266,51 +298,444 @@ func TestFullPipeline(tester *testing.T) {
 	}
 
 	if lectureStatus != "ready" {
-		tester.Fatalf("Lecture failed to reach 'ready' status, got %q", lectureStatus)
+		t.Fatalf("Lecture failed to reach 'ready' status, got %q", lectureStatus)
 	}
 
-	// 7. Verify Results in Database
-
-	var segmentCount int
-	initializedDatabase.QueryRow("SELECT COUNT(*) FROM transcript_segments WHERE transcript_id = (SELECT id FROM transcripts WHERE lecture_id = ?)", lectureID).Scan(&segmentCount)
-	if segmentCount == 0 {
-		tester.Errorf("Expected transcript segments, found 0")
+	// Create Chat Session
+	chatPayload, err := json.Marshal(map[string]string{"title": "Study Session"})
+	if err != nil {
+		t.Fatalf("Failed to marshal chat payload: %v", err)
 	}
 
-	var pageCount int
-	initializedDatabase.QueryRow("SELECT COUNT(*) FROM reference_pages WHERE document_id = (SELECT id FROM reference_documents WHERE lecture_id = ?)", lectureID).Scan(&pageCount)
-	if pageCount == 0 {
-		tester.Errorf("Expected reference pages, found 0")
+	chatRequest := createAuthenticatedRequest("POST", fmt.Sprintf("%s/api/exams/%s/chat/sessions", testServer.URL, examID), bytes.NewBuffer(chatPayload))
+	chatRequest.Header.Set("Content-Type", "application/json")
+
+	chatResponse, err := httpClient.Do(chatRequest)
+	if err != nil {
+		t.Fatalf("Chat session creation request failed: %v", err)
+	}
+	defer chatResponse.Body.Close()
+
+	var chatResponseData struct {
+		Data models.ChatSession `json:"data"`
+	}
+	if err := json.NewDecoder(chatResponse.Body).Decode(&chatResponseData); err != nil {
+		t.Fatalf("Failed to decode chat session response: %v", err)
+	}
+	sessionID := chatResponseData.Data.ID
+
+	// Send user message
+	messagePayload, err := json.Marshal(map[string]string{"content": "Tell me about the lecture"})
+	if err != nil {
+		t.Fatalf("Failed to marshal message payload: %v", err)
 	}
 
-	// 8. Test Tool Generation (Study Guide)
-	// We need to mock more specific LLM responses for the sequential generator
-	// Analysis, then segments...
-	
-	mockLLM.ResponseText = `# Outline
-## Introduction
-Coverage: Basics
-Introduces: 
-- Concept 1 - Emphasis: High (Spent lots of time)
-`
-	
-	toolPayload, _ := json.Marshal(map[string]string{
-		"lecture_id": lectureID,
-		"type":       "guide",
+	messageRequest := createAuthenticatedRequest("POST", fmt.Sprintf("%s/api/exams/%s/chat/sessions/%s/messages", testServer.URL, examID, sessionID), bytes.NewBuffer(messagePayload))
+	messageRequest.Header.Set("Content-Type", "application/json")
+
+	messageResponse, err := httpClient.Do(messageRequest)
+	if err != nil {
+		t.Fatalf("Message sending failed: %v", err)
+	}
+	messageResponse.Body.Close()
+
+	// Wait for async AI response
+	var assistantMessageCount int
+	messageDeadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(messageDeadline) {
+		_ = initializedDatabase.QueryRow("SELECT COUNT(*) FROM chat_messages WHERE session_id = ? AND role = 'assistant'", sessionID).Scan(&assistantMessageCount)
+		if assistantMessageCount == 1 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if assistantMessageCount != 1 {
+		t.Errorf("Expected 1 assistant message, found %d", assistantMessageCount)
+	}
+}
+
+func TestWebSocketUpdates(t *testing.T) {
+	temporaryDirectory, err := os.MkdirTemp("", "lectures-ws-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temporary directory: %v", err)
+	}
+	defer os.RemoveAll(temporaryDirectory)
+
+	databasePath := filepath.Join(temporaryDirectory, "test.db")
+	initializedDatabase, err := database.Initialize(databasePath)
+	if err != nil {
+		t.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer initializedDatabase.Close()
+
+	config := &configuration.Configuration{
+		Security: configuration.SecurityConfiguration{
+			Auth: configuration.AuthConfiguration{Type: "session"},
+		},
+	}
+
+	_, _ = initializedDatabase.Exec("INSERT INTO settings (key, value) VALUES ('admin_password_hash', ?)", "dummy_hash")
+
+	sessionID := "test-session-id"
+	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, password_hash, expires_at) VALUES (?, ?, ?)", sessionID, "dummy_hash", time.Now().Add(1*time.Hour))
+
+	jobQueue := jobs.NewQueue(initializedDatabase, 1)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, nil)
+
+	testServer := httptest.NewServer(apiServer.Handler())
+	defer testServer.Close()
+
+	websocketURL := "ws" + strings.TrimPrefix(testServer.URL, "http") + "/api/socket"
+	headers := http.Header{}
+	headers.Add("Authorization", "Bearer "+sessionID)
+
+	dialer := websocket.Dialer{}
+	websocketConnection, _, err := dialer.Dial(websocketURL, headers)
+	if err != nil {
+		t.Fatalf("WebSocket dial failed: %v", err)
+	}
+	defer websocketConnection.Close()
+
+	var handshake map[string]any
+	if err := websocketConnection.ReadJSON(&handshake); err != nil {
+		t.Fatalf("Failed to read handshake: %v", err)
+	}
+
+	if handshake["type"] != "connected" {
+		t.Errorf("Expected 'connected', got %v", handshake["type"])
+	}
+
+	jobID := "test-job-123"
+	subscribeRequest := map[string]string{
+		"type":    "subscribe",
+		"channel": "job:" + jobID,
+	}
+	if err := websocketConnection.WriteJSON(subscribeRequest); err != nil {
+		t.Fatalf("Failed to send subscribe request: %v", err)
+	}
+
+	var subscriptionConfirmation map[string]any
+	if err := websocketConnection.ReadJSON(&subscriptionConfirmation); err != nil {
+		t.Fatalf("Failed to read subscription confirmation: %v", err)
+	}
+
+	// Broadcast update and verify receipt
+	apiServer.wsHub.Broadcast(WSMessage{
+		Type:    "job:progress",
+		Channel: "job:" + jobID,
+		Payload: map[string]any{
+			"status":   "RUNNING",
+			"progress": 50,
+		},
+		Timestamp: time.Now().Format(time.RFC3339),
 	})
-	toolRequest := createAuthenticatedRequest("POST", fmt.Sprintf("%s/api/exams/%s/tools", testServer.URL, examID), bytes.NewBuffer(toolPayload))
-	toolRequest.Header.Set("Content-Type", "application/json")
-	toolResponse, err := httpClient.Do(toolRequest)
-	if err != nil || toolResponse.StatusCode != http.StatusAccepted {
-		tester.Fatalf("Tool generation failed: %v, status: %d", err, toolResponse.StatusCode)
+
+	var progressUpdate WSMessage
+	if err := websocketConnection.ReadJSON(&progressUpdate); err != nil {
+		t.Fatalf("Failed to read update: %v", err)
 	}
 
-	// Wait for tool generation job
-	time.Sleep(1 * time.Second)
+	if progressUpdate.Type != "job:progress" {
+		t.Errorf("Expected 'job:progress', got %s", progressUpdate.Type)
+	}
+}
 
-	var toolCount int
-	initializedDatabase.QueryRow("SELECT COUNT(*) FROM tools WHERE exam_id = ?", examID).Scan(&toolCount)
-	if toolCount != 1 {
-		tester.Errorf("Expected 1 tool in database, found %d", toolCount)
+func TestAIFailureModes(t *testing.T) {
+	temporaryDirectory, err := os.MkdirTemp("", "lectures-fail-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temporary directory: %v", err)
+	}
+	defer os.RemoveAll(temporaryDirectory)
+
+	databasePath := filepath.Join(temporaryDirectory, "test.db")
+	initializedDatabase, err := database.Initialize(databasePath)
+	if err != nil {
+		t.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer initializedDatabase.Close()
+
+	config := &configuration.Configuration{
+		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
+		LLM:     configuration.LLMConfiguration{Language: "en-US"},
+	}
+
+	promptManager := prompts.NewManager("../../prompts")
+	mockLLM := &MockLLMProvider{}
+
+	jobQueue := jobs.NewQueue(initializedDatabase, 1)
+	transcriptionService := transcription.NewService(config, &MockTranscriptionProvider{}, mockLLM, promptManager)
+	documentProcessor := documents.NewProcessor(mockLLM, "mock-model", promptManager)
+	toolGenerator := tools.NewToolGenerator(config, mockLLM, promptManager)
+	markdownConverter := markdown.NewConverter(temporaryDirectory)
+
+	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, transcriptionService, documentProcessor, toolGenerator, markdownConverter, database.CheckLectureReadiness)
+	jobQueue.Start()
+	defer jobQueue.Stop()
+
+	lectureID, examID := "l1", "e1"
+	_, _ = initializedDatabase.Exec("INSERT INTO exams (id, title, description) VALUES (?, ?, ?)", examID, "Exam", "Desc")
+	_, _ = initializedDatabase.Exec("INSERT INTO lectures (id, exam_id, title, description, status) VALUES (?, ?, ?, ?, ?)", lectureID, examID, "Lecture", "Desc", "ready")
+	_, _ = initializedDatabase.Exec("INSERT INTO transcripts (id, lecture_id, status) VALUES (?, ?, ?)", "t1", lectureID, "completed")
+	_, _ = initializedDatabase.Exec("INSERT INTO transcript_segments (transcript_id, text, start_millisecond, end_millisecond) VALUES (?, ?, ?, ?)", "t1", "Hi", 0, 1000)
+
+	t.Run("Faulty JSON Response from AI", func(subT *testing.T) {
+		mockLLM.ResponseText = "Not JSON"
+		mockLLM.Error = nil
+		mockLLM.Delay = 0
+
+		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
+			"lecture_id": lectureID,
+			"type":       "guide",
+		})
+
+		// Poll for failure
+		deadline := time.Now().Add(5 * time.Second)
+		var status, jobError string
+		for time.Now().Before(deadline) {
+			_ = initializedDatabase.QueryRow("SELECT status, error FROM jobs WHERE id = ?", jobID).Scan(&status, &jobError)
+			if status == models.JobStatusFailed || status == models.JobStatusCompleted {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		if status != models.JobStatusFailed || !strings.Contains(jobError, "failed to parse sections from LLM response") {
+			subT.Errorf("Job did not fail as expected: %s (%s)", status, jobError)
+		}
+	})
+
+	t.Run("AI Provider Error", func(subT *testing.T) {
+		mockLLM.Error = errors.New("connection refused")
+
+		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
+			"lecture_id": lectureID,
+			"type":       "guide",
+		})
+
+		// Poll for failure
+		deadline := time.Now().Add(5 * time.Second)
+		var status, jobError string
+		for time.Now().Before(deadline) {
+			_ = initializedDatabase.QueryRow("SELECT status, error FROM jobs WHERE id = ?", jobID).Scan(&status, &jobError)
+			if status == models.JobStatusFailed || status == models.JobStatusCompleted {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		if status != models.JobStatusFailed || !strings.Contains(jobError, "connection refused") {
+			subT.Errorf("Job did not fail as expected: %s (%s)", status, jobError)
+		}
+	})
+
+	t.Run("AI Hang (Cancel Job)", func(subT *testing.T) {
+		mockLLM.Error = nil
+		mockLLM.Delay = 2 * time.Second
+
+		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
+			"lecture_id": lectureID,
+			"type":       "guide",
+		})
+
+		// Wait for job to start running
+		time.Sleep(200 * time.Millisecond)
+		_ = jobQueue.CancelJob(jobID)
+
+		// Poll for cancellation
+		deadline := time.Now().Add(2 * time.Second)
+		var status string
+		for time.Now().Before(deadline) {
+			_ = initializedDatabase.QueryRow("SELECT status FROM jobs WHERE id = ?", jobID).Scan(&status)
+			if status == models.JobStatusCancelled {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		if status != models.JobStatusCancelled {
+			subT.Errorf("Expected cancelled, got %s", status)
+		}
+	})
+}
+
+func TestStudyTools(t *testing.T) {
+	temporaryDirectory, err := os.MkdirTemp("", "lectures-tools-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temporary directory: %v", err)
+	}
+	defer os.RemoveAll(temporaryDirectory)
+
+	databasePath := filepath.Join(temporaryDirectory, "test.db")
+	initializedDatabase, err := database.Initialize(databasePath)
+	if err != nil {
+		t.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer initializedDatabase.Close()
+
+	config := &configuration.Configuration{
+		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
+	}
+
+	promptManager := prompts.NewManager("../../prompts")
+	mockLLM := &MockLLMProvider{ResponseText: `[{"front": "Q", "back": "A"}]`}
+
+	jobQueue := jobs.NewQueue(initializedDatabase, 1)
+	toolGenerator := tools.NewToolGenerator(config, mockLLM, promptManager)
+
+	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, nil, nil, toolGenerator, nil, nil)
+	jobQueue.Start()
+	defer jobQueue.Stop()
+
+	examID, lectureID := "exam-1", "lecture-1"
+	_, _ = initializedDatabase.Exec("INSERT INTO exams (id, title, description) VALUES (?, ?, ?)", examID, "Exam", "Desc")
+	_, _ = initializedDatabase.Exec("INSERT INTO lectures (id, exam_id, title, description, status) VALUES (?, ?, ?, ?, ?)", lectureID, examID, "Lecture", "Desc", "ready")
+	_, _ = initializedDatabase.Exec("INSERT INTO transcripts (id, lecture_id, status) VALUES (?, ?, ?)", "t1", lectureID, "completed")
+	_, _ = initializedDatabase.Exec("INSERT INTO transcript_segments (transcript_id, text, start_millisecond, end_millisecond) VALUES (?, ?, ?, ?)", "t1", "Content", 0, 1000)
+
+	t.Run("Flashcards", func(subT *testing.T) {
+		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
+			"lecture_id": lectureID,
+			"exam_id":    examID,
+			"type":       "flashcard",
+		})
+
+		// Poll for completion
+		deadline := time.Now().Add(5 * time.Second)
+		var status string
+		for time.Now().Before(deadline) {
+			_ = initializedDatabase.QueryRow("SELECT status FROM jobs WHERE id = ?", jobID).Scan(&status)
+			if status == models.JobStatusCompleted || status == models.JobStatusFailed {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		if status != models.JobStatusCompleted {
+			subT.Errorf("Expected completed, got %s", status)
+		}
+	})
+
+	t.Run("Quiz", func(subT *testing.T) {
+		mockLLM.ResponseText = `[{"question": "Q", "options": ["A", "B", "C", "D"], "correct_answer": "A", "explanation": "E"}]`
+
+		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
+			"lecture_id": lectureID,
+			"exam_id":    examID,
+			"type":       "quiz",
+		})
+
+		// Poll for completion
+		deadline := time.Now().Add(5 * time.Second)
+		var status string
+		for time.Now().Before(deadline) {
+			_ = initializedDatabase.QueryRow("SELECT status FROM jobs WHERE id = ?", jobID).Scan(&status)
+			if status == models.JobStatusCompleted || status == models.JobStatusFailed {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		if status != models.JobStatusCompleted {
+			subT.Errorf("Expected completed, got %s", status)
+		}
+	})
+}
+
+type MockMarkdownConverter struct{}
+
+func (markdownConverter *MockMarkdownConverter) CheckDependencies() error { return nil }
+
+func (markdownConverter *MockMarkdownConverter) MarkdownToHTML(markdownText string) (string, error) {
+	return "<html></html>", nil
+}
+
+func (markdownConverter *MockMarkdownConverter) HTMLToPDF(htmlContent, outputPath string, options markdown.ConversionOptions) error {
+	return os.WriteFile(outputPath, []byte("fake pdf"), 0644)
+}
+
+func TestPDFExport(t *testing.T) {
+	temporaryDirectory, err := os.MkdirTemp("", "lectures-export-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temporary directory: %v", err)
+	}
+	defer os.RemoveAll(temporaryDirectory)
+
+	databasePath := filepath.Join(temporaryDirectory, "test.db")
+	initializedDatabase, err := database.Initialize(databasePath)
+	if err != nil {
+		t.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer initializedDatabase.Close()
+
+	config := &configuration.Configuration{
+		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
+	}
+
+	jobQueue := jobs.NewQueue(initializedDatabase, 1)
+	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, nil, nil, nil, &MockMarkdownConverter{}, nil)
+	jobQueue.Start()
+	defer jobQueue.Stop()
+
+	toolID := "tool-1"
+	_, _ = initializedDatabase.Exec("INSERT INTO exams (id, title) VALUES ('e1', 'E')")
+	_, _ = initializedDatabase.Exec("INSERT INTO tools (id, exam_id, type, title, content) VALUES (?, 'e1', 'guide', 'Title', 'Content')", toolID)
+
+	jobID, err := jobQueue.Enqueue(models.JobTypePublishMaterial, map[string]string{
+		"tool_id": toolID,
+	})
+	if err != nil {
+		t.Fatalf("Failed to enqueue job: %v", err)
+	}
+
+	// Poll for completion
+	deadline := time.Now().Add(5 * time.Second)
+	var status, result string
+	for time.Now().Before(deadline) {
+		_ = initializedDatabase.QueryRow("SELECT status, result FROM jobs WHERE id = ?", jobID).Scan(&status, &result)
+		if status == models.JobStatusCompleted || status == models.JobStatusFailed {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if status != models.JobStatusCompleted || !strings.Contains(result, "pdf_path") {
+		t.Errorf("Export failed: %s (%s)", status, result)
+	}
+}
+
+func TestUnauthorizedAccess(t *testing.T) {
+	temporaryDirectory, err := os.MkdirTemp("", "lectures-auth-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temporary directory: %v", err)
+	}
+	defer os.RemoveAll(temporaryDirectory)
+
+	databasePath := filepath.Join(temporaryDirectory, "test.db")
+	initializedDatabase, err := database.Initialize(databasePath)
+	if err != nil {
+		t.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer initializedDatabase.Close()
+
+	config := &configuration.Configuration{}
+	apiServer := NewServer(config, initializedDatabase, nil, nil, nil)
+	testServer := httptest.NewServer(apiServer.Handler())
+	defer testServer.Close()
+
+	endpoints := []string{"/api/exams", "/api/jobs", "/api/settings"}
+
+	for _, endpoint := range endpoints {
+		t.Run(endpoint, func(subT *testing.T) {
+			response, err := http.Get(testServer.URL + endpoint)
+			if err != nil {
+				subT.Fatalf("Request failed: %v", err)
+			}
+			defer response.Body.Close()
+
+			if response.StatusCode != http.StatusUnauthorized {
+				subT.Errorf("Expected 401 for %s, got %d", endpoint, response.StatusCode)
+			}
+		})
 	}
 }

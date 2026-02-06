@@ -2,13 +2,13 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
-	"fmt"
 
 	"lectures/internal/api"
 	"lectures/internal/configuration"

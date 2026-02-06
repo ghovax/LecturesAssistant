@@ -15,20 +15,20 @@ import (
 )
 
 type Service struct {
-	configuration *configuration.Configuration
+	configuration  *configuration.Configuration
 	mediaProcessor MediaProcessor
-	provider      Provider
-	llmProvider   llm.Provider
-	promptManager *prompts.Manager
+	provider       Provider
+	llmProvider    llm.Provider
+	promptManager  *prompts.Manager
 }
 
 func NewService(configuration *configuration.Configuration, provider Provider, llmProvider llm.Provider, promptManager *prompts.Manager) *Service {
 	return &Service{
-		configuration: configuration,
+		configuration:  configuration,
 		mediaProcessor: NewFFmpeg(),
-		provider:      provider,
-		llmProvider:   llmProvider,
-		promptManager: promptManager,
+		provider:       provider,
+		llmProvider:    llmProvider,
+		promptManager:  promptManager,
 	}
 }
 

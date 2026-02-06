@@ -3,12 +3,11 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -18,35 +17,30 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// handleCreateLecture creates a new lecture with all its media and documents
+// handleCreateLecture creates a new lecture and binds staged uploads to it
 func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, request *http.Request) {
 	pathVariables := mux.Vars(request)
-	examIdentifier := pathVariables["examId"]
+	examID := pathVariables["examId"]
 
-	// Support upload progress tracking if upload_id is provided
+	// Support upload progress tracking for direct multipart uploads
 	uploadID := request.URL.Query().Get("upload_id")
-	if uploadID != "" {
-		contentLength := request.ContentLength
-		if contentLength > 0 {
-			request.Body = &ProgressReader{
-				Reader:     request.Body,
-				Total:      contentLength,
-				UploadID:   uploadID,
-				Hub:        server.wsHub,
-				LastUpdate: time.Now(),
-			}
+	if uploadID != "" && request.ContentLength > 0 {
+		request.Body = &ProgressReader{
+			Reader:     request.Body,
+			Total:      request.ContentLength,
+			UploadID:   uploadID,
+			Hub:        server.wsHub,
+			LastUpdate: time.Now(),
 		}
 	}
 
-	// Parse multipart form (maximum 5GB total for everything)
+	// Parse multipart form (up to 5GB) to support direct files + metadata + staged IDs
 	if err := request.ParseMultipartForm(5120 << 20); err != nil {
-		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Failed to parse form or files too large", nil)
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Form too large", nil)
 		return
 	}
 
 	title := request.FormValue("title")
-	description := request.FormValue("description")
-
 	if title == "" {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Title is required", nil)
 		return
@@ -54,26 +48,27 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 
 	// Verify exam exists
 	var examExists bool
-	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ?)", examIdentifier).Scan(&examExists)
+	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ?)", examID).Scan(&examExists)
 	if err != nil || !examExists {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
 		return
 	}
 
+	// 1. Create the Lecture
+	lectureID := uuid.New().String()
 	lecture := models.Lecture{
-		ID:          uuid.New().String(),
-		ExamID:      examIdentifier,
+		ID:          lectureID,
+		ExamID:      examID,
 		Title:       title,
-		Description: description,
+		Description: request.FormValue("description"),
 		Status:      "processing",
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
 
-	// Begin transaction to ensure atomic creation
 	transaction, err := server.database.Begin()
 	if err != nil {
-		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to start transaction", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Transaction failed", nil)
 		return
 	}
 	defer transaction.Rollback()
@@ -84,278 +79,207 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	`, lecture.ID, lecture.ExamID, lecture.Title, lecture.Description, lecture.Status, lecture.CreatedAt, lecture.UpdatedAt)
 
 	if err != nil {
-		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to create lecture record", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to save lecture", nil)
 		return
 	}
 
-	// 1. Process Media Files
-	mediaFiles := request.MultipartForm.File["media"]
-	for mediaIndex, fileHeader := range mediaFiles {
-		mediaIdentifier := uuid.New().String()
-		fileExtension := filepath.Ext(fileHeader.Filename)
-		filename := fmt.Sprintf("%s%s", mediaIdentifier, fileExtension)
-
-		lectureMediaDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "files", "lectures", lecture.ID, "media")
-		if err := os.MkdirAll(lectureMediaDirectory, 0755); err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_ERROR", "Failed to create media directory", nil)
-			return
-		}
-
-		mediaFilePath := filepath.Join(lectureMediaDirectory, filename)
-
-		// Determine media type based on extension
-		mediaType := "audio"
-		extensionLower := strings.ToLower(fileExtension)
-		for _, videoExt := range server.configuration.Uploads.Media.SupportedFormats.Video {
-			if "."+videoExt == extensionLower {
-				mediaType = "video"
-				break
-			}
-		}
-
-		// Save the file
-		sourceFile, err := fileHeader.Open()
-		if err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_ERROR", "Failed to open uploaded media file", nil)
-			return
-		}
-		defer sourceFile.Close()
-
-		destinationFile, err := os.Create(mediaFilePath)
-		if err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_ERROR", "Failed to create media file", nil)
-			return
-		}
-		defer destinationFile.Close()
-
-		if _, err := io.Copy(destinationFile, sourceFile); err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_ERROR", "Failed to save media file", nil)
-			return
-		}
-
-		_, err = transaction.Exec(`
-			INSERT INTO lecture_media (id, lecture_id, media_type, sequence_order, file_path, created_at)
-			VALUES (?, ?, ?, ?, ?, ?)
-		`, mediaIdentifier, lecture.ID, mediaType, mediaIndex, mediaFilePath, time.Now())
-
-		if err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to create media record", nil)
+	// 2. Bind Staged Media
+	for index, uploadID := range request.Form["media_upload_ids"] {
+		if err := server.commitStagedUpload(transaction, lectureID, uploadID, "media", index); err != nil {
+			server.writeError(responseWriter, http.StatusInternalServerError, "UPLOAD_ERROR", "Failed to bind media: "+uploadID, nil)
 			return
 		}
 	}
 
-	// 2. Process Reference Documents
-	documentFiles := request.MultipartForm.File["documents"]
-	for _, fileHeader := range documentFiles {
-		documentIdentifier := uuid.New().String()
-		fileExtension := filepath.Ext(fileHeader.Filename)
-		filename := fmt.Sprintf("%s%s", documentIdentifier, fileExtension)
-
-		lectureDocumentsDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "files", "lectures", lecture.ID, "documents")
-		if err := os.MkdirAll(lectureDocumentsDirectory, 0755); err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_ERROR", "Failed to create documents directory", nil)
+	// 3. Bind Staged Documents
+	for _, uploadID := range request.Form["document_upload_ids"] {
+		if err := server.commitStagedUpload(transaction, lectureID, uploadID, "document", 0); err != nil {
+			server.writeError(responseWriter, http.StatusInternalServerError, "UPLOAD_ERROR", "Failed to bind document: "+uploadID, nil)
 			return
 		}
+	}
 
-		documentFilePath := filepath.Join(lectureDocumentsDirectory, filename)
-		documentType := strings.TrimPrefix(strings.ToLower(fileExtension), ".")
-		switch documentType {
-		case "pdf":
-			documentType = "pdf"
-		case "pptx":
-			documentType = "pptx"
-		case "docx":
-			documentType = "docx"
-		default:
-			documentType = "other"
-		}
-
-		// Save the file
-		sourceFile, err := fileHeader.Open()
-		if err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_ERROR", "Failed to open uploaded document", nil)
+	// 4. Handle Direct Multipart Files (Implicitly stage then bind)
+	for index, fileHeader := range request.MultipartForm.File["media"] {
+		uploadID := server.stageMultipartFile(fileHeader)
+		if err := server.commitStagedUpload(transaction, lectureID, uploadID, "media", len(request.Form["media_upload_ids"])+index); err != nil {
+			server.writeError(responseWriter, http.StatusInternalServerError, "UPLOAD_ERROR", "Failed to process direct media", nil)
 			return
 		}
-		defer sourceFile.Close()
-
-		destinationFile, err := os.Create(documentFilePath)
-		if err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_ERROR", "Failed to create document file", nil)
-			return
-		}
-		defer destinationFile.Close()
-
-		if _, err := io.Copy(destinationFile, sourceFile); err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_ERROR", "Failed to save document file", nil)
-			return
-		}
-
-		// Normalize title: replace spaces and dashes with underscores
-		normalizedTitle := fileHeader.Filename
-		normalizedTitle = strings.ReplaceAll(normalizedTitle, " ", "_")
-		normalizedTitle = strings.ReplaceAll(normalizedTitle, "-", "_")
-
-		_, err = transaction.Exec(`
-			INSERT INTO reference_documents (id, lecture_id, document_type, title, file_path, page_count, extraction_status, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, documentIdentifier, lecture.ID, documentType, normalizedTitle, documentFilePath, 0, "pending", time.Now(), time.Now())
-
-		if err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to create document record", nil)
+	}
+	for _, fileHeader := range request.MultipartForm.File["documents"] {
+		uploadID := server.stageMultipartFile(fileHeader)
+		if err := server.commitStagedUpload(transaction, lectureID, uploadID, "document", 0); err != nil {
+			server.writeError(responseWriter, http.StatusInternalServerError, "UPLOAD_ERROR", "Failed to process direct document", nil)
 			return
 		}
 	}
 
 	if err := transaction.Commit(); err != nil {
-		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to commit transaction", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Commit failed", nil)
 		return
 	}
 
-	// Trigger processing jobs immediately
-	if len(mediaFiles) > 0 {
-		server.jobQueue.Enqueue(models.JobTypeTranscribeMedia, map[string]string{
-			"lecture_id": lecture.ID,
-		})
-	}
-
-	if len(documentFiles) > 0 {
-		server.jobQueue.Enqueue(models.JobTypeIngestDocuments, map[string]string{
-			"lecture_id":    lecture.ID,
-			"language_code": server.configuration.LLM.Language,
-		})
-	}
+	// 5. Trigger Async Jobs
+	server.jobQueue.Enqueue(models.JobTypeTranscribeMedia, map[string]string{"lecture_id": lectureID})
+	server.jobQueue.Enqueue(models.JobTypeIngestDocuments, map[string]string{"lecture_id": lectureID, "language_code": server.configuration.LLM.Language})
 
 	server.writeJSON(responseWriter, http.StatusCreated, lecture)
 }
 
-// handleInitializeUpload starts a new chunked upload session
-func (server *Server) handleInitializeUpload(responseWriter http.ResponseWriter, request *http.Request) {
-	var initRequest struct {
-		Filename  string `json:"filename"`
-		FileSize  int64  `json:"file_size_bytes"`
-		MediaType string `json:"media_type"` // "media" or "document"
+// handleUploadPrepare starts a robust staging session
+func (server *Server) handleUploadPrepare(responseWriter http.ResponseWriter, request *http.Request) {
+	var prepareRequest struct {
+		Filename string `json:"filename"`
+		FileSize int64  `json:"file_size_bytes"`
 	}
-
-	if err := json.NewDecoder(request.Body).Decode(&initRequest); err != nil {
-		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
+	if err := json.NewDecoder(request.Body).Decode(&prepareRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid body", nil)
 		return
 	}
 
 	uploadID := uuid.New().String()
-	chunkSize := int64(10 * 1024 * 1024) // 10MB chunks
-
-	// Store upload session in temporary directory
 	uploadDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "tmp", "uploads", uploadID)
-	if err := os.MkdirAll(uploadDirectory, 0755); err != nil {
-		server.writeError(responseWriter, http.StatusInternalServerError, "FILE_ERROR", "Failed to create upload directory", nil)
-		return
-	}
+	os.MkdirAll(uploadDirectory, 0755)
 
-	// Save metadata
-	metadataPath := filepath.Join(uploadDirectory, "metadata.json")
-	metadataFile, _ := os.Create(metadataPath)
-	json.NewEncoder(metadataFile).Encode(initRequest)
+	metadataFile, _ := os.Create(filepath.Join(uploadDirectory, "metadata.json"))
+	json.NewEncoder(metadataFile).Encode(prepareRequest)
 	metadataFile.Close()
+
+	os.Create(filepath.Join(uploadDirectory, "upload.data"))
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]any{
 		"upload_id":        uploadID,
-		"chunk_size_bytes": chunkSize,
+		"chunk_size_bytes": 10 * 1024 * 1024,
 	})
 }
 
-// handleUploadChunk handles receiving a single chunk of an upload
-func (server *Server) handleUploadChunk(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	uploadID := pathVariables["uploadId"]
-	chunkNumberString := request.URL.Query().Get("chunk_number")
-	chunkNumber, _ := strconv.Atoi(chunkNumberString)
+// handleUploadAppend appends binary data with progress tracking
+func (server *Server) handleUploadAppend(responseWriter http.ResponseWriter, request *http.Request) {
+	uploadID := request.URL.Query().Get("upload_id")
+	if uploadID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "upload_id query parameter is required", nil)
+		return
+	}
 
 	uploadDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "tmp", "uploads", uploadID)
-	if _, err := os.Stat(uploadDirectory); os.IsNotExist(err) {
+	dataFilePath := filepath.Join(uploadDirectory, "upload.data")
+
+	dataFile, err := os.OpenFile(dataFilePath, os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Upload session not found", nil)
 		return
 	}
+	defer dataFile.Close()
 
-	chunkPath := filepath.Join(uploadDirectory, fmt.Sprintf("chunk_%05d", chunkNumber))
-	chunkFile, err := os.Create(chunkPath)
-	if err != nil {
-		server.writeError(responseWriter, http.StatusInternalServerError, "FILE_ERROR", "Failed to create chunk file", nil)
-		return
-	}
-	defer chunkFile.Close()
-
-	if _, err := io.Copy(chunkFile, request.Body); err != nil {
-		server.writeError(responseWriter, http.StatusInternalServerError, "FILE_ERROR", "Failed to save chunk", nil)
-		return
+	progressReader := &ProgressReader{
+		Reader:     request.Body,
+		Total:      request.ContentLength,
+		UploadID:   uploadID,
+		Hub:        server.wsHub,
+		LastUpdate: time.Now(),
 	}
 
-	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"status": "chunk_received"})
+	io.Copy(dataFile, progressReader)
+	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"status": "data_appended"})
 }
 
-// handleCompleteUpload assembles chunks and finalizes the upload into a lecture
-func (server *Server) handleCompleteUpload(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	uploadID := pathVariables["uploadId"]
-	examIdentifier := pathVariables["examId"]
-
-	uploadDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "tmp", "uploads", uploadID)
-	if _, err := os.Stat(uploadDirectory); os.IsNotExist(err) {
-		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Upload session not found", nil)
+// handleUploadStage verifies the staged file via payload ID
+func (server *Server) handleUploadStage(responseWriter http.ResponseWriter, request *http.Request) {
+	var stageRequest struct {
+		UploadID string `json:"upload_id"`
+	}
+	if err := json.NewDecoder(request.Body).Decode(&stageRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid body", nil)
 		return
 	}
 
-	// Read metadata
-	metadataPath := filepath.Join(uploadDirectory, "metadata.json")
-	metadataBytes, _ := os.ReadFile(metadataPath)
+	uploadDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "tmp", "uploads", stageRequest.UploadID)
+
+	if _, err := os.Stat(filepath.Join(uploadDirectory, "upload.data")); err != nil {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Staged file not found", nil)
+		return
+	}
+
+	server.writeJSON(responseWriter, http.StatusOK, map[string]any{
+		"upload_id": stageRequest.UploadID,
+		"status":    "staged",
+	})
+}
+
+// Internal Helpers (The "Staged Upload Interface")
+
+func (server *Server) stageMultipartFile(fileHeader *multipart.FileHeader) string {
+	uploadID := uuid.New().String()
+	uploadDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "tmp", "uploads", uploadID)
+	os.MkdirAll(uploadDirectory, 0755)
+
+	metadataFile, _ := os.Create(filepath.Join(uploadDirectory, "metadata.json"))
+	json.NewEncoder(metadataFile).Encode(map[string]any{"filename": fileHeader.Filename, "file_size_bytes": fileHeader.Size})
+	metadataFile.Close()
+
+	sourceFile, _ := fileHeader.Open()
+	defer sourceFile.Close()
+	destinationFile, _ := os.Create(filepath.Join(uploadDirectory, "upload.data"))
+	defer destinationFile.Close()
+	io.Copy(destinationFile, sourceFile)
+
+	return uploadID
+}
+
+func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, uploadID string, targetType string, sequenceOrder int) error {
+	uploadDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "tmp", "uploads", uploadID)
+
+	metadataBytes, err := os.ReadFile(filepath.Join(uploadDirectory, "metadata.json"))
+	if err != nil {
+		return err
+	}
 	var metadata struct {
-		Filename  string `json:"filename"`
-		FileSize  int64  `json:"file_size_bytes"`
-		MediaType string `json:"media_type"`
+		Filename string `json:"filename"`
 	}
 	json.Unmarshal(metadataBytes, &metadata)
 
-	// Assemble chunks
-	finalFilename := metadata.Filename
-	finalPath := filepath.Join(uploadDirectory, finalFilename)
-	finalFile, err := os.Create(finalPath)
-	if err != nil {
-		server.writeError(responseWriter, http.StatusInternalServerError, "FILE_ERROR", "Failed to create final file", nil)
-		return
+	// Move file to permanent storage
+	destinationDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "files", "lectures", lectureID, targetType+"s")
+	os.MkdirAll(destinationDirectory, 0755)
+
+	fileID := uuid.New().String()
+	fileExtension := filepath.Ext(metadata.Filename)
+	destinationPath := filepath.Join(destinationDirectory, fileID+fileExtension)
+
+	if err := os.Rename(filepath.Join(uploadDirectory, "upload.data"), destinationPath); err != nil {
+		// Fallback to copy if rename fails (e.g. cross-device)
+		sourceFile, _ := os.Open(filepath.Join(uploadDirectory, "upload.data"))
+		destinationFile, _ := os.Create(destinationPath)
+		io.Copy(destinationFile, sourceFile)
+		sourceFile.Close()
+		destinationFile.Close()
 	}
 
-	chunkFiles, _ := filepath.Glob(filepath.Join(uploadDirectory, "chunk_*"))
-	for chunkIndex := 0; chunkIndex < len(chunkFiles); chunkIndex++ {
-		chunkPath := filepath.Join(uploadDirectory, fmt.Sprintf("chunk_%05d", chunkIndex))
-		chunkBytes, _ := os.ReadFile(chunkPath)
-		finalFile.Write(chunkBytes)
-		os.Remove(chunkPath)
-	}
-	finalFile.Close()
-
-	// Now we have the file, we can treat it like a regular upload
-	// But we need a lecture. Since this spec doesn't say which lecture,
-	// we'll assume it's like handleCreateLecture but for one file.
-	// Actually, the spec says it returns {lecture_id, status}.
-	// This implies we might need to create a lecture if it doesn't exist,
-	// or this is part of a lecture creation flow.
-
-	// For simplicity, let's create a lecture with the filename as title.
-	lecture := models.Lecture{
-		ID:        uuid.New().String(),
-		ExamID:    examIdentifier,
-		Title:     metadata.Filename,
-		Status:    "processing",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+	// Insert Database Metadata
+	if targetType == "media" {
+		mediaType := "audio"
+		for _, videoExtension := range server.configuration.Uploads.Media.SupportedFormats.Video {
+			if "."+videoExtension == strings.ToLower(fileExtension) {
+				mediaType = "video"
+				break
+			}
+		}
+		_, err = transaction.Exec(`
+			INSERT INTO lecture_media (id, lecture_id, media_type, sequence_order, file_path, created_at)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, fileID, lectureID, mediaType, sequenceOrder, destinationPath, time.Now())
+	} else {
+		documentType := strings.TrimPrefix(strings.ToLower(fileExtension), ".")
+		normalizedTitle := strings.ReplaceAll(metadata.Filename, " ", "_")
+		_, err = transaction.Exec(`
+			INSERT INTO reference_documents (id, lecture_id, document_type, title, file_path, page_count, extraction_status, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, fileID, lectureID, documentType, normalizedTitle, destinationPath, 0, "pending", time.Now(), time.Now())
 	}
 
-	// Logic similar to handleCreateLecture...
-	// (Skipping full implementation for brevity, assuming standard lecture creation)
-
-	server.writeJSON(responseWriter, http.StatusOK, map[string]any{
-		"lecture_id": lecture.ID,
-		"status":     "completed",
-	})
+	os.RemoveAll(uploadDirectory)
+	return err
 }
 
 // handleListLectures lists all lectures for an exam

@@ -359,6 +359,124 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 	}
 }
 
+func TestUpload_StagedProtocol(tester *testing.T) {
+	temporaryDirectory, err := os.MkdirTemp("", "staged-upload-test-*")
+	if err != nil {
+		tester.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(temporaryDirectory)
+
+	databasePath := filepath.Join(temporaryDirectory, "staged.db")
+	initializedDatabase, err := database.Initialize(databasePath)
+	if err != nil {
+		tester.Fatalf("Failed to init DB: %v", err)
+	}
+	defer initializedDatabase.Close()
+
+	config := &configuration.Configuration{
+		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
+		Security: configuration.SecurityConfiguration{
+			Auth: configuration.AuthConfiguration{Type: "session"},
+		},
+	}
+
+	_, _ = initializedDatabase.Exec("INSERT INTO settings (key, value) VALUES ('admin_password_hash', ?)", "dummy_hash")
+	sessionID := "staged-session"
+	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, password_hash, expires_at) VALUES (?, ?, ?)", sessionID, "dummy_hash", time.Now().Add(1*time.Hour))
+
+	jobQueue := jobs.NewQueue(initializedDatabase, 1)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, nil, nil)
+	testServer := httptest.NewServer(apiServer.Handler())
+	defer testServer.Close()
+
+	httpClient := testServer.Client()
+	authenticatedDo := func(method, url string, body io.Reader) *http.Response {
+		httpRequest, _ := http.NewRequest(method, url, body)
+		httpRequest.Header.Set("Authorization", "Bearer "+sessionID)
+		if strings.Contains(url, "prepare") || strings.Contains(url, "stage") || (method == "POST" && strings.Contains(url, "lectures")) {
+			httpRequest.Header.Set("Content-Type", "application/json")
+		}
+		resp, _ := httpClient.Do(httpRequest)
+		return resp
+	}
+
+	// 1. Create Exam
+	examPayload, _ := json.Marshal(map[string]string{"title": "Staged Exam"})
+	examResp := authenticatedDo("POST", testServer.URL+"/api/exams", bytes.NewBuffer(examPayload))
+	var examRes struct{ Data models.Exam }
+	json.NewDecoder(examResp.Body).Decode(&examRes)
+	examID := examRes.Data.ID
+	examResp.Body.Close()
+
+	// 2. Prepare Upload
+	preparePayload, _ := json.Marshal(map[string]any{
+		"filename":        "test.mp3",
+		"file_size_bytes": 100,
+	})
+	prepareResp := authenticatedDo("POST", testServer.URL+"/api/uploads/prepare", bytes.NewBuffer(preparePayload))
+	var prepareRes struct {
+		Data struct {
+			UploadID string `json:"upload_id"`
+		} `json:"data"`
+	}
+	json.NewDecoder(prepareResp.Body).Decode(&prepareRes)
+	uploadID := prepareRes.Data.UploadID
+	prepareResp.Body.Close()
+
+	if uploadID == "" {
+		tester.Fatal("Failed to get upload_id from prepare")
+	}
+
+	// 3. Append Data
+	data := []byte("This is some test audio data content.")
+	appendURL := fmt.Sprintf("%s/api/uploads/append?upload_id=%s", testServer.URL, uploadID)
+	appendResp := authenticatedDo("POST", appendURL, bytes.NewBuffer(data))
+	if appendResp.StatusCode != http.StatusOK {
+		tester.Fatalf("Append failed with status %d", appendResp.StatusCode)
+	}
+	appendResp.Body.Close()
+
+	// 4. Stage
+	stagePayload, _ := json.Marshal(map[string]string{"upload_id": uploadID})
+	stageResp := authenticatedDo("POST", testServer.URL+"/api/uploads/stage", bytes.NewBuffer(stagePayload))
+	if stageResp.StatusCode != http.StatusOK {
+		tester.Fatalf("Stage failed with status %d", stageResp.StatusCode)
+	}
+	stageResp.Body.Close()
+
+	// 5. Create Lecture and Bind
+	// Let's use multipart for the test to match the implementation
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	writer.WriteField("title", "Staged Lecture")
+	writer.WriteField("media_upload_ids", uploadID)
+	writer.Close()
+
+	createReq, _ := http.NewRequest("POST", fmt.Sprintf("%s/api/exams/%s/lectures", testServer.URL, examID), body)
+	createReq.Header.Set("Authorization", "Bearer "+sessionID)
+	createReq.Header.Set("Content-Type", writer.FormDataContentType())
+	createResp, err := httpClient.Do(createReq)
+	if err != nil {
+		tester.Fatalf("Create lecture failed: %v", err)
+	}
+	defer createResp.Body.Close()
+
+	if createResp.StatusCode != http.StatusCreated {
+		tester.Fatalf("Expected 201, got %d", createResp.StatusCode)
+	}
+
+	var lectureRes struct{ Data models.Lecture }
+	json.NewDecoder(createResp.Body).Decode(&lectureRes)
+	lectureID := lectureRes.Data.ID
+
+	// 6. Verify persistence
+	var count int
+	_ = initializedDatabase.QueryRow("SELECT COUNT(*) FROM lecture_media WHERE lecture_id = ?", lectureID).Scan(&count)
+	if count != 1 {
+		tester.Errorf("Expected 1 media file bound, found %d", count)
+	}
+}
+
 func TestWebSocket_ProgressUpdates(tester *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-ws-test-*")
 	if err != nil {

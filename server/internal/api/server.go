@@ -69,6 +69,11 @@ func (server *Server) setupRoutes() {
 	// Auth logout (requires auth)
 	apiRouter.HandleFunc("/auth/logout", server.handleAuthLogout).Methods("POST")
 
+	// Staged Upload Protocol
+	apiRouter.HandleFunc("/uploads/prepare", server.handleUploadPrepare).Methods("POST")
+	apiRouter.HandleFunc("/uploads/append", server.handleUploadAppend).Methods("POST")
+	apiRouter.HandleFunc("/uploads/stage", server.handleUploadStage).Methods("POST")
+
 	// Exams
 	apiRouter.HandleFunc("/exams", server.handleCreateExam).Methods("POST")
 	apiRouter.HandleFunc("/exams", server.handleListExams).Methods("GET")
@@ -83,18 +88,13 @@ func (server *Server) setupRoutes() {
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}", server.handleUpdateLecture).Methods("PATCH")
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}", server.handleDeleteLecture).Methods("DELETE")
 
-	// Chunked Uploads
-	apiRouter.HandleFunc("/exams/{examId}/lectures/upload/initialize", server.handleInitializeUpload).Methods("POST")
-	apiRouter.HandleFunc("/exams/{examId}/lectures/upload/{uploadId}/chunk", server.handleUploadChunk).Methods("POST")
-	apiRouter.HandleFunc("/exams/{examId}/lectures/upload/{uploadId}/complete", server.handleCompleteUpload).Methods("POST")
-
-	// Media
+	// Media (Listing/Ordering)
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/media", server.handleListMedia).Methods("GET")
 
 	// Transcripts
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/transcript", server.handleGetTranscript).Methods("GET")
 
-	// Reference Documents
+	// Reference Documents (Listing/Meta)
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/documents", server.handleListDocuments).Methods("GET")
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/documents/{documentId}", server.handleGetDocument).Methods("GET")
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/documents/{documentId}/pages", server.handleGetDocumentPages).Methods("GET")

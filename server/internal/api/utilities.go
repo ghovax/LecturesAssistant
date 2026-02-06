@@ -37,9 +37,9 @@ func (progressReader *ProgressReader) Read(p []byte) (n int, err error) {
 	}
 
 	if time.Since(progressReader.LastUpdate) > 100*time.Millisecond || (progressReader.BytesRead-progressReader.LastRead) > threshold || err == io.EOF {
+		progressReader.LastRead = progressReader.BytesRead
 		progressReader.broadcast()
 		progressReader.LastUpdate = time.Now()
-		progressReader.LastRead = progressReader.BytesRead
 	}
 
 	return n, err

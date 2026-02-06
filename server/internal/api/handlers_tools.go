@@ -119,8 +119,10 @@ func (server *Server) handleListTools(responseWriter http.ResponseWriter, reques
 // handleGetTool retrieves a specific tool
 func (server *Server) handleGetTool(responseWriter http.ResponseWriter, request *http.Request) {
 	toolID := request.URL.Query().Get("tool_id")
-	if toolID == "" {
-		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "tool_id is required", nil)
+	examID := request.URL.Query().Get("exam_id")
+	
+	if toolID == "" || examID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "tool_id and exam_id are required", nil)
 		return
 	}
 
@@ -128,11 +130,11 @@ func (server *Server) handleGetTool(responseWriter http.ResponseWriter, request 
 	err := server.database.QueryRow(`
 		SELECT id, exam_id, type, title, content, created_at, updated_at
 		FROM tools
-		WHERE id = ?
-	`, toolID).Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.Content, &tool.CreatedAt, &tool.UpdatedAt)
+		WHERE id = ? AND exam_id = ?
+	`, toolID, examID).Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.Content, &tool.CreatedAt, &tool.UpdatedAt)
 
 	if err == sql.ErrNoRows {
-		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found", nil)
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found in this exam", nil)
 		return
 	}
 	if err != nil {
@@ -147,18 +149,19 @@ func (server *Server) handleGetTool(responseWriter http.ResponseWriter, request 
 func (server *Server) handleDeleteTool(responseWriter http.ResponseWriter, request *http.Request) {
 	var deleteRequest struct {
 		ToolID string `json:"tool_id"`
+		ExamID string `json:"exam_id"`
 	}
 	if err := json.NewDecoder(request.Body).Decode(&deleteRequest); err != nil {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid body", nil)
 		return
 	}
 
-	if deleteRequest.ToolID == "" {
-		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "tool_id is required", nil)
+	if deleteRequest.ToolID == "" || deleteRequest.ExamID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "tool_id and exam_id are required", nil)
 		return
 	}
 
-	result, err := server.database.Exec("DELETE FROM tools WHERE id = ?", deleteRequest.ToolID)
+	result, err := server.database.Exec("DELETE FROM tools WHERE id = ? AND exam_id = ?", deleteRequest.ToolID, deleteRequest.ExamID)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete tool", nil)
 		return
@@ -166,7 +169,7 @@ func (server *Server) handleDeleteTool(responseWriter http.ResponseWriter, reque
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found", nil)
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found in this exam", nil)
 		return
 	}
 

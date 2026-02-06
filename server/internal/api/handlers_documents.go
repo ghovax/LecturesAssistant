@@ -43,8 +43,10 @@ func (server *Server) handleListDocuments(responseWriter http.ResponseWriter, re
 // handleGetDocument retrieves a specific document metadata
 func (server *Server) handleGetDocument(responseWriter http.ResponseWriter, request *http.Request) {
 	documentID := request.URL.Query().Get("document_id")
-	if documentID == "" {
-		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id is required", nil)
+	lectureID := request.URL.Query().Get("lecture_id")
+	
+	if documentID == "" || lectureID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id and lecture_id are required", nil)
 		return
 	}
 
@@ -52,11 +54,11 @@ func (server *Server) handleGetDocument(responseWriter http.ResponseWriter, requ
 	err := server.database.QueryRow(`
 		SELECT id, lecture_id, document_type, title, file_path, page_count, extraction_status, created_at, updated_at
 		FROM reference_documents
-		WHERE id = ?
-	`, documentID).Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt)
+		WHERE id = ? AND lecture_id = ?
+	`, documentID, lectureID).Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt)
 
 	if err == sql.ErrNoRows {
-		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Document not found", nil)
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Document not found in this lecture", nil)
 		return
 	}
 	if err != nil {
@@ -70,8 +72,18 @@ func (server *Server) handleGetDocument(responseWriter http.ResponseWriter, requ
 // handleGetDocumentPages lists all pages for a document
 func (server *Server) handleGetDocumentPages(responseWriter http.ResponseWriter, request *http.Request) {
 	documentID := request.URL.Query().Get("document_id")
-	if documentID == "" {
-		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id is required", nil)
+	lectureID := request.URL.Query().Get("lecture_id")
+	
+	if documentID == "" || lectureID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id and lecture_id are required", nil)
+		return
+	}
+
+	// Verify document belongs to lecture
+	var exists bool
+	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM reference_documents WHERE id = ? AND lecture_id = ?)", documentID, lectureID).Scan(&exists)
+	if err != nil || !exists {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Document not found in this lecture", nil)
 		return
 	}
 
@@ -102,17 +114,26 @@ func (server *Server) handleGetDocumentPages(responseWriter http.ResponseWriter,
 // handleGetPageImage serves the actual image file for a page
 func (server *Server) handleGetPageImage(responseWriter http.ResponseWriter, request *http.Request) {
 	documentID := request.URL.Query().Get("document_id")
+	lectureID := request.URL.Query().Get("lecture_id")
 	pageNumberString := request.URL.Query().Get("page_number")
 	
-	if documentID == "" || pageNumberString == "" {
-		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id and page_number are required", nil)
+	if documentID == "" || lectureID == "" || pageNumberString == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id, lecture_id and page_number are required", nil)
+		return
+	}
+	
+	// Verify document belongs to lecture
+	var exists bool
+	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM reference_documents WHERE id = ? AND lecture_id = ?)", documentID, lectureID).Scan(&exists)
+	if err != nil || !exists {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Document not found in this lecture", nil)
 		return
 	}
 	
 	pageNumber, _ := strconv.Atoi(pageNumberString)
 
 	var imagePath string
-	err := server.database.QueryRow(`
+	err = server.database.QueryRow(`
 		SELECT image_path
 		FROM reference_pages
 		WHERE document_id = ? AND page_number = ?

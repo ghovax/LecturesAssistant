@@ -430,6 +430,17 @@ func TestUpload_StagedProtocol(tester *testing.T) {
 
 	// 3. Append Data
 	data := []byte("This is some test audio data content.")
+	
+	// Update Prepare to match actual size for integrity check
+	preparePayload, _ = json.Marshal(map[string]any{
+		"filename":        "test.mp3",
+		"file_size_bytes": len(data),
+	})
+	prepareResp = authenticatedDo("POST", testServer.URL+"/api/uploads/prepare", bytes.NewBuffer(preparePayload))
+	json.NewDecoder(prepareResp.Body).Decode(&prepareRes)
+	uploadID = prepareRes.Data.UploadID
+	prepareResp.Body.Close()
+
 	appendURL := fmt.Sprintf("%s/api/uploads/append?upload_id=%s", testServer.URL, uploadID)
 	appendResp := authenticatedDo("POST", appendURL, bytes.NewBuffer(data))
 	if appendResp.StatusCode != http.StatusOK {
@@ -1036,7 +1047,10 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		httpResponse.Body.Close()
 
 		// 3. Try to delete lecture while it is processing
-		deletePayload, _ := json.Marshal(map[string]string{"lecture_id": lectureID})
+		deletePayload, _ := json.Marshal(map[string]string{
+			"lecture_id": lectureID,
+			"exam_id":    examID,
+		})
 		httpRequest, _ = http.NewRequest("DELETE", testServer.URL+"/api/lectures", bytes.NewBuffer(deletePayload))
 		httpResponse = authenticatedDo(httpRequest)
 		if httpResponse.StatusCode != http.StatusConflict {
@@ -1218,6 +1232,11 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 		sessionID := sessionResponseData.Data.ID
 		sessionResponse.Body.Close()
 
+		// 1.5 Create dummy lectures and tools in DB to satisfy boundary checks
+		_, _ = initializedDatabase.Exec("INSERT INTO lectures (id, exam_id, title, status) VALUES (?, ?, ?, ?)", "lecture-1", examID, "L1", "ready")
+		_, _ = initializedDatabase.Exec("INSERT INTO lectures (id, exam_id, title, status) VALUES (?, ?, ?, ?)", "lecture-2", examID, "L2", "ready")
+		_, _ = initializedDatabase.Exec("INSERT INTO tools (id, exam_id, type, title, content) VALUES (?, ?, ?, ?, ?)", "tool-1", examID, "guide", "T1", "{}")
+
 		// 2. Update Context
 		contextPayload, _ := json.Marshal(map[string]any{
 			"session_id":           sessionID,
@@ -1231,7 +1250,7 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 		updateResponse.Body.Close()
 
 		// 3. Verify update
-		getResponse := authenticatedDo("GET", fmt.Sprintf("%s/api/chat/sessions/details?session_id=%s", testServer.URL, sessionID), nil)
+		getResponse := authenticatedDo("GET", fmt.Sprintf("%s/api/chat/sessions/details?session_id=%s&exam_id=%s", testServer.URL, sessionID, examID), nil)
 		var getResponseData struct {
 			Data struct {
 				Context struct {

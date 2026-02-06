@@ -122,8 +122,10 @@ func (server *Server) handleListChatSessions(responseWriter http.ResponseWriter,
 // handleGetChatSession retrieves a specific session and its messages
 func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, request *http.Request) {
 	sessionID := request.URL.Query().Get("session_id")
-	if sessionID == "" {
-		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "session_id is required", nil)
+	examID := request.URL.Query().Get("exam_id")
+	
+	if sessionID == "" || examID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "session_id and exam_id are required", nil)
 		return
 	}
 
@@ -131,11 +133,11 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 	databaseError := server.database.QueryRow(`
 		SELECT id, exam_id, title, created_at, updated_at
 		FROM chat_sessions
-		WHERE id = ?
-	`, sessionID).Scan(&session.ID, &session.ExamID, &session.Title, &session.CreatedAt, &session.UpdatedAt)
+		WHERE id = ? AND exam_id = ?
+	`, sessionID, examID).Scan(&session.ID, &session.ExamID, &session.Title, &session.CreatedAt, &session.UpdatedAt)
 
 	if databaseError == sql.ErrNoRows {
-		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Chat session not found", nil)
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Chat session not found in this exam", nil)
 		return
 	}
 	if databaseError != nil {
@@ -193,18 +195,19 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 func (server *Server) handleDeleteChatSession(responseWriter http.ResponseWriter, request *http.Request) {
 	var deleteRequest struct {
 		SessionID string `json:"session_id"`
+		ExamID    string `json:"exam_id"`
 	}
 	if err := json.NewDecoder(request.Body).Decode(&deleteRequest); err != nil {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid body", nil)
 		return
 	}
 
-	if deleteRequest.SessionID == "" {
-		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "session_id is required", nil)
+	if deleteRequest.SessionID == "" || deleteRequest.ExamID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "session_id and exam_id are required", nil)
 		return
 	}
 
-	result, databaseError := server.database.Exec("DELETE FROM chat_sessions WHERE id = ?", deleteRequest.SessionID)
+	result, databaseError := server.database.Exec("DELETE FROM chat_sessions WHERE id = ? AND exam_id = ?", deleteRequest.SessionID, deleteRequest.ExamID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete chat session", nil)
 		return
@@ -212,7 +215,7 @@ func (server *Server) handleDeleteChatSession(responseWriter http.ResponseWriter
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Chat session not found", nil)
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Chat session not found in this exam", nil)
 		return
 	}
 

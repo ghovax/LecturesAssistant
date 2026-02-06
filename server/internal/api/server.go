@@ -43,6 +43,7 @@ func NewServer(configuration *configuration.Configuration, database *sql.DB, job
 	}
 
 	go server.wsHub.Run()
+	server.StartStagingCleanupWorker()
 	server.setupRoutes()
 	return server
 }

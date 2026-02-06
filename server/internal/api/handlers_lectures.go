@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -169,8 +170,15 @@ func (server *Server) handleUploadAppend(responseWriter http.ResponseWriter, req
 	}
 
 	uploadDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "tmp", "uploads", uploadID)
-	dataFilePath := filepath.Join(uploadDirectory, "upload.data")
+	
+	// Read metadata to get total expected size for global progress tracking
+	var metadata struct {
+		FileSize int64 `json:"file_size_bytes"`
+	}
+	metaBytes, _ := os.ReadFile(filepath.Join(uploadDirectory, "metadata.json"))
+	json.Unmarshal(metaBytes, &metadata)
 
+	dataFilePath := filepath.Join(uploadDirectory, "upload.data")
 	dataFile, err := os.OpenFile(dataFilePath, os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Upload session not found", nil)
@@ -178,12 +186,24 @@ func (server *Server) handleUploadAppend(responseWriter http.ResponseWriter, req
 	}
 	defer dataFile.Close()
 
+	// Determine current offset for progress reporting
+	info, _ := dataFile.Stat()
+	currentOffset := info.Size()
+
+	// Verify we are not exceeding the declared file size
+	if metadata.FileSize > 0 && currentOffset+request.ContentLength > metadata.FileSize {
+		server.writeError(responseWriter, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", fmt.Sprintf("Appending this chunk would exceed the declared file size of %d bytes", metadata.FileSize), nil)
+		return
+	}
+
 	progressReader := &ProgressReader{
 		Reader:     request.Body,
-		Total:      request.ContentLength,
+		Total:      metadata.FileSize,
+		BytesRead:  currentOffset, // Start from existing bytes
 		UploadID:   uploadID,
 		Hub:        server.wsHub,
 		LastUpdate: time.Now(),
+		LastRead:   currentOffset,
 	}
 
 	io.Copy(dataFile, progressReader)
@@ -202,8 +222,22 @@ func (server *Server) handleUploadStage(responseWriter http.ResponseWriter, requ
 
 	uploadDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "tmp", "uploads", stageRequest.UploadID)
 
-	if _, err := os.Stat(filepath.Join(uploadDirectory, "upload.data")); err != nil {
+	// Verify file exists
+	info, err := os.Stat(filepath.Join(uploadDirectory, "upload.data"))
+	if err != nil {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Staged file not found", nil)
+		return
+	}
+
+	// Verify file size matches metadata
+	var metadata struct {
+		FileSize int64 `json:"file_size_bytes"`
+	}
+	metaBytes, _ := os.ReadFile(filepath.Join(uploadDirectory, "metadata.json"))
+	json.Unmarshal(metaBytes, &metadata)
+
+	if metadata.FileSize > 0 && info.Size() != metadata.FileSize {
+		server.writeError(responseWriter, http.StatusUnprocessableEntity, "INVALID_SIZE", fmt.Sprintf("Final size %d does not match expected size %d", info.Size(), metadata.FileSize), nil)
 		return
 	}
 
@@ -238,7 +272,7 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 
 	metadataBytes, err := os.ReadFile(filepath.Join(uploadDirectory, "metadata.json"))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read metadata: %w", err)
 	}
 	var metadata struct {
 		Filename string `json:"filename"`
@@ -253,13 +287,24 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 	fileExtension := filepath.Ext(metadata.Filename)
 	destinationPath := filepath.Join(destinationDirectory, fileID+fileExtension)
 
-	if err := os.Rename(filepath.Join(uploadDirectory, "upload.data"), destinationPath); err != nil {
-		// Fallback to copy if rename fails (e.g. cross-device)
-		sourceFile, _ := os.Open(filepath.Join(uploadDirectory, "upload.data"))
-		destinationFile, _ := os.Create(destinationPath)
-		io.Copy(destinationFile, sourceFile)
-		sourceFile.Close()
-		destinationFile.Close()
+	stagedPath := filepath.Join(uploadDirectory, "upload.data")
+	if err := os.Rename(stagedPath, destinationPath); err != nil {
+		// Fallback to copy
+		sourceFile, err := os.Open(stagedPath)
+		if err != nil {
+			return fmt.Errorf("failed to open source for copy: %w", err)
+		}
+		defer sourceFile.Close()
+
+		destinationFile, err := os.Create(destinationPath)
+		if err != nil {
+			return fmt.Errorf("failed to create destination for copy: %w", err)
+		}
+		defer destinationFile.Close()
+
+		if _, err := io.Copy(destinationFile, sourceFile); err != nil {
+			return fmt.Errorf("failed to copy file: %w", err)
+		}
 	}
 
 	// Insert Database Metadata
@@ -284,8 +329,12 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 		`, fileID, lectureID, documentType, normalizedTitle, destinationPath, 0, "pending", time.Now(), time.Now())
 	}
 
+	if err != nil {
+		return fmt.Errorf("failed to insert metadata: %w", err)
+	}
+
 	os.RemoveAll(uploadDirectory)
-	return err
+	return nil
 }
 
 // handleListLectures lists all lectures for an exam
@@ -324,20 +373,22 @@ func (server *Server) handleListLectures(responseWriter http.ResponseWriter, req
 // handleGetLecture retrieves a specific lecture
 func (server *Server) handleGetLecture(responseWriter http.ResponseWriter, request *http.Request) {
 	lectureID := request.URL.Query().Get("lecture_id")
-	if lectureID == "" {
-		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id is required", nil)
+	examID := request.URL.Query().Get("exam_id")
+	
+	if lectureID == "" || examID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id and exam_id are required", nil)
 		return
 	}
 
 	var lecture models.Lecture
 	err := server.database.QueryRow(`
-		SELECT id, exam_id, title, description, created_at, updated_at
+		SELECT id, exam_id, title, description, status, created_at, updated_at
 		FROM lectures
-		WHERE id = ?
-	`, lectureID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.CreatedAt, &lecture.UpdatedAt)
+		WHERE id = ? AND exam_id = ?
+	`, lectureID, examID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt)
 
 	if err == sql.ErrNoRows {
-		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found", nil)
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found in this exam", nil)
 		return
 	}
 	if err != nil {
@@ -352,6 +403,7 @@ func (server *Server) handleGetLecture(responseWriter http.ResponseWriter, reque
 func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, request *http.Request) {
 	var updateRequest struct {
 		LectureID   string  `json:"lecture_id"`
+		ExamID      string  `json:"exam_id"`
 		Title       *string `json:"title"`
 		Description *string `json:"description"`
 	}
@@ -361,16 +413,16 @@ func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, re
 		return
 	}
 
-	if updateRequest.LectureID == "" {
-		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id is required", nil)
+	if updateRequest.LectureID == "" || updateRequest.ExamID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id and exam_id are required", nil)
 		return
 	}
 
-	// Check if lecture exists
+	// Check if lecture exists and belongs to exam
 	var exists bool
-	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM lectures WHERE id = ?)", updateRequest.LectureID).Scan(&exists)
+	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM lectures WHERE id = ? AND exam_id = ?)", updateRequest.LectureID, updateRequest.ExamID).Scan(&exists)
 	if err != nil || !exists {
-		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found", nil)
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found in this exam", nil)
 		return
 	}
 
@@ -388,8 +440,8 @@ func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, re
 		updates = append(updates, *updateRequest.Description)
 	}
 
-	query += " WHERE id = ?"
-	updates = append(updates, updateRequest.LectureID)
+	query += " WHERE id = ? AND exam_id = ?"
+	updates = append(updates, updateRequest.LectureID, updateRequest.ExamID)
 
 	_, err = server.database.Exec(query, updates...)
 	if err != nil {
@@ -400,10 +452,10 @@ func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, re
 	// Fetch updated lecture
 	var lecture models.Lecture
 	err = server.database.QueryRow(`
-		SELECT id, exam_id, title, description, created_at, updated_at
+		SELECT id, exam_id, title, description, status, created_at, updated_at
 		FROM lectures
 		WHERE id = ?
-	`, updateRequest.LectureID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.CreatedAt, &lecture.UpdatedAt)
+	`, updateRequest.LectureID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt)
 
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to fetch updated lecture", nil)
@@ -417,27 +469,33 @@ func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, re
 func (server *Server) handleDeleteLecture(responseWriter http.ResponseWriter, request *http.Request) {
 	var deleteRequest struct {
 		LectureID string `json:"lecture_id"`
+		ExamID    string `json:"exam_id"`
 	}
 	if err := json.NewDecoder(request.Body).Decode(&deleteRequest); err != nil {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid body", nil)
 		return
 	}
 
-	if deleteRequest.LectureID == "" {
-		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id is required", nil)
+	if deleteRequest.LectureID == "" || deleteRequest.ExamID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id and exam_id are required", nil)
 		return
 	}
 
-	// Check if lecture is currently processing
+	// Check if lecture is currently processing or belongs to another exam
 	var status string
-	err := server.database.QueryRow("SELECT status FROM lectures WHERE id = ?", deleteRequest.LectureID).Scan(&status)
-	if err == nil && status == "processing" {
+	var currentExamID string
+	err := server.database.QueryRow("SELECT status, exam_id FROM lectures WHERE id = ?", deleteRequest.LectureID).Scan(&status, &currentExamID)
+	if err == sql.ErrNoRows || currentExamID != deleteRequest.ExamID {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found in this exam", nil)
+		return
+	}
+	if status == "processing" {
 		server.writeError(responseWriter, http.StatusConflict, "LECTURE_BUSY", "Cannot delete lecture while it is being processed.", nil)
 		return
 	}
 
 	// Delete from database (cascades to lecture_media, transcripts, reference_documents)
-	result, err := server.database.Exec("DELETE FROM lectures WHERE id = ?", deleteRequest.LectureID)
+	result, err := server.database.Exec("DELETE FROM lectures WHERE id = ? AND exam_id = ?", deleteRequest.LectureID, deleteRequest.ExamID)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete lecture", nil)
 		return

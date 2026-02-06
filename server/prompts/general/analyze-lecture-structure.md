@@ -4,6 +4,10 @@
 
 Your task is to analyze the provided lecture transcript and create a structural outline for a study document. This outline will guide the sequential section-by-section generation of a comprehensive study document. The outline must capture the logical flow and organization of the lecture content while ensuring pedagogical clarity and completeness, so it is absolutely critical that no parts of the lecture are omitted or overlooked. Every single topic, concept, explanation, exercises, questions, examples, and discussion point from the lecture must be mapped to a section in your outline, including any discussions that may take place, without skipping any content, no matter how small or seemingly tangential, to ensure that when the study document is generated section by section, nothing from the lecture will be left out.
 
+**Example Template for Structure and Tone:**
+
+{{example_template}}
+
 **Critical Instructions – Source Hierarchy:**
 
 - **Primary Source**: The audio transcript defines what content to include, how deeply to cover it, and the structural flow of the document. The outline must be based entirely on the transcript.

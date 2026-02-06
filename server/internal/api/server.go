@@ -11,6 +11,7 @@ import (
 	"lectures/internal/llm"
 	"lectures/internal/models"
 	"lectures/internal/prompts"
+	"lectures/internal/tools"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -25,10 +26,11 @@ type Server struct {
 	wsHub         *Hub
 	llmProvider   llm.Provider
 	promptManager *prompts.Manager
+	toolGenerator *tools.ToolGenerator
 }
 
 // NewServer creates a new API server
-func NewServer(configuration *configuration.Configuration, database *sql.DB, jobQueue *jobs.Queue, llmProvider llm.Provider, promptManager *prompts.Manager) *Server {
+func NewServer(configuration *configuration.Configuration, database *sql.DB, jobQueue *jobs.Queue, llmProvider llm.Provider, promptManager *prompts.Manager, toolGenerator *tools.ToolGenerator) *Server {
 	server := &Server{
 		configuration: configuration,
 		database:      database,
@@ -37,6 +39,7 @@ func NewServer(configuration *configuration.Configuration, database *sql.DB, job
 		wsHub:         NewHub(),
 		llmProvider:   llmProvider,
 		promptManager: promptManager,
+		toolGenerator: toolGenerator,
 	}
 
 	go server.wsHub.Run()

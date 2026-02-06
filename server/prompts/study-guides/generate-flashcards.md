@@ -28,6 +28,7 @@ Your task is to generate a set of comprehensive flashcards based on the provided
 Output the flashcards as a JSON array of objects, each containing "front" and "back" fields.
 
 Example:
+
 ```json
 [
   {

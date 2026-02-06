@@ -28,6 +28,7 @@ Your task is to generate a comprehensive multiple-choice quiz based on the provi
 Output the quiz as a JSON array of objects, each containing "question", "options" (array of 4 strings), "correct_answer" (the exact string of the correct option), and "explanation".
 
 Example:
+
 ```json
 [
   {

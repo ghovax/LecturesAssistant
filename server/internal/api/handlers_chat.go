@@ -479,6 +479,15 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 	// Post-process response: Parse citations and convert to standard footnotes
 	markdownReconstructor = markdown.NewReconstructor()
 	finalContent, citations := markdownReconstructor.ParseCitations(completeResponseBuilder.String())
+
+	// Improve footnotes using AI if we have citations
+	if len(citations) > 0 {
+		updatedCitations, _, err := server.toolGenerator.ProcessFootnotesAI(context.Background(), citations)
+		if err == nil {
+			citations = updatedCitations
+		}
+	}
+
 	finalContent = markdownReconstructor.AppendCitations(finalContent, citations)
 
 	// Save complete response

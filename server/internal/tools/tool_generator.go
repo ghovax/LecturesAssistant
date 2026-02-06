@@ -66,12 +66,20 @@ func (generator *ToolGenerator) GenerateStudyGuide(jobContext context.Context, l
 
 	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 
+	// Load full document example for structure
+	examplePrompt := prompts.PromptStudyGuideWithoutCitationsExample
+	if relevantMaterials != "" {
+		examplePrompt = prompts.PromptStudyGuideWithCitationsExample
+	}
+	exampleTemplateForStructure, _ := generator.promptManager.GetPrompt(examplePrompt, nil)
+
 	structurePrompt, err := generator.promptManager.GetPrompt(prompts.PromptAnalyzeLectureStructure, map[string]string{
 		"language_requirement":    fmt.Sprintf("Use language code %s", languageCode),
 		"minimum_section_count":   strconv.Itoa(sectionCounts.minimum),
 		"max_section_count":       strconv.Itoa(sectionCounts.maximum),
 		"preferred_section_range": sectionCounts.preferred,
 		"latex_instructions":      latexInstructions,
+		"example_template":        exampleTemplateForStructure,
 		"transcript":              transcript,
 		"reference_materials":     relevantMaterials,
 	})
@@ -266,6 +274,122 @@ func (generator *ToolGenerator) GenerateQuiz(jobContext context.Context, lecture
 	return quizResponse, "Quiz: " + lecture.Title, nil
 }
 
+// ProcessFootnotesAI improves the quality of footnotes using AI
+func (generator *ToolGenerator) ProcessFootnotesAI(jobContext context.Context, citations []markdown.ParsedCitation) ([]markdown.ParsedCitation, models.JobMetrics, error) {
+	if len(citations) == 0 {
+		return nil, models.JobMetrics{}, nil
+	}
+
+	var totalMetrics models.JobMetrics
+	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+
+	// Step 1: Format current citations as markdown for parsing
+	var footnotesMarkdown strings.Builder
+	for _, citation := range citations {
+		footnotesMarkdown.WriteString(fmt.Sprintf("[^%d]: %s\n\n", citation.Number, citation.Description))
+	}
+
+	// Step 2: Parse metadata using AI to verify and enrich
+	parsePrompt, err := generator.promptManager.GetPrompt(prompts.PromptParseFootnotes, map[string]string{
+		"footnotes":          footnotesMarkdown.String(),
+		"latex_instructions": latexInstructions,
+	})
+	if err != nil {
+		return citations, totalMetrics, err
+	}
+
+	parseResponse, parseMetrics, err := generator.callLLM(jobContext, parsePrompt)
+	if err != nil {
+		slog.Warn("Failed to parse footnotes via AI, using original", "error", err)
+		return citations, totalMetrics, nil
+	}
+	totalMetrics.InputTokens += parseMetrics.InputTokens
+	totalMetrics.OutputTokens += parseMetrics.OutputTokens
+	totalMetrics.EstimatedCost += parseMetrics.EstimatedCost
+
+	// Extract JSON from response
+	jsonStr := parseResponse
+	if idx := strings.Index(jsonStr, "{"); idx != -1 {
+		if lastIdx := strings.LastIndex(jsonStr, "}"); lastIdx != -1 {
+			jsonStr = jsonStr[idx : lastIdx+1]
+		}
+	}
+
+	type aiFootnote struct {
+		Number      int    `json:"number"`
+		TextContent string `json:"text_content"`
+		File        string `json:"file"`
+		Pages       []int  `json:"pages"`
+	}
+	type aiResponse struct {
+		Footnotes []aiFootnote `json:"footnotes"`
+	}
+
+	var result aiResponse
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		slog.Warn("Failed to unmarshal AI footnote response", "error", err)
+		return citations, totalMetrics, nil
+	}
+
+	// Step 3: Fix content using format-footnotes prompt
+	formatPrompt, err := generator.promptManager.GetPrompt(prompts.PromptFormatFootnotes, map[string]string{
+		"footnotes":          footnotesMarkdown.String(),
+		"latex_instructions": latexInstructions,
+	})
+	if err != nil {
+		return citations, totalMetrics, err
+	}
+
+	formatResponse, formatMetrics, err := generator.callLLM(jobContext, formatPrompt)
+	if err != nil {
+		slog.Warn("Failed to format footnotes via AI, using original", "error", err)
+		return citations, totalMetrics, nil
+	}
+	totalMetrics.InputTokens += formatMetrics.InputTokens
+	totalMetrics.OutputTokens += formatMetrics.OutputTokens
+	totalMetrics.EstimatedCost += formatMetrics.EstimatedCost
+
+	// Step 4: Combine AI results back into citations
+	// We parse the formatted response which should be markdown definitions
+	parser := markdown.NewParser()
+	ast := parser.Parse(formatResponse)
+
+	// Create map of formatted content by footnote number
+	formattedContent := make(map[int]string)
+	for _, node := range ast.Children {
+		if node.Type == markdown.NodeFootnote {
+			formattedContent[node.FootnoteNumber] = node.Content
+		}
+	}
+
+	updatedCitations := make([]markdown.ParsedCitation, len(citations))
+	for i, original := range citations {
+		updated := original
+
+		// Find matching metadata from AI parse
+		for _, aiFn := range result.Footnotes {
+			if aiFn.Number == original.Number {
+				if aiFn.File != "" {
+					updated.File = aiFn.File
+				}
+				if len(aiFn.Pages) > 0 {
+					updated.Pages = aiFn.Pages
+				}
+				break
+			}
+		}
+
+		// Update description with formatted content if available
+		if content, ok := formattedContent[original.Number]; ok {
+			updated.Description = content
+		}
+
+		updatedCitations[i] = updated
+	}
+
+	return updatedCitations, totalMetrics, nil
+}
+
 func (generator *ToolGenerator) callLLM(jobContext context.Context, prompt string) (string, models.JobMetrics, error) {
 	return generator.callLLMWithHistory(jobContext, prompt, nil)
 }
@@ -333,9 +457,9 @@ func (generator *ToolGenerator) getRelevantMaterials(jobContext context.Context,
 
 	var result resultType
 	jsonStr := response
-	if index := strings.Index(jsonStr, "{"); index != -1 {
-		if lastIndex := strings.LastIndex(jsonStr, "}"); lastIndex != -1 {
-			jsonStr = jsonStr[index : lastIndex+1]
+	if idx := strings.Index(jsonStr, "{"); idx != -1 {
+		if lastIdx := strings.LastIndex(jsonStr, "}"); lastIdx != -1 {
+			jsonStr = jsonStr[idx : lastIdx+1]
 		}
 	}
 
@@ -462,9 +586,9 @@ func (generator *ToolGenerator) parseScore(response string) int {
 
 	// Try to find JSON block if fenced
 	jsonStr := response
-	if index := strings.Index(jsonStr, "{"); index != -1 {
-		if lastIndex := strings.LastIndex(jsonStr, "}"); lastIndex != -1 {
-			jsonStr = jsonStr[index : lastIndex+1]
+	if idx := strings.Index(jsonStr, "{"); idx != -1 {
+		if lastIdx := strings.LastIndex(jsonStr, "}"); lastIdx != -1 {
+			jsonStr = jsonStr[idx : lastIdx+1]
 		}
 	}
 

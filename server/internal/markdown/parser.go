@@ -1,6 +1,7 @@
 package markdown
 
 import (
+	"log/slog"
 	"regexp"
 	"sort"
 	"strconv"
@@ -364,9 +365,6 @@ func (parser *Parser) removeNestedItems(elements []*Node, nestedIndices map[int]
 		if nestedIndices[i] {
 			continue
 		}
-		if element.Type == NodeFootnote {
-			continue
-		}
 		result = append(result, element)
 	}
 	return result
@@ -479,13 +477,39 @@ func (parser *Parser) parseTable(lines []string, startIndex int) (*Node, int) {
 }
 
 func (parser *Parser) parseFootnote(lines []string, startIndex int) (*Node, int) {
-	line := lines[startIndex]
+	line := strings.TrimSpace(lines[startIndex])
+	// Match [^N]: Content
 	match := regexp.MustCompile(`^\[\^(\d+)\]:\s+(.+)$`).FindStringSubmatch(line)
 	if match != nil {
 		number, _ := strconv.Atoi(match[1])
+		fullContent := strings.TrimSpace(match[2])
+
+		// Try to extract metadata if present: Content (`file.pdf` , pp. 1–2)
+		// We'll use a more flexible regex that handles optional commas and spaces.
+		metadataRegex := regexp.MustCompile(`^(.*?)\s*\(\x60(.*?)\x60(?:\s*,\s*|\s+)?(p{1,2}\.\s*([\d–\-, ]+))?\)$`)
+		metaMatch := metadataRegex.FindStringSubmatch(fullContent)
+		slog.Info("Footnote metadata match", "content", fullContent, "match", metaMatch)
+
+		if metaMatch != nil {
+			content := strings.TrimSpace(metaMatch[1])
+			filename := strings.TrimSpace(metaMatch[2])
+			pageString := ""
+			if len(metaMatch) > 4 && metaMatch[4] != "" {
+				pageString = metaMatch[4]
+			}
+
+			return &Node{
+				Type:           NodeFootnote,
+				FootnoteNumber: number,
+				Content:        content,
+				SourceFile:     filename,
+				SourcePages:    ParsePageString(pageString),
+			}, startIndex
+		}
+
 		return &Node{
 			Type:           NodeFootnote,
-			Content:        match[2],
+			Content:        fullContent,
 			FootnoteNumber: number,
 		}, startIndex
 	}

@@ -136,7 +136,7 @@ func main() {
 	defer backgroundJobQueue.Stop()
 
 	// Create API server
-	apiServer := api.NewServer(loadedConfiguration, initializedDatabase, backgroundJobQueue, llmProvider, promptManager)
+	apiServer := api.NewServer(loadedConfiguration, initializedDatabase, backgroundJobQueue, llmProvider, promptManager, toolGenerator)
 
 	// Start HTTP server
 	serverAddress := fmt.Sprintf("%s:%d", loadedConfiguration.Server.Host, loadedConfiguration.Server.Port)

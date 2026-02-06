@@ -116,12 +116,16 @@ func (reconstructor *Reconstructor) reconstructNode(node *Node, lines *[]string)
 			if len(node.SourcePages) > 0 {
 				formattedPages := FormatPageNumbers(node.SourcePages)
 				if len(node.SourcePages) == 1 {
-					pageInfo = ", p. " + formattedPages
+					pageInfo = "p. " + formattedPages
 				} else {
-					pageInfo = ", pp. " + formattedPages
+					pageInfo = "pp. " + formattedPages
 				}
 			}
-			footnoteText = fmt.Sprintf("%s (`%s` %s)", footnoteText, node.SourceFile, pageInfo)
+			if pageInfo != "" {
+				footnoteText = fmt.Sprintf("%s (`%s` %s)", footnoteText, node.SourceFile, pageInfo)
+			} else {
+				footnoteText = fmt.Sprintf("%s (`%s`)", footnoteText, node.SourceFile)
+			}
 		}
 
 		*lines = append(*lines, fmt.Sprintf("[^%d]: %s", node.FootnoteNumber, footnoteText))

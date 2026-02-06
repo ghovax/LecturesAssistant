@@ -318,7 +318,7 @@ func TestCitationRobustness(tester *testing.T) {
 		{
 			name:             "Simple citation",
 			input:            "Referencing {{{Desc-file.pdf-p1}}}",
-			expectedMarkdown: "Referencing [^1]",
+			expectedMarkdown: "Referencing[^1]",
 			expectedCitations: []ParsedCitation{
 				{Number: 1, Description: "Desc", File: "file.pdf", Pages: []int{1}},
 			},
@@ -326,7 +326,7 @@ func TestCitationRobustness(tester *testing.T) {
 		{
 			name:             "Description with dashes",
 			input:            "Referencing {{{A-complex-desc-file.pdf-p1}}}",
-			expectedMarkdown: "Referencing [^1]",
+			expectedMarkdown: "Referencing[^1]",
 			expectedCitations: []ParsedCitation{
 				{Number: 1, Description: "A-complex-desc", File: "file.pdf", Pages: []int{1}},
 			},
@@ -334,7 +334,7 @@ func TestCitationRobustness(tester *testing.T) {
 		{
 			name:             "File with dots and no pages",
 			input:            "Referencing {{{Desc-my.file.name.pdf}}}",
-			expectedMarkdown: "Referencing [^1]",
+			expectedMarkdown: "Referencing[^1]",
 			expectedCitations: []ParsedCitation{
 				{Number: 1, Description: "Desc", File: "my.file.name.pdf", Pages: nil},
 			},
@@ -342,7 +342,7 @@ func TestCitationRobustness(tester *testing.T) {
 		{
 			name:             "Multiple citations",
 			input:            "First {{{D1-f1.pdf-p1}}} and second {{{D2-f2.pdf-p2}}}",
-			expectedMarkdown: "First [^1] and second [^2]",
+			expectedMarkdown: "First[^1] and second[^2]",
 			expectedCitations: []ParsedCitation{
 				{Number: 1, Description: "D1", File: "f1.pdf", Pages: []int{1}},
 				{Number: 2, Description: "D2", File: "f2.pdf", Pages: []int{2}},
@@ -351,7 +351,7 @@ func TestCitationRobustness(tester *testing.T) {
 		{
 			name:             "Page range",
 			input:            "Range {{{Desc-file.pdf-p1-3}}}",
-			expectedMarkdown: "Range [^1]",
+			expectedMarkdown: "Range[^1]",
 			expectedCitations: []ParsedCitation{
 				{Number: 1, Description: "Desc", File: "file.pdf", Pages: []int{1, 2, 3}},
 			},
@@ -359,7 +359,7 @@ func TestCitationRobustness(tester *testing.T) {
 		{
 			name:             "Complex pages",
 			input:            "Complex {{{Desc-file.pdf-p1, 3, 5-7}}}",
-			expectedMarkdown: "Complex [^1]",
+			expectedMarkdown: "Complex[^1]",
 			expectedCitations: []ParsedCitation{
 				{Number: 1, Description: "Desc", File: "file.pdf", Pages: []int{1, 3, 5, 6, 7}},
 			},
@@ -367,7 +367,7 @@ func TestCitationRobustness(tester *testing.T) {
 		{
 			name:             "Messy spacing",
 			input:            "Messy {{{  Desc  -  file.pdf  -p1  }}}",
-			expectedMarkdown: "Messy [^1]",
+			expectedMarkdown: "Messy[^1]",
 			expectedCitations: []ParsedCitation{
 				{Number: 1, Description: "Desc", File: "file.pdf", Pages: []int{1}},
 			},
@@ -375,7 +375,7 @@ func TestCitationRobustness(tester *testing.T) {
 		{
 			name:             "Filename with underscore",
 			input:            "Referencing {{{Description-file_name.pdf-p1}}}",
-			expectedMarkdown: "Referencing [^1]",
+			expectedMarkdown: "Referencing[^1]",
 			expectedCitations: []ParsedCitation{
 				{Number: 1, Description: "Description", File: "file_name.pdf", Pages: []int{1}},
 			},
@@ -426,5 +426,63 @@ func TestListEmphasisNumbering(tester *testing.T) {
 	item := documentAST.Children[0]
 	if item.Type != NodeListItem || item.Index != 1 {
 		tester.Errorf("Expected list item index 1, got %s index %d", item.Type, item.Index)
+	}
+}
+
+func TestFootnoteIntegration_ASTAndReconstruction(tester *testing.T) {
+	reconstructor := NewReconstructor()
+	parser := NewParser()
+
+	// 1. Initial content with citations
+	rawContent := "Some claim {{{Claim info-file.pdf-p5}}}"
+	contentWithoutMarkers, citations := reconstructor.ParseCitations(rawContent)
+
+	if contentWithoutMarkers != "Some claim[^1]" {
+		tester.Errorf("Expected marker replacement, got %q", contentWithoutMarkers)
+	}
+
+	// 2. Mock AI metadata enrichment
+	if len(citations) != 1 {
+		tester.Fatalf("Expected 1 citation, got %d", len(citations))
+	}
+	citations[0].Description = "AI improved description"
+	citations[0].Pages = []int{5, 6}
+
+	// 3. Append citations to generate final markdown
+	finalMarkdown := reconstructor.AppendCitations(contentWithoutMarkers, citations)
+
+	// 4. Parse back to AST
+	documentAST := parser.Parse(finalMarkdown)
+
+	// Verify AST structure
+	var footnoteNode *Node
+	for _, child := range documentAST.Children {
+		if child.Type == NodeFootnote {
+			footnoteNode = child
+			break
+		}
+	}
+
+	if footnoteNode == nil {
+		tester.Fatal("AST missing NodeFootnote")
+	}
+
+	if footnoteNode.FootnoteNumber != 1 {
+		tester.Errorf("Expected footnote number 1, got %d", footnoteNode.FootnoteNumber)
+	}
+
+	if footnoteNode.Content != "AI improved description" {
+		tester.Errorf("Expected content 'AI improved description', got %q", footnoteNode.Content)
+	}
+
+	// 5. Reconstruct and verify output
+	reconstructed := reconstructor.Reconstruct(documentAST)
+
+	if !strings.Contains(reconstructed, "[^1]: AI improved description") {
+		tester.Errorf("Reconstructed markdown missing footnote definition. Got:\n%s", reconstructed)
+	}
+
+	if !strings.Contains(reconstructed, "(`file.pdf` pp. 5–6)") {
+		tester.Errorf("Reconstructed markdown missing or incorrect metadata. Got:\n%s", reconstructed)
 	}
 }

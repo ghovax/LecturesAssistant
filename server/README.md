@@ -5,33 +5,46 @@ Backend server for the Lectures Assistant application written in Go.
 ## Architecture
 
 - **API Layer** (`internal/api`): RESTful API handlers and routing
-- **Job Queue** (`internal/jobs`): Asynchronous background job processing with multiple workers
-- **Database** (`internal/database`): SQLite database with schema management
-- **Models** (`internal/models`): Data structures and types
-- **Config** (`internal/config`): Configuration management with YAML support
+- **Job Queue** (`internal/jobs`): Asynchronous background job processing with sequential execution for heavy tasks
+- **Database** (`internal/database`): SQLite database with full schema management and foreign key constraints
+- **Models** (`internal/models`): Shared data structures and constants
+- **Transcription** (`internal/transcription`): Whisper-based audio processing and FFmpeg integration
+- **Documents** (`internal/documents`): PDF/PPTX/DOCX processing and Vision LLM OCR
+- **LLM** (`internal/llm`): Provider-agnostic interface for OpenRouter and Ollama
 
-## Features
+## Configuration
 
-### Implemented
+The server is designed to be "zero-config" for basic usage but remains highly customizable via a `configuration.yaml` file.
 
-- ✅ Exam management (CRUD operations)
-- ✅ Lecture management (CRUD operations)
-- ✅ Media file upload and storage
-- ✅ Asynchronous job queue with multiple concurrent workers
-- ✅ SQLite database with foreign key constraints
-- ✅ Configuration file management
-- ✅ Health check endpoint
-- ✅ Job monitoring and cancellation
+### Storage and Paths
 
-### In Progress
+- **Default Location**: `~/.lectures/configuration.yaml`
+- **Override Path**: Use the `-configuration /path/to/file` flag when starting the server.
+- **Data Directory**: The base directory for all files (database, logs, uploads) defaults to `~/.lectures`. This can be overridden by setting the `STORAGE_DATA_DIRECTORY` environment variable.
 
-- 🚧 Transcription integration (Whisper)
-- 🚧 Document processing (PDF, PPTX, DOCX)
-- 🚧 LLM integration (OpenRouter, Ollama)
-- 🚧 Chat sessions and messaging
-- 🚧 Study tool generation
-- 🚧 WebSocket real-time updates
-- 🚧 Authentication and sessions
+### Automatic Generation
+
+If no configuration file is found on startup, the server automatically generates a default one with sensible values (SQLite local storage, OpenRouter provider, and local Whisper transcription) and saves it to disk.
+
+## Startup Sequence
+
+When the executable is launched, the following initialization steps occur:
+
+1.  **Configuration Loading**: Reads the YAML file or initializes defaults.
+2.  **Filesystem Setup**: Ensures the data directory and subfolders exist:
+    - `/files/lectures/`: Stores uploaded media and documents.
+    - `/files/exports/`: Stores generated study guides and PDFs.
+    - `/models/`: Target for Whisper models.
+3.  **Logging**: Initializes JSON logging to both `stdout` and a `server.log` file in the data directory.
+4.  **Database Initialization**: Opens the SQLite database and executes schema migrations to ensure the table structure is up to date.
+5.  **Dependency Verification**: Checks for required system binaries in the PATH:
+    - `ffmpeg` & `ffprobe` (Media extraction).
+    - `gs` (Ghostscript) & `soffice` (Document processing).
+    - `pandoc` & `tectonic` (PDF generation).
+    - `whisper` (Transcription).
+6.  **Provider Registry**: Initializes AI backend connections (OpenRouter/Ollama) and loads prompt templates.
+7.  **Job Queue**: Starts the asynchronous worker pool (default: 4 workers) to handle long-running tasks.
+8.  **Server Bind**: Starts the HTTP server and WebSocket Hub on the configured host and port.
 
 ## Building
 
@@ -47,124 +60,87 @@ go build -o lectures ./cmd/server
 ./lectures
 ```
 
-Or specify a custom configuration file:
+Or specify a custom configuration:
 
 ```bash
 ./lectures -configuration /path/to/configuration.yaml
 ```
 
-The server will:
+## Authentication
 
-1. Create the configuration file if it doesn't exist (`~/.lectures/configuration.yaml`)
-2. Initialize the SQLite database (`~/.lectures/database.db`)
-3. Start the job queue with 4 concurrent workers
-4. Start the HTTP server on `localhost:3000`
+All API endpoints (except `/api/health`, `/api/auth/setup`, `/api/auth/login`, and `/api/auth/status`) require authentication.
 
-## Configuration
+### Methods
 
-The default configuration is created at `~/.lectures/configuration.yaml`:
+1.  **Session Cookie**: Set automatically upon successful login.
+2.  **Bearer Token**: Include `Authorization: Bearer <token>` in the request headers.
 
-```yaml
-server:
-  host: 127.0.0.1
-  port: 3000
+### Flow
 
-storage:
-  data_directory: ~/.lectures
-
-llm:
-  provider: openrouter
-  openrouter:
-    api_key: ""
-    default_model: "anthropic/claude-3.5-sonnet"
-  ollama:
-    base_url: "http://localhost:11434"
-    default_model: "llama3.2"
-
-transcription:
-  provider: whisper-local
-  whisper:
-    model: base
-    device: auto
-```
+- `POST /api/auth/setup`: Set the initial administrator password (only allowed on first run).
+- `POST /api/auth/login`: Authenticate with password to receive a session token.
+- `POST /api/auth/logout`: Invalidate the current session.
 
 ## API Endpoints
 
 ### Exams
 
-- `POST /api/exams` - Create exam
-- `GET /api/exams` - List exams
-- `GET /api/exams/:id` - Get exam
-- `PATCH /api/exams/:id` - Update exam
-- `DELETE /api/exams/:id` - Delete exam
+- `GET /api/exams`: List all exams.
+- `POST /api/exams`: Create a new exam.
+  - Body: `{"title": "string", "description": "string"}`
+- `GET /api/exams/:id`: Get exam details.
+- `PATCH /api/exams/:id`: Update exam.
+- `DELETE /api/exams/:id`: Delete exam and all associated data.
 
 ### Lectures
 
-- `POST /api/exams/:exam_id/lectures` - Create lecture
-- `GET /api/exams/:exam_id/lectures` - List lectures
-- `GET /api/exams/:exam_id/lectures/:lecture_id` - Get lecture
-- `PATCH /api/exams/:exam_id/lectures/:lecture_id` - Update lecture
-- `DELETE /api/exams/:exam_id/lectures/:lecture_id` - Delete lecture
+- `GET /api/exams/:exam_id/lectures`: List lectures for an exam.
+- `POST /api/exams/:exam_id/lectures`: Create a lecture with files (Multipart).
+  - Parameters: `upload_id` (query, optional for progress tracking)
+  - Form Fields: `title`, `description`, `media` (files), `documents` (files)
+- `GET /api/exams/:exam_id/lectures/:lecture_id`: Get lecture details.
+- `PATCH /api/exams/:exam_id/lectures/:lecture_id`: Update lecture.
+- `DELETE /api/exams/:exam_id/lectures/:lecture_id`: Delete lecture.
 
-### Media
+### Chunked Uploads
 
-- `POST /api/exams/:exam_id/lectures/:lecture_id/media/upload` - Upload media
-- `GET /api/exams/:exam_id/lectures/:lecture_id/media` - List media
-- `DELETE /api/exams/:exam_id/lectures/:lecture_id/media/:media_id` - Delete media
+- `POST /api/exams/:exam_id/lectures/upload/initialize`: Start a chunked upload.
+  - Body: `{"filename": "string", "file_size_bytes": number, "media_type": "media"|"document"}`
+- `POST /api/exams/:exam_id/lectures/upload/{uploadId}/chunk`: Upload a file chunk.
+- `POST /api/exams/:exam_id/lectures/upload/{uploadId}/complete`: Finalize upload and create lecture.
 
-### Transcripts
+### Study Tools
 
-- `POST /api/exams/:exam_id/lectures/:lecture_id/transcribe` - Start transcription
-- `GET /api/exams/:exam_id/lectures/:lecture_id/transcript` - Get transcript
+- `GET /api/exams/:exam_id/tools`: List tools (filter with `?type=guide|flashcard|quiz`).
+- `POST /api/exams/:exam_id/tools`: Trigger tool generation.
+  - Body: `{"lecture_id": "uuid", "type": "guide", "length": "medium", "language_code": "en-US"}`
+- `GET /api/exams/:exam_id/tools/:tool_id`: Get tool content.
 
-### Jobs
+### Chat Sessions
 
-- `GET /api/jobs` - List jobs
-- `GET /api/jobs/:id` - Get job status
-- `DELETE /api/jobs/:id` - Cancel job
+- `POST /api/exams/:exam_id/chat/sessions`: Create session.
+- `GET /api/exams/:exam_id/chat/sessions/:session_id`: Get history and context.
+- `PATCH /api/exams/:exam_id/chat/sessions/:session_id/context`: Update included materials.
+- `POST /api/exams/:exam_id/chat/sessions/:session_id/messages`: Send message (triggers WS stream).
 
-### System
+### Jobs & Settings
 
-- `GET /api/health` - Health check
-- `GET /api/settings` - Get settings
-- `PATCH /api/settings` - Update settings
+- `GET /api/jobs`: List recent background jobs.
+- `GET /api/jobs/:id`: Get job status.
+- `DELETE /api/jobs/:id`: Cancel a running job.
+- `GET /api/settings`: Get current preferences.
+- `PATCH /api/settings`: Update preferences.
 
-## Job Queue
+## WebSocket Protocol
 
-The job queue supports multiple concurrent workers and handles:
+Connect to `ws://localhost:3000/api/socket` with a valid session token.
 
-- Transcription jobs (`TRANSCRIBE_MEDIA`)
-- Document ingestion (`INGEST_DOCUMENTS`)
-- Tool generation (`BUILD_MATERIAL`)
-- Export generation (`PUBLISH_MATERIAL`)
+### Messages
 
-Jobs have the following states:
-
-- `PENDING` - Waiting to be processed
-- `RUNNING` - Currently being processed
-- `COMPLETED` - Successfully finished
-- `FAILED` - Encountered an error
-- `CANCELLED` - Manually cancelled
-
-## Database Schema
-
-The SQLite database includes:
-
-- `exams` - Course/exam groupings
-- `lectures` - Individual lessons
-- `lecture_media` - Audio/video files
-- `transcripts` - Unified transcripts
-- `transcript_segments` - Individual segments
-- `reference_documents` - PDFs, PowerPoints, etc.
-- `reference_pages` - Extracted pages
-- `tools` - Generated study materials
-- `chat_sessions` - Conversation sessions
-- `chat_messages` - Individual messages
-- `jobs` - Background tasks
-- `settings` - User preferences
-- `auth_sessions` - Authentication sessions
-
-All tables have proper foreign key constraints and cascading deletes.
+- **Subscribe**: `{"type": "subscribe", "channel": "job:<id> | upload:<id> | chat:<id>"}`
+- **Job Progress**: Received on `job:<id>` channel.
+- **Upload Progress**: Received on `upload:<id>` channel.
+- **Chat Token**: Streaming assistant response on `chat:<id>` channel.
 
 ## Development
 
@@ -172,41 +148,28 @@ All tables have proper foreign key constraints and cascading deletes.
 
 ```
 server/
-├── cmd/
-│   └── server/
-│       └── main.go          # Entry point
+├── cmd/server/          # Entry point
 ├── internal/
-│   ├── api/                 # HTTP handlers
-│   ├── config/              # Configuration
-│   ├── database/            # Database setup
-│   ├── jobs/                # Job queue
-│   └── models/              # Data models
-└── go.mod
-```
-
-### Adding a New Job Handler
-
-```go
-// Register handler in main.go
-jobQueue.RegisterHandler(models.JobTypeTranscribeMedia, func(context context.Context, job *models.Job, updateFn func(int, string)) error {
-    updateFn(50, "Processing audio...")
-    // Do work here
-    updateFn(100, "Complete")
-    return nil
-})
+│   ├── api/             # HTTP & WebSocket handlers
+│   ├── configuration/   # Config management
+│   ├── database/        # SQLite & Schema
+│   ├── documents/       # Document processing logic
+│   ├── jobs/            # Queue & Workers
+│   ├── llm/             # AI Provider implementations
+│   ├── markdown/        # AST Parser & Reconstructor
+│   ├── models/          # Data models
+│   ├── prompts/         # Prompt management
+│   ├── tools/           # Study tool generators
+│   └── transcription/   # Whisper & FFmpeg logic
+└── prompts/             # Markdown prompt templates
 ```
 
 ### Testing
 
 ```bash
-# Create an exam
-curl -X POST http://localhost:3000/api/exams \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Computer Science 101","description":"Introduction to CS"}'
+# Run all tests
+go test -v ./...
 
-# List exams
-curl http://localhost:3000/api/exams
-
-# Health check
-curl http://localhost:3000/api/health
+# Run specific API integration tests
+go test -v ./internal/api -run TestIntegration_EndToEndPipeline
 ```

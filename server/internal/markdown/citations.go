@@ -65,7 +65,7 @@ func (reconstructor *Reconstructor) ParseCitations(text string) (string, []Parse
 		}
 
 		citationNumber := i + 1
-		pages := parsePageString(pageString)
+		pages := ParsePageString(pageString)
 
 		citations = append(citations, ParsedCitation{
 			Number:      citationNumber,
@@ -74,15 +74,19 @@ func (reconstructor *Reconstructor) ParseCitations(text string) (string, []Parse
 			Pages:       pages,
 		})
 
-		// Replace marker with [^N]
+		// Replace marker with [^N], removing any leading space if the marker itself had one
+		// or if we just want to ensure it's tight against the preceding text.
 		result = strings.Replace(result, fullMatch, fmt.Sprintf("[^%d]", citationNumber), 1)
 	}
+
+	// Post-process to fix " [^N]" -> "[^N]"
+	result = strings.ReplaceAll(result, " [^", "[^")
 
 	return result, citations
 }
 
-// parsePageString converts "1, 2, 5-10" to []int{1, 2, 5, 6, 7, 8, 9, 10}
-func parsePageString(pageString string) []int {
+// ParsePageString converts "1, 2, 5-10" to []int{1, 2, 5, 6, 7, 8, 9, 10}
+func ParsePageString(pageString string) []int {
 	var pages []int
 	if pageString == "" {
 		return pages
@@ -93,7 +97,10 @@ func parsePageString(pageString string) []int {
 		part = strings.TrimSpace(part)
 		part = strings.TrimPrefix(part, "p")
 
-		if strings.Contains(part, "-") {
+		// Handle both hyphen-minus (-) and en-dash (–)
+		if strings.Contains(part, "-") || strings.Contains(part, "–") {
+			// Replace en-dash with hyphen for consistent splitting
+			part = strings.ReplaceAll(part, "–", "-")
 			rangeParts := strings.Split(part, "-")
 			if len(rangeParts) == 2 {
 				start, _ := strconv.Atoi(strings.TrimSpace(rangeParts[0]))

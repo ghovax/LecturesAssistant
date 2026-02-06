@@ -352,6 +352,14 @@ func RegisterHandlers(
 		// Parse citations and convert to standard footnotes
 		finalToolContent, citations := markdownReconstructor.ParseCitations(toolContent)
 
+		// Improve footnotes using AI if it's a guide and we have citations
+		if payload.Type == "guide" && len(citations) > 0 {
+			updatedCitations, _, err := toolGenerator.ProcessFootnotesAI(jobContext, citations)
+			if err == nil {
+				citations = updatedCitations
+			}
+		}
+
 		// If it's a guide, append the footnote definitions to the end
 		if payload.Type == "guide" {
 			finalToolContent = markdownReconstructor.AppendCitations(finalToolContent, citations)

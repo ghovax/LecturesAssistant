@@ -62,6 +62,10 @@ func (mock *MockLLMProvider) Chat(jobContext context.Context, request llm.ChatRe
 				text = `{"coverage_score": 95}`
 			} else if strings.Contains(lastMessage, "analyze-lecture-structure") {
 				text = "# Outline\n## Introduction\nCoverage: Basics\nIntroduces: \n- Concept 1 - Emphasis: High (Spent lots of time)\n"
+			} else if strings.Contains(lastMessage, "parse-footnotes") {
+				text = `{"footnotes": [{"number": 1, "text_content": "AI improved citation content", "pages": [1], "file": "test-slides.pdf"}]}`
+			} else if strings.Contains(lastMessage, "format-footnotes") {
+				text = "[^1]: AI improved citation content"
 			}
 		}
 
@@ -156,7 +160,7 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 	}
 
 	promptManager := prompts.NewManager("../../prompts")
-	mockLLM := &MockLLMProvider{ResponseText: "Mocked AI Response"}
+	mockLLM := &MockLLMProvider{ResponseText: "Mocked AI Response {{{This is a citation-test-slides.pdf-p1}}}"}
 
 	transcriptionService := transcription.NewService(config, &MockTranscriptionProvider{
 		Segments: []transcription.Segment{{Start: 0, End: 5, Text: "Hello, test lecture."}},
@@ -174,7 +178,7 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
-	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, promptManager)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, promptManager, toolGenerator)
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 
@@ -381,7 +385,7 @@ func TestWebSocket_ProgressUpdates(tester *testing.T) {
 	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, password_hash, expires_at) VALUES (?, ?, ?)", sessionID, "dummy_hash", time.Now().Add(1*time.Hour))
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
-	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, nil)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, nil, nil)
 
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
@@ -719,7 +723,7 @@ func TestAuth_AccessControlEnforcement(tester *testing.T) {
 	defer initializedDatabase.Close()
 
 	config := &configuration.Configuration{}
-	apiServer := NewServer(config, initializedDatabase, nil, nil, nil)
+	apiServer := NewServer(config, initializedDatabase, nil, nil, nil, nil)
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 
@@ -768,7 +772,7 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
-	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, promptManager)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, promptManager, nil)
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 
@@ -1013,7 +1017,7 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 		},
 	}
 
-	apiServer := NewServer(config, initializedDatabase, nil, nil, nil)
+	apiServer := NewServer(config, initializedDatabase, nil, nil, nil, nil)
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 
@@ -1196,7 +1200,7 @@ func TestUpload_ProgressTracking(tester *testing.T) {
 	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, password_hash, expires_at) VALUES (?, ?, ?)", sessionID, "dummy_hash", time.Now().Add(1*time.Hour))
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
-	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, nil)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, nil, nil)
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 

@@ -30,10 +30,13 @@ func (server *Server) handleCreateExam(responseWriter http.ResponseWriter, reque
 		return
 	}
 
+	// Clean title and description
+	title, description, _, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), createExamRequest.Title, createExamRequest.Description, "")
+
 	exam := models.Exam{
 		ID:          uuid.New().String(),
-		Title:       createExamRequest.Title,
-		Description: createExamRequest.Description,
+		Title:       title,
+		Description: description,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -135,13 +138,30 @@ func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, reque
 	query := "UPDATE exams SET updated_at = ?"
 	updates = append(updates, time.Now())
 
-	if updateExamRequest.Title != nil {
-		query += ", title = ?"
-		updates = append(updates, *updateExamRequest.Title)
-	}
-	if updateExamRequest.Description != nil {
-		query += ", description = ?"
-		updates = append(updates, *updateExamRequest.Description)
+	if updateExamRequest.Title != nil || updateExamRequest.Description != nil {
+		currentTitle := ""
+		currentDescription := ""
+		server.database.QueryRow("SELECT title, description FROM exams WHERE id = ?", updateExamRequest.ExamID).Scan(&currentTitle, &currentDescription)
+
+		newTitle := currentTitle
+		if updateExamRequest.Title != nil {
+			newTitle = *updateExamRequest.Title
+		}
+		newDescription := currentDescription
+		if updateExamRequest.Description != nil {
+			newDescription = *updateExamRequest.Description
+		}
+
+		cleanedTitle, cleanedDescription, _, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), newTitle, newDescription, "")
+
+		if updateExamRequest.Title != nil {
+			query += ", title = ?"
+			updates = append(updates, cleanedTitle)
+		}
+		if updateExamRequest.Description != nil {
+			query += ", description = ?"
+			updates = append(updates, cleanedDescription)
+		}
 	}
 
 	query += " WHERE id = ?"

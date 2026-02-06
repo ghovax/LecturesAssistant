@@ -53,6 +53,11 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 		return
 	}
 
+	description := request.FormValue("description")
+
+	// Clean title and description
+	cleanedTitle, cleanedDescription, _, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), title, description, "")
+
 	// Verify exam exists
 	var examExists bool
 	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ?)", examID).Scan(&examExists)
@@ -66,8 +71,8 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	lecture := models.Lecture{
 		ID:          lectureID,
 		ExamID:      examID,
-		Title:       title,
-		Description: request.FormValue("description"),
+		Title:       cleanedTitle,
+		Description: cleanedDescription,
 		Status:      "processing",
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
@@ -431,13 +436,30 @@ func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, re
 	query := "UPDATE lectures SET updated_at = ?"
 	updates = append(updates, time.Now())
 
-	if updateRequest.Title != nil {
-		query += ", title = ?"
-		updates = append(updates, *updateRequest.Title)
-	}
-	if updateRequest.Description != nil {
-		query += ", description = ?"
-		updates = append(updates, *updateRequest.Description)
+	if updateRequest.Title != nil || updateRequest.Description != nil {
+		currentTitle := ""
+		currentDescription := ""
+		server.database.QueryRow("SELECT title, description FROM lectures WHERE id = ?", updateRequest.LectureID).Scan(&currentTitle, &currentDescription)
+
+		newTitle := currentTitle
+		if updateRequest.Title != nil {
+			newTitle = *updateRequest.Title
+		}
+		newDescription := currentDescription
+		if updateRequest.Description != nil {
+			newDescription = *updateRequest.Description
+		}
+
+		cleanedTitle, cleanedDescription, _, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), newTitle, newDescription, "")
+
+		if updateRequest.Title != nil {
+			query += ", title = ?"
+			updates = append(updates, cleanedTitle)
+		}
+		if updateRequest.Description != nil {
+			query += ", description = ?"
+			updates = append(updates, cleanedDescription)
+		}
 	}
 
 	query += " WHERE id = ? AND exam_id = ?"

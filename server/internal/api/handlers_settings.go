@@ -11,11 +11,12 @@ func (server *Server) handleGetSettings(responseWriter http.ResponseWriter, requ
 	server.writeJSON(responseWriter, http.StatusOK, map[string]any{
 		"llm": map[string]string{
 			"provider": server.configuration.LLM.Provider,
-			"model":    server.configuration.LLM.OpenRouter.DefaultModel,
+			"model":    server.configuration.LLM.Model,
 			"language": server.configuration.LLM.Language,
 		},
 		"transcription": map[string]string{
 			"provider": server.configuration.Transcription.Provider,
+			"model":    server.configuration.Transcription.Model,
 		},
 	})
 }
@@ -61,19 +62,25 @@ func (server *Server) handleUpdateSettings(responseWriter http.ResponseWriter, r
 
 	// Update server.configuration in-memory to ensure immediate effect
 	if settingValue, exists := updateSettingsRequest["llm"]; exists {
-		if llmMap, isMap := settingValue.(map[string]any); isMap {
-			if llmProvider, isString := llmMap["provider"].(string); isString {
+		if llmConfigurationMap, isMap := settingValue.(map[string]any); isMap {
+			if llmProvider, isString := llmConfigurationMap["provider"].(string); isString {
 				server.configuration.LLM.Provider = llmProvider
 			}
-			if languageCode, isString := llmMap["language"].(string); isString {
+			if llmModel, isString := llmConfigurationMap["model"].(string); isString {
+				server.configuration.LLM.Model = llmModel
+			}
+			if languageCode, isString := llmConfigurationMap["language"].(string); isString {
 				server.configuration.LLM.Language = languageCode
 			}
 		}
 	}
 	if settingValue, exists := updateSettingsRequest["transcription"]; exists {
-		if transMap, isMap := settingValue.(map[string]any); isMap {
-			if transProvider, isString := transMap["provider"].(string); isString {
-				server.configuration.Transcription.Provider = transProvider
+		if transcriptionConfigurationMap, isMap := settingValue.(map[string]any); isMap {
+			if transcriptionProvider, isString := transcriptionConfigurationMap["provider"].(string); isString {
+				server.configuration.Transcription.Provider = transcriptionProvider
+			}
+			if transcriptionModel, isString := transcriptionConfigurationMap["model"].(string); isString {
+				server.configuration.Transcription.Model = transcriptionModel
 			}
 		}
 	}

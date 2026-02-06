@@ -1,50 +1,67 @@
 # Lectures Assistant Server Configuration
 # This file defines global settings for the server, storage, and AI providers.
 
+# API Server connection settings
 server:
-  host: "0.0.0.0"
-  port: 3000
+  host: "0.0.0.0" # Network interface to bind to
+  port: 3000      # Port to listen on
 
+# Local storage configuration
 storage:
-  data_directory: "./data"
+  data_directory: "./data" # Root directory for database, uploads, and exports
 
+# Security and Authentication settings
 security:
   auth:
-    type: "session"
-    session_timeout_hours: 72
-    require_https: false
+    type: "session"           # Authentication mechanism (currently only 'session' is supported)
+    session_timeout_hours: 72 # How long a user remains logged in
+    require_https: false      # Whether to require secure cookies (set to true in production)
 
+# Operational settings for Large Language Models (LLM)
 llm:
-  provider: "openrouter"
-  language: "en-US"
+  provider: "openrouter"               # Primary LLM service provider (openrouter, ollama)
+  model: "google/gemini-2.5-flash-lite" # Global fallback model if task-specific model is not set
+  language: "en-US"                    # Default BCP-47 language code for generated content
+  
+  # Granular model selection for different pipeline phases
+  models:
+    ingestion: "google/gemini-2.5-flash-lite"          # Vision-LLM used for interpreting PDF/Slide pages
+    triangulation: "google/gemini-2.5-flash-lite"      # Used to identify relevant pages based on transcript
+    structure: "google/gemini-2.5-flash-lite"          # Used to analyze lecture flow and create an outline
+    generation: "google/gemini-2.5-flash-lite"         # Main model for sequential section-by-section writing
+    adherence: "google/gemini-2.5-flash-lite"          # "Judge" model that verifies if sections match the outline
+    polishing: "google/gemini-2.5-flash-lite"          # Umbrella for minor tasks: title cleaning, footnote parsing/formatting
+
+# Audio-to-Text (Transcription) configuration
+transcription:
+  provider: "openrouter"               # Service used for transcription (openrouter, openai, whisper-local)
+  model: "google/gemini-2.5-flash-lite" # Model name used by the remote provider
+  audio_chunk_length_seconds: 300      # Size of audio segments for splitting long recordings
+  refining_batch_size: 3               # Number of transcribed segments to batch for LLM polishing
+  whisper_device: "auto"               # Compute device for local whisper (cpu, cuda, mps, auto)
+
+# Global credentials for external API providers
+providers:
   openrouter:
     api_key: "sk-or-v1-YOUR_OPENROUTER_KEY"
-    default_model: "anthropic/claude-3.5-sonnet"
-  ollama:
-    base_url: "http://localhost:11434"
-    default_model: "llama3.2"
-
-transcription:
-  provider: "openai" # Options: whisper-local, openai, openrouter
-  audio_chunk_length_seconds: 300
-  llm_cleanup_threshold: 3
-  whisper:
-    model: "base"
-    device: "auto"
   openai:
     api_key: "sk-YOUR_OPENAI_KEY"
+  ollama:
+    base_url: "http://localhost:11434" # Connection string for local Ollama instance
 
+# Document processing and OCR settings
 documents:
-  render_dots_per_inch: 150
-  maximum_pages: 1000
-  supported_formats:
+  render_dots_per_inch: 150 # Resolution for extracting page images (higher = more LLM detail but more tokens)
+  maximum_pages: 1000       # Safety limit for document length
+  supported_formats:        # Formats that can be converted to PDF via LibreOffice
     - "pdf"
     - "pptx"
     - "docx"
 
+# Resource limits for uploads
 uploads:
   media:
-    maximum_file_size_megabytes: 5120
+    maximum_file_size_megabytes: 5120 # 5GB limit for video/audio
     maximum_files_per_lecture: 10
     supported_formats:
       video:
@@ -57,7 +74,7 @@ uploads:
         - "wav"
         - "m4a"
         - "flac"
-    chunked_upload_threshold_megabytes: 100
+    chunked_upload_threshold_megabytes: 100 # Files above this size must use the staged upload protocol
   documents:
     maximum_file_size_megabytes: 500
     maximum_files_per_lecture: 50
@@ -67,6 +84,8 @@ uploads:
       - "pptx"
       - "docx"
 
+# Safety and cost control
 safety:
-  maximum_cost_per_job: 15.0
-  maximum_login_attempts_per_hour: 10
+  maximum_cost_per_job: 15.0          # Max estimated USD cost for a single AI generation job
+  maximum_login_attempts_per_hour: 10 # Rate limiting for authentication
+  maximum_retries: 3                  # Number of attempts for self-healing generation loops

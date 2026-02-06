@@ -19,15 +19,13 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 		LanguageCode        string `json:"language_code"`
 		EnableTriangulation bool   `json:"enable_triangulation"`
 		AdherenceThreshold  int    `json:"adherence_threshold"`
-		MaximumAttempts     int    `json:"maximum_attempts"`
+		MaximumRetries      int    `json:"maximum_retries"`
 		// Models
-		ModelTriangulation      string `json:"model_triangulation"`
-		ModelStructure          string `json:"model_structure"`
-		ModelGeneration         string `json:"model_generation"`
-		ModelAdherence          string `json:"model_adherence"`
-		ModelFootnoteParsing    string `json:"model_footnote_parsing"`
-		ModelFootnoteFormatting string `json:"model_footnote_formatting"`
-		ModelTitleCleaning      string `json:"model_title_cleaning"`
+		ModelTriangulation string `json:"model_triangulation"`
+		ModelStructure     string `json:"model_structure"`
+		ModelGeneration    string `json:"model_generation"`
+		ModelAdherence     string `json:"model_adherence"`
+		ModelPolishing     string `json:"model_polishing"`
 	}
 
 	if err := json.NewDecoder(request.Body).Decode(&createToolRequest); err != nil {
@@ -66,21 +64,19 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 
 	// Enqueue job
 	jobIdentifier, err := server.jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
-		"exam_id":                   createToolRequest.ExamID,
-		"lecture_id":                createToolRequest.LectureID,
-		"type":                      createToolRequest.Type,
-		"length":                    createToolRequest.Length,
-		"language_code":             createToolRequest.LanguageCode,
-		"enable_triangulation":      fmt.Sprintf("%v", createToolRequest.EnableTriangulation),
-		"adherence_threshold":       fmt.Sprintf("%d", createToolRequest.AdherenceThreshold),
-		"maximum_attempts":          fmt.Sprintf("%d", createToolRequest.MaximumAttempts),
-		"model_triangulation":       createToolRequest.ModelTriangulation,
-		"model_structure":           createToolRequest.ModelStructure,
-		"model_generation":          createToolRequest.ModelGeneration,
-		"model_adherence":           createToolRequest.ModelAdherence,
-		"model_footnote_parsing":    createToolRequest.ModelFootnoteParsing,
-		"model_footnote_formatting": createToolRequest.ModelFootnoteFormatting,
-		"model_title_cleaning":      createToolRequest.ModelTitleCleaning,
+		"exam_id":              createToolRequest.ExamID,
+		"lecture_id":           createToolRequest.LectureID,
+		"type":                 createToolRequest.Type,
+		"length":               createToolRequest.Length,
+		"language_code":        createToolRequest.LanguageCode,
+		"enable_triangulation": fmt.Sprintf("%v", createToolRequest.EnableTriangulation),
+		"adherence_threshold":  fmt.Sprintf("%d", createToolRequest.AdherenceThreshold),
+		"maximum_retries":      fmt.Sprintf("%d", createToolRequest.MaximumRetries),
+		"model_triangulation":  createToolRequest.ModelTriangulation,
+		"model_structure":      createToolRequest.ModelStructure,
+		"model_generation":     createToolRequest.ModelGeneration,
+		"model_adherence":      createToolRequest.ModelAdherence,
+		"model_polishing":      createToolRequest.ModelPolishing,
 	})
 
 	if err != nil {

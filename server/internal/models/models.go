@@ -180,14 +180,12 @@ type ErrorDetails struct {
 
 // GenerationOptions contains settings for study material generation
 type GenerationOptions struct {
-	ModelTriangulation      string `json:"model_triangulation"`
-	ModelStructure          string `json:"model_structure"`
-	ModelGeneration         string `json:"model_generation"`
-	ModelAdherence          string `json:"model_adherence"`
-	ModelFootnoteParsing    string `json:"model_footnote_parsing"`
-	ModelFootnoteFormatting string `json:"model_footnote_formatting"`
-	ModelTitleCleaning      string `json:"model_title_cleaning"`
-	AdherenceThreshold      int    `json:"adherence_threshold"`
-	MaximumAttempts         int    `json:"maximum_attempts"`
-	EnableTriangulation     bool   `json:"enable_triangulation"`
+	ModelTriangulation  string `json:"model_triangulation"`
+	ModelStructure      string `json:"model_structure"`
+	ModelGeneration     string `json:"model_generation"`
+	ModelAdherence      string `json:"model_adherence"`
+	ModelPolishing      string `json:"model_polishing"`
+	AdherenceThreshold  int    `json:"adherence_threshold"`
+	MaximumRetries      int    `json:"maximum_retries"`
+	EnableTriangulation bool   `json:"enable_triangulation"`
 }

@@ -160,7 +160,7 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 		Security: configuration.SecurityConfiguration{
 			Auth: configuration.AuthConfiguration{Type: "session", SessionTimeoutHours: 24},
 		},
-		LLM:    configuration.LLMConfiguration{Language: "en-US"},
+		LLM:    configuration.LLMConfiguration{Language: "en-US", Model: "mock-model"},
 		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
@@ -385,6 +385,7 @@ func TestUpload_StagedProtocol(tester *testing.T) {
 		Security: configuration.SecurityConfiguration{
 			Auth: configuration.AuthConfiguration{Type: "session"},
 		},
+		LLM:    configuration.LLMConfiguration{Model: "mock-model"},
 		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
@@ -393,7 +394,9 @@ func TestUpload_StagedProtocol(tester *testing.T) {
 	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, created_at, last_activity, expires_at) VALUES (?, ?, ?, ?)", sessionID, time.Now(), time.Now(), time.Now().Add(1*time.Hour))
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
-	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, nil, nil)
+	mockLLM := &MockLLMProvider{}
+	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator)
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 
@@ -515,7 +518,9 @@ func TestWebSocket_ProgressUpdates(tester *testing.T) {
 	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, created_at, last_activity, expires_at) VALUES (?, ?, ?, ?)", sessionID, time.Now(), time.Now(), time.Now().Add(1*time.Hour))
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
-	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, nil, nil)
+	mockLLM := &MockLLMProvider{}
+	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator)
 
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
@@ -592,7 +597,7 @@ func TestAI_FailureScenarios(tester *testing.T) {
 
 	config := &configuration.Configuration{
 		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
-		LLM:     configuration.LLMConfiguration{Language: "en-US"},
+		LLM:     configuration.LLMConfiguration{Language: "en-US", Model: "mock-model"},
 		Safety:  configuration.SafetyConfiguration{MaximumCostPerJob: 10.0, MaximumLoginAttempts: 100},
 	}
 
@@ -711,6 +716,7 @@ func TestTools_GenerationLogic(tester *testing.T) {
 
 	config := &configuration.Configuration{
 		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
+		LLM:     configuration.LLMConfiguration{Language: "en-US", Model: "mock-model"},
 		Safety:  configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
@@ -807,6 +813,7 @@ func TestExport_PDFGeneration(tester *testing.T) {
 
 	config := &configuration.Configuration{
 		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
+		LLM:     configuration.LLMConfiguration{Language: "en-US", Model: "mock-model"},
 		Safety:  configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
@@ -856,8 +863,12 @@ func TestAuth_AccessControlEnforcement(tester *testing.T) {
 	}
 	defer initializedDatabase.Close()
 
-	config := &configuration.Configuration{}
-	apiServer := NewServer(config, initializedDatabase, nil, nil, nil, nil)
+	config := &configuration.Configuration{
+		LLM: configuration.LLMConfiguration{Model: "mock-model"},
+	}
+	mockLLM := &MockLLMProvider{}
+	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
+	apiServer := NewServer(config, initializedDatabase, nil, nil, nil, toolGenerator)
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 
@@ -899,6 +910,7 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		Security: configuration.SecurityConfiguration{
 			Auth: configuration.AuthConfiguration{Type: "session", SessionTimeoutHours: 1},
 		},
+		LLM:    configuration.LLMConfiguration{Model: "mock-model"},
 		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
@@ -907,7 +919,9 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
-	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, promptManager, nil)
+	mockLLM := &MockLLMProvider{}
+	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, promptManager, toolGenerator)
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 
@@ -1157,13 +1171,18 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 			},
 		},
 		LLM: configuration.LLMConfiguration{
-			Provider:   "openrouter",
-			OpenRouter: configuration.OpenRouterConfiguration{DefaultModel: "gpt-4"},
+			Provider: "openrouter",
+			Model:    "gpt-4",
+		},
+		Providers: configuration.ProvidersConfiguration{
+			OpenRouter: configuration.OpenRouterConfig{APIKey: "dummy"},
 		},
 		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
-	apiServer := NewServer(config, initializedDatabase, nil, nil, nil, nil)
+	mockLLM := &MockLLMProvider{}
+	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
+	apiServer := NewServer(config, initializedDatabase, nil, nil, nil, toolGenerator)
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 
@@ -1350,6 +1369,7 @@ func TestUpload_ProgressTracking(tester *testing.T) {
 		Security: configuration.SecurityConfiguration{
 			Auth: configuration.AuthConfiguration{Type: "session"},
 		},
+		LLM:    configuration.LLMConfiguration{Model: "mock-model"},
 		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
@@ -1358,7 +1378,9 @@ func TestUpload_ProgressTracking(tester *testing.T) {
 	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, created_at, last_activity, expires_at) VALUES (?, ?, ?, ?)", sessionID, time.Now(), time.Now(), time.Now().Add(1*time.Hour))
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
-	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, nil, nil)
+	mockLLM := &MockLLMProvider{}
+	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator)
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 

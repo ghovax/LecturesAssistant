@@ -88,6 +88,10 @@ func (generator *ToolGenerator) GenerateStudyGuide(
 }
 
 func (generator *ToolGenerator) triangulateRelevantMaterials(jobContext context.Context, transcript, fullMaterials string, options models.GenerationOptions) (string, models.JobMetrics, error) {
+	if generator.llmProvider == nil {
+		return fullMaterials, models.JobMetrics{}, nil
+	}
+
 	var waitGroup sync.WaitGroup
 	var mutex sync.Mutex
 	var allMetrics models.JobMetrics
@@ -96,22 +100,33 @@ func (generator *ToolGenerator) triangulateRelevantMaterials(jobContext context.
 		End   int `json:"end"`
 	}
 
-	maximumAttempts := options.MaximumAttempts
-	if maximumAttempts <= 0 {
-		maximumAttempts = 3
+	model := options.ModelTriangulation
+	if model == "" {
+		model = generator.configuration.LLM.Models.Triangulation
 	}
 
-	for attemptIndex := 0; attemptIndex < maximumAttempts; attemptIndex++ {
+	maximumRetries := options.MaximumRetries
+	if maximumRetries <= 0 {
+		maximumRetries = generator.configuration.Safety.MaximumRetries
+		if maximumRetries <= 0 {
+			maximumRetries = 3
+		}
+	}
+
+	for attemptIndex := 0; attemptIndex < maximumRetries; attemptIndex++ {
 		waitGroup.Add(1)
 		go func(attemptIndex int) {
 			defer waitGroup.Done()
 
-			prompt, _ := generator.promptManager.GetPrompt(prompts.PromptGetRelevantPages, map[string]string{
-				"transcript":      transcript,
-				"reference_files": fullMaterials,
-			})
+			var prompt string
+			if generator.promptManager != nil {
+				prompt, _ = generator.promptManager.GetPrompt(prompts.PromptGetRelevantPages, map[string]string{
+					"transcript":      transcript,
+					"reference_files": fullMaterials,
+				})
+			}
 
-			response, stepMetrics, err := generator.callLLMWithModel(jobContext, prompt, options.ModelTriangulation)
+			response, stepMetrics, err := generator.callLLMWithModel(jobContext, prompt, model)
 			mutex.Lock()
 			defer mutex.Unlock()
 			allMetrics.InputTokens += stepMetrics.InputTokens
@@ -142,6 +157,10 @@ func (generator *ToolGenerator) triangulateRelevantMaterials(jobContext context.
 }
 
 func (generator *ToolGenerator) analyzeStructureWithRetries(jobContext context.Context, transcript, materials, length, language string, options models.GenerationOptions) (string, models.JobMetrics, error) {
+	if generator.llmProvider == nil {
+		return "", models.JobMetrics{}, fmt.Errorf("llm provider is nil")
+	}
+
 	var metrics models.JobMetrics
 	var sectionCounts struct {
 		minimum, maximum int
@@ -157,37 +176,48 @@ func (generator *ToolGenerator) analyzeStructureWithRetries(jobContext context.C
 		sectionCounts.minimum, sectionCounts.maximum, sectionCounts.preferred = 2, 5, "3-4"
 	}
 
-	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
-	exampleTemplatePath := prompts.PromptStudyGuideWithoutCitationsExample
-	if materials != "" {
-		exampleTemplatePath = prompts.PromptStudyGuideWithCitationsExample
-	}
-	exampleTemplate, _ := generator.promptManager.GetPrompt(exampleTemplatePath, nil)
+	var prompt string
+	if generator.promptManager != nil {
+		latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+		exampleTemplatePath := prompts.PromptStudyGuideWithoutCitationsExample
+		if materials != "" {
+			exampleTemplatePath = prompts.PromptStudyGuideWithCitationsExample
+		}
+		exampleTemplate, _ := generator.promptManager.GetPrompt(exampleTemplatePath, nil)
 
-	prompt, _ := generator.promptManager.GetPrompt(prompts.PromptAnalyzeLectureStructure, map[string]string{
-		"language_requirement":    fmt.Sprintf("Use language code %s", language),
-		"minimum_section_count":   strconv.Itoa(sectionCounts.minimum),
-		"maximum_section_count":   strconv.Itoa(sectionCounts.maximum),
-		"preferred_section_range": sectionCounts.preferred,
-		"latex_instructions":      latexInstructions,
-		"example_template":        exampleTemplate,
-		"transcript":              transcript,
-		"reference_materials":     materials,
-	})
-
-	maximumAttempts := options.MaximumAttempts
-	if maximumAttempts <= 0 {
-		maximumAttempts = 3
+		prompt, _ = generator.promptManager.GetPrompt(prompts.PromptAnalyzeLectureStructure, map[string]string{
+			"language_requirement":    fmt.Sprintf("Use language code %s", language),
+			"minimum_section_count":   strconv.Itoa(sectionCounts.minimum),
+			"maximum_section_count":   strconv.Itoa(sectionCounts.maximum),
+			"preferred_section_range": sectionCounts.preferred,
+			"latex_instructions":      latexInstructions,
+			"example_template":        exampleTemplate,
+			"transcript":              transcript,
+			"reference_materials":     materials,
+		})
 	}
 
-	for attempt := 1; attempt <= maximumAttempts; attempt++ {
-		response, stepMetrics, err := generator.callLLMWithModel(jobContext, prompt, options.ModelStructure)
+	model := options.ModelStructure
+	if model == "" {
+		model = generator.configuration.LLM.Models.Structure
+	}
+
+	maximumRetries := options.MaximumRetries
+	if maximumRetries <= 0 {
+		maximumRetries = generator.configuration.Safety.MaximumRetries
+		if maximumRetries <= 0 {
+			maximumRetries = 3
+		}
+	}
+
+	for attempt := 1; attempt <= maximumRetries; attempt++ {
+		response, stepMetrics, err := generator.callLLMWithModel(jobContext, prompt, model)
 		metrics.InputTokens += stepMetrics.InputTokens
 		metrics.OutputTokens += stepMetrics.OutputTokens
 		metrics.EstimatedCost += stepMetrics.EstimatedCost
 
 		if err != nil {
-			if attempt == maximumAttempts {
+			if attempt == maximumRetries {
 				return "", metrics, err
 			}
 			time.Sleep(time.Duration(attempt) * time.Second)
@@ -214,7 +244,7 @@ func (generator *ToolGenerator) analyzeStructureWithRetries(jobContext context.C
 		slog.Warn("Structure validation failed, retrying...", "count", len(sections), "attempt", attempt)
 	}
 
-	return "", metrics, fmt.Errorf("failed to generate valid structure after %d attempts", maximumAttempts)
+	return "", metrics, fmt.Errorf("failed to generate valid structure after %d attempts", maximumRetries)
 }
 
 func (generator *ToolGenerator) generateSequentialStudyGuide(
@@ -261,9 +291,22 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 		threshold = 70
 	}
 
-	maximumAttempts := options.MaximumAttempts
-	if maximumAttempts <= 0 {
-		maximumAttempts = 3
+	maximumRetries := options.MaximumRetries
+	if maximumRetries <= 0 {
+		maximumRetries = generator.configuration.Safety.MaximumRetries
+		if maximumRetries <= 0 {
+			maximumRetries = 3
+		}
+	}
+
+	generationModel := options.ModelGeneration
+	if generationModel == "" {
+		generationModel = generator.configuration.LLM.Models.Generation
+	}
+
+	adherenceModel := options.ModelAdherence
+	if adherenceModel == "" {
+		adherenceModel = generator.configuration.LLM.Models.Adherence
 	}
 
 	for sectionIndex, section := range sections {
@@ -282,7 +325,7 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 		})
 
 		var acceptedContent string
-		for attempt := 1; attempt <= maximumAttempts; attempt++ {
+		for attempt := 1; attempt <= maximumRetries; attempt++ {
 			history := []llm.Message{
 				{Role: "user", Content: []llm.ContentPart{{Type: "text", Text: initialContext}}},
 				{Role: "assistant", Content: []llm.ContentPart{{Type: "text", Text: "Ready."}}},
@@ -293,7 +336,7 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 			}
 
 			updateProgress(progress, fmt.Sprintf("Generating section %d/%d...", sectionNumber, len(sections)), nil, currentMetrics)
-			response, generationMetrics, err := generator.callLLMWithHistoryAndModel(jobContext, sectionPrompt, history, options.ModelGeneration)
+			response, generationMetrics, err := generator.callLLMWithHistoryAndModel(jobContext, sectionPrompt, history, generationModel)
 			metrics.InputTokens += generationMetrics.InputTokens
 			metrics.OutputTokens += generationMetrics.OutputTokens
 			metrics.EstimatedCost += generationMetrics.EstimatedCost
@@ -322,7 +365,7 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 				similarity = generator.calculateSimilarity(section.Title, generatedTitle)
 			}
 
-			if similarity < 65 && attempt < maximumAttempts {
+			if similarity < 65 && attempt < maximumRetries {
 				continue
 			}
 
@@ -331,12 +374,12 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 			verificationPrompt := generator.replacePromptVariables(verificationTemplate, map[string]string{
 				"section_title": section.Title, "expected_coverage": section.Coverage, "generated_section": response,
 			})
-			verificationResponse, verificationMetrics, _ := generator.callLLMWithModel(jobContext, verificationPrompt, options.ModelAdherence)
+			verificationResponse, verificationMetrics, _ := generator.callLLMWithModel(jobContext, verificationPrompt, adherenceModel)
 			metrics.InputTokens += verificationMetrics.InputTokens
 			metrics.OutputTokens += verificationMetrics.OutputTokens
 			metrics.EstimatedCost += verificationMetrics.EstimatedCost
 
-			if generator.parseScore(verificationResponse) >= threshold || attempt == maximumAttempts {
+			if generator.parseScore(verificationResponse) >= threshold || attempt == maximumRetries {
 				acceptedContent = response
 				rootNode.Children = append(rootNode.Children, sectionAST.Children...)
 				successfulSections = append(successfulSections, response)
@@ -362,6 +405,11 @@ func (generator *ToolGenerator) ProcessFootnotesAI(jobContext context.Context, c
 	updatedCitations := make([]markdown.ParsedCitation, len(citations))
 	copy(updatedCitations, citations)
 
+	model := options.ModelPolishing
+	if model == "" {
+		model = generator.configuration.LLM.Models.Polishing
+	}
+
 	for citationIndex := 0; citationIndex < len(citations); citationIndex += 10 {
 		end := citationIndex + 10
 		if end > len(citations) {
@@ -369,7 +417,7 @@ func (generator *ToolGenerator) ProcessFootnotesAI(jobContext context.Context, c
 		}
 		batch := citations[citationIndex:end]
 
-		batchMetrics, err := generator.processFootnoteBatch(jobContext, batch, updatedCitations, citationIndex, options)
+		batchMetrics, err := generator.processFootnoteBatch(jobContext, batch, updatedCitations, citationIndex, model, model)
 		totalMetrics.InputTokens += batchMetrics.InputTokens
 		totalMetrics.OutputTokens += batchMetrics.OutputTokens
 		totalMetrics.EstimatedCost += batchMetrics.EstimatedCost
@@ -381,7 +429,7 @@ func (generator *ToolGenerator) ProcessFootnotesAI(jobContext context.Context, c
 	return updatedCitations, totalMetrics, nil
 }
 
-func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context, batch []markdown.ParsedCitation, allCitations []markdown.ParsedCitation, offset int, options models.GenerationOptions) (models.JobMetrics, error) {
+func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context, batch []markdown.ParsedCitation, allCitations []markdown.ParsedCitation, offset int, parsingModel, formattingModel string) (models.JobMetrics, error) {
 	var metrics models.JobMetrics
 	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 
@@ -393,7 +441,7 @@ func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context,
 	parsingPrompt, _ := generator.promptManager.GetPrompt(prompts.PromptParseFootnotes, map[string]string{
 		"footnotes": markdownBuilder.String(), "latex_instructions": latexInstructions,
 	})
-	parsingResponse, parsingMetrics, err := generator.callLLMWithModel(jobContext, parsingPrompt, options.ModelFootnoteParsing)
+	parsingResponse, parsingMetrics, err := generator.callLLMWithModel(jobContext, parsingPrompt, parsingModel)
 	metrics.InputTokens += parsingMetrics.InputTokens
 	metrics.OutputTokens += parsingMetrics.OutputTokens
 	metrics.EstimatedCost += parsingMetrics.EstimatedCost
@@ -430,7 +478,7 @@ func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context,
 	formattingPrompt, _ := generator.promptManager.GetPrompt(prompts.PromptFormatFootnotes, map[string]string{
 		"footnotes": markdownBuilder.String(), "latex_instructions": latexInstructions,
 	})
-	formattingResponse, formattingMetrics, _ := generator.callLLMWithModel(jobContext, formattingPrompt, options.ModelFootnoteFormatting)
+	formattingResponse, formattingMetrics, _ := generator.callLLMWithModel(jobContext, formattingPrompt, formattingModel)
 	metrics.InputTokens += formattingMetrics.InputTokens
 	metrics.OutputTokens += formattingMetrics.OutputTokens
 	metrics.EstimatedCost += formattingMetrics.EstimatedCost
@@ -559,10 +607,7 @@ func (generator *ToolGenerator) callLLMWithModel(jobContext context.Context, pro
 
 func (generator *ToolGenerator) callLLMWithHistoryAndModel(jobContext context.Context, prompt string, history []llm.Message, model string) (string, models.JobMetrics, error) {
 	if model == "" {
-		model = generator.configuration.LLM.OpenRouter.DefaultModel
-		if generator.configuration.LLM.Provider == "ollama" {
-			model = generator.configuration.LLM.Ollama.DefaultModel
-		}
+		model = generator.configuration.LLM.Model
 	}
 
 	messages := append(history, llm.Message{
@@ -686,18 +731,27 @@ func (generator *ToolGenerator) minimumInt(a, b int) int {
 }
 
 func (generator *ToolGenerator) CleanDocumentTitle(jobContext context.Context, title string, options models.GenerationOptions) (string, models.JobMetrics, error) {
-	if title == "" || title == "Untitled Document" {
+	if title == "" || title == "Untitled Document" || generator.llmProvider == nil {
 		return title, models.JobMetrics{}, nil
 	}
 
-	prompt, err := generator.promptManager.GetPrompt(prompts.PromptCleanDocumentTitle, map[string]string{
-		"title": title,
-	})
-	if err != nil {
-		return title, models.JobMetrics{}, err
+	var prompt string
+	var err error
+	if generator.promptManager != nil {
+		prompt, err = generator.promptManager.GetPrompt(prompts.PromptCleanDocumentTitle, map[string]string{
+			"title": title,
+		})
+		if err != nil {
+			return title, models.JobMetrics{}, err
+		}
 	}
 
-	response, metrics, err := generator.callLLMWithModel(jobContext, prompt, options.ModelTitleCleaning)
+	model := options.ModelPolishing
+	if model == "" {
+		model = generator.configuration.LLM.Models.Polishing
+	}
+
+	response, metrics, err := generator.callLLMWithModel(jobContext, prompt, model)
 	if err != nil {
 		return title, metrics, err
 	}
@@ -715,14 +769,65 @@ func (generator *ToolGenerator) CleanDocumentTitle(jobContext context.Context, t
 	return title, metrics, nil
 }
 
-func (generator *ToolGenerator) GenerateSuggestedQuestions(jobContext context.Context, documentMarkdown string, model string) ([]string, models.JobMetrics, error) {
-	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
-	prompt, err := generator.promptManager.GetPrompt(prompts.PromptGenerateChatQuestions, map[string]string{
-		"document_content":   documentMarkdown,
-		"latex_instructions": latexInstructions,
-	})
+func (generator *ToolGenerator) CorrectProjectTitleDescription(jobContext context.Context, title, description string, model string) (string, string, models.JobMetrics, error) {
+	if title == "" || generator.llmProvider == nil {
+		return title, description, models.JobMetrics{}, nil
+	}
+
+	if model == "" {
+		model = generator.configuration.LLM.Models.Polishing
+		if model == "" {
+			model = generator.configuration.LLM.Model
+		}
+	}
+
+	var prompt string
+	var err error
+	if generator.promptManager != nil {
+		prompt, err = generator.promptManager.GetPrompt(prompts.PromptCorrectProjectTitleDescription, map[string]string{
+			"title":       title,
+			"description": description,
+		})
+		if err != nil {
+			return title, description, models.JobMetrics{}, err
+		}
+	}
+
+	response, metrics, err := generator.callLLMWithModel(jobContext, prompt, model)
 	if err != nil {
-		return nil, models.JobMetrics{}, err
+		return title, description, metrics, err
+	}
+
+	var result struct {
+		Title       string `json:"title"`
+		Description string `json:"description"`
+	}
+	if err := generator.unmarshalJSONWithFallback(response, &result); err == nil {
+		return result.Title, result.Description, metrics, nil
+	}
+
+	return title, description, metrics, nil
+}
+
+func (generator *ToolGenerator) GenerateSuggestedQuestions(jobContext context.Context, documentMarkdown string, model string) ([]string, models.JobMetrics, error) {
+	if generator.llmProvider == nil {
+		return nil, models.JobMetrics{}, nil
+	}
+
+	var prompt string
+	if generator.promptManager != nil {
+		latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+		prompt, _ = generator.promptManager.GetPrompt(prompts.PromptGenerateChatQuestions, map[string]string{
+			"document_content":   documentMarkdown,
+			"latex_instructions": latexInstructions,
+		})
+	}
+
+	if model == "" {
+		model = generator.configuration.LLM.Models.Polishing
+		if model == "" {
+			model = generator.configuration.LLM.Model
+		}
 	}
 
 	response, metrics, err := generator.callLLMWithModel(jobContext, prompt, model)
@@ -746,12 +851,25 @@ type sectionInfo struct {
 }
 
 func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, options models.GenerationOptions, updateProgress func(int, string, any, models.JobMetrics)) (string, string, error) {
-	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
-	prompt, _ := generator.promptManager.GetPrompt(prompts.PromptGenerateFlashcards, map[string]string{
-		"language_requirement": fmt.Sprintf("Generate in code %s", languageCode),
-		"transcript":           transcript, "reference_materials": referenceFilesContent, "latex_instructions": latexInstructions,
-	})
-	response, _, err := generator.callLLMWithModel(jobContext, prompt, options.ModelGeneration)
+	if generator.llmProvider == nil {
+		return "", lecture.Title, nil
+	}
+
+	var prompt string
+	if generator.promptManager != nil {
+		latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+		prompt, _ = generator.promptManager.GetPrompt(prompts.PromptGenerateFlashcards, map[string]string{
+			"language_requirement": fmt.Sprintf("Generate in code %s", languageCode),
+			"transcript":           transcript, "reference_materials": referenceFilesContent, "latex_instructions": latexInstructions,
+		})
+	}
+
+	model := options.ModelGeneration
+	if model == "" {
+		model = generator.configuration.LLM.Models.Generation
+	}
+
+	response, _, err := generator.callLLMWithModel(jobContext, prompt, model)
 	if err != nil {
 		return "", "", err
 	}
@@ -759,12 +877,25 @@ func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, l
 }
 
 func (generator *ToolGenerator) GenerateQuiz(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, options models.GenerationOptions, updateProgress func(int, string, any, models.JobMetrics)) (string, string, error) {
-	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
-	prompt, _ := generator.promptManager.GetPrompt(prompts.PromptGenerateQuiz, map[string]string{
-		"language_requirement": fmt.Sprintf("Generate in code %s", languageCode),
-		"transcript":           transcript, "reference_materials": referenceFilesContent, "latex_instructions": latexInstructions,
-	})
-	response, _, err := generator.callLLMWithModel(jobContext, prompt, options.ModelGeneration)
+	if generator.llmProvider == nil {
+		return "", lecture.Title, nil
+	}
+
+	var prompt string
+	if generator.promptManager != nil {
+		latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+		prompt, _ = generator.promptManager.GetPrompt(prompts.PromptGenerateQuiz, map[string]string{
+			"language_requirement": fmt.Sprintf("Generate in code %s", languageCode),
+			"transcript":           transcript, "reference_materials": referenceFilesContent, "latex_instructions": latexInstructions,
+		})
+	}
+
+	model := options.ModelGeneration
+	if model == "" {
+		model = generator.configuration.LLM.Models.Generation
+	}
+
+	response, _, err := generator.callLLMWithModel(jobContext, prompt, model)
 	if err != nil {
 		return "", "", err
 	}

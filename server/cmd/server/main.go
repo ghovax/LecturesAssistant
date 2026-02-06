@@ -65,19 +65,15 @@ func main() {
 
 	// Initialize LLM provider
 	var llmProvider llm.Provider
-	var defaultLLMModel string
 
 	switch loadedConfiguration.LLM.Provider {
 	case "openrouter":
-		llmProvider = llm.NewOpenRouterProvider(loadedConfiguration.LLM.OpenRouter.APIKey)
-		defaultLLMModel = loadedConfiguration.LLM.OpenRouter.DefaultModel
+		llmProvider = llm.NewOpenRouterProvider(loadedConfiguration.Providers.OpenRouter.APIKey)
 	case "ollama":
-		llmProvider = llm.NewOllamaProvider(loadedConfiguration.LLM.Ollama.BaseURL)
-		defaultLLMModel = loadedConfiguration.LLM.Ollama.DefaultModel
+		llmProvider = llm.NewOllamaProvider(loadedConfiguration.Providers.Ollama.BaseURL)
 	default:
 		slog.Warn("Unknown LLM provider, falling back to openrouter with empty key", "provider", loadedConfiguration.LLM.Provider)
 		llmProvider = llm.NewOpenRouterProvider("")
-		defaultLLMModel = loadedConfiguration.LLM.OpenRouter.DefaultModel
 	}
 
 	// Initialize transcription provider and service
@@ -85,25 +81,24 @@ func main() {
 	switch loadedConfiguration.Transcription.Provider {
 	case "whisper-local":
 		transcriptionProvider = transcription.NewWhisperProvider(
-			loadedConfiguration.Transcription.Whisper.Model,
-			loadedConfiguration.Transcription.Whisper.Device,
+			loadedConfiguration.Transcription.Model,
+			loadedConfiguration.Transcription.WhisperDevice,
 		)
 	case "openai":
 		transcriptionProvider = transcription.NewOpenAIProvider(
-			loadedConfiguration.Transcription.OpenAI.APIKey,
+			loadedConfiguration.Providers.OpenAI.APIKey,
 			"https://api.openai.com/v1",
-			"whisper-1",
+			loadedConfiguration.Transcription.Model,
 		)
 	case "openrouter":
-		// OpenRouter often uses the same OpenAI-compatible interface for Whisper
-		apiKey := loadedConfiguration.LLM.OpenRouter.APIKey
+		apiKey := loadedConfiguration.Providers.OpenRouter.APIKey
 		if apiKey == "" {
-			apiKey = loadedConfiguration.Transcription.OpenAI.APIKey
+			apiKey = loadedConfiguration.Providers.OpenAI.APIKey
 		}
 		transcriptionProvider = transcription.NewOpenAIProvider(
 			apiKey,
 			"https://openrouter.ai/api/v1",
-			"openai/whisper-1", // Example model for OpenRouter
+			loadedConfiguration.Transcription.Model,
 		)
 	default:
 		slog.Warn("Unknown transcription provider, falling back to whisper-local", "provider", loadedConfiguration.Transcription.Provider)
@@ -113,7 +108,11 @@ func main() {
 	transcriptionService := transcription.NewService(loadedConfiguration, transcriptionProvider, llmProvider, promptManager)
 
 	// Initialize document processor
-	documentProcessor := documents.NewProcessor(llmProvider, defaultLLMModel, promptManager)
+	ingestionModel := loadedConfiguration.LLM.Models.Ingestion
+	if ingestionModel == "" {
+		ingestionModel = loadedConfiguration.LLM.Model
+	}
+	documentProcessor := documents.NewProcessor(llmProvider, ingestionModel, promptManager)
 
 	// Initialize markdown converter
 	markdownConverter := markdown.NewConverter(loadedConfiguration.Storage.DataDirectory)

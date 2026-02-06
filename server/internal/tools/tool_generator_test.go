@@ -16,10 +16,12 @@ import (
 
 // UnbreakableSequentialMock returns responses in a fixed order
 type UnbreakableSequentialMock struct {
-	Responses []string
-	CallIndex int
-	Histories [][]llm.Message
-	mutex     sync.Mutex
+	Responses  []string
+	Costs      []float64
+	CallIndex  int
+	Histories  [][]llm.Message
+	ModelsUsed []string
+	mutex      sync.Mutex
 }
 
 func (mock *UnbreakableSequentialMock) Chat(jobContext context.Context, chatRequest llm.ChatRequest) (<-chan llm.ChatResponseChunk, error) {
@@ -30,9 +32,14 @@ func (mock *UnbreakableSequentialMock) Chat(jobContext context.Context, chatRequ
 	defer close(channel)
 
 	mock.Histories = append(mock.Histories, chatRequest.Messages)
+	mock.ModelsUsed = append(mock.ModelsUsed, chatRequest.Model)
 
 	if mock.CallIndex < len(mock.Responses) {
-		channel <- llm.ChatResponseChunk{Text: mock.Responses[mock.CallIndex]}
+		cost := 0.0
+		if mock.CallIndex < len(mock.Costs) {
+			cost = mock.Costs[mock.CallIndex]
+		}
+		channel <- llm.ChatResponseChunk{Text: mock.Responses[mock.CallIndex], Cost: cost}
 		mock.CallIndex++
 	} else {
 		channel <- llm.ChatResponseChunk{Text: "Out of responses"}
@@ -116,7 +123,7 @@ Success 2`,
 	options := models.GenerationOptions{
 		EnableTriangulation: true,
 		AdherenceThreshold:  70,
-		MaximumAttempts:     3,
+		MaximumRetries:      3,
 	}
 
 	result, _, err := generator.GenerateStudyGuide(context.Background(), lecture, "Transcript", "References", "medium", "en", options, func(p int, m string, meta any, met models.JobMetrics) {})
@@ -167,6 +174,81 @@ func TestToolGenerator_FootnoteHealing(tester *testing.T) {
 	}
 	if !strings.Contains(updated[1].Description, "Improved 2") {
 		tester.Errorf("Polishing failed: Got: %s", updated[1].Description)
+	}
+}
+
+func TestToolGenerator_ModelFallbackLogic(tester *testing.T) {
+	globalConfig := &configuration.Configuration{
+		LLM: configuration.LLMConfiguration{
+			Model: "global-fallback",
+			Models: configuration.ModelsConfiguration{
+				Triangulation: "task-specific",
+				Structure:     "", // Empty to test global fallback
+				Polishing:     "polishing-model",
+			},
+		},
+	}
+
+	// Case 1: Task-specific model from config is used
+	triangulationMock := &UnbreakableSequentialMock{Responses: []string{`{"page_ranges": []}`}}
+	triangulationGenerator := NewToolGenerator(globalConfig, triangulationMock, nil)
+	_, _, _ = triangulationGenerator.triangulateRelevantMaterials(context.Background(), "T", "F", models.GenerationOptions{EnableTriangulation: true})
+	if triangulationMock.ModelsUsed[0] != "task-specific" {
+		tester.Errorf("Case 1: Expected 'task-specific' model, got %s", triangulationMock.ModelsUsed[0])
+	}
+
+	// Case 2: Empty task model falls back to global LLM model
+	structureMock := &UnbreakableSequentialMock{Responses: []string{`# Outline`}, CallIndex: 0}
+	structureGenerator := NewToolGenerator(globalConfig, structureMock, nil)
+	_, _, _ = structureGenerator.analyzeStructureWithRetries(context.Background(), "T", "F", "medium", "en", models.GenerationOptions{})
+	if structureMock.ModelsUsed[0] != "global-fallback" {
+		tester.Errorf("Case 2: Expected 'global-fallback' model, got %s", structureMock.ModelsUsed[0])
+	}
+
+	// Case 3: Explicit options override everything
+	overrideMock := &UnbreakableSequentialMock{Responses: []string{`{"page_ranges": []}`}}
+	overrideGenerator := NewToolGenerator(globalConfig, overrideMock, nil)
+	_, _, _ = overrideGenerator.triangulateRelevantMaterials(context.Background(), "T", "F", models.GenerationOptions{
+		EnableTriangulation: true,
+		ModelTriangulation:  "explicit-override",
+	})
+	if overrideMock.ModelsUsed[0] != "explicit-override" {
+		tester.Errorf("Case 3: Expected 'explicit-override' model, got %s", overrideMock.ModelsUsed[0])
+	}
+
+	// Case 4: Polishing fallback
+	polishingMock := &UnbreakableSequentialMock{Responses: []string{`{"title": "Clean"}`}}
+	polishingGenerator := NewToolGenerator(globalConfig, polishingMock, nil)
+	_, _, _ = polishingGenerator.CleanDocumentTitle(context.Background(), "Dirty", models.GenerationOptions{})
+	if polishingMock.ModelsUsed[0] != "polishing-model" {
+		tester.Errorf("Case 4: Expected 'polishing-model', got %s", polishingMock.ModelsUsed[0])
+	}
+}
+
+func TestToolGenerator_CostLimitEnforcement(tester *testing.T) {
+	config := &configuration.Configuration{
+		Safety: configuration.SafetyConfiguration{
+			MaximumCostPerJob: 0.50, // $0.50 limit
+		},
+		LLM: configuration.LLMConfiguration{
+			Model: "expensive-model",
+		},
+	}
+
+	mockLLM := &UnbreakableSequentialMock{
+		Responses: []string{"Expensive Response"},
+		Costs:     []float64{0.75}, // Exceeds limit
+	}
+
+	generator := NewToolGenerator(config, mockLLM, nil)
+
+	_, _, err := generator.CleanDocumentTitle(context.Background(), "Title", models.GenerationOptions{})
+	if err == nil {
+		tester.Fatal("Expected error due to safety threshold, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "safety threshold exceeded") {
+		tester.Errorf("Expected safety threshold error, got: %v", err)
 	}
 }
 

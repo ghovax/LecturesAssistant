@@ -13,6 +13,7 @@ type Configuration struct {
 	Security      SecurityConfiguration      `yaml:"security"`
 	LLM           LLMConfiguration           `yaml:"llm"`
 	Transcription TranscriptionConfiguration `yaml:"transcription"`
+	Providers     ProvidersConfiguration     `yaml:"providers"`
 	Documents     DocumentsConfiguration     `yaml:"documents"`
 	Uploads       UploadsConfiguration       `yaml:"uploads"`
 	Safety        SafetyConfiguration        `yaml:"safety"`
@@ -21,6 +22,7 @@ type Configuration struct {
 type SafetyConfiguration struct {
 	MaximumCostPerJob    float64 `yaml:"maximum_cost_per_job"`
 	MaximumLoginAttempts int     `yaml:"maximum_login_attempts_per_hour"`
+	MaximumRetries       int     `yaml:"maximum_retries"`
 }
 
 type ServerConfiguration struct {
@@ -44,37 +46,45 @@ type AuthConfiguration struct {
 }
 
 type LLMConfiguration struct {
-	Provider   string                  `yaml:"provider"`
-	Language   string                  `yaml:"language"` // Default language code (e.g. en-US)
-	OpenRouter OpenRouterConfiguration `yaml:"openrouter"`
-	Ollama     OllamaConfiguration     `yaml:"ollama"`
+	Provider string              `yaml:"provider"`
+	Model    string              `yaml:"model"` // Global fallback
+	Language string              `yaml:"language"`
+	Models   ModelsConfiguration `yaml:"models"`
 }
 
-type OpenRouterConfiguration struct {
-	APIKey       string `yaml:"api_key"`
-	DefaultModel string `yaml:"default_model"`
-}
-
-type OllamaConfiguration struct {
-	BaseURL      string `yaml:"base_url"`
-	DefaultModel string `yaml:"default_model"`
+type ModelsConfiguration struct {
+	Ingestion     string `yaml:"ingestion"`
+	Triangulation string `yaml:"triangulation"`
+	Structure     string `yaml:"structure"`
+	Generation    string `yaml:"generation"`
+	Adherence     string `yaml:"adherence"`
+	Polishing     string `yaml:"polishing"`
 }
 
 type TranscriptionConfiguration struct {
-	Provider                string               `yaml:"provider"`
-	AudioChunkLengthSeconds int                  `yaml:"audio_chunk_length_seconds"`
-	LLMCleanupThreshold     int                  `yaml:"llm_cleanup_threshold"`
-	Whisper                 WhisperConfiguration `yaml:"whisper"`
-	OpenAI                  OpenAIConfiguration  `yaml:"openai"`
+	Provider                string `yaml:"provider"`
+	Model                   string `yaml:"model"`
+	AudioChunkLengthSeconds int    `yaml:"audio_chunk_length_seconds"`
+	RefiningBatchSize       int    `yaml:"refining_batch_size"`
+	WhisperDevice           string `yaml:"whisper_device"`
 }
 
-type WhisperConfiguration struct {
-	Model  string `yaml:"model"`
-	Device string `yaml:"device"`
+type ProvidersConfiguration struct {
+	OpenRouter OpenRouterConfig `yaml:"openrouter"`
+	OpenAI     OpenAIConfig     `yaml:"openai"`
+	Ollama     OllamaConfig     `yaml:"ollama"`
 }
 
-type OpenAIConfiguration struct {
+type OpenRouterConfig struct {
 	APIKey string `yaml:"api_key"`
+}
+
+type OpenAIConfig struct {
+	APIKey string `yaml:"api_key"`
+}
+
+type OllamaConfig struct {
+	BaseURL string `yaml:"base_url"`
 }
 
 type DocumentsConfiguration struct {
@@ -177,22 +187,22 @@ func defaultConfiguration() *Configuration {
 		},
 		LLM: LLMConfiguration{
 			Provider: "openrouter",
+			Model:    "anthropic/claude-3.5-sonnet",
 			Language: "en-US",
-			OpenRouter: OpenRouterConfiguration{
-				DefaultModel: "anthropic/claude-3.5-sonnet",
-			},
-			Ollama: OllamaConfiguration{
-				BaseURL:      "http://localhost:11434",
-				DefaultModel: "llama3.2",
-			},
 		},
 		Transcription: TranscriptionConfiguration{
 			Provider:                "whisper-local",
+			Model:                   "base",
 			AudioChunkLengthSeconds: 300,
-			LLMCleanupThreshold:     3,
-			Whisper: WhisperConfiguration{
-				Model:  "base",
-				Device: "auto",
+			RefiningBatchSize:       3,
+			WhisperDevice:           "auto",
+		},
+		Providers: ProvidersConfiguration{
+			OpenRouter: OpenRouterConfig{
+				APIKey: "",
+			},
+			Ollama: OllamaConfig{
+				BaseURL: "http://localhost:11434",
 			},
 		},
 		Documents: DocumentsConfiguration{
@@ -220,6 +230,7 @@ func defaultConfiguration() *Configuration {
 		Safety: SafetyConfiguration{
 			MaximumCostPerJob:    10.0, // $10 safety threshold
 			MaximumLoginAttempts: 100,  // High limit as requested
+			MaximumRetries:       3,
 		},
 	}
 }

@@ -93,13 +93,13 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 
 		// 3. Transcribe Segments in chunks for cleanup
 		totalSegments := len(segmentFiles)
-		cleanupThreshold := service.configuration.Transcription.LLMCleanupThreshold
-		if cleanupThreshold <= 0 {
-			cleanupThreshold = 3
+		batchSize := service.configuration.Transcription.RefiningBatchSize
+		if batchSize <= 0 {
+			batchSize = 3
 		}
 
-		for segmentChunkStart := 0; segmentChunkStart < totalSegments; segmentChunkStart += cleanupThreshold {
-			segmentChunkEnd := segmentChunkStart + cleanupThreshold
+		for segmentChunkStart := 0; segmentChunkStart < totalSegments; segmentChunkStart += batchSize {
+			segmentChunkEnd := segmentChunkStart + batchSize
 			if segmentChunkEnd > totalSegments {
 				segmentChunkEnd = totalSegments
 			}
@@ -110,7 +110,7 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 			for segmentIndex := segmentChunkStart; segmentIndex < segmentChunkEnd; segmentIndex++ {
 				segmentFile := segmentFiles[segmentIndex]
 
-				currentProgress := int((float64(mediaIndex) + float64(segmentIndex)/float64(totalMediaFiles)) / float64(totalMediaFiles) * 100)
+				currentProgress := int((float64(mediaIndex) + float64(segmentIndex)/float64(totalSegments)) / float64(totalMediaFiles) * 100)
 
 				segmentMetadata := map[string]any{
 					"media_index":    mediaIndex + 1,
@@ -198,10 +198,7 @@ func (service *Service) cleanupTranscriptChunk(jobContext context.Context, rawTe
 		return "", err
 	}
 
-	model := service.configuration.LLM.OpenRouter.DefaultModel
-	if service.configuration.LLM.Provider == "ollama" {
-		model = service.configuration.LLM.Ollama.DefaultModel
-	}
+	model := service.configuration.LLM.Model
 
 	responseChannel, err := service.llmProvider.Chat(jobContext, llm.ChatRequest{
 		Model: model,

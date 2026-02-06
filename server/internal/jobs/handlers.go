@@ -253,36 +253,32 @@ func RegisterHandlers(
 			Type                string `json:"type"`
 			Length              string `json:"length"`
 			LanguageCode        string `json:"language_code"`
-			EnableTriangulation string `json:"enable_triangulation"`
-			AdherenceThreshold  string `json:"adherence_threshold"`
-			MaximumAttempts     string `json:"maximum_attempts"`
-			// Models
-			ModelTriangulation      string `json:"model_triangulation"`
-			ModelStructure          string `json:"model_structure"`
-			ModelGeneration         string `json:"model_generation"`
-			ModelAdherence          string `json:"model_adherence"`
-			ModelFootnoteParsing    string `json:"model_footnote_parsing"`
-			ModelFootnoteFormatting string `json:"model_footnote_formatting"`
-			ModelTitleCleaning      string `json:"model_title_cleaning"`
-		}
-		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
-			return fmt.Errorf("failed to unmarshal job payload: %w", err)
-		}
-
-		threshold, _ := strconv.Atoi(payload.AdherenceThreshold)
-		maximumAttempts, _ := strconv.Atoi(payload.MaximumAttempts)
-		options := models.GenerationOptions{
-			EnableTriangulation:     payload.EnableTriangulation == "true",
-			AdherenceThreshold:      threshold,
-			MaximumAttempts:         maximumAttempts,
-			ModelTriangulation:      payload.ModelTriangulation,
-			ModelStructure:          payload.ModelStructure,
-			ModelGeneration:         payload.ModelGeneration,
-			ModelAdherence:          payload.ModelAdherence,
-			ModelFootnoteParsing:    payload.ModelFootnoteParsing,
-			ModelFootnoteFormatting: payload.ModelFootnoteFormatting,
-			ModelTitleCleaning:      payload.ModelTitleCleaning,
-		}
+						EnableTriangulation string `json:"enable_triangulation"`
+						AdherenceThreshold  string `json:"adherence_threshold"`
+						MaximumRetries      string `json:"maximum_retries"`
+						// Models
+						ModelTriangulation string `json:"model_triangulation"`
+						ModelStructure     string `json:"model_structure"`
+						ModelGeneration    string `json:"model_generation"`
+						ModelAdherence     string `json:"model_adherence"`
+						ModelPolishing     string `json:"model_polishing"`
+					}
+					if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
+						return fmt.Errorf("failed to unmarshal job payload: %w", err)
+					}
+			
+					threshold, _ := strconv.Atoi(payload.AdherenceThreshold)
+					maximumRetries, _ := strconv.Atoi(payload.MaximumRetries)
+					options := models.GenerationOptions{
+						EnableTriangulation: payload.EnableTriangulation == "true",
+						AdherenceThreshold:  threshold,
+						MaximumRetries:      maximumRetries,
+						ModelTriangulation:  payload.ModelTriangulation,
+						ModelStructure:      payload.ModelStructure,
+						ModelGeneration:     payload.ModelGeneration,
+						ModelAdherence:      payload.ModelAdherence,
+						ModelPolishing:      payload.ModelPolishing,
+					}
 
 		if payload.Type == "" {
 			payload.Type = "guide"

@@ -7,16 +7,12 @@ import (
 	"net/http"
 
 	"lectures/internal/models"
-
-	"github.com/gorilla/mux"
 )
 
 // handleCreateTool triggers a tool generation job
 func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	examIdentifier := pathVariables["examId"]
-
 	var createToolRequest struct {
+		ExamID       string `json:"exam_id"`
 		LectureID    string `json:"lecture_id"`
 		Type         string `json:"type"`          // "guide", "flashcard", "quiz"
 		Length       string `json:"length"`        // "short", "medium", "long"
@@ -28,14 +24,14 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 		return
 	}
 
-	if createToolRequest.LectureID == "" {
-		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id is required", nil)
+	if createToolRequest.ExamID == "" || createToolRequest.LectureID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "exam_id and lecture_id are required", nil)
 		return
 	}
 
 	// Verify exam and lecture exist
 	var lecture models.Lecture
-	err := server.database.QueryRow("SELECT id, status FROM lectures WHERE id = ? AND exam_id = ?", createToolRequest.LectureID, examIdentifier).Scan(&lecture.ID, &lecture.Status)
+	err := server.database.QueryRow("SELECT id, status FROM lectures WHERE id = ? AND exam_id = ?", createToolRequest.LectureID, createToolRequest.ExamID).Scan(&lecture.ID, &lecture.Status)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found in this exam", nil)
 		return
@@ -59,7 +55,7 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 
 	// Enqueue job
 	jobIdentifier, err := server.jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
-		"exam_id":       examIdentifier,
+		"exam_id":       createToolRequest.ExamID,
 		"lecture_id":    createToolRequest.LectureID,
 		"type":          createToolRequest.Type,
 		"length":        createToolRequest.Length,
@@ -79,8 +75,11 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 
 // handleListTools lists all tools for an exam
 func (server *Server) handleListTools(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	examIdentifier := pathVariables["examId"]
+	examID := request.URL.Query().Get("exam_id")
+	if examID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "exam_id is required", nil)
+		return
+	}
 
 	toolType := request.URL.Query().Get("type")
 
@@ -89,7 +88,7 @@ func (server *Server) handleListTools(responseWriter http.ResponseWriter, reques
 		FROM tools
 		WHERE exam_id = ?
 	`
-	arguments := []any{examIdentifier}
+	arguments := []any{examID}
 
 	if toolType != "" {
 		query += " AND type = ?"
@@ -119,15 +118,18 @@ func (server *Server) handleListTools(responseWriter http.ResponseWriter, reques
 
 // handleGetTool retrieves a specific tool
 func (server *Server) handleGetTool(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	toolIdentifier := pathVariables["toolId"]
+	toolID := request.URL.Query().Get("tool_id")
+	if toolID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "tool_id is required", nil)
+		return
+	}
 
 	var tool models.Tool
 	err := server.database.QueryRow(`
 		SELECT id, exam_id, type, title, content, created_at, updated_at
 		FROM tools
 		WHERE id = ?
-	`, toolIdentifier).Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.Content, &tool.CreatedAt, &tool.UpdatedAt)
+	`, toolID).Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.Content, &tool.CreatedAt, &tool.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found", nil)
@@ -143,10 +145,20 @@ func (server *Server) handleGetTool(responseWriter http.ResponseWriter, request 
 
 // handleDeleteTool deletes a specific tool
 func (server *Server) handleDeleteTool(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	toolIdentifier := pathVariables["toolId"]
+	var deleteRequest struct {
+		ToolID string `json:"tool_id"`
+	}
+	if err := json.NewDecoder(request.Body).Decode(&deleteRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid body", nil)
+		return
+	}
 
-	result, err := server.database.Exec("DELETE FROM tools WHERE id = ?", toolIdentifier)
+	if deleteRequest.ToolID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "tool_id is required", nil)
+		return
+	}
+
+	result, err := server.database.Exec("DELETE FROM tools WHERE id = ?", deleteRequest.ToolID)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete tool", nil)
 		return

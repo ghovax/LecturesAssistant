@@ -7,20 +7,21 @@ import (
 	"strconv"
 
 	"lectures/internal/models"
-
-	"github.com/gorilla/mux"
 )
 
 // handleListDocuments lists all reference documents for a lecture
 func (server *Server) handleListDocuments(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	lectureIdentifier := pathVariables["lectureId"]
+	lectureID := request.URL.Query().Get("lecture_id")
+	if lectureID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id is required", nil)
+		return
+	}
 
 	documentRows, databaseError := server.database.Query(`
 		SELECT id, lecture_id, document_type, title, file_path, page_count, extraction_status, created_at, updated_at
 		FROM reference_documents
 		WHERE lecture_id = ?
-	`, lectureIdentifier)
+	`, lectureID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list documents", nil)
 		return
@@ -41,15 +42,18 @@ func (server *Server) handleListDocuments(responseWriter http.ResponseWriter, re
 
 // handleGetDocument retrieves a specific document metadata
 func (server *Server) handleGetDocument(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	documentIdentifier := pathVariables["documentId"]
+	documentID := request.URL.Query().Get("document_id")
+	if documentID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id is required", nil)
+		return
+	}
 
 	var document models.ReferenceDocument
 	err := server.database.QueryRow(`
 		SELECT id, lecture_id, document_type, title, file_path, page_count, extraction_status, created_at, updated_at
 		FROM reference_documents
 		WHERE id = ?
-	`, documentIdentifier).Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt)
+	`, documentID).Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Document not found", nil)
@@ -65,15 +69,18 @@ func (server *Server) handleGetDocument(responseWriter http.ResponseWriter, requ
 
 // handleGetDocumentPages lists all pages for a document
 func (server *Server) handleGetDocumentPages(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	documentIdentifier := pathVariables["documentId"]
+	documentID := request.URL.Query().Get("document_id")
+	if documentID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id is required", nil)
+		return
+	}
 
 	pageRows, databaseError := server.database.Query(`
 		SELECT id, document_id, page_number, image_path, extracted_text
 		FROM reference_pages
 		WHERE document_id = ?
 		ORDER BY page_number ASC
-	`, documentIdentifier)
+	`, documentID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list pages", nil)
 		return
@@ -94,9 +101,14 @@ func (server *Server) handleGetDocumentPages(responseWriter http.ResponseWriter,
 
 // handleGetPageImage serves the actual image file for a page
 func (server *Server) handleGetPageImage(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	documentIdentifier := pathVariables["documentId"]
-	pageNumberString := pathVariables["pageNumber"]
+	documentID := request.URL.Query().Get("document_id")
+	pageNumberString := request.URL.Query().Get("page_number")
+	
+	if documentID == "" || pageNumberString == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id and page_number are required", nil)
+		return
+	}
+	
 	pageNumber, _ := strconv.Atoi(pageNumberString)
 
 	var imagePath string
@@ -104,7 +116,7 @@ func (server *Server) handleGetPageImage(responseWriter http.ResponseWriter, req
 		SELECT image_path
 		FROM reference_pages
 		WHERE document_id = ? AND page_number = ?
-	`, documentIdentifier, pageNumber).Scan(&imagePath)
+	`, documentID, pageNumber).Scan(&imagePath)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Page not found", nil)

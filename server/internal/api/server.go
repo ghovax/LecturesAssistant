@@ -77,47 +77,47 @@ func (server *Server) setupRoutes() {
 	// Exams
 	apiRouter.HandleFunc("/exams", server.handleCreateExam).Methods("POST")
 	apiRouter.HandleFunc("/exams", server.handleListExams).Methods("GET")
-	apiRouter.HandleFunc("/exams/{id}", server.handleGetExam).Methods("GET")
-	apiRouter.HandleFunc("/exams/{id}", server.handleUpdateExam).Methods("PATCH")
-	apiRouter.HandleFunc("/exams/{id}", server.handleDeleteExam).Methods("DELETE")
+	apiRouter.HandleFunc("/exams/details", server.handleGetExam).Methods("GET")
+	apiRouter.HandleFunc("/exams", server.handleUpdateExam).Methods("PATCH")
+	apiRouter.HandleFunc("/exams", server.handleDeleteExam).Methods("DELETE")
 
 	// Lectures
-	apiRouter.HandleFunc("/exams/{examId}/lectures", server.handleCreateLecture).Methods("POST")
-	apiRouter.HandleFunc("/exams/{examId}/lectures", server.handleListLectures).Methods("GET")
-	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}", server.handleGetLecture).Methods("GET")
-	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}", server.handleUpdateLecture).Methods("PATCH")
-	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}", server.handleDeleteLecture).Methods("DELETE")
+	apiRouter.HandleFunc("/lectures", server.handleCreateLecture).Methods("POST")
+	apiRouter.HandleFunc("/lectures", server.handleListLectures).Methods("GET")
+	apiRouter.HandleFunc("/lectures/details", server.handleGetLecture).Methods("GET")
+	apiRouter.HandleFunc("/lectures", server.handleUpdateLecture).Methods("PATCH")
+	apiRouter.HandleFunc("/lectures", server.handleDeleteLecture).Methods("DELETE")
 
 	// Media (Listing/Ordering)
-	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/media", server.handleListMedia).Methods("GET")
+	apiRouter.HandleFunc("/media", server.handleListMedia).Methods("GET")
 
 	// Transcripts
-	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/transcript", server.handleGetTranscript).Methods("GET")
+	apiRouter.HandleFunc("/transcripts", server.handleGetTranscript).Methods("GET")
 
 	// Reference Documents (Listing/Meta)
-	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/documents", server.handleListDocuments).Methods("GET")
-	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/documents/{documentId}", server.handleGetDocument).Methods("GET")
-	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/documents/{documentId}/pages", server.handleGetDocumentPages).Methods("GET")
-	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/documents/{documentId}/pages/{pageNumber}/image", server.handleGetPageImage).Methods("GET")
+	apiRouter.HandleFunc("/documents", server.handleListDocuments).Methods("GET")
+	apiRouter.HandleFunc("/documents/details", server.handleGetDocument).Methods("GET")
+	apiRouter.HandleFunc("/documents/pages", server.handleGetDocumentPages).Methods("GET")
+	apiRouter.HandleFunc("/documents/pages/image", server.handleGetPageImage).Methods("GET")
 
 	// Tools
-	apiRouter.HandleFunc("/exams/{examId}/tools", server.handleCreateTool).Methods("POST")
-	apiRouter.HandleFunc("/exams/{examId}/tools", server.handleListTools).Methods("GET")
-	apiRouter.HandleFunc("/exams/{examId}/tools/{toolId}", server.handleGetTool).Methods("GET")
-	apiRouter.HandleFunc("/exams/{examId}/tools/{toolId}", server.handleDeleteTool).Methods("DELETE")
+	apiRouter.HandleFunc("/tools", server.handleCreateTool).Methods("POST")
+	apiRouter.HandleFunc("/tools", server.handleListTools).Methods("GET")
+	apiRouter.HandleFunc("/tools/details", server.handleGetTool).Methods("GET")
+	apiRouter.HandleFunc("/tools", server.handleDeleteTool).Methods("DELETE")
 
 	// Chat
-	apiRouter.HandleFunc("/exams/{examId}/chat/sessions", server.handleCreateChatSession).Methods("POST")
-	apiRouter.HandleFunc("/exams/{examId}/chat/sessions", server.handleListChatSessions).Methods("GET")
-	apiRouter.HandleFunc("/exams/{examId}/chat/sessions/{sessionId}", server.handleGetChatSession).Methods("GET")
-	apiRouter.HandleFunc("/exams/{examId}/chat/sessions/{sessionId}/context", server.handleUpdateChatContext).Methods("PATCH")
-	apiRouter.HandleFunc("/exams/{examId}/chat/sessions/{sessionId}", server.handleDeleteChatSession).Methods("DELETE")
-	apiRouter.HandleFunc("/exams/{examId}/chat/sessions/{sessionId}/messages", server.handleSendMessage).Methods("POST")
+	apiRouter.HandleFunc("/chat/sessions", server.handleCreateChatSession).Methods("POST")
+	apiRouter.HandleFunc("/chat/sessions", server.handleListChatSessions).Methods("GET")
+	apiRouter.HandleFunc("/chat/sessions/details", server.handleGetChatSession).Methods("GET")
+	apiRouter.HandleFunc("/chat/sessions/context", server.handleUpdateChatContext).Methods("PATCH")
+	apiRouter.HandleFunc("/chat/sessions", server.handleDeleteChatSession).Methods("DELETE")
+	apiRouter.HandleFunc("/chat/messages", server.handleSendMessage).Methods("POST")
 
 	// Jobs
 	apiRouter.HandleFunc("/jobs", server.handleListJobs).Methods("GET")
-	apiRouter.HandleFunc("/jobs/{id}", server.handleGetJob).Methods("GET")
-	apiRouter.HandleFunc("/jobs/{id}", server.handleCancelJob).Methods("DELETE")
+	apiRouter.HandleFunc("/jobs/details", server.handleGetJob).Methods("GET")
+	apiRouter.HandleFunc("/jobs", server.handleCancelJob).Methods("DELETE")
 
 	// Settings
 	apiRouter.HandleFunc("/settings", server.handleGetSettings).Methods("GET")

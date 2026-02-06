@@ -16,16 +16,13 @@ import (
 	"lectures/internal/prompts"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/mux"
 )
 
 // handleCreateChatSession creates a new chat session for an exam
 func (server *Server) handleCreateChatSession(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	examIdentifier := pathVariables["examId"]
-
 	var createSessionRequest struct {
-		Title string `json:"title"`
+		ExamID string `json:"exam_id"`
+		Title  string `json:"title"`
 	}
 
 	if decodeError := json.NewDecoder(request.Body).Decode(&createSessionRequest); decodeError != nil {
@@ -33,9 +30,14 @@ func (server *Server) handleCreateChatSession(responseWriter http.ResponseWriter
 		return
 	}
 
+	if createSessionRequest.ExamID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "exam_id is required", nil)
+		return
+	}
+
 	// Verify exam exists
 	var examExists bool
-	databaseError := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ?)", examIdentifier).Scan(&examExists)
+	databaseError := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ?)", createSessionRequest.ExamID).Scan(&examExists)
 	if databaseError != nil || !examExists {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
 		return
@@ -43,7 +45,7 @@ func (server *Server) handleCreateChatSession(responseWriter http.ResponseWriter
 
 	session := models.ChatSession{
 		ID:        uuid.New().String(),
-		ExamID:    examIdentifier,
+		ExamID:    createSessionRequest.ExamID,
 		Title:     createSessionRequest.Title,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -87,15 +89,18 @@ func (server *Server) handleCreateChatSession(responseWriter http.ResponseWriter
 
 // handleListChatSessions lists all chat sessions for an exam
 func (server *Server) handleListChatSessions(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	examIdentifier := pathVariables["examId"]
+	examID := request.URL.Query().Get("exam_id")
+	if examID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "exam_id is required", nil)
+		return
+	}
 
 	sessionRows, databaseError := server.database.Query(`
 		SELECT id, exam_id, title, created_at, updated_at
 		FROM chat_sessions
 		WHERE exam_id = ?
 		ORDER BY updated_at DESC
-	`, examIdentifier)
+	`, examID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list chat sessions", nil)
 		return
@@ -116,15 +121,18 @@ func (server *Server) handleListChatSessions(responseWriter http.ResponseWriter,
 
 // handleGetChatSession retrieves a specific session and its messages
 func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	sessionIdentifier := pathVariables["sessionId"]
+	sessionID := request.URL.Query().Get("session_id")
+	if sessionID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "session_id is required", nil)
+		return
+	}
 
 	var session models.ChatSession
 	databaseError := server.database.QueryRow(`
 		SELECT id, exam_id, title, created_at, updated_at
 		FROM chat_sessions
 		WHERE id = ?
-	`, sessionIdentifier).Scan(&session.ID, &session.ExamID, &session.Title, &session.CreatedAt, &session.UpdatedAt)
+	`, sessionID).Scan(&session.ID, &session.ExamID, &session.Title, &session.CreatedAt, &session.UpdatedAt)
 
 	if databaseError == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Chat session not found", nil)
@@ -141,7 +149,7 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 		SELECT included_lecture_ids, included_tool_ids 
 		FROM chat_context_configuration 
 		WHERE session_id = ?
-	`, sessionIdentifier).Scan(&includedLectureIDsJSON, &includedToolIDsJSON)
+	`, sessionID).Scan(&includedLectureIDsJSON, &includedToolIDsJSON)
 
 	var includedLectureIDs, includedToolIDs []string
 	if databaseError == nil {
@@ -155,7 +163,7 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 		FROM chat_messages
 		WHERE session_id = ?
 		ORDER BY created_at ASC
-	`, sessionIdentifier)
+	`, sessionID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get messages", nil)
 		return
@@ -183,10 +191,20 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 
 // handleDeleteChatSession deletes a chat session
 func (server *Server) handleDeleteChatSession(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	sessionIdentifier := pathVariables["sessionId"]
+	var deleteRequest struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.NewDecoder(request.Body).Decode(&deleteRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid body", nil)
+		return
+	}
 
-	result, databaseError := server.database.Exec("DELETE FROM chat_sessions WHERE id = ?", sessionIdentifier)
+	if deleteRequest.SessionID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "session_id is required", nil)
+		return
+	}
+
+	result, databaseError := server.database.Exec("DELETE FROM chat_sessions WHERE id = ?", deleteRequest.SessionID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete chat session", nil)
 		return
@@ -203,10 +221,8 @@ func (server *Server) handleDeleteChatSession(responseWriter http.ResponseWriter
 
 // handleUpdateChatContext updates which materials are included in the chat session
 func (server *Server) handleUpdateChatContext(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	sessionIdentifier := pathVariables["sessionId"]
-
 	var updateContextRequest struct {
+		SessionID          string   `json:"session_id"`
 		IncludedLectureIDs []string `json:"included_lecture_ids"`
 		IncludedToolIDs    []string `json:"included_tool_ids"`
 	}
@@ -216,6 +232,39 @@ func (server *Server) handleUpdateChatContext(responseWriter http.ResponseWriter
 		return
 	}
 
+	if updateContextRequest.SessionID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "session_id is required", nil)
+		return
+	}
+
+	// Verify session and get its exam_id
+	var examID string
+	err := server.database.QueryRow("SELECT exam_id FROM chat_sessions WHERE id = ?", updateContextRequest.SessionID).Scan(&examID)
+	if err != nil {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Chat session not found", nil)
+		return
+	}
+
+	// Verify all lectures belong to this exam
+	for _, lectureID := range updateContextRequest.IncludedLectureIDs {
+		var lectureExamID string
+		err := server.database.QueryRow("SELECT exam_id FROM lectures WHERE id = ?", lectureID).Scan(&lectureExamID)
+		if err != nil || lectureExamID != examID {
+			server.writeError(responseWriter, http.StatusBadRequest, "RESOURCE_VIOLATION", "Lecture "+lectureID+" does not belong to this exam", nil)
+			return
+		}
+	}
+
+	// Verify all tools belong to this exam
+	for _, toolID := range updateContextRequest.IncludedToolIDs {
+		var toolExamID string
+		err := server.database.QueryRow("SELECT exam_id FROM tools WHERE id = ?", toolID).Scan(&toolExamID)
+		if err != nil || toolExamID != examID {
+			server.writeError(responseWriter, http.StatusBadRequest, "RESOURCE_VIOLATION", "Tool "+toolID+" does not belong to this exam", nil)
+			return
+		}
+	}
+
 	lectureIDsJSON, _ := json.Marshal(updateContextRequest.IncludedLectureIDs)
 	toolIDsJSON, _ := json.Marshal(updateContextRequest.IncludedToolIDs)
 
@@ -223,7 +272,7 @@ func (server *Server) handleUpdateChatContext(responseWriter http.ResponseWriter
 		UPDATE chat_context_configuration
 		SET included_lecture_ids = ?, included_tool_ids = ?
 		WHERE session_id = ?
-	`, string(lectureIDsJSON), string(toolIDsJSON), sessionIdentifier)
+	`, string(lectureIDsJSON), string(toolIDsJSON), updateContextRequest.SessionID)
 
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to update chat context", nil)
@@ -235,11 +284,9 @@ func (server *Server) handleUpdateChatContext(responseWriter http.ResponseWriter
 
 // handleSendMessage adds a user message and triggers the AI response
 func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	sessionIdentifier := pathVariables["sessionId"]
-
 	var sendMessageRequest struct {
-		Content string `json:"content"`
+		SessionID string `json:"session_id"`
+		Content   string `json:"content"`
 	}
 
 	if decodeError := json.NewDecoder(request.Body).Decode(&sendMessageRequest); decodeError != nil {
@@ -247,14 +294,14 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 		return
 	}
 
-	if sendMessageRequest.Content == "" {
-		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Content is required", nil)
+	if sendMessageRequest.SessionID == "" || sendMessageRequest.Content == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "session_id and content are required", nil)
 		return
 	}
 
 	// 1. Verify session and save user message
 	var session models.ChatSession
-	databaseError := server.database.QueryRow("SELECT id, exam_id FROM chat_sessions WHERE id = ?", sessionIdentifier).Scan(&session.ID, &session.ExamID)
+	databaseError := server.database.QueryRow("SELECT id, exam_id FROM chat_sessions WHERE id = ?", sendMessageRequest.SessionID).Scan(&session.ID, &session.ExamID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Chat session not found", nil)
 		return
@@ -262,7 +309,7 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 
 	userMessage := models.ChatMessage{
 		ID:        uuid.New().String(),
-		SessionID: sessionIdentifier,
+		SessionID: sendMessageRequest.SessionID,
 		Role:      "user",
 		Content:   sendMessageRequest.Content,
 		CreatedAt: time.Now(),
@@ -279,11 +326,11 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 	}
 
 	// 2. Get history and context for LLM
-	messages := server.getChatHistory(sessionIdentifier)
-	lectureContext := server.getLectureContext(sessionIdentifier)
+	messages := server.getChatHistory(sendMessageRequest.SessionID)
+	lectureContext := server.getLectureContext(sendMessageRequest.SessionID)
 
 	// 3. Trigger async AI response
-	go server.processAIResponse(sessionIdentifier, messages, lectureContext)
+	go server.processAIResponse(sendMessageRequest.SessionID, messages, lectureContext)
 
 	server.writeJSON(responseWriter, http.StatusAccepted, userMessage)
 }

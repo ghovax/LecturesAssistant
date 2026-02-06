@@ -14,14 +14,10 @@ import (
 	"lectures/internal/models"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/mux"
 )
 
 // handleCreateLecture creates a new lecture and binds staged uploads to it
 func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	examID := pathVariables["examId"]
-
 	// Support upload progress tracking for direct multipart uploads
 	uploadID := request.URL.Query().Get("upload_id")
 	if uploadID != "" && request.ContentLength > 0 {
@@ -37,6 +33,16 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	// Parse multipart form (up to 5GB) to support direct files + metadata + staged IDs
 	if err := request.ParseMultipartForm(5120 << 20); err != nil {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Form too large", nil)
+		return
+	}
+
+	examID := request.FormValue("exam_id")
+	if examID == "" {
+		examID = request.URL.Query().Get("exam_id")
+	}
+
+	if examID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "exam_id is required", nil)
 		return
 	}
 
@@ -284,15 +290,18 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 
 // handleListLectures lists all lectures for an exam
 func (server *Server) handleListLectures(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	examIdentifier := pathVariables["examId"]
+	examID := request.URL.Query().Get("exam_id")
+	if examID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "exam_id is required", nil)
+		return
+	}
 
 	lectureRows, databaseError := server.database.Query(`
 		SELECT id, exam_id, title, description, created_at, updated_at
 		FROM lectures
 		WHERE exam_id = ?
 		ORDER BY created_at DESC
-	`, examIdentifier)
+	`, examID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list lectures", nil)
 		return
@@ -314,15 +323,18 @@ func (server *Server) handleListLectures(responseWriter http.ResponseWriter, req
 
 // handleGetLecture retrieves a specific lecture
 func (server *Server) handleGetLecture(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	lectureIdentifier := pathVariables["lectureId"]
+	lectureID := request.URL.Query().Get("lecture_id")
+	if lectureID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id is required", nil)
+		return
+	}
 
 	var lecture models.Lecture
 	err := server.database.QueryRow(`
 		SELECT id, exam_id, title, description, created_at, updated_at
 		FROM lectures
 		WHERE id = ?
-	`, lectureIdentifier).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.CreatedAt, &lecture.UpdatedAt)
+	`, lectureID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.CreatedAt, &lecture.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found", nil)
@@ -338,22 +350,25 @@ func (server *Server) handleGetLecture(responseWriter http.ResponseWriter, reque
 
 // handleUpdateLecture updates a lecture
 func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	lectureIdentifier := pathVariables["lectureId"]
-
-	var updateLectureRequest struct {
+	var updateRequest struct {
+		LectureID   string  `json:"lecture_id"`
 		Title       *string `json:"title"`
 		Description *string `json:"description"`
 	}
 
-	if err := json.NewDecoder(request.Body).Decode(&updateLectureRequest); err != nil {
+	if err := json.NewDecoder(request.Body).Decode(&updateRequest); err != nil {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
+		return
+	}
+
+	if updateRequest.LectureID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id is required", nil)
 		return
 	}
 
 	// Check if lecture exists
 	var exists bool
-	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM lectures WHERE id = ?)", lectureIdentifier).Scan(&exists)
+	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM lectures WHERE id = ?)", updateRequest.LectureID).Scan(&exists)
 	if err != nil || !exists {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found", nil)
 		return
@@ -364,17 +379,17 @@ func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, re
 	query := "UPDATE lectures SET updated_at = ?"
 	updates = append(updates, time.Now())
 
-	if updateLectureRequest.Title != nil {
+	if updateRequest.Title != nil {
 		query += ", title = ?"
-		updates = append(updates, *updateLectureRequest.Title)
+		updates = append(updates, *updateRequest.Title)
 	}
-	if updateLectureRequest.Description != nil {
+	if updateRequest.Description != nil {
 		query += ", description = ?"
-		updates = append(updates, *updateLectureRequest.Description)
+		updates = append(updates, *updateRequest.Description)
 	}
 
 	query += " WHERE id = ?"
-	updates = append(updates, lectureIdentifier)
+	updates = append(updates, updateRequest.LectureID)
 
 	_, err = server.database.Exec(query, updates...)
 	if err != nil {
@@ -388,7 +403,7 @@ func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, re
 		SELECT id, exam_id, title, description, created_at, updated_at
 		FROM lectures
 		WHERE id = ?
-	`, lectureIdentifier).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.CreatedAt, &lecture.UpdatedAt)
+	`, updateRequest.LectureID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.CreatedAt, &lecture.UpdatedAt)
 
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to fetch updated lecture", nil)
@@ -400,19 +415,29 @@ func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, re
 
 // handleDeleteLecture deletes a lecture and all associated data
 func (server *Server) handleDeleteLecture(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	lectureIdentifier := pathVariables["lectureId"]
+	var deleteRequest struct {
+		LectureID string `json:"lecture_id"`
+	}
+	if err := json.NewDecoder(request.Body).Decode(&deleteRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid body", nil)
+		return
+	}
+
+	if deleteRequest.LectureID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id is required", nil)
+		return
+	}
 
 	// Check if lecture is currently processing
 	var status string
-	err := server.database.QueryRow("SELECT status FROM lectures WHERE id = ?", lectureIdentifier).Scan(&status)
+	err := server.database.QueryRow("SELECT status FROM lectures WHERE id = ?", deleteRequest.LectureID).Scan(&status)
 	if err == nil && status == "processing" {
 		server.writeError(responseWriter, http.StatusConflict, "LECTURE_BUSY", "Cannot delete lecture while it is being processed.", nil)
 		return
 	}
 
 	// Delete from database (cascades to lecture_media, transcripts, reference_documents)
-	result, err := server.database.Exec("DELETE FROM lectures WHERE id = ?", lectureIdentifier)
+	result, err := server.database.Exec("DELETE FROM lectures WHERE id = ?", deleteRequest.LectureID)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete lecture", nil)
 		return
@@ -425,7 +450,7 @@ func (server *Server) handleDeleteLecture(responseWriter http.ResponseWriter, re
 	}
 
 	// Delete files from filesystem
-	lectureDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "files", "lectures", lectureIdentifier)
+	lectureDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "files", "lectures", deleteRequest.LectureID)
 	_ = os.RemoveAll(lectureDirectory)
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Lecture deleted successfully"})
@@ -433,14 +458,17 @@ func (server *Server) handleDeleteLecture(responseWriter http.ResponseWriter, re
 
 // handleGetTranscript retrieves the unified transcript for a lecture
 func (server *Server) handleGetTranscript(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	lectureIdentifier := pathVariables["lectureId"]
+	lectureID := request.URL.Query().Get("lecture_id")
+	if lectureID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id is required", nil)
+		return
+	}
 
 	// Get transcript metadata
 	var transcriptID, status string
 	err := server.database.QueryRow(`
 		SELECT id, status FROM transcripts WHERE lecture_id = ?
-	`, lectureIdentifier).Scan(&transcriptID, &status)
+	`, lectureID).Scan(&transcriptID, &status)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Transcript not found", nil)
@@ -467,11 +495,11 @@ func (server *Server) handleGetTranscript(responseWriter http.ResponseWriter, re
 	var segments []map[string]any
 	for transcriptRows.Next() {
 		var id int
-		var transcriptID, mediaID, text, speaker sql.NullString
+		var segmentID, mediaID, text, speaker sql.NullString
 		var startMs, endMs int64
 		var confidence sql.NullFloat64
 
-		if err := transcriptRows.Scan(&id, &transcriptID, &mediaID, &startMs, &endMs, &text, &confidence, &speaker); err != nil {
+		if err := transcriptRows.Scan(&id, &segmentID, &mediaID, &startMs, &endMs, &text, &confidence, &speaker); err != nil {
 			continue
 		}
 

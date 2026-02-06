@@ -11,7 +11,6 @@ import (
 	"lectures/internal/models"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/mux"
 )
 
 // handleCreateExam creates a new exam
@@ -80,15 +79,18 @@ func (server *Server) handleListExams(responseWriter http.ResponseWriter, reques
 
 // handleGetExam retrieves a specific exam
 func (server *Server) handleGetExam(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	examIdentifier := pathVariables["id"]
+	examID := request.URL.Query().Get("exam_id")
+	if examID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "exam_id is required", nil)
+		return
+	}
 
 	var exam models.Exam
 	err := server.database.QueryRow(`
 		SELECT id, title, description, created_at, updated_at
 		FROM exams
 		WHERE id = ?
-	`, examIdentifier).Scan(&exam.ID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt)
+	`, examID).Scan(&exam.ID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
@@ -104,10 +106,8 @@ func (server *Server) handleGetExam(responseWriter http.ResponseWriter, request 
 
 // handleUpdateExam updates an exam
 func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	examIdentifier := pathVariables["id"]
-
 	var updateExamRequest struct {
+		ExamID      string  `json:"exam_id"`
 		Title       *string `json:"title"`
 		Description *string `json:"description"`
 	}
@@ -117,9 +117,14 @@ func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, reque
 		return
 	}
 
+	if updateExamRequest.ExamID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "exam_id is required", nil)
+		return
+	}
+
 	// Check if exam exists
 	var exists bool
-	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ?)", examIdentifier).Scan(&exists)
+	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ?)", updateExamRequest.ExamID).Scan(&exists)
 	if err != nil || !exists {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
 		return
@@ -140,7 +145,7 @@ func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, reque
 	}
 
 	query += " WHERE id = ?"
-	updates = append(updates, examIdentifier)
+	updates = append(updates, updateExamRequest.ExamID)
 
 	_, err = server.database.Exec(query, updates...)
 	if err != nil {
@@ -154,7 +159,7 @@ func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, reque
 		SELECT id, title, description, created_at, updated_at
 		FROM exams
 		WHERE id = ?
-	`, examIdentifier).Scan(&exam.ID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt)
+	`, updateExamRequest.ExamID).Scan(&exam.ID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt)
 
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to fetch updated exam", nil)
@@ -166,11 +171,21 @@ func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, reque
 
 // handleDeleteExam deletes an exam and all associated data
 func (server *Server) handleDeleteExam(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	examIdentifier := pathVariables["id"]
+	var deleteRequest struct {
+		ExamID string `json:"exam_id"`
+	}
+	if err := json.NewDecoder(request.Body).Decode(&deleteRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid body", nil)
+		return
+	}
+
+	if deleteRequest.ExamID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "exam_id is required", nil)
+		return
+	}
 
 	// 1. Get all lecture IDs for this exam to clean up files later
-	lectureRows, queryError := server.database.Query("SELECT id FROM lectures WHERE exam_id = ?", examIdentifier)
+	lectureRows, queryError := server.database.Query("SELECT id FROM lectures WHERE exam_id = ?", deleteRequest.ExamID)
 	var lectureIdentifiers []string
 	if queryError == nil {
 		for lectureRows.Next() {
@@ -183,7 +198,7 @@ func (server *Server) handleDeleteExam(responseWriter http.ResponseWriter, reque
 	}
 
 	// 2. Delete from database
-	result, err := server.database.Exec("DELETE FROM exams WHERE id = ?", examIdentifier)
+	result, err := server.database.Exec("DELETE FROM exams WHERE id = ?", deleteRequest.ExamID)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete exam", nil)
 		return

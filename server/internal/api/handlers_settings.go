@@ -46,8 +46,24 @@ func (server *Server) handleUpdateSettings(responseWriter http.ResponseWriter, r
 		}
 	}
 
-	// TODO: Update server.configuration in-memory if needed
-	// Or force a reload from DB/Configuration file
+	// Update server.configuration in-memory to ensure immediate effect
+	if value, ok := updateSettingsRequest["llm"]; ok {
+		if llmMap, ok := value.(map[string]any); ok {
+			if provider, ok := llmMap["provider"].(string); ok {
+				server.configuration.LLM.Provider = provider
+			}
+			if language, ok := llmMap["language"].(string); ok {
+				server.configuration.LLM.Language = language
+			}
+		}
+	}
+	if value, ok := updateSettingsRequest["transcription"]; ok {
+		if transMap, ok := value.(map[string]any); ok {
+			if provider, ok := transMap["provider"].(string); ok {
+				server.configuration.Transcription.Provider = provider
+			}
+		}
+	}
 
 	server.writeJSON(responseWriter, http.StatusOK, updateSettingsRequest)
 }

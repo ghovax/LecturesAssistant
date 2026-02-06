@@ -1,9 +1,8 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
-
-	"github.com/gorilla/mux"
 )
 
 // handleListJobs lists recent background jobs
@@ -49,10 +48,13 @@ func (server *Server) handleListJobs(responseWriter http.ResponseWriter, request
 
 // handleGetJob retrieves detailed status of a specific job
 func (server *Server) handleGetJob(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	jobIdentifier := pathVariables["id"]
+	jobID := request.URL.Query().Get("job_id")
+	if jobID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "job_id is required", nil)
+		return
+	}
 
-	job, err := server.jobQueue.GetJob(jobIdentifier)
+	job, err := server.jobQueue.GetJob(jobID)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Job not found", nil)
 		return
@@ -63,10 +65,20 @@ func (server *Server) handleGetJob(responseWriter http.ResponseWriter, request *
 
 // handleCancelJob requests cancellation of a running job
 func (server *Server) handleCancelJob(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	jobIdentifier := pathVariables["id"]
+	var cancelRequest struct {
+		JobID string `json:"job_id"`
+	}
+	if err := json.NewDecoder(request.Body).Decode(&cancelRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid body", nil)
+		return
+	}
 
-	if err := server.jobQueue.CancelJob(jobIdentifier); err != nil {
+	if cancelRequest.JobID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "job_id is required", nil)
+		return
+	}
+
+	if err := server.jobQueue.CancelJob(cancelRequest.JobID); err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "JOB_ERROR", "Failed to cancel job", nil)
 		return
 	}

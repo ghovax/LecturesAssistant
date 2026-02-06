@@ -5,21 +5,22 @@ import (
 	"net/http"
 
 	"lectures/internal/models"
-
-	"github.com/gorilla/mux"
 )
 
 // handleListMedia lists all media files for a lecture
 func (server *Server) handleListMedia(responseWriter http.ResponseWriter, request *http.Request) {
-	pathVariables := mux.Vars(request)
-	lectureIdentifier := pathVariables["lectureId"]
+	lectureID := request.URL.Query().Get("lecture_id")
+	if lectureID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id is required", nil)
+		return
+	}
 
 	mediaRows, databaseError := server.database.Query(`
 		SELECT id, lecture_id, media_type, sequence_order, duration_milliseconds, file_path, created_at
 		FROM lecture_media
 		WHERE lecture_id = ?
 		ORDER BY sequence_order ASC
-	`, lectureIdentifier)
+	`, lectureID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list media", nil)
 		return

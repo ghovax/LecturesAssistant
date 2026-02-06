@@ -259,6 +259,7 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 	multipartWriter := multipart.NewWriter(requestBody)
 	_ = multipartWriter.WriteField("title", "Lecture 1")
 	_ = multipartWriter.WriteField("description", "First lecture")
+	_ = multipartWriter.WriteField("exam_id", examID)
 
 	mediaPart, err := multipartWriter.CreateFormFile("media", "test-audio.mp3")
 	if err != nil {
@@ -273,7 +274,7 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 	_, _ = documentPart.Write([]byte("fake pdf content"))
 	multipartWriter.Close()
 
-	lectureRequest := createAuthenticatedRequest("POST", fmt.Sprintf("%s/api/exams/%s/lectures", testServer.URL, examID), requestBody)
+	lectureRequest := createAuthenticatedRequest("POST", testServer.URL+"/api/lectures", requestBody)
 	lectureRequest.Header.Set("Content-Type", multipartWriter.FormDataContentType())
 
 	lectureResponse, err := httpClient.Do(lectureRequest)
@@ -306,12 +307,12 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 	}
 
 	// Create Chat Session
-	chatPayload, err := json.Marshal(map[string]string{"title": "Study Session"})
-	if err != nil {
-		tester.Fatalf("Failed to marshal chat payload: %v", err)
-	}
+	chatPayload, _ := json.Marshal(map[string]string{
+		"exam_id": examID,
+		"title":   "Study Session",
+	})
 
-	chatRequest := createAuthenticatedRequest("POST", fmt.Sprintf("%s/api/exams/%s/chat/sessions", testServer.URL, examID), bytes.NewBuffer(chatPayload))
+	chatRequest := createAuthenticatedRequest("POST", testServer.URL+"/api/chat/sessions", bytes.NewBuffer(chatPayload))
 	chatRequest.Header.Set("Content-Type", "application/json")
 
 	chatResponse, err := httpClient.Do(chatRequest)
@@ -329,12 +330,12 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 	sessionID := chatResponseData.Data.ID
 
 	// Send user message
-	messagePayload, err := json.Marshal(map[string]string{"content": "Tell me about the lecture"})
-	if err != nil {
-		tester.Fatalf("Failed to marshal message payload: %v", err)
-	}
+	messagePayload, _ := json.Marshal(map[string]string{
+		"session_id": sessionID,
+		"content":    "Tell me about the lecture",
+	})
 
-	messageRequest := createAuthenticatedRequest("POST", fmt.Sprintf("%s/api/exams/%s/chat/sessions/%s/messages", testServer.URL, examID, sessionID), bytes.NewBuffer(messagePayload))
+	messageRequest := createAuthenticatedRequest("POST", testServer.URL+"/api/chat/messages", bytes.NewBuffer(messagePayload))
 	messageRequest.Header.Set("Content-Type", "application/json")
 
 	messageResponse, err := httpClient.Do(messageRequest)
@@ -449,10 +450,11 @@ func TestUpload_StagedProtocol(tester *testing.T) {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	writer.WriteField("title", "Staged Lecture")
+	writer.WriteField("exam_id", examID)
 	writer.WriteField("media_upload_ids", uploadID)
 	writer.Close()
 
-	createReq, _ := http.NewRequest("POST", fmt.Sprintf("%s/api/exams/%s/lectures", testServer.URL, examID), body)
+	createReq, _ := http.NewRequest("POST", testServer.URL+"/api/lectures", body)
 	createReq.Header.Set("Authorization", "Bearer "+sessionID)
 	createReq.Header.Set("Content-Type", writer.FormDataContentType())
 	createResp, err := httpClient.Do(createReq)
@@ -978,8 +980,11 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		httpResponse.Body.Close()
 
 		// 3. Update exam
-		updatePayload, _ := json.Marshal(map[string]string{"title": "Advanced Biology"})
-		httpRequest, _ = http.NewRequest("PATCH", testServer.URL+"/api/exams/"+examID, bytes.NewBuffer(updatePayload))
+		updatePayload, _ := json.Marshal(map[string]string{
+			"exam_id": examID,
+			"title":   "Advanced Biology",
+		})
+		httpRequest, _ = http.NewRequest("PATCH", testServer.URL+"/api/exams", bytes.NewBuffer(updatePayload))
 		httpResponse = authenticatedDo(httpRequest)
 		json.NewDecoder(httpResponse.Body).Decode(&examResponseData)
 		if examResponseData.Data.Title != "Advanced Biology" {
@@ -988,7 +993,7 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		httpResponse.Body.Close()
 
 		// 4. Get non-existent exam
-		httpRequest, _ = http.NewRequest("GET", testServer.URL+"/api/exams/invalid-id", nil)
+		httpRequest, _ = http.NewRequest("GET", testServer.URL+"/api/exams/details?exam_id=invalid-id", nil)
 		httpResponse = authenticatedDo(httpRequest)
 		if httpResponse.StatusCode != http.StatusNotFound {
 			subTester.Errorf("Expected 404 for non-existent exam, got %d", httpResponse.StatusCode)
@@ -1002,8 +1007,9 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		requestBody := &bytes.Buffer{}
 		multipartWriter := multipart.NewWriter(requestBody)
 		_ = multipartWriter.WriteField("title", "Lecture 1")
+		_ = multipartWriter.WriteField("exam_id", "wrong-exam")
 		multipartWriter.Close()
-		httpRequest, _ := http.NewRequest("POST", testServer.URL+"/api/exams/wrong-exam/lectures", requestBody)
+		httpRequest, _ := http.NewRequest("POST", testServer.URL+"/api/lectures", requestBody)
 		httpRequest.Header.Set("Content-Type", multipartWriter.FormDataContentType())
 		httpResponse := authenticatedDo(httpRequest)
 		if httpResponse.StatusCode != http.StatusNotFound {
@@ -1015,10 +1021,11 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		requestBody = &bytes.Buffer{}
 		multipartWriter = multipart.NewWriter(requestBody)
 		_ = multipartWriter.WriteField("title", "Cell Structure")
+		_ = multipartWriter.WriteField("exam_id", examID)
 		mediaPart, _ := multipartWriter.CreateFormFile("media", "test.mp3")
 		_, _ = mediaPart.Write([]byte("audio data"))
 		multipartWriter.Close()
-		httpRequest, _ = http.NewRequest("POST", testServer.URL+"/api/exams/"+examID+"/lectures", requestBody)
+		httpRequest, _ = http.NewRequest("POST", testServer.URL+"/api/lectures", requestBody)
 		httpRequest.Header.Set("Content-Type", multipartWriter.FormDataContentType())
 		httpResponse = authenticatedDo(httpRequest)
 		var lectureResponseData struct {
@@ -1029,8 +1036,8 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		httpResponse.Body.Close()
 
 		// 3. Try to delete lecture while it is processing
-		// (The status is 'processing' immediately after creation)
-		httpRequest, _ = http.NewRequest("DELETE", testServer.URL+fmt.Sprintf("/api/exams/%s/lectures/%s", examID, lectureID), nil)
+		deletePayload, _ := json.Marshal(map[string]string{"lecture_id": lectureID})
+		httpRequest, _ = http.NewRequest("DELETE", testServer.URL+"/api/lectures", bytes.NewBuffer(deletePayload))
 		httpResponse = authenticatedDo(httpRequest)
 		if httpResponse.StatusCode != http.StatusConflict {
 			subTester.Errorf("Expected 409 Conflict when deleting processing lecture, got %d", httpResponse.StatusCode)
@@ -1041,7 +1048,8 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		_, _ = initializedDatabase.Exec("UPDATE lectures SET status = 'ready' WHERE id = ?", lectureID)
 
 		// 5. Delete Exam and verify cascade
-		httpRequest, _ = http.NewRequest("DELETE", testServer.URL+"/api/exams/"+examID, nil)
+		deleteExamPayload, _ := json.Marshal(map[string]string{"exam_id": examID})
+		httpRequest, _ = http.NewRequest("DELETE", testServer.URL+"/api/exams", bytes.NewBuffer(deleteExamPayload))
 		httpResponse = authenticatedDo(httpRequest)
 		if httpResponse.StatusCode != http.StatusOK {
 			subTester.Errorf("Expected 200 OK for exam deletion, got %d", httpResponse.StatusCode)
@@ -1200,8 +1208,11 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 		examID := examResponseData.Data.ID
 		examResponse.Body.Close()
 
-		sessionPayload, _ := json.Marshal(map[string]string{"title": "Chat"})
-		sessionResponse := authenticatedDo("POST", fmt.Sprintf("%s/api/exams/%s/chat/sessions", testServer.URL, examID), bytes.NewBuffer(sessionPayload))
+		sessionPayload, _ := json.Marshal(map[string]string{
+			"exam_id": examID,
+			"title":   "Chat",
+		})
+		sessionResponse := authenticatedDo("POST", testServer.URL+"/api/chat/sessions", bytes.NewBuffer(sessionPayload))
 		var sessionResponseData struct{ Data models.ChatSession }
 		_ = json.NewDecoder(sessionResponse.Body).Decode(&sessionResponseData)
 		sessionID := sessionResponseData.Data.ID
@@ -1209,17 +1220,18 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 
 		// 2. Update Context
 		contextPayload, _ := json.Marshal(map[string]any{
+			"session_id":           sessionID,
 			"included_lecture_ids": []string{"lecture-1", "lecture-2"},
 			"included_tool_ids":    []string{"tool-1"},
 		})
-		updateResponse := authenticatedDo("PATCH", fmt.Sprintf("%s/api/exams/%s/chat/sessions/%s/context", testServer.URL, examID, sessionID), bytes.NewBuffer(contextPayload))
+		updateResponse := authenticatedDo("PATCH", testServer.URL+"/api/chat/sessions/context", bytes.NewBuffer(contextPayload))
 		if updateResponse.StatusCode != http.StatusOK {
 			subTester.Errorf("Failed to update context: %d", updateResponse.StatusCode)
 		}
 		updateResponse.Body.Close()
 
 		// 3. Verify update
-		getResponse := authenticatedDo("GET", fmt.Sprintf("%s/api/exams/%s/chat/sessions/%s", testServer.URL, examID, sessionID), nil)
+		getResponse := authenticatedDo("GET", fmt.Sprintf("%s/api/chat/sessions/details?session_id=%s", testServer.URL, sessionID), nil)
 		var getResponseData struct {
 			Data struct {
 				Context struct {
@@ -1246,8 +1258,9 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 		requestBody := &bytes.Buffer{}
 		multipartWriter := multipart.NewWriter(requestBody)
 		_ = multipartWriter.WriteField("title", "Lecture A")
+		_ = multipartWriter.WriteField("exam_id", examAResponseData.Data.ID)
 		multipartWriter.Close()
-		lectureAResponse := authenticatedDo("POST", fmt.Sprintf("%s/api/exams/%s/lectures", testServer.URL, examAResponseData.Data.ID), requestBody)
+		lectureAResponse := authenticatedDo("POST", testServer.URL+"/api/lectures", requestBody)
 		var lectureAResponseData struct{ Data models.Lecture }
 		_ = json.NewDecoder(lectureAResponse.Body).Decode(&lectureAResponseData)
 		lectureAResponse.Body.Close()
@@ -1261,7 +1274,7 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 
 		// 3. Try to access Lecture A using Exam B's path
 		// Expect: 404 Not Found (or 403) because Lecture A does not belong to Exam B.
-		violationURL := fmt.Sprintf("%s/api/exams/%s/lectures/%s", testServer.URL, examBResponseData.Data.ID, lectureAResponseData.Data.ID)
+		violationURL := fmt.Sprintf("%s/api/lectures/details?lecture_id=%s&exam_id=%s", testServer.URL, lectureAResponseData.Data.ID, examBResponseData.Data.ID)
 		violationResponse := authenticatedDo("GET", violationURL, nil)
 
 		var lectureResData struct{ Data models.Lecture }
@@ -1358,16 +1371,16 @@ func TestUpload_ProgressTracking(tester *testing.T) {
 	examResp.Body.Close()
 
 	// 4. Perform Upload with progress tracking
-	// We'll send a relatively large payload to trigger multiple progress updates
 	largeData := bytes.Repeat([]byte("a"), 2*1024*1024) // 2MB
 	requestBody := &bytes.Buffer{}
 	multipartWriter := multipart.NewWriter(requestBody)
 	_ = multipartWriter.WriteField("title", "Large Lecture")
+	_ = multipartWriter.WriteField("exam_id", examID)
 	part, _ := multipartWriter.CreateFormFile("media", "large.mp3")
 	_, _ = part.Write(largeData)
 	multipartWriter.Close()
 
-	uploadURL := fmt.Sprintf("%s/api/exams/%s/lectures?upload_id=%s", testServer.URL, examID, uploadID)
+	uploadURL := fmt.Sprintf("%s/api/lectures?upload_id=%s", testServer.URL, uploadID)
 	uploadReq, _ := http.NewRequest("POST", uploadURL, requestBody)
 	uploadReq.Header.Set("Authorization", "Bearer "+sessionID)
 	uploadReq.Header.Set("Content-Type", multipartWriter.FormDataContentType())

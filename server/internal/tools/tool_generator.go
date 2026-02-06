@@ -333,9 +333,9 @@ func (generator *ToolGenerator) getRelevantMaterials(jobContext context.Context,
 
 	var result resultType
 	jsonStr := response
-	if idx := strings.Index(jsonStr, "{"); idx != -1 {
-		if lastIdx := strings.LastIndex(jsonStr, "}"); lastIdx != -1 {
-			jsonStr = jsonStr[idx : lastIdx+1]
+	if index := strings.Index(jsonStr, "{"); index != -1 {
+		if lastIndex := strings.LastIndex(jsonStr, "}"); lastIndex != -1 {
+			jsonStr = jsonStr[index : lastIndex+1]
 		}
 	}
 
@@ -462,9 +462,9 @@ func (generator *ToolGenerator) parseScore(response string) int {
 
 	// Try to find JSON block if fenced
 	jsonStr := response
-	if idx := strings.Index(jsonStr, "{"); idx != -1 {
-		if lastIdx := strings.LastIndex(jsonStr, "}"); lastIdx != -1 {
-			jsonStr = jsonStr[idx : lastIdx+1]
+	if index := strings.Index(jsonStr, "{"); index != -1 {
+		if lastIndex := strings.LastIndex(jsonStr, "}"); lastIndex != -1 {
+			jsonStr = jsonStr[index : lastIndex+1]
 		}
 	}
 

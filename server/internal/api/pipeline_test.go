@@ -1169,3 +1169,119 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 		httpResponse.Body.Close()
 	})
 }
+
+func TestUpload_ProgressTracking(tester *testing.T) {
+	temporaryDirectory, err := os.MkdirTemp("", "upload-progress-test-*")
+	if err != nil {
+		tester.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(temporaryDirectory)
+
+	databasePath := filepath.Join(temporaryDirectory, "upload.db")
+	initializedDatabase, err := database.Initialize(databasePath)
+	if err != nil {
+		tester.Fatalf("Failed to init DB: %v", err)
+	}
+	defer initializedDatabase.Close()
+
+	config := &configuration.Configuration{
+		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
+		Security: configuration.SecurityConfiguration{
+			Auth: configuration.AuthConfiguration{Type: "session"},
+		},
+	}
+
+	_, _ = initializedDatabase.Exec("INSERT INTO settings (key, value) VALUES ('admin_password_hash', ?)", "dummy_hash")
+	sessionID := "test-session-id"
+	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, password_hash, expires_at) VALUES (?, ?, ?)", sessionID, "dummy_hash", time.Now().Add(1*time.Hour))
+
+	jobQueue := jobs.NewQueue(initializedDatabase, 1)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, nil)
+	testServer := httptest.NewServer(apiServer.Handler())
+	defer testServer.Close()
+
+	// 1. Setup WebSocket
+	websocketURL := "ws" + strings.TrimPrefix(testServer.URL, "http") + "/api/socket"
+	headers := http.Header{}
+	headers.Add("Authorization", "Bearer "+sessionID)
+	dialer := websocket.Dialer{}
+	websocketConnection, _, err := dialer.Dial(websocketURL, headers)
+	if err != nil {
+		tester.Fatalf("WebSocket dial failed: %v", err)
+	}
+	defer websocketConnection.Close()
+
+	// Skip handshake
+	var handshake map[string]any
+	_ = websocketConnection.ReadJSON(&handshake)
+
+	// 2. Subscribe to upload progress
+	uploadID := "test-upload-123"
+	_ = websocketConnection.WriteJSON(map[string]string{
+		"type":    "subscribe",
+		"channel": "upload:" + uploadID,
+	})
+	var subConfirm map[string]any
+	_ = websocketConnection.ReadJSON(&subConfirm)
+
+	// 3. Create Exam
+	examPayload, _ := json.Marshal(map[string]string{"title": "Upload Test"})
+	examReq, _ := http.NewRequest("POST", testServer.URL+"/api/exams", bytes.NewBuffer(examPayload))
+	examReq.Header.Set("Authorization", "Bearer "+sessionID)
+	examReq.Header.Set("Content-Type", "application/json")
+	examResp, _ := testServer.Client().Do(examReq)
+	var examRes struct{ Data models.Exam }
+	_ = json.NewDecoder(examResp.Body).Decode(&examRes)
+	examID := examRes.Data.ID
+	examResp.Body.Close()
+
+	// 4. Perform Upload with progress tracking
+	// We'll send a relatively large payload to trigger multiple progress updates
+	largeData := bytes.Repeat([]byte("a"), 2*1024*1024) // 2MB
+	requestBody := &bytes.Buffer{}
+	multipartWriter := multipart.NewWriter(requestBody)
+	_ = multipartWriter.WriteField("title", "Large Lecture")
+	part, _ := multipartWriter.CreateFormFile("media", "large.mp3")
+	_, _ = part.Write(largeData)
+	multipartWriter.Close()
+
+	uploadURL := fmt.Sprintf("%s/api/exams/%s/lectures?upload_id=%s", testServer.URL, examID, uploadID)
+	uploadReq, _ := http.NewRequest("POST", uploadURL, requestBody)
+	uploadReq.Header.Set("Authorization", "Bearer "+sessionID)
+	uploadReq.Header.Set("Content-Type", multipartWriter.FormDataContentType())
+
+	// We'll run the upload in a goroutine so we can read WebSocket messages
+	uploadDone := make(chan bool)
+	go func() {
+		resp, _ := testServer.Client().Do(uploadReq)
+		resp.Body.Close()
+		uploadDone <- true
+	}()
+
+	// 5. Verify progress messages
+	progressReceived := false
+	timeout := time.After(5 * time.Second)
+	for {
+		select {
+		case <-timeout:
+			tester.Fatal("Timed out waiting for upload progress updates")
+		case <-uploadDone:
+			if !progressReceived {
+				tester.Error("Upload completed but no progress updates were received via WebSocket")
+			}
+			return
+		default:
+			var msg WSMessage
+			websocketConnection.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+			if err := websocketConnection.ReadJSON(&msg); err == nil {
+				if msg.Type == "upload:progress" {
+					progressReceived = true
+					payload, ok := msg.Payload.(map[string]any)
+					if ok && payload["upload_id"] != uploadID {
+						tester.Errorf("Expected upload_id %s, got %v", uploadID, payload["upload_id"])
+					}
+				}
+			}
+		}
+	}
+}

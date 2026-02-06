@@ -80,6 +80,11 @@ func (server *Server) setupRoutes() {
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}", server.handleUpdateLecture).Methods("PATCH")
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}", server.handleDeleteLecture).Methods("DELETE")
 
+	// Chunked Uploads
+	apiRouter.HandleFunc("/exams/{examId}/lectures/upload/initialize", server.handleInitializeUpload).Methods("POST")
+	apiRouter.HandleFunc("/exams/{examId}/lectures/upload/{uploadId}/chunk", server.handleUploadChunk).Methods("POST")
+	apiRouter.HandleFunc("/exams/{examId}/lectures/upload/{uploadId}/complete", server.handleCompleteUpload).Methods("POST")
+
 	// Media
 	apiRouter.HandleFunc("/exams/{examId}/lectures/{lectureId}/media", server.handleListMedia).Methods("GET")
 

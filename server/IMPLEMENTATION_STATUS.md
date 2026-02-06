@@ -152,7 +152,7 @@
 ### File Management
 
 - [ ] Chunked upload for large files (>100MB)
-- [ ] Upload progress tracking
+- [x] Upload progress tracking
 - [x] File type validation (Basic extension check)
 - [x] File size limits enforcement (Via multipart form limits)
 - [ ] Media reordering with transcript regeneration

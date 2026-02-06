@@ -36,7 +36,7 @@ type MockLLMProvider struct {
 	Error        error
 }
 
-func (mock *MockLLMProvider) Chat(ctx context.Context, request llm.ChatRequest) (<-chan llm.ChatResponseChunk, error) {
+func (mock *MockLLMProvider) Chat(jobContext context.Context, request llm.ChatRequest) (<-chan llm.ChatResponseChunk, error) {
 	if mock.Error != nil {
 		return nil, mock.Error
 	}
@@ -47,7 +47,7 @@ func (mock *MockLLMProvider) Chat(ctx context.Context, request llm.ChatRequest) 
 		if mock.Delay > 0 {
 			select {
 			case <-time.After(mock.Delay):
-			case <-ctx.Done():
+			case <-jobContext.Done():
 				close(responseChannel)
 				return
 			}
@@ -78,7 +78,7 @@ type MockTranscriptionProvider struct {
 	Segments []transcription.Segment
 }
 
-func (mock *MockTranscriptionProvider) Transcribe(ctx context.Context, audioPath string) ([]transcription.Segment, error) {
+func (mock *MockTranscriptionProvider) Transcribe(jobContext context.Context, audioPath string) ([]transcription.Segment, error) {
 	return mock.Segments, nil
 }
 
@@ -132,17 +132,17 @@ func (documentConverter *MockDocumentConverter) ExtractPagesAsImages(pdfPath, ou
 	return []string{imagePath}, nil
 }
 
-func TestFullPipeline(t *testing.T) {
+func TestFullPipeline(tester *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-test-*")
 	if err != nil {
-		t.Fatalf("Failed to create temporary directory: %v", err)
+		tester.Fatalf("Failed to create temporary directory: %v", err)
 	}
 	defer os.RemoveAll(temporaryDirectory)
 
 	databasePath := filepath.Join(temporaryDirectory, "test.db")
 	initializedDatabase, err := database.Initialize(databasePath)
 	if err != nil {
-		t.Fatalf("Failed to initialize database: %v", err)
+		tester.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer initializedDatabase.Close()
 
@@ -183,24 +183,24 @@ func TestFullPipeline(t *testing.T) {
 	// Setup initial password
 	setupPayload, err := json.Marshal(map[string]string{"password": "password123"})
 	if err != nil {
-		t.Fatalf("Failed to marshal setup payload: %v", err)
+		tester.Fatalf("Failed to marshal setup payload: %v", err)
 	}
 
 	setupResponse, err := httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
 	if err != nil {
-		t.Fatalf("Auth setup request failed: %v", err)
+		tester.Fatalf("Auth setup request failed: %v", err)
 	}
 	setupResponse.Body.Close()
 
 	// Login to get session token
 	loginPayload, err := json.Marshal(map[string]string{"password": "password123"})
 	if err != nil {
-		t.Fatalf("Failed to marshal login payload: %v", err)
+		tester.Fatalf("Failed to marshal login payload: %v", err)
 	}
 
 	loginResponse, err := httpClient.Post(testServer.URL+"/api/auth/login", "application/json", bytes.NewBuffer(loginPayload))
 	if err != nil {
-		t.Fatalf("Login request failed: %v", err)
+		tester.Fatalf("Login request failed: %v", err)
 	}
 	defer loginResponse.Body.Close()
 
@@ -210,7 +210,7 @@ func TestFullPipeline(t *testing.T) {
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(loginResponse.Body).Decode(&loginData); err != nil {
-		t.Fatalf("Failed to decode login response: %v", err)
+		tester.Fatalf("Failed to decode login response: %v", err)
 	}
 	sessionToken := loginData.Data.Token
 
@@ -218,7 +218,7 @@ func TestFullPipeline(t *testing.T) {
 	createAuthenticatedRequest := func(method, url string, body io.Reader) *http.Request {
 		httpRequest, err := http.NewRequest(method, url, body)
 		if err != nil {
-			t.Fatalf("Failed to create request: %v", err)
+			tester.Fatalf("Failed to create request: %v", err)
 		}
 		httpRequest.Header.Set("Authorization", "Bearer "+sessionToken)
 		return httpRequest
@@ -230,7 +230,7 @@ func TestFullPipeline(t *testing.T) {
 		"description": "Integration testing",
 	})
 	if err != nil {
-		t.Fatalf("Failed to marshal exam payload: %v", err)
+		tester.Fatalf("Failed to marshal exam payload: %v", err)
 	}
 
 	examRequest := createAuthenticatedRequest("POST", testServer.URL+"/api/exams", bytes.NewBuffer(examPayload))
@@ -238,7 +238,7 @@ func TestFullPipeline(t *testing.T) {
 
 	examResponse, err := httpClient.Do(examRequest)
 	if err != nil {
-		t.Fatalf("Exam creation request failed: %v", err)
+		tester.Fatalf("Exam creation request failed: %v", err)
 	}
 	defer examResponse.Body.Close()
 
@@ -246,7 +246,7 @@ func TestFullPipeline(t *testing.T) {
 		Data models.Exam `json:"data"`
 	}
 	if err := json.NewDecoder(examResponse.Body).Decode(&examResponseData); err != nil {
-		t.Fatalf("Failed to decode exam response: %v", err)
+		tester.Fatalf("Failed to decode exam response: %v", err)
 	}
 	examID := examResponseData.Data.ID
 
@@ -258,13 +258,13 @@ func TestFullPipeline(t *testing.T) {
 
 	mediaPart, err := multipartWriter.CreateFormFile("media", "test-audio.mp3")
 	if err != nil {
-		t.Fatalf("Failed to create media form file: %v", err)
+		tester.Fatalf("Failed to create media form file: %v", err)
 	}
 	_, _ = mediaPart.Write([]byte("fake audio content"))
 
 	documentPart, err := multipartWriter.CreateFormFile("documents", "test-slides.pdf")
 	if err != nil {
-		t.Fatalf("Failed to create document form file: %v", err)
+		tester.Fatalf("Failed to create document form file: %v", err)
 	}
 	_, _ = documentPart.Write([]byte("fake pdf content"))
 	multipartWriter.Close()
@@ -274,7 +274,7 @@ func TestFullPipeline(t *testing.T) {
 
 	lectureResponse, err := httpClient.Do(lectureRequest)
 	if err != nil {
-		t.Fatalf("Lecture creation request failed: %v", err)
+		tester.Fatalf("Lecture creation request failed: %v", err)
 	}
 	defer lectureResponse.Body.Close()
 
@@ -282,7 +282,7 @@ func TestFullPipeline(t *testing.T) {
 		Data models.Lecture `json:"data"`
 	}
 	if err := json.NewDecoder(lectureResponse.Body).Decode(&lectureResponseData); err != nil {
-		t.Fatalf("Failed to decode lecture response: %v", err)
+		tester.Fatalf("Failed to decode lecture response: %v", err)
 	}
 	lectureID := lectureResponseData.Data.ID
 
@@ -298,13 +298,13 @@ func TestFullPipeline(t *testing.T) {
 	}
 
 	if lectureStatus != "ready" {
-		t.Fatalf("Lecture failed to reach 'ready' status, got %q", lectureStatus)
+		tester.Fatalf("Lecture failed to reach 'ready' status, got %q", lectureStatus)
 	}
 
 	// Create Chat Session
 	chatPayload, err := json.Marshal(map[string]string{"title": "Study Session"})
 	if err != nil {
-		t.Fatalf("Failed to marshal chat payload: %v", err)
+		tester.Fatalf("Failed to marshal chat payload: %v", err)
 	}
 
 	chatRequest := createAuthenticatedRequest("POST", fmt.Sprintf("%s/api/exams/%s/chat/sessions", testServer.URL, examID), bytes.NewBuffer(chatPayload))
@@ -312,7 +312,7 @@ func TestFullPipeline(t *testing.T) {
 
 	chatResponse, err := httpClient.Do(chatRequest)
 	if err != nil {
-		t.Fatalf("Chat session creation request failed: %v", err)
+		tester.Fatalf("Chat session creation request failed: %v", err)
 	}
 	defer chatResponse.Body.Close()
 
@@ -320,14 +320,14 @@ func TestFullPipeline(t *testing.T) {
 		Data models.ChatSession `json:"data"`
 	}
 	if err := json.NewDecoder(chatResponse.Body).Decode(&chatResponseData); err != nil {
-		t.Fatalf("Failed to decode chat session response: %v", err)
+		tester.Fatalf("Failed to decode chat session response: %v", err)
 	}
 	sessionID := chatResponseData.Data.ID
 
 	// Send user message
 	messagePayload, err := json.Marshal(map[string]string{"content": "Tell me about the lecture"})
 	if err != nil {
-		t.Fatalf("Failed to marshal message payload: %v", err)
+		tester.Fatalf("Failed to marshal message payload: %v", err)
 	}
 
 	messageRequest := createAuthenticatedRequest("POST", fmt.Sprintf("%s/api/exams/%s/chat/sessions/%s/messages", testServer.URL, examID, sessionID), bytes.NewBuffer(messagePayload))
@@ -335,7 +335,7 @@ func TestFullPipeline(t *testing.T) {
 
 	messageResponse, err := httpClient.Do(messageRequest)
 	if err != nil {
-		t.Fatalf("Message sending failed: %v", err)
+		tester.Fatalf("Message sending failed: %v", err)
 	}
 	messageResponse.Body.Close()
 
@@ -351,21 +351,21 @@ func TestFullPipeline(t *testing.T) {
 	}
 
 	if assistantMessageCount != 1 {
-		t.Errorf("Expected 1 assistant message, found %d", assistantMessageCount)
+		tester.Errorf("Expected 1 assistant message, found %d", assistantMessageCount)
 	}
 }
 
-func TestWebSocketUpdates(t *testing.T) {
+func TestWebSocketUpdates(tester *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-ws-test-*")
 	if err != nil {
-		t.Fatalf("Failed to create temporary directory: %v", err)
+		tester.Fatalf("Failed to create temporary directory: %v", err)
 	}
 	defer os.RemoveAll(temporaryDirectory)
 
 	databasePath := filepath.Join(temporaryDirectory, "test.db")
 	initializedDatabase, err := database.Initialize(databasePath)
 	if err != nil {
-		t.Fatalf("Failed to initialize database: %v", err)
+		tester.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer initializedDatabase.Close()
 
@@ -393,17 +393,17 @@ func TestWebSocketUpdates(t *testing.T) {
 	dialer := websocket.Dialer{}
 	websocketConnection, _, err := dialer.Dial(websocketURL, headers)
 	if err != nil {
-		t.Fatalf("WebSocket dial failed: %v", err)
+		tester.Fatalf("WebSocket dial failed: %v", err)
 	}
 	defer websocketConnection.Close()
 
 	var handshake map[string]any
 	if err := websocketConnection.ReadJSON(&handshake); err != nil {
-		t.Fatalf("Failed to read handshake: %v", err)
+		tester.Fatalf("Failed to read handshake: %v", err)
 	}
 
 	if handshake["type"] != "connected" {
-		t.Errorf("Expected 'connected', got %v", handshake["type"])
+		tester.Errorf("Expected 'connected', got %v", handshake["type"])
 	}
 
 	jobID := "test-job-123"
@@ -412,12 +412,12 @@ func TestWebSocketUpdates(t *testing.T) {
 		"channel": "job:" + jobID,
 	}
 	if err := websocketConnection.WriteJSON(subscribeRequest); err != nil {
-		t.Fatalf("Failed to send subscribe request: %v", err)
+		tester.Fatalf("Failed to send subscribe request: %v", err)
 	}
 
 	var subscriptionConfirmation map[string]any
 	if err := websocketConnection.ReadJSON(&subscriptionConfirmation); err != nil {
-		t.Fatalf("Failed to read subscription confirmation: %v", err)
+		tester.Fatalf("Failed to read subscription confirmation: %v", err)
 	}
 
 	// Broadcast update and verify receipt
@@ -433,25 +433,25 @@ func TestWebSocketUpdates(t *testing.T) {
 
 	var progressUpdate WSMessage
 	if err := websocketConnection.ReadJSON(&progressUpdate); err != nil {
-		t.Fatalf("Failed to read update: %v", err)
+		tester.Fatalf("Failed to read update: %v", err)
 	}
 
 	if progressUpdate.Type != "job:progress" {
-		t.Errorf("Expected 'job:progress', got %s", progressUpdate.Type)
+		tester.Errorf("Expected 'job:progress', got %s", progressUpdate.Type)
 	}
 }
 
-func TestAIFailureModes(t *testing.T) {
+func TestAIFailureModes(tester *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-fail-test-*")
 	if err != nil {
-		t.Fatalf("Failed to create temporary directory: %v", err)
+		tester.Fatalf("Failed to create temporary directory: %v", err)
 	}
 	defer os.RemoveAll(temporaryDirectory)
 
 	databasePath := filepath.Join(temporaryDirectory, "test.db")
 	initializedDatabase, err := database.Initialize(databasePath)
 	if err != nil {
-		t.Fatalf("Failed to initialize database: %v", err)
+		tester.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer initializedDatabase.Close()
 
@@ -479,7 +479,7 @@ func TestAIFailureModes(t *testing.T) {
 	_, _ = initializedDatabase.Exec("INSERT INTO transcripts (id, lecture_id, status) VALUES (?, ?, ?)", "t1", lectureID, "completed")
 	_, _ = initializedDatabase.Exec("INSERT INTO transcript_segments (transcript_id, text, start_millisecond, end_millisecond) VALUES (?, ?, ?, ?)", "t1", "Hi", 0, 1000)
 
-	t.Run("Faulty JSON Response from AI", func(subT *testing.T) {
+	tester.Run("Faulty JSON Response from AI", func(subTester *testing.T) {
 		mockLLM.ResponseText = "Not JSON"
 		mockLLM.Error = nil
 		mockLLM.Delay = 0
@@ -501,11 +501,11 @@ func TestAIFailureModes(t *testing.T) {
 		}
 
 		if status != models.JobStatusFailed || !strings.Contains(jobError, "failed to parse sections from LLM response") {
-			subT.Errorf("Job did not fail as expected: %s (%s)", status, jobError)
+			subTester.Errorf("Job did not fail as expected: %s (%s)", status, jobError)
 		}
 	})
 
-	t.Run("AI Provider Error", func(subT *testing.T) {
+	tester.Run("AI Provider Error", func(subTester *testing.T) {
 		mockLLM.Error = errors.New("connection refused")
 
 		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
@@ -525,11 +525,11 @@ func TestAIFailureModes(t *testing.T) {
 		}
 
 		if status != models.JobStatusFailed || !strings.Contains(jobError, "connection refused") {
-			subT.Errorf("Job did not fail as expected: %s (%s)", status, jobError)
+			subTester.Errorf("Job did not fail as expected: %s (%s)", status, jobError)
 		}
 	})
 
-	t.Run("AI Hang (Cancel Job)", func(subT *testing.T) {
+	tester.Run("AI Hang (Cancel Job)", func(subTester *testing.T) {
 		mockLLM.Error = nil
 		mockLLM.Delay = 2 * time.Second
 
@@ -554,22 +554,22 @@ func TestAIFailureModes(t *testing.T) {
 		}
 
 		if status != models.JobStatusCancelled {
-			subT.Errorf("Expected cancelled, got %s", status)
+			subTester.Errorf("Expected cancelled, got %s", status)
 		}
 	})
 }
 
-func TestStudyTools(t *testing.T) {
+func TestStudyTools(tester *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-tools-test-*")
 	if err != nil {
-		t.Fatalf("Failed to create temporary directory: %v", err)
+		tester.Fatalf("Failed to create temporary directory: %v", err)
 	}
 	defer os.RemoveAll(temporaryDirectory)
 
 	databasePath := filepath.Join(temporaryDirectory, "test.db")
 	initializedDatabase, err := database.Initialize(databasePath)
 	if err != nil {
-		t.Fatalf("Failed to initialize database: %v", err)
+		tester.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer initializedDatabase.Close()
 
@@ -593,7 +593,7 @@ func TestStudyTools(t *testing.T) {
 	_, _ = initializedDatabase.Exec("INSERT INTO transcripts (id, lecture_id, status) VALUES (?, ?, ?)", "t1", lectureID, "completed")
 	_, _ = initializedDatabase.Exec("INSERT INTO transcript_segments (transcript_id, text, start_millisecond, end_millisecond) VALUES (?, ?, ?, ?)", "t1", "Content", 0, 1000)
 
-	t.Run("Flashcards", func(subT *testing.T) {
+	tester.Run("Flashcards", func(subTester *testing.T) {
 		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
 			"lecture_id": lectureID,
 			"exam_id":    examID,
@@ -612,11 +612,11 @@ func TestStudyTools(t *testing.T) {
 		}
 
 		if status != models.JobStatusCompleted {
-			subT.Errorf("Expected completed, got %s", status)
+			subTester.Errorf("Expected completed, got %s", status)
 		}
 	})
 
-	t.Run("Quiz", func(subT *testing.T) {
+	tester.Run("Quiz", func(subTester *testing.T) {
 		mockLLM.ResponseText = `[{"question": "Q", "options": ["A", "B", "C", "D"], "correct_answer": "A", "explanation": "E"}]`
 
 		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
@@ -637,7 +637,7 @@ func TestStudyTools(t *testing.T) {
 		}
 
 		if status != models.JobStatusCompleted {
-			subT.Errorf("Expected completed, got %s", status)
+			subTester.Errorf("Expected completed, got %s", status)
 		}
 	})
 }
@@ -654,17 +654,17 @@ func (markdownConverter *MockMarkdownConverter) HTMLToPDF(htmlContent, outputPat
 	return os.WriteFile(outputPath, []byte("fake pdf"), 0644)
 }
 
-func TestPDFExport(t *testing.T) {
+func TestPDFExport(tester *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-export-test-*")
 	if err != nil {
-		t.Fatalf("Failed to create temporary directory: %v", err)
+		tester.Fatalf("Failed to create temporary directory: %v", err)
 	}
 	defer os.RemoveAll(temporaryDirectory)
 
 	databasePath := filepath.Join(temporaryDirectory, "test.db")
 	initializedDatabase, err := database.Initialize(databasePath)
 	if err != nil {
-		t.Fatalf("Failed to initialize database: %v", err)
+		tester.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer initializedDatabase.Close()
 
@@ -685,7 +685,7 @@ func TestPDFExport(t *testing.T) {
 		"tool_id": toolID,
 	})
 	if err != nil {
-		t.Fatalf("Failed to enqueue job: %v", err)
+		tester.Fatalf("Failed to enqueue job: %v", err)
 	}
 
 	// Poll for completion
@@ -700,21 +700,21 @@ func TestPDFExport(t *testing.T) {
 	}
 
 	if status != models.JobStatusCompleted || !strings.Contains(result, "pdf_path") {
-		t.Errorf("Export failed: %s (%s)", status, result)
+		tester.Errorf("Export failed: %s (%s)", status, result)
 	}
 }
 
-func TestUnauthorizedAccess(t *testing.T) {
+func TestUnauthorizedAccess(tester *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-auth-test-*")
 	if err != nil {
-		t.Fatalf("Failed to create temporary directory: %v", err)
+		tester.Fatalf("Failed to create temporary directory: %v", err)
 	}
 	defer os.RemoveAll(temporaryDirectory)
 
 	databasePath := filepath.Join(temporaryDirectory, "test.db")
 	initializedDatabase, err := database.Initialize(databasePath)
 	if err != nil {
-		t.Fatalf("Failed to initialize database: %v", err)
+		tester.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer initializedDatabase.Close()
 
@@ -726,16 +726,244 @@ func TestUnauthorizedAccess(t *testing.T) {
 	endpoints := []string{"/api/exams", "/api/jobs", "/api/settings"}
 
 	for _, endpoint := range endpoints {
-		t.Run(endpoint, func(subT *testing.T) {
-			response, err := http.Get(testServer.URL + endpoint)
+		tester.Run(endpoint, func(subTester *testing.T) {
+			httpResponse, err := http.Get(testServer.URL + endpoint)
 			if err != nil {
-				subT.Fatalf("Request failed: %v", err)
+				subTester.Fatalf("Request failed: %v", err)
 			}
-			defer response.Body.Close()
+			defer httpResponse.Body.Close()
 
-			if response.StatusCode != http.StatusUnauthorized {
-				subT.Errorf("Expected 401 for %s, got %d", endpoint, response.StatusCode)
+			if httpResponse.StatusCode != http.StatusUnauthorized {
+				subTester.Errorf("Expected 401 for %s, got %d", endpoint, httpResponse.StatusCode)
 			}
 		})
 	}
+}
+
+func TestUserDailyUsageScenarios(tester *testing.T) {
+	// Setup environment
+	temporaryDirectory, err := os.MkdirTemp("", "user-usage-test-*")
+	if err != nil {
+		tester.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(temporaryDirectory)
+
+	databasePath := filepath.Join(temporaryDirectory, "user_usage.db")
+	initializedDatabase, err := database.Initialize(databasePath)
+	if err != nil {
+		tester.Fatalf("Failed to init DB: %v", err)
+	}
+	defer initializedDatabase.Close()
+
+	config := &configuration.Configuration{
+		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
+		Server:  configuration.ServerConfiguration{Host: "127.0.0.1", Port: 0},
+		Security: configuration.SecurityConfiguration{
+			Auth: configuration.AuthConfiguration{Type: "session", SessionTimeoutHours: 1},
+		},
+	}
+
+	promptManager := prompts.NewManager("../../prompts")
+	jobQueue := jobs.NewQueue(initializedDatabase, 1)
+	jobQueue.Start()
+	defer jobQueue.Stop()
+
+	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, promptManager)
+	testServer := httptest.NewServer(apiServer.Handler())
+	defer testServer.Close()
+
+	httpClient := testServer.Client()
+	var sessionToken string
+
+	tester.Run("Initial Setup and Misusage", func(subTester *testing.T) {
+		// 1. Try to login before setup
+		loginPayload, _ := json.Marshal(map[string]string{"password": "password123"})
+		httpResponse, _ := httpClient.Post(testServer.URL+"/api/auth/login", "application/json", bytes.NewBuffer(loginPayload))
+		if httpResponse.StatusCode != http.StatusForbidden {
+			subTester.Errorf("Expected 403 Forbidden for login before setup, got %d", httpResponse.StatusCode)
+		}
+
+		// 2. Setup with too short password
+		setupPayload, _ := json.Marshal(map[string]string{"password": "short"})
+		httpResponse, _ = httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
+		if httpResponse.StatusCode != http.StatusBadRequest {
+			subTester.Errorf("Expected 400 Bad Request for short password, got %d", httpResponse.StatusCode)
+		}
+
+		// 3. Valid setup
+		setupPayload, _ = json.Marshal(map[string]string{"password": "valid_password"})
+		httpResponse, _ = httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
+		if httpResponse.StatusCode != http.StatusOK {
+			subTester.Errorf("Expected 200 OK for valid setup, got %d", httpResponse.StatusCode)
+		}
+
+		// 4. Try setup again (should fail)
+		httpResponse, _ = httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
+		if httpResponse.StatusCode != http.StatusForbidden {
+			subTester.Errorf("Expected 403 Forbidden for duplicate setup, got %d", httpResponse.StatusCode)
+		}
+
+		// 5. Valid login
+		loginPayload, _ = json.Marshal(map[string]string{"password": "valid_password"})
+		httpResponse, _ = httpClient.Post(testServer.URL+"/api/auth/login", "application/json", bytes.NewBuffer(loginPayload))
+		
+		var loginResponseData struct {
+			Data struct {
+				Token string `json:"token"`
+			} `json:"data"`
+		}
+		json.NewDecoder(httpResponse.Body).Decode(&loginResponseData)
+		sessionToken = loginResponseData.Data.Token
+		if sessionToken == "" {
+			subTester.Fatal("Failed to get session token")
+		}
+	})
+
+	authenticatedDo := func(httpRequest *http.Request) *http.Response {
+		httpRequest.Header.Set("Authorization", "Bearer "+sessionToken)
+		httpResponse, err := httpClient.Do(httpRequest)
+		if err != nil {
+			tester.Fatalf("Request failed: %v", err)
+		}
+		return httpResponse
+	}
+
+	var examID string
+	tester.Run("Exam Management & Validations", func(subTester *testing.T) {
+		// 1. Create exam with empty title
+		payload, _ := json.Marshal(map[string]string{"title": ""})
+		httpRequest, _ := http.NewRequest("POST", testServer.URL+"/api/exams", bytes.NewBuffer(payload))
+		httpResponse := authenticatedDo(httpRequest)
+		if httpResponse.StatusCode != http.StatusBadRequest {
+			subTester.Errorf("Expected 400 for empty exam title, got %d", httpResponse.StatusCode)
+		}
+
+		// 2. Create valid exam
+		payload, _ = json.Marshal(map[string]string{"title": "Biology 101", "description": "Intro to Bio"})
+		httpRequest, _ = http.NewRequest("POST", testServer.URL+"/api/exams", bytes.NewBuffer(payload))
+		httpResponse = authenticatedDo(httpRequest)
+		var examResponseData struct {
+			Data models.Exam `json:"data"`
+		}
+		json.NewDecoder(httpResponse.Body).Decode(&examResponseData)
+		examID = examResponseData.Data.ID
+
+		// 3. Update exam
+		updatePayload, _ := json.Marshal(map[string]string{"title": "Advanced Biology"})
+		httpRequest, _ = http.NewRequest("PATCH", testServer.URL+"/api/exams/"+examID, bytes.NewBuffer(updatePayload))
+		httpResponse = authenticatedDo(httpRequest)
+		json.NewDecoder(httpResponse.Body).Decode(&examResponseData)
+		if examResponseData.Data.Title != "Advanced Biology" {
+			subTester.Errorf("Expected title update, got %s", examResponseData.Data.Title)
+		}
+
+		// 4. Get non-existent exam
+		httpRequest, _ = http.NewRequest("GET", testServer.URL+"/api/exams/invalid-id", nil)
+		httpResponse = authenticatedDo(httpRequest)
+		if httpResponse.StatusCode != http.StatusNotFound {
+			subTester.Errorf("Expected 404 for non-existent exam, got %d", httpResponse.StatusCode)
+		}
+	})
+
+	var lectureID string
+	tester.Run("Lecture Management & Cascade", func(subTester *testing.T) {
+		// 1. Create lecture for invalid exam
+		requestBody := &bytes.Buffer{}
+		multipartWriter := multipart.NewWriter(requestBody)
+		_ = multipartWriter.WriteField("title", "Lecture 1")
+		multipartWriter.Close()
+		httpRequest, _ := http.NewRequest("POST", testServer.URL+"/api/exams/wrong-exam/lectures", requestBody)
+		httpRequest.Header.Set("Content-Type", multipartWriter.FormDataContentType())
+		httpResponse := authenticatedDo(httpRequest)
+		if httpResponse.StatusCode != http.StatusNotFound {
+			subTester.Errorf("Expected 404 when creating lecture for invalid exam, got %d", httpResponse.StatusCode)
+		}
+
+		// 2. Create valid lecture
+		requestBody = &bytes.Buffer{}
+		multipartWriter = multipart.NewWriter(requestBody)
+		_ = multipartWriter.WriteField("title", "Cell Structure")
+		mediaPart, _ := multipartWriter.CreateFormFile("media", "test.mp3")
+		_, _ = mediaPart.Write([]byte("audio data"))
+		multipartWriter.Close()
+		httpRequest, _ = http.NewRequest("POST", testServer.URL+"/api/exams/"+examID+"/lectures", requestBody)
+		httpRequest.Header.Set("Content-Type", multipartWriter.FormDataContentType())
+		httpResponse = authenticatedDo(httpRequest)
+		var lectureResponseData struct {
+			Data models.Lecture `json:"data"`
+		}
+		json.NewDecoder(httpResponse.Body).Decode(&lectureResponseData)
+		lectureID = lectureResponseData.Data.ID
+
+		// 3. Try to delete lecture while it is processing
+		// (The status is 'processing' immediately after creation)
+		httpRequest, _ = http.NewRequest("DELETE", testServer.URL+fmt.Sprintf("/api/exams/%s/lectures/%s", examID, lectureID), nil)
+		httpResponse = authenticatedDo(httpRequest)
+		if httpResponse.StatusCode != http.StatusConflict {
+			subTester.Errorf("Expected 409 Conflict when deleting processing lecture, got %d", httpResponse.StatusCode)
+		}
+
+		// 4. Update lecture status to 'ready' manually in DB to allow deletion
+		_, _ = initializedDatabase.Exec("UPDATE lectures SET status = 'ready' WHERE id = ?", lectureID)
+
+		// 5. Delete Exam and verify cascade
+		httpRequest, _ = http.NewRequest("DELETE", testServer.URL+"/api/exams/"+examID, nil)
+		httpResponse = authenticatedDo(httpRequest)
+		if httpResponse.StatusCode != http.StatusOK {
+			subTester.Errorf("Expected 200 OK for exam deletion, got %d", httpResponse.StatusCode)
+		}
+
+		// Verify lecture is gone
+		var count int
+		_ = initializedDatabase.QueryRow("SELECT COUNT(*) FROM lectures WHERE id = ?", lectureID).Scan(&count)
+		if count != 0 {
+			subTester.Error("Lecture was not deleted via cascade from Exam")
+		}
+
+		// Verify files are gone
+		lectureDirectory := filepath.Join(temporaryDirectory, "files", "lectures", lectureID)
+		if _, err := os.Stat(lectureDirectory); !os.IsNotExist(err) {
+			subTester.Error("Lecture directory was not cleaned up after exam deletion")
+		}
+	})
+
+	tester.Run("Session Lifecycle", func(subTester *testing.T) {
+		// 1. Check status (authenticated)
+		httpRequest, _ := http.NewRequest("GET", testServer.URL+"/api/auth/status", nil)
+		httpRequest.Header.Set("Authorization", "Bearer "+sessionToken)
+		httpResponse, _ := httpClient.Do(httpRequest)
+		var authStatusResponse struct {
+			Data struct {
+				Authenticated bool `json:"authenticated"`
+			} `json:"data"`
+		}
+		json.NewDecoder(httpResponse.Body).Decode(&authStatusResponse)
+		if !authStatusResponse.Data.Authenticated {
+			subTester.Error("Expected authenticated status to be true")
+		}
+
+		// 2. Logout
+		httpRequest, _ = http.NewRequest("POST", testServer.URL+"/api/auth/logout", nil)
+		httpResponse = authenticatedDo(httpRequest)
+		if httpResponse.StatusCode != http.StatusOK {
+			subTester.Errorf("Logout failed with status %d", httpResponse.StatusCode)
+		}
+
+		// 3. Check status again (should be false)
+		httpRequest, _ = http.NewRequest("GET", testServer.URL+"/api/auth/status", nil)
+		httpRequest.Header.Set("Authorization", "Bearer "+sessionToken)
+		httpResponse, _ = httpClient.Do(httpRequest)
+		_ = json.NewDecoder(httpResponse.Body).Decode(&authStatusResponse)
+		if authStatusResponse.Data.Authenticated {
+			subTester.Error("Expected authenticated status to be false after logout")
+		}
+
+		// 4. Try to access protected endpoint (should fail)
+		httpRequest, _ = http.NewRequest("GET", testServer.URL+"/api/exams", nil)
+		httpRequest.Header.Set("Authorization", "Bearer "+sessionToken)
+		httpResponse, _ = httpClient.Do(httpRequest)
+		if httpResponse.StatusCode != http.StatusUnauthorized {
+			subTester.Errorf("Expected 401 Unauthorized after logout, got %d", httpResponse.StatusCode)
+		}
+	})
 }

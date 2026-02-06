@@ -40,7 +40,7 @@ Evaluate whether the generated section content:
 
 ## Output Format
 
-Return your evaluation as a valid JSON object with a single field "coverage_score".
+Return your evaluation as a valid JSON object with a single field "coverage_score", with no additional text, explanations, or formatting outside the JSON.
 
 ```json
 {

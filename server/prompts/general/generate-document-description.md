@@ -17,16 +17,10 @@ You are tasked with generating a **single sentence** description for a document 
 
 {{latex_instructions}}
 
-Your response must be formatted in the following manner:
+---
 
-<description>[Insert the single sentence description here.]</description>
+**Output Format:**
 
-This is not XML, so it doesn't need escaping, it's just a way for me to extract the description directly from your response. Write the description between the <description> tags in normal Markdown with embedded LaTeX for mathematical expressions where appropriate. Use standard Markdown syntax and LaTeX math delimiters (\(...\) for inline, \[...\] for display).
+Return only a valid JSON object with a "description" field, with no additional text, explanations, or formatting outside the JSON as follows:
 
-### Examples
-
-For a document about enzyme kinetics: <description>Comprehensive guide to enzyme kinetics, covering competitive and non-competitive inhibition mechanisms.</description>
-
-For a document about web development: <description>Introduction to modern web development using React, TypeScript, and component-based architecture principles.</description>
-
-For a document about climate change: <description>Analysis of climate change impacts on global ecosystems and potential mitigation strategies.</description>
+{"description": "Brief description here with embedded LaTeX for mathematical expressions where appropriate."}

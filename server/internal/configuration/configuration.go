@@ -61,9 +61,11 @@ type OllamaConfiguration struct {
 }
 
 type TranscriptionConfiguration struct {
-	Provider string               `yaml:"provider"`
-	Whisper  WhisperConfiguration `yaml:"whisper"`
-	OpenAI   OpenAIConfiguration  `yaml:"openai"`
+	Provider                string               `yaml:"provider"`
+	AudioChunkLengthSeconds int                  `yaml:"audio_chunk_length_seconds"`
+	LLMCleanupThreshold     int                  `yaml:"llm_cleanup_threshold"`
+	Whisper                 WhisperConfiguration `yaml:"whisper"`
+	OpenAI                  OpenAIConfiguration  `yaml:"openai"`
 }
 
 type WhisperConfiguration struct {
@@ -185,7 +187,9 @@ func defaultConfiguration() *Configuration {
 			},
 		},
 		Transcription: TranscriptionConfiguration{
-			Provider: "whisper-local",
+			Provider:                "whisper-local",
+			AudioChunkLengthSeconds: 300,
+			LLMCleanupThreshold:     3,
 			Whisper: WhisperConfiguration{
 				Model:  "base",
 				Device: "auto",

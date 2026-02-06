@@ -79,7 +79,10 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 
 		// 2. Split Audio
 		segmentsDirectory := filepath.Join(temporaryDirectory, fmt.Sprintf("segments_%s", media.ID))
-		segmentDurationSeconds := 300 // 5 minutes
+		segmentDurationSeconds := service.configuration.Transcription.AudioChunkLengthSeconds
+		if segmentDurationSeconds <= 0 {
+			segmentDurationSeconds = 300
+		}
 		segmentFiles, err := service.mediaProcessor.SplitAudio(audioPath, segmentsDirectory, segmentDurationSeconds)
 		if err != nil {
 			return nil, fmt.Errorf("failed to split audio: %w", err)
@@ -88,10 +91,15 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 
 		var mediaSegments []models.TranscriptSegment
 
-		// 3. Transcribe Segments in chunks of 3 for cleanup
+		// 3. Transcribe Segments in chunks for cleanup
 		totalSegments := len(segmentFiles)
-		for segmentChunkStart := 0; segmentChunkStart < totalSegments; segmentChunkStart += 3 {
-			segmentChunkEnd := segmentChunkStart + 3
+		cleanupThreshold := service.configuration.Transcription.LLMCleanupThreshold
+		if cleanupThreshold <= 0 {
+			cleanupThreshold = 3
+		}
+
+		for segmentChunkStart := 0; segmentChunkStart < totalSegments; segmentChunkStart += cleanupThreshold {
+			segmentChunkEnd := segmentChunkStart + cleanupThreshold
 			if segmentChunkEnd > totalSegments {
 				segmentChunkEnd = totalSegments
 			}

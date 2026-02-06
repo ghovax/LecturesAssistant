@@ -20,22 +20,22 @@ Your task is to clean and format a document title by removing any preambles, pre
 **Examples:**
 
 **Input:** "Schema Strutturale per il Documento di Studio: Fondamenti e Applicazioni della Genomica e Trascrizione Vegetale"
-**Output:** <title>Fondamenti e Applicazioni della Genomica e Trascrizione Vegetale</title>
+**Output:** {"title": "Fondamenti e Applicazioni della Genomica e Trascrizione Vegetale"}
 
 **Input:** "Structural Schema: The Anatomy and Function of the Heart"
-**Output:** <title>The Anatomy and Function of the Heart</title>
+**Output:** {"title": "The Anatomy and Function of the Heart"}
 
 **Input:** "Study Document Outline: Quantum Mechanics and Wave-Particle Duality"
-**Output:** <title>Quantum Mechanics and Wave-Particle Duality</title>
+**Output:** {"title": "Quantum Mechanics and Wave-Particle Duality"}
 
 **Input:** "Document Title: Introduction to Machine Learning Algorithms"
-**Output:** <title>Introduction to Machine Learning Algorithms</title>
+**Output:** {"title": "Introduction to Machine Learning Algorithms"}
 
 **Input:** "The Anatomy and Function of the Heart: Chambers, Valves, and Cardiac Cycle"
-**Output:** <title>The Anatomy and Function of the Heart: Chambers, Valves, and Cardiac Cycle</title>
+**Output:** {"title": "The Anatomy and Function of the Heart: Chambers, Valves, and Cardiac Cycle"}
 
 **Input:** "Quantum Mechanics and Wave-Particle Duality"
-**Output:** <title>Quantum Mechanics and Wave-Particle Duality</title>
+**Output:** {"title": "Quantum Mechanics and Wave-Particle Duality"}
 
 ---
 
@@ -47,8 +47,6 @@ Your task is to clean and format a document title by removing any preambles, pre
 
 **Output Format:**
 
-You must output the cleaned title wrapped in `<title>` tags, like this:
+Return only a valid JSON object with a "title" field, with no additional text, explanations, or formatting outside the JSON as follows:
 
-<title>Cleaned Title Here</title>
-
-Output only the title wrapped in these tags, with no additional text, explanations, or formatting outside the tags.
+{"title": "Cleaned Title Here"}

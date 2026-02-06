@@ -532,7 +532,7 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 
 	// Improve footnotes using AI if we have citations
 	if len(citations) > 0 {
-		updatedCitations, _, err := server.toolGenerator.ProcessFootnotesAI(context.Background(), citations)
+		updatedCitations, _, err := server.toolGenerator.ProcessFootnotesAI(context.Background(), citations, models.GenerationOptions{})
 		if err == nil {
 			citations = updatedCitations
 		}

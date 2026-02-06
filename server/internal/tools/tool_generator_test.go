@@ -57,8 +57,17 @@ func TestToolGenerator_Triangulation(tester *testing.T) {
 
 	generator := NewToolGenerator(config, mockLLM, promptManager)
 
-	fullMaterials := "# File A\n\n## Page 1\nContent 1\n\n## Page 4\nContent 4\n\n## Page 12\nContent 12"
-	materials, _, err := generator.triangulateRelevantMaterials(context.Background(), "Transcript", fullMaterials)
+	fullMaterials := `# File A
+
+## Page 1
+Content 1
+
+## Page 4
+Content 4
+
+## Page 12
+Content 12`
+	materials, _, err := generator.triangulateRelevantMaterials(context.Background(), "Transcript", fullMaterials, models.GenerationOptions{EnableTriangulation: true})
 	if err != nil {
 		tester.Fatalf("Triangulation failed: %v", err)
 	}
@@ -75,17 +84,28 @@ func TestToolGenerator_SequentialBuildingWithCleanHistory(tester *testing.T) {
 	mockLLM := &UnbreakableSequentialMock{
 		Responses: []string{
 			// Triangulation (3 calls)
-			`{"page_ranges": []}`, `{"page_ranges": []}`, `{"page_ranges": []}`,
+			`{"page_ranges": []}`,
+			`{"page_ranges": []}`,
+			`{"page_ranges": []}`,
 			// Structure Analysis
-			"# Outline\n## Intro\nCoverage: Part 1\n## Deep Dive\nCoverage: Part 2",
+			`# Outline
+## Intro
+Coverage: Part 1
+## Deep Dive
+Coverage: Part 2`,
+			// CleanDocumentTitle call (added in recent changes)
+			`{"title": "Outline"}`,
 			// Section 1: Intro
-			"## Intro\nSuccess 1",
+			`## Intro
+Success 1`,
 			`{"coverage_score": 95}`,
 			// Section 2: Deep Dive (Attempt 1: Wrong Title)
-			"## Mistake\nHallucination",
-			`{"coverage_score": 30}`,
+			`## Mistake
+Hallucination`,
 			// Section 2: Deep Dive (Attempt 2: Success)
-			"## Deep Dive\nSuccess 2",
+			// (Note: Attempt 1 had low similarity, so verification was skipped)
+			`## Deep Dive
+Success 2`,
 			`{"coverage_score": 90}`,
 		},
 	}
@@ -93,7 +113,13 @@ func TestToolGenerator_SequentialBuildingWithCleanHistory(tester *testing.T) {
 	generator := NewToolGenerator(config, mockLLM, promptManager)
 	lecture := models.Lecture{Title: "Lecture Title"}
 
-	result, _, err := generator.GenerateStudyGuide(context.Background(), lecture, "Transcript", "References", "medium", "en", func(p int, m string, meta any, met models.JobMetrics) {})
+	options := models.GenerationOptions{
+		EnableTriangulation: true,
+		AdherenceThreshold:  70,
+		MaximumAttempts:     3,
+	}
+
+	result, _, err := generator.GenerateStudyGuide(context.Background(), lecture, "Transcript", "References", "medium", "en", options, func(p int, m string, meta any, met models.JobMetrics) {})
 	if err != nil {
 		tester.Fatalf("Generation failed: %v", err)
 	}
@@ -118,7 +144,12 @@ func TestToolGenerator_FootnoteHealing(tester *testing.T) {
 	mockLLM := &UnbreakableSequentialMock{
 		Responses: []string{
 			`{"footnotes": [{"number": 1, "file": "f1.pdf", "pages": [1]}, {"number": 99, "file": "f2.pdf", "pages": [5]}]}`,
-			"Body text.[^1] [^99]\n\n[^1]: Improved 1\n\n[^99]: Improved 2\n",
+			`Body text.[^1] [^99]
+
+[^1]: Improved 1
+
+[^99]: Improved 2
+`,
 		},
 	}
 
@@ -129,7 +160,7 @@ func TestToolGenerator_FootnoteHealing(tester *testing.T) {
 		{Number: 2, Description: "Raw 2"},
 	}
 
-	updated, _, _ := generator.ProcessFootnotesAI(context.Background(), citations)
+	updated, _, _ := generator.ProcessFootnotesAI(context.Background(), citations, models.GenerationOptions{})
 
 	if updated[1].File != "f2.pdf" {
 		tester.Errorf("Healing failed: Got: %s", updated[1].File)

@@ -2,12 +2,14 @@ Your task is to correct and improve a user's proposed project title and descript
 
 **Important:** Preserve the language of the user's input in the writing of the title and description. If the user wrote in English, write in English. If they wrote in Spanish, write in Spanish. If they wrote in French, write in French, and so on. Maintain the same language of the user's input throughout the title and description.
 
-Your response must be formatted in the following manner:
+**Output Format:**
 
-<title>Improved project title</title>
-<description>Improved project description</description>
+Return only a valid JSON object with "title" and "description" fields, with no additional text, explanations, or formatting outside the JSON as follows:
 
-Write the corrected title between the <title> tags and the corrected description between the <description> tags.
+{
+  "title": "Improved project title",
+  "description": "Improved project description"
+}
 
 {{latex_instructions}}
 
@@ -21,8 +23,10 @@ Write the corrected title between the <title> tags and the corrected description
 
 **Corrected Output:**
 
-<title>Advanced Mathematics Study Notes</title>
-<description>Comprehensive collection of mathematical concepts, theorems, and problem-solving techniques for advanced studies.</description>
+{
+  "title": "Advanced Mathematics Study Notes",
+  "description": "Comprehensive collection of mathematical concepts, theorems, and problem-solving techniques for advanced studies."
+}
 
 ### Example 2
 
@@ -32,8 +36,10 @@ Write the corrected title between the <title> tags and the corrected description
 
 **Corrected Output:**
 
-<title>React Todo Application</title>
-<description>A modern React-based task management application with features for creating, editing, and organizing todo items.</description>
+{
+  "title": "React Todo Application",
+  "description": "A modern React-based task management application with features for creating, editing, and organizing todo items."
+}
 
 ### Example 3
 
@@ -43,8 +49,10 @@ Write the corrected title between the <title> tags and the corrected description
 
 **Corrected Output:**
 
-<title>Scientific Research Project</title>
-<description>An in-depth exploration of scientific concepts, methodologies, and discoveries in various fields of study.</description>
+{
+  "title": "Scientific Research Project",
+  "description": "An in-depth exploration of scientific concepts, methodologies, and discoveries in various fields of study."
+}
 
 ---
 
@@ -58,8 +66,10 @@ Write the corrected title between the <title> tags and the corrected description
 
 **Corrected Output:**
 
-<title>Joe's Project</title>
-<description>This is a project created by Joe.</description>
+{
+  "title": "Joe's Project",
+  "description": "This is a project created by Joe."
+}
 
 # User's Input Project Title and Description
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -247,14 +248,40 @@ func RegisterHandlers(
 
 	queue.RegisterHandler(models.JobTypeBuildMaterial, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, models.JobMetrics)) error {
 		var payload struct {
-			LectureID    string `json:"lecture_id"`
-			ExamID       string `json:"exam_id"`
-			Type         string `json:"type"`
-			Length       string `json:"length"`
-			LanguageCode string `json:"language_code"`
+			LectureID           string `json:"lecture_id"`
+			ExamID              string `json:"exam_id"`
+			Type                string `json:"type"`
+			Length              string `json:"length"`
+			LanguageCode        string `json:"language_code"`
+			EnableTriangulation string `json:"enable_triangulation"`
+			AdherenceThreshold  string `json:"adherence_threshold"`
+			MaximumAttempts     string `json:"maximum_attempts"`
+			// Models
+			ModelTriangulation      string `json:"model_triangulation"`
+			ModelStructure          string `json:"model_structure"`
+			ModelGeneration         string `json:"model_generation"`
+			ModelAdherence          string `json:"model_adherence"`
+			ModelFootnoteParsing    string `json:"model_footnote_parsing"`
+			ModelFootnoteFormatting string `json:"model_footnote_formatting"`
+			ModelTitleCleaning      string `json:"model_title_cleaning"`
 		}
 		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
 			return fmt.Errorf("failed to unmarshal job payload: %w", err)
+		}
+
+		threshold, _ := strconv.Atoi(payload.AdherenceThreshold)
+		maximumAttempts, _ := strconv.Atoi(payload.MaximumAttempts)
+		options := models.GenerationOptions{
+			EnableTriangulation:     payload.EnableTriangulation == "true",
+			AdherenceThreshold:      threshold,
+			MaximumAttempts:         maximumAttempts,
+			ModelTriangulation:      payload.ModelTriangulation,
+			ModelStructure:          payload.ModelStructure,
+			ModelGeneration:         payload.ModelGeneration,
+			ModelAdherence:          payload.ModelAdherence,
+			ModelFootnoteParsing:    payload.ModelFootnoteParsing,
+			ModelFootnoteFormatting: payload.ModelFootnoteFormatting,
+			ModelTitleCleaning:      payload.ModelTitleCleaning,
 		}
 
 		if payload.Type == "" {
@@ -332,15 +359,15 @@ func RegisterHandlers(
 
 		switch payload.Type {
 		case "flashcard":
-			toolContent, toolTitle, genErr = toolGenerator.GenerateFlashcards(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.LanguageCode, func(progress int, message string, metadata any, metrics models.JobMetrics) {
+			toolContent, toolTitle, genErr = toolGenerator.GenerateFlashcards(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.LanguageCode, options, func(progress int, message string, metadata any, metrics models.JobMetrics) {
 				updateProgress(progress, message, metadata, metrics)
 			})
 		case "quiz":
-			toolContent, toolTitle, genErr = toolGenerator.GenerateQuiz(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.LanguageCode, func(progress int, message string, metadata any, metrics models.JobMetrics) {
+			toolContent, toolTitle, genErr = toolGenerator.GenerateQuiz(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.LanguageCode, options, func(progress int, message string, metadata any, metrics models.JobMetrics) {
 				updateProgress(progress, message, metadata, metrics)
 			})
 		default:
-			toolContent, toolTitle, genErr = toolGenerator.GenerateStudyGuide(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.Length, payload.LanguageCode, func(progress int, message string, metadata any, metrics models.JobMetrics) {
+			toolContent, toolTitle, genErr = toolGenerator.GenerateStudyGuide(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.Length, payload.LanguageCode, options, func(progress int, message string, metadata any, metrics models.JobMetrics) {
 				updateProgress(progress, message, metadata, metrics)
 			})
 		}
@@ -354,7 +381,7 @@ func RegisterHandlers(
 
 		// Improve footnotes using AI if it's a guide and we have citations
 		if payload.Type == "guide" && len(citations) > 0 {
-			updatedCitations, _, err := toolGenerator.ProcessFootnotesAI(jobContext, citations)
+			updatedCitations, _, err := toolGenerator.ProcessFootnotesAI(jobContext, citations, options)
 			if err == nil {
 				citations = updatedCitations
 			}

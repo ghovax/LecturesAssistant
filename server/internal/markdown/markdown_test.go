@@ -1052,7 +1052,9 @@ func TestHeadingTitleCleaningInParse(tester *testing.T) {
 func TestUnclosedCodeBlock(tester *testing.T) {
 	parser := NewParser()
 
-	markdownContent := "```\ncode line 1\ncode line 2"
+	markdownContent := "```" + `
+code line 1
+code line 2`
 
 	ast := parser.Parse(markdownContent)
 
@@ -1074,7 +1076,9 @@ func TestUnclosedCodeBlock(tester *testing.T) {
 func TestUnclosedDisplayEquation(tester *testing.T) {
 	parser := NewParser()
 
-	markdownContent := "$$\nequation line 1\nequation line 2"
+	markdownContent := `$$
+equation line 1
+equation line 2`
 
 	ast := parser.Parse(markdownContent)
 
@@ -1101,13 +1105,17 @@ func TestProperlyClosedBlocks(tester *testing.T) {
 		expectedType NodeType
 	}{
 		{
-			name:         "Properly closed code block",
-			markdown:     "```\ncode\n```",
+			name: "Properly closed code block",
+			markdown: "```" + `
+code
+` + "```",
 			expectedType: NodeCodeBlock,
 		},
 		{
-			name:         "Properly closed LaTeX display equation",
-			markdown:     "\\[\nequation\n\\]",
+			name: "Properly closed LaTeX display equation",
+			markdown: `\[
+equation
+\]`,
 			expectedType: NodeDisplayEquation,
 		},
 	}

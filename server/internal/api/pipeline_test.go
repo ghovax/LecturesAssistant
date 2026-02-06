@@ -61,7 +61,11 @@ func (mock *MockLLMProvider) Chat(jobContext context.Context, request llm.ChatRe
 			} else if strings.Contains(lastMessage, "coverage_score") {
 				text = `{"coverage_score": 95}`
 			} else if strings.Contains(lastMessage, "analyze-lecture-structure") {
-				text = "# Outline\n## Introduction\nCoverage: Basics\nIntroduces: \n- Concept 1 - Emphasis: High (Spent lots of time)\n"
+				text = `# Outline
+## Introduction
+Coverage: Basics
+Introduces: 
+- Concept 1 - Emphasis: High (Spent lots of time)`
 			} else if strings.Contains(lastMessage, "parse-footnotes") {
 				text = `{"footnotes": [{"number": 1, "text_content": "AI improved citation content", "pages": [1], "file": "test-slides.pdf"}]}`
 			} else if strings.Contains(lastMessage, "format-footnotes") {

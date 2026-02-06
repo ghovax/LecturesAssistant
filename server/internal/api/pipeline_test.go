@@ -132,7 +132,7 @@ func (documentConverter *MockDocumentConverter) ExtractPagesAsImages(pdfPath, ou
 	return []string{imagePath}, nil
 }
 
-func TestFullPipeline(tester *testing.T) {
+func TestIntegration_EndToEndPipeline(tester *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-test-*")
 	if err != nil {
 		tester.Fatalf("Failed to create temporary directory: %v", err)
@@ -355,7 +355,7 @@ func TestFullPipeline(tester *testing.T) {
 	}
 }
 
-func TestWebSocketUpdates(tester *testing.T) {
+func TestWebSocket_ProgressUpdates(tester *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-ws-test-*")
 	if err != nil {
 		tester.Fatalf("Failed to create temporary directory: %v", err)
@@ -441,7 +441,7 @@ func TestWebSocketUpdates(tester *testing.T) {
 	}
 }
 
-func TestAIFailureModes(tester *testing.T) {
+func TestAI_FailureScenarios(tester *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-fail-test-*")
 	if err != nil {
 		tester.Fatalf("Failed to create temporary directory: %v", err)
@@ -479,7 +479,7 @@ func TestAIFailureModes(tester *testing.T) {
 	_, _ = initializedDatabase.Exec("INSERT INTO transcripts (id, lecture_id, status) VALUES (?, ?, ?)", "t1", lectureID, "completed")
 	_, _ = initializedDatabase.Exec("INSERT INTO transcript_segments (transcript_id, text, start_millisecond, end_millisecond) VALUES (?, ?, ?, ?)", "t1", "Hi", 0, 1000)
 
-	tester.Run("Faulty JSON Response from AI", func(subTester *testing.T) {
+	tester.Run("AI Returns Malformed JSON Response", func(subTester *testing.T) {
 		mockLLM.ResponseText = "Not JSON"
 		mockLLM.Error = nil
 		mockLLM.Delay = 0
@@ -505,7 +505,7 @@ func TestAIFailureModes(tester *testing.T) {
 		}
 	})
 
-	tester.Run("AI Provider Error", func(subTester *testing.T) {
+	tester.Run("AI Provider Connection Error", func(subTester *testing.T) {
 		mockLLM.Error = errors.New("connection refused")
 
 		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
@@ -529,7 +529,7 @@ func TestAIFailureModes(tester *testing.T) {
 		}
 	})
 
-	tester.Run("AI Hang (Cancel Job)", func(subTester *testing.T) {
+	tester.Run("AI Hangs and User Cancels Job", func(subTester *testing.T) {
 		mockLLM.Error = nil
 		mockLLM.Delay = 2 * time.Second
 
@@ -559,7 +559,7 @@ func TestAIFailureModes(tester *testing.T) {
 	})
 }
 
-func TestStudyTools(tester *testing.T) {
+func TestTools_GenerationLogic(tester *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-tools-test-*")
 	if err != nil {
 		tester.Fatalf("Failed to create temporary directory: %v", err)
@@ -593,7 +593,7 @@ func TestStudyTools(tester *testing.T) {
 	_, _ = initializedDatabase.Exec("INSERT INTO transcripts (id, lecture_id, status) VALUES (?, ?, ?)", "t1", lectureID, "completed")
 	_, _ = initializedDatabase.Exec("INSERT INTO transcript_segments (transcript_id, text, start_millisecond, end_millisecond) VALUES (?, ?, ?, ?)", "t1", "Content", 0, 1000)
 
-	tester.Run("Flashcards", func(subTester *testing.T) {
+	tester.Run("Successfully Generate Flashcards", func(subTester *testing.T) {
 		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
 			"lecture_id": lectureID,
 			"exam_id":    examID,
@@ -616,7 +616,7 @@ func TestStudyTools(tester *testing.T) {
 		}
 	})
 
-	tester.Run("Quiz", func(subTester *testing.T) {
+	tester.Run("Successfully Generate Quiz", func(subTester *testing.T) {
 		mockLLM.ResponseText = `[{"question": "Q", "options": ["A", "B", "C", "D"], "correct_answer": "A", "explanation": "E"}]`
 
 		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
@@ -654,7 +654,7 @@ func (markdownConverter *MockMarkdownConverter) HTMLToPDF(htmlContent, outputPat
 	return os.WriteFile(outputPath, []byte("fake pdf"), 0644)
 }
 
-func TestPDFExport(tester *testing.T) {
+func TestExport_PDFGeneration(tester *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-export-test-*")
 	if err != nil {
 		tester.Fatalf("Failed to create temporary directory: %v", err)
@@ -704,7 +704,7 @@ func TestPDFExport(tester *testing.T) {
 	}
 }
 
-func TestUnauthorizedAccess(tester *testing.T) {
+func TestAuth_AccessControlEnforcement(tester *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-auth-test-*")
 	if err != nil {
 		tester.Fatalf("Failed to create temporary directory: %v", err)
@@ -726,7 +726,7 @@ func TestUnauthorizedAccess(tester *testing.T) {
 	endpoints := []string{"/api/exams", "/api/jobs", "/api/settings"}
 
 	for _, endpoint := range endpoints {
-		tester.Run(endpoint, func(subTester *testing.T) {
+		tester.Run("Unauthorized Access to "+endpoint+" is Blocked", func(subTester *testing.T) {
 			httpResponse, err := http.Get(testServer.URL + endpoint)
 			if err != nil {
 				subTester.Fatalf("Request failed: %v", err)
@@ -740,7 +740,7 @@ func TestUnauthorizedAccess(tester *testing.T) {
 	}
 }
 
-func TestUserDailyUsageScenarios(tester *testing.T) {
+func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 	// Setup environment
 	temporaryDirectory, err := os.MkdirTemp("", "user-usage-test-*")
 	if err != nil {
@@ -775,13 +775,14 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 	httpClient := testServer.Client()
 	var sessionToken string
 
-	tester.Run("Initial Setup and Misusage", func(subTester *testing.T) {
+	tester.Run("User Authentication Flow and Misusage Recovery", func(subTester *testing.T) {
 		// 1. Try to login before setup
 		loginPayload, _ := json.Marshal(map[string]string{"password": "password123"})
 		httpResponse, _ := httpClient.Post(testServer.URL+"/api/auth/login", "application/json", bytes.NewBuffer(loginPayload))
 		if httpResponse.StatusCode != http.StatusForbidden {
 			subTester.Errorf("Expected 403 Forbidden for login before setup, got %d", httpResponse.StatusCode)
 		}
+		httpResponse.Body.Close()
 
 		// 2. Setup with too short password
 		setupPayload, _ := json.Marshal(map[string]string{"password": "short"})
@@ -789,6 +790,7 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		if httpResponse.StatusCode != http.StatusBadRequest {
 			subTester.Errorf("Expected 400 Bad Request for short password, got %d", httpResponse.StatusCode)
 		}
+		httpResponse.Body.Close()
 
 		// 3. Valid setup
 		setupPayload, _ = json.Marshal(map[string]string{"password": "valid_password"})
@@ -796,17 +798,19 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		if httpResponse.StatusCode != http.StatusOK {
 			subTester.Errorf("Expected 200 OK for valid setup, got %d", httpResponse.StatusCode)
 		}
+		httpResponse.Body.Close()
 
 		// 4. Try setup again (should fail)
 		httpResponse, _ = httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
 		if httpResponse.StatusCode != http.StatusForbidden {
 			subTester.Errorf("Expected 403 Forbidden for duplicate setup, got %d", httpResponse.StatusCode)
 		}
+		httpResponse.Body.Close()
 
 		// 5. Valid login
 		loginPayload, _ = json.Marshal(map[string]string{"password": "valid_password"})
 		httpResponse, _ = httpClient.Post(testServer.URL+"/api/auth/login", "application/json", bytes.NewBuffer(loginPayload))
-		
+
 		var loginResponseData struct {
 			Data struct {
 				Token string `json:"token"`
@@ -814,6 +818,7 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		}
 		json.NewDecoder(httpResponse.Body).Decode(&loginResponseData)
 		sessionToken = loginResponseData.Data.Token
+		httpResponse.Body.Close()
 		if sessionToken == "" {
 			subTester.Fatal("Failed to get session token")
 		}
@@ -829,7 +834,7 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 	}
 
 	var examID string
-	tester.Run("Exam Management & Validations", func(subTester *testing.T) {
+	tester.Run("Exam Resource CRUD Operations and Validations", func(subTester *testing.T) {
 		// 1. Create exam with empty title
 		payload, _ := json.Marshal(map[string]string{"title": ""})
 		httpRequest, _ := http.NewRequest("POST", testServer.URL+"/api/exams", bytes.NewBuffer(payload))
@@ -837,6 +842,7 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		if httpResponse.StatusCode != http.StatusBadRequest {
 			subTester.Errorf("Expected 400 for empty exam title, got %d", httpResponse.StatusCode)
 		}
+		httpResponse.Body.Close()
 
 		// 2. Create valid exam
 		payload, _ = json.Marshal(map[string]string{"title": "Biology 101", "description": "Intro to Bio"})
@@ -847,6 +853,7 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		}
 		json.NewDecoder(httpResponse.Body).Decode(&examResponseData)
 		examID = examResponseData.Data.ID
+		httpResponse.Body.Close()
 
 		// 3. Update exam
 		updatePayload, _ := json.Marshal(map[string]string{"title": "Advanced Biology"})
@@ -856,6 +863,7 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		if examResponseData.Data.Title != "Advanced Biology" {
 			subTester.Errorf("Expected title update, got %s", examResponseData.Data.Title)
 		}
+		httpResponse.Body.Close()
 
 		// 4. Get non-existent exam
 		httpRequest, _ = http.NewRequest("GET", testServer.URL+"/api/exams/invalid-id", nil)
@@ -863,10 +871,11 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		if httpResponse.StatusCode != http.StatusNotFound {
 			subTester.Errorf("Expected 404 for non-existent exam, got %d", httpResponse.StatusCode)
 		}
+		httpResponse.Body.Close()
 	})
 
 	var lectureID string
-	tester.Run("Lecture Management & Cascade", func(subTester *testing.T) {
+	tester.Run("Lecture Management and Filesystem Cleanup on Deletion", func(subTester *testing.T) {
 		// 1. Create lecture for invalid exam
 		requestBody := &bytes.Buffer{}
 		multipartWriter := multipart.NewWriter(requestBody)
@@ -878,6 +887,7 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		if httpResponse.StatusCode != http.StatusNotFound {
 			subTester.Errorf("Expected 404 when creating lecture for invalid exam, got %d", httpResponse.StatusCode)
 		}
+		httpResponse.Body.Close()
 
 		// 2. Create valid lecture
 		requestBody = &bytes.Buffer{}
@@ -894,6 +904,7 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		}
 		json.NewDecoder(httpResponse.Body).Decode(&lectureResponseData)
 		lectureID = lectureResponseData.Data.ID
+		httpResponse.Body.Close()
 
 		// 3. Try to delete lecture while it is processing
 		// (The status is 'processing' immediately after creation)
@@ -902,6 +913,7 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		if httpResponse.StatusCode != http.StatusConflict {
 			subTester.Errorf("Expected 409 Conflict when deleting processing lecture, got %d", httpResponse.StatusCode)
 		}
+		httpResponse.Body.Close()
 
 		// 4. Update lecture status to 'ready' manually in DB to allow deletion
 		_, _ = initializedDatabase.Exec("UPDATE lectures SET status = 'ready' WHERE id = ?", lectureID)
@@ -912,6 +924,7 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		if httpResponse.StatusCode != http.StatusOK {
 			subTester.Errorf("Expected 200 OK for exam deletion, got %d", httpResponse.StatusCode)
 		}
+		httpResponse.Body.Close()
 
 		// Verify lecture is gone
 		var count int
@@ -927,7 +940,7 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		}
 	})
 
-	tester.Run("Session Lifecycle", func(subTester *testing.T) {
+	tester.Run("Full Session Logout and Access Rejection", func(subTester *testing.T) {
 		// 1. Check status (authenticated)
 		httpRequest, _ := http.NewRequest("GET", testServer.URL+"/api/auth/status", nil)
 		httpRequest.Header.Set("Authorization", "Bearer "+sessionToken)
@@ -941,6 +954,7 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		if !authStatusResponse.Data.Authenticated {
 			subTester.Error("Expected authenticated status to be true")
 		}
+		httpResponse.Body.Close()
 
 		// 2. Logout
 		httpRequest, _ = http.NewRequest("POST", testServer.URL+"/api/auth/logout", nil)
@@ -948,6 +962,7 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		if httpResponse.StatusCode != http.StatusOK {
 			subTester.Errorf("Logout failed with status %d", httpResponse.StatusCode)
 		}
+		httpResponse.Body.Close()
 
 		// 3. Check status again (should be false)
 		httpRequest, _ = http.NewRequest("GET", testServer.URL+"/api/auth/status", nil)
@@ -957,6 +972,7 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		if authStatusResponse.Data.Authenticated {
 			subTester.Error("Expected authenticated status to be false after logout")
 		}
+		httpResponse.Body.Close()
 
 		// 4. Try to access protected endpoint (should fail)
 		httpRequest, _ = http.NewRequest("GET", testServer.URL+"/api/exams", nil)
@@ -965,5 +981,191 @@ func TestUserDailyUsageScenarios(tester *testing.T) {
 		if httpResponse.StatusCode != http.StatusUnauthorized {
 			subTester.Errorf("Expected 401 Unauthorized after logout, got %d", httpResponse.StatusCode)
 		}
+		httpResponse.Body.Close()
+	})
+}
+
+func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
+	temporaryDirectory, err := os.MkdirTemp("", "advanced-usage-test-*")
+	if err != nil {
+		tester.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(temporaryDirectory)
+
+	databasePath := filepath.Join(temporaryDirectory, "advanced.db")
+	initializedDatabase, err := database.Initialize(databasePath)
+	if err != nil {
+		tester.Fatalf("Failed to init DB: %v", err)
+	}
+	defer initializedDatabase.Close()
+
+	config := &configuration.Configuration{
+		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
+		Security: configuration.SecurityConfiguration{
+			Auth: configuration.AuthConfiguration{
+				Type:                "session",
+				SessionTimeoutHours: 24,
+			},
+		},
+		LLM: configuration.LLMConfiguration{
+			Provider:   "openrouter",
+			OpenRouter: configuration.OpenRouterConfiguration{DefaultModel: "gpt-4"},
+		},
+	}
+
+	apiServer := NewServer(config, initializedDatabase, nil, nil, nil)
+	testServer := httptest.NewServer(apiServer.Handler())
+	defer testServer.Close()
+
+	httpClient := testServer.Client()
+
+	// Auth setup
+	setupPayload, _ := json.Marshal(map[string]string{"password": "password123"})
+	_, _ = httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
+	loginPayload, _ := json.Marshal(map[string]string{"password": "password123"})
+	loginResponse, _ := httpClient.Post(testServer.URL+"/api/auth/login", "application/json", bytes.NewBuffer(loginPayload))
+
+	var loginData struct {
+		Data struct {
+			Token string `json:"token"`
+		} `json:"data"`
+	}
+	_ = json.NewDecoder(loginResponse.Body).Decode(&loginData)
+	sessionToken := loginData.Data.Token
+	loginResponse.Body.Close()
+
+	authenticatedDo := func(method, url string, body io.Reader) *http.Response {
+		httpRequest, err := http.NewRequest(method, url, body)
+		if err != nil {
+			tester.Fatalf("Failed to create request: %v", err)
+		}
+		httpRequest.Header.Set("Authorization", "Bearer "+sessionToken)
+		httpResponse, err := httpClient.Do(httpRequest)
+		if err != nil {
+			tester.Fatalf("Request failed: %v", err)
+		}
+		return httpResponse
+	}
+
+	tester.Run("Persistent Application Settings State", func(subTester *testing.T) {
+		// 1. Update settings
+		updatePayload, _ := json.Marshal(map[string]any{
+			"admin_password_hash": "new-hash",
+		})
+		patchResponse := authenticatedDo("PATCH", testServer.URL+"/api/settings", bytes.NewBuffer(updatePayload))
+		if patchResponse.StatusCode != http.StatusOK {
+			subTester.Errorf("Failed to update settings: %d", patchResponse.StatusCode)
+		}
+		patchResponse.Body.Close()
+
+		// 2. Verify in DB
+		var storedValue string
+		err := initializedDatabase.QueryRow("SELECT value FROM settings WHERE key = 'admin_password_hash'").Scan(&storedValue)
+		if err != nil {
+			subTester.Errorf("Setting not found in DB: %v", err)
+		}
+		if !strings.Contains(storedValue, "new-hash") {
+			subTester.Errorf("Setting not persisted in DB, got %s", storedValue)
+		}
+	})
+
+	tester.Run("Chat Session Context Isolation and Updates", func(subTester *testing.T) {
+		// 1. Create Exam and Session
+		examPayload, _ := json.Marshal(map[string]string{"title": "Context Test"})
+		examResponse := authenticatedDo("POST", testServer.URL+"/api/exams", bytes.NewBuffer(examPayload))
+		var examResponseData struct{ Data models.Exam }
+		_ = json.NewDecoder(examResponse.Body).Decode(&examResponseData)
+		examID := examResponseData.Data.ID
+		examResponse.Body.Close()
+
+		sessionPayload, _ := json.Marshal(map[string]string{"title": "Chat"})
+		sessionResponse := authenticatedDo("POST", fmt.Sprintf("%s/api/exams/%s/chat/sessions", testServer.URL, examID), bytes.NewBuffer(sessionPayload))
+		var sessionResponseData struct{ Data models.ChatSession }
+		_ = json.NewDecoder(sessionResponse.Body).Decode(&sessionResponseData)
+		sessionID := sessionResponseData.Data.ID
+		sessionResponse.Body.Close()
+
+		// 2. Update Context
+		contextPayload, _ := json.Marshal(map[string]any{
+			"included_lecture_ids": []string{"lecture-1", "lecture-2"},
+			"included_tool_ids":    []string{"tool-1"},
+		})
+		updateResponse := authenticatedDo("PATCH", fmt.Sprintf("%s/api/exams/%s/chat/sessions/%s/context", testServer.URL, examID, sessionID), bytes.NewBuffer(contextPayload))
+		if updateResponse.StatusCode != http.StatusOK {
+			subTester.Errorf("Failed to update context: %d", updateResponse.StatusCode)
+		}
+		updateResponse.Body.Close()
+
+		// 3. Verify update
+		getResponse := authenticatedDo("GET", fmt.Sprintf("%s/api/exams/%s/chat/sessions/%s", testServer.URL, examID, sessionID), nil)
+		var getResponseData struct {
+			Data struct {
+				Context struct {
+					IncludedLectureIDs []string `json:"included_lecture_ids"`
+				} `json:"context"`
+			} `json:"data"`
+		}
+		_ = json.NewDecoder(getResponse.Body).Decode(&getResponseData)
+		getResponse.Body.Close()
+
+		if len(getResponseData.Data.Context.IncludedLectureIDs) != 2 {
+			subTester.Errorf("Context not updated correctly, got %v", getResponseData.Data.Context.IncludedLectureIDs)
+		}
+	})
+
+	tester.Run("Strict Resource Boundary Enforcement (Exam Hierarchy)", func(subTester *testing.T) {
+		// 1. Create Exam A and Lecture A
+		examAPayload, _ := json.Marshal(map[string]string{"title": "Exam A"})
+		examAResponse := authenticatedDo("POST", testServer.URL+"/api/exams", bytes.NewBuffer(examAPayload))
+		var examAResponseData struct{ Data models.Exam }
+		_ = json.NewDecoder(examAResponse.Body).Decode(&examAResponseData)
+		examAResponse.Body.Close()
+
+		requestBody := &bytes.Buffer{}
+		multipartWriter := multipart.NewWriter(requestBody)
+		_ = multipartWriter.WriteField("title", "Lecture A")
+		multipartWriter.Close()
+		lectureAResponse := authenticatedDo("POST", fmt.Sprintf("%s/api/exams/%s/lectures", testServer.URL, examAResponseData.Data.ID), requestBody)
+		var lectureAResponseData struct{ Data models.Lecture }
+		_ = json.NewDecoder(lectureAResponse.Body).Decode(&lectureAResponseData)
+		lectureAResponse.Body.Close()
+
+		// 2. Create Exam B
+		examBPayload, _ := json.Marshal(map[string]string{"title": "Exam B"})
+		examBResponse := authenticatedDo("POST", testServer.URL+"/api/exams", bytes.NewBuffer(examBPayload))
+		var examBResponseData struct{ Data models.Exam }
+		_ = json.NewDecoder(examBResponse.Body).Decode(&examBResponseData)
+		examBResponse.Body.Close()
+
+		// 3. Try to access Lecture A using Exam B's path
+		// Expect: 404 Not Found (or 403) because Lecture A does not belong to Exam B.
+		violationURL := fmt.Sprintf("%s/api/exams/%s/lectures/%s", testServer.URL, examBResponseData.Data.ID, lectureAResponseData.Data.ID)
+		violationResponse := authenticatedDo("GET", violationURL, nil)
+
+		var lectureResData struct{ Data models.Lecture }
+		_ = json.NewDecoder(violationResponse.Body).Decode(&lectureResData)
+		violationResponse.Body.Close()
+
+		if violationResponse.StatusCode == http.StatusOK && lectureResData.Data.ExamID != examBResponseData.Data.ID {
+			subTester.Errorf("Security Flaw: Resource boundary violation. Lecture A accessible via Exam B path.")
+		}
+	})
+
+	tester.Run("API Resilience to Corrupted or Malformed Payloads", func(subTester *testing.T) {
+		// 1. Garbage JSON to Create Exam
+		garbagePayload := []byte("{ \"title\": \"Missing quote }")
+		httpResponse := authenticatedDo("POST", testServer.URL+"/api/exams", bytes.NewBuffer(garbagePayload))
+		if httpResponse.StatusCode != http.StatusBadRequest {
+			subTester.Errorf("Expected 400 for malformed JSON, got %d", httpResponse.StatusCode)
+		}
+		httpResponse.Body.Close()
+
+		// 2. Sending invalid data types in settings
+		invalidSettings := []byte("{ \"llm\": \"should be object but sending string\" }")
+		httpResponse = authenticatedDo("PATCH", testServer.URL+"/api/settings", bytes.NewBuffer(invalidSettings))
+		if httpResponse.StatusCode >= 500 {
+			subTester.Errorf("Server crashed or returned 500 on invalid settings payload")
+		}
+		httpResponse.Body.Close()
 	})
 }

@@ -19,8 +19,8 @@ type Configuration struct {
 }
 
 type SafetyConfiguration struct {
-	MaxCostPerJob    float64 `yaml:"maximum_cost_per_job"`
-	MaxLoginAttempts int     `yaml:"maximum_login_attempts_per_hour"`
+	MaximumCostPerJob    float64 `yaml:"maximum_cost_per_job"`
+	MaximumLoginAttempts int     `yaml:"maximum_login_attempts_per_hour"`
 }
 
 type ServerConfiguration struct {
@@ -87,8 +87,8 @@ type UploadsConfiguration struct {
 }
 
 type MediaUploadConfiguration struct {
-	MaxFileSizeMB            int          `yaml:"maximum_file_size_megabytes"`
-	MaxFilesPerLecture       int          `yaml:"maximum_files_per_lecture"`
+	MaximumFileSizeMB        int          `yaml:"maximum_file_size_megabytes"`
+	MaximumFilesPerLecture   int          `yaml:"maximum_files_per_lecture"`
 	SupportedFormats         MediaFormats `yaml:"supported_formats"`
 	ChunkedUploadThresholdMB int          `yaml:"chunked_upload_threshold_megabytes"`
 }
@@ -99,10 +99,10 @@ type MediaFormats struct {
 }
 
 type DocumentUploadConfiguration struct {
-	MaxFileSizeMB       int      `yaml:"maximum_file_size_megabytes"`
-	MaxFilesPerLecture  int      `yaml:"maximum_files_per_lecture"`
-	MaxPagesPerDocument int      `yaml:"maximum_pages_per_document"`
-	SupportedFormats    []string `yaml:"supported_formats"`
+	MaximumFileSizeMB       int      `yaml:"maximum_file_size_megabytes"`
+	MaximumFilesPerLecture  int      `yaml:"maximum_files_per_lecture"`
+	MaximumPagesPerDocument int      `yaml:"maximum_pages_per_document"`
+	SupportedFormats        []string `yaml:"supported_formats"`
 }
 
 // Load reads the configuration from a file or creates a default one
@@ -198,8 +198,8 @@ func defaultConfiguration() *Configuration {
 		},
 		Uploads: UploadsConfiguration{
 			Media: MediaUploadConfiguration{
-				MaxFileSizeMB:      2048,
-				MaxFilesPerLecture: 50,
+				MaximumFileSizeMB:      2048,
+				MaximumFilesPerLecture: 50,
 				SupportedFormats: MediaFormats{
 					Video: []string{"mp4", "webm", "mov", "mkv"},
 					Audio: []string{"mp3", "wav", "m4a", "ogg", "flac"},
@@ -207,15 +207,15 @@ func defaultConfiguration() *Configuration {
 				ChunkedUploadThresholdMB: 100,
 			},
 			Documents: DocumentUploadConfiguration{
-				MaxFileSizeMB:       500,
-				MaxFilesPerLecture:  100,
-				MaxPagesPerDocument: 500,
-				SupportedFormats:    []string{"pdf", "pptx", "docx"},
+				MaximumFileSizeMB:       500,
+				MaximumFilesPerLecture:  100,
+				MaximumPagesPerDocument: 500,
+				SupportedFormats:        []string{"pdf", "pptx", "docx"},
 			},
 		},
 		Safety: SafetyConfiguration{
-			MaxCostPerJob:    10.0, // $10 safety threshold
-			MaxLoginAttempts: 100,  // High limit as requested
+			MaximumCostPerJob:    10.0, // $10 safety threshold
+			MaximumLoginAttempts: 100,  // High limit as requested
 		},
 	}
 }

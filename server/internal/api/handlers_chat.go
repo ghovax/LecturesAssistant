@@ -123,7 +123,7 @@ func (server *Server) handleListChatSessions(responseWriter http.ResponseWriter,
 func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, request *http.Request) {
 	sessionID := request.URL.Query().Get("session_id")
 	examID := request.URL.Query().Get("exam_id")
-	
+
 	if sessionID == "" || examID == "" {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "session_id and exam_id are required", nil)
 		return

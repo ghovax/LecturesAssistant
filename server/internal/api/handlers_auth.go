@@ -61,7 +61,7 @@ func (server *Server) handleAuthLogin(responseWriter http.ResponseWriter, reques
 	server.loginAttemptsMutex.Lock()
 	attempts := server.loginAttempts[ip]
 	now := time.Now()
-	
+
 	// Clean old attempts
 	var validAttempts []time.Time
 	for _, t := range attempts {
@@ -69,18 +69,18 @@ func (server *Server) handleAuthLogin(responseWriter http.ResponseWriter, reques
 			validAttempts = append(validAttempts, t)
 		}
 	}
-	
-	limit := server.configuration.Safety.MaxLoginAttempts
+
+	limit := server.configuration.Safety.MaximumLoginAttempts
 	if limit <= 0 {
 		limit = 1000 // Sane high default if not configured
 	}
-	
+
 	if len(validAttempts) >= limit {
 		server.loginAttemptsMutex.Unlock()
 		server.writeError(responseWriter, http.StatusTooManyRequests, "RATE_LIMIT", "Too many login attempts. Please try again later.", nil)
 		return
 	}
-	
+
 	server.loginAttempts[ip] = append(validAttempts, now)
 	server.loginAttemptsMutex.Unlock()
 

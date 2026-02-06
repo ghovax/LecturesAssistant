@@ -64,10 +64,8 @@ func (provider *OllamaProvider) Chat(jobContext context.Context, request ChatReq
 			case "image":
 				// Ollama expects base64 data without the data:image/... prefix
 				data := part.ImageURL
-				if commaIndex := len("data:image/png;base64,"); len(data) > commaIndex && data[:5] == "data:" {
-					if index := bytes.IndexByte([]byte(data), ','); index != -1 {
-						data = data[index+1:]
-					}
+				if commaIndex := bytes.IndexByte([]byte(data), ','); commaIndex != -1 {
+					data = data[commaIndex+1:]
 				}
 				images = append(images, data)
 			}

@@ -12,11 +12,12 @@ import (
 // handleCreateTool triggers a tool generation job
 func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, request *http.Request) {
 	var createToolRequest struct {
-		ExamID       string `json:"exam_id"`
-		LectureID    string `json:"lecture_id"`
-		Type         string `json:"type"`          // "guide", "flashcard", "quiz"
-		Length       string `json:"length"`        // "short", "medium", "long"
-		LanguageCode string `json:"language_code"` // BCP47
+		ExamID              string `json:"exam_id"`
+		LectureID           string `json:"lecture_id"`
+		Type                string `json:"type"` // "guide", "flashcard", "quiz"
+		Length              string `json:"length"`
+		LanguageCode        string `json:"language_code"`
+		EnableTriangulation bool   `json:"enable_triangulation"`
 	}
 
 	if err := json.NewDecoder(request.Body).Decode(&createToolRequest); err != nil {
@@ -55,11 +56,12 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 
 	// Enqueue job
 	jobIdentifier, err := server.jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
-		"exam_id":       createToolRequest.ExamID,
-		"lecture_id":    createToolRequest.LectureID,
-		"type":          createToolRequest.Type,
-		"length":        createToolRequest.Length,
-		"language_code": createToolRequest.LanguageCode,
+		"exam_id":              createToolRequest.ExamID,
+		"lecture_id":           createToolRequest.LectureID,
+		"type":                 createToolRequest.Type,
+		"length":               createToolRequest.Length,
+		"language_code":        createToolRequest.LanguageCode,
+		"enable_triangulation": fmt.Sprintf("%v", createToolRequest.EnableTriangulation),
 	})
 
 	if err != nil {
@@ -120,7 +122,7 @@ func (server *Server) handleListTools(responseWriter http.ResponseWriter, reques
 func (server *Server) handleGetTool(responseWriter http.ResponseWriter, request *http.Request) {
 	toolID := request.URL.Query().Get("tool_id")
 	examID := request.URL.Query().Get("exam_id")
-	
+
 	if toolID == "" || examID == "" {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "tool_id and exam_id are required", nil)
 		return

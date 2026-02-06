@@ -310,7 +310,7 @@ func (parser *Parser) parseMarkdownElement(line string) *Node {
 	if match := orderedRegex.FindStringSubmatch(line); match != nil {
 		indentLength := len(match[1])
 		prefixAsterisks := match[2]
-		index, _ := strconv.Atoi(match[3])
+		listIndex, _ := strconv.Atoi(match[3])
 		suffixAsterisks := match[4]
 		content := prefixAsterisks + suffixAsterisks + match[5]
 
@@ -325,7 +325,7 @@ func (parser *Parser) parseMarkdownElement(line string) *Node {
 			Content:  content,
 			Depth:    depth,
 			ListType: ListOrdered,
-			Index:    index,
+			Index:    listIndex,
 		}
 	}
 

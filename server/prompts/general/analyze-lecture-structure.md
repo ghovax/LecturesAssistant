@@ -80,7 +80,7 @@ Your outline must be structured as follows, where each section is thoroughly det
 
 **Critical Requirements:**
 
-1. **Section Count:** Your outline **must** contain between **{{min_section_count}} and {{max_section_count}} sections** (inclusive). Never less than {{min_section_count}}, never more than {{max_section_count}}; preferably {{preferred_section_range}} sections. This ensures the document has sufficient depth and detail without being overly fragmented.
+1. **Section Count:** Your outline **must** contain between **{{minimum_section_count}} and {{maximum_section_count}} sections** (inclusive). Never less than {{minimum_section_count}}, never more than {{maximum_section_count}}; preferably {{preferred_section_range}} sections. This ensures the document has sufficient depth and detail without being overly fragmented.
 2. **Section Depth:** Each section should be substantial enough to contain meaningful, detailed content (equivalent to 5-6 pages of material each). Sections must be rich in detail, examples, explanations, and comprehensive coverage of the topic.
 3. **Detail Quality:** For each section's **Coverage** field, provide extensive, specific descriptions that capture:
    - All key concepts, definitions, and principles discussed in the lecture
@@ -147,7 +147,7 @@ Your outline must be structured as follows, where each section is thoroughly det
 
 **Before submitting your outline, perform this verification:**
 
-1. **Section Count Check:** Count the number of sections (## headings). You **must** have between {{min_section_count}} and {{max_section_count}} sections (inclusive). If you have fewer than {{min_section_count}}, you need to break down topics into more detailed sections. If you have more than {{max_section_count}}, consolidate related topics.
+1. **Section Count Check:** Count the number of sections (## headings). You **must** have between {{minimum_section_count}} and {{maximum_section_count}} sections (inclusive). If you have fewer than {{minimum_section_count}}, you need to break down topics into more detailed sections. If you have more than {{maximum_section_count}}, consolidate related topics.
 2. **Content Coverage:** Read through the lecture transcript one more time. For each paragraph or topic in the transcript, confirm it appears in your outline's coverage descriptions with sufficient detail.
 3. **Emphasis Level Accuracy:** Review each concept's emphasis level. Verify that:
    - Concepts the professor discussed at length have High emphasis

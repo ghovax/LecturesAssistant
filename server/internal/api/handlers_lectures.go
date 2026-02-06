@@ -91,8 +91,8 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	}
 
 	// 2. Bind Staged Media
-	for index, uploadID := range request.Form["media_upload_ids"] {
-		if err := server.commitStagedUpload(transaction, lectureID, uploadID, "media", index); err != nil {
+	for uploadIndex, uploadID := range request.Form["media_upload_ids"] {
+		if err := server.commitStagedUpload(transaction, lectureID, uploadID, "media", uploadIndex); err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "UPLOAD_ERROR", "Failed to bind media: "+uploadID, nil)
 			return
 		}
@@ -107,9 +107,9 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	}
 
 	// 4. Handle Direct Multipart Files (Implicitly stage then bind)
-	for index, fileHeader := range request.MultipartForm.File["media"] {
+	for uploadIndex, fileHeader := range request.MultipartForm.File["media"] {
 		uploadID := server.stageMultipartFile(fileHeader)
-		if err := server.commitStagedUpload(transaction, lectureID, uploadID, "media", len(request.Form["media_upload_ids"])+index); err != nil {
+		if err := server.commitStagedUpload(transaction, lectureID, uploadID, "media", len(request.Form["media_upload_ids"])+uploadIndex); err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "UPLOAD_ERROR", "Failed to process direct media", nil)
 			return
 		}
@@ -170,7 +170,7 @@ func (server *Server) handleUploadAppend(responseWriter http.ResponseWriter, req
 	}
 
 	uploadDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "tmp", "uploads", uploadID)
-	
+
 	// Read metadata to get total expected size for global progress tracking
 	var metadata struct {
 		FileSize int64 `json:"file_size_bytes"`
@@ -374,7 +374,7 @@ func (server *Server) handleListLectures(responseWriter http.ResponseWriter, req
 func (server *Server) handleGetLecture(responseWriter http.ResponseWriter, request *http.Request) {
 	lectureID := request.URL.Query().Get("lecture_id")
 	examID := request.URL.Query().Get("exam_id")
-	
+
 	if lectureID == "" || examID == "" {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id and exam_id are required", nil)
 		return

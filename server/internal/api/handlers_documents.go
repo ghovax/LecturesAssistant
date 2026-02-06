@@ -44,7 +44,7 @@ func (server *Server) handleListDocuments(responseWriter http.ResponseWriter, re
 func (server *Server) handleGetDocument(responseWriter http.ResponseWriter, request *http.Request) {
 	documentID := request.URL.Query().Get("document_id")
 	lectureID := request.URL.Query().Get("lecture_id")
-	
+
 	if documentID == "" || lectureID == "" {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id and lecture_id are required", nil)
 		return
@@ -73,7 +73,7 @@ func (server *Server) handleGetDocument(responseWriter http.ResponseWriter, requ
 func (server *Server) handleGetDocumentPages(responseWriter http.ResponseWriter, request *http.Request) {
 	documentID := request.URL.Query().Get("document_id")
 	lectureID := request.URL.Query().Get("lecture_id")
-	
+
 	if documentID == "" || lectureID == "" {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id and lecture_id are required", nil)
 		return
@@ -116,12 +116,12 @@ func (server *Server) handleGetPageImage(responseWriter http.ResponseWriter, req
 	documentID := request.URL.Query().Get("document_id")
 	lectureID := request.URL.Query().Get("lecture_id")
 	pageNumberString := request.URL.Query().Get("page_number")
-	
+
 	if documentID == "" || lectureID == "" || pageNumberString == "" {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id, lecture_id and page_number are required", nil)
 		return
 	}
-	
+
 	// Verify document belongs to lecture
 	var exists bool
 	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM reference_documents WHERE id = ? AND lecture_id = ?)", documentID, lectureID).Scan(&exists)
@@ -129,7 +129,7 @@ func (server *Server) handleGetPageImage(responseWriter http.ResponseWriter, req
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Document not found in this lecture", nil)
 		return
 	}
-	
+
 	pageNumber, _ := strconv.Atoi(pageNumberString)
 
 	var imagePath string

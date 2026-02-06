@@ -384,9 +384,9 @@ func TestCitationRobustness(tester *testing.T) {
 
 	for _, testCase := range testCases {
 		tester.Run(testCase.name, func(subTester *testing.T) {
-			md, citations := reconstructor.ParseCitations(testCase.input)
-			if md != testCase.expectedMarkdown {
-				subTester.Errorf("Markdown mismatch. Expected: %q, Got: %q", testCase.expectedMarkdown, md)
+			markdown, citations := reconstructor.ParseCitations(testCase.input)
+			if markdown != testCase.expectedMarkdown {
+				subTester.Errorf("Markdown mismatch. Expected: %q, Got: %q", testCase.expectedMarkdown, markdown)
 			}
 			if len(citations) != len(testCase.expectedCitations) {
 				subTester.Fatalf("Citation count mismatch. Expected: %d, Got: %d", len(testCase.expectedCitations), len(citations))
@@ -944,9 +944,9 @@ func TestPageNumberRoundTrip(tester *testing.T) {
 				return
 			}
 
-			for i, page := range parsed {
-				if page != testCase.originalPages[i] {
-					subTester.Errorf("Round trip failed at index %d: expected %d, got %d", i, testCase.originalPages[i], page)
+			for pageIndex, page := range parsed {
+				if page != testCase.originalPages[pageIndex] {
+					subTester.Errorf("Round trip failed at index %d: expected %d, got %d", pageIndex, testCase.originalPages[pageIndex], page)
 				}
 			}
 		})

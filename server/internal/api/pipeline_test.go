@@ -157,7 +157,7 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 			Auth: configuration.AuthConfiguration{Type: "session", SessionTimeoutHours: 24},
 		},
 		LLM:    configuration.LLMConfiguration{Language: "en-US"},
-		Safety: configuration.SafetyConfiguration{MaxLoginAttempts: 100, MaxCostPerJob: 10.0},
+		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
 	promptManager := prompts.NewManager("../../prompts")
@@ -381,7 +381,7 @@ func TestUpload_StagedProtocol(tester *testing.T) {
 		Security: configuration.SecurityConfiguration{
 			Auth: configuration.AuthConfiguration{Type: "session"},
 		},
-		Safety: configuration.SafetyConfiguration{MaxLoginAttempts: 100, MaxCostPerJob: 10.0},
+		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
 	_, _ = initializedDatabase.Exec("INSERT INTO settings (key, value) VALUES ('admin_password_hash', ?)", "dummy_hash")
@@ -502,7 +502,7 @@ func TestWebSocket_ProgressUpdates(tester *testing.T) {
 		Security: configuration.SecurityConfiguration{
 			Auth: configuration.AuthConfiguration{Type: "session"},
 		},
-		Safety: configuration.SafetyConfiguration{MaxLoginAttempts: 100},
+		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100},
 	}
 
 	_, _ = initializedDatabase.Exec("INSERT INTO settings (key, value) VALUES ('admin_password_hash', ?)", "dummy_hash")
@@ -589,7 +589,7 @@ func TestAI_FailureScenarios(tester *testing.T) {
 	config := &configuration.Configuration{
 		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
 		LLM:     configuration.LLMConfiguration{Language: "en-US"},
-		Safety:  configuration.SafetyConfiguration{MaxCostPerJob: 10.0, MaxLoginAttempts: 100},
+		Safety:  configuration.SafetyConfiguration{MaximumCostPerJob: 10.0, MaximumLoginAttempts: 100},
 	}
 
 	promptManager := prompts.NewManager("../../prompts")
@@ -632,7 +632,7 @@ func TestAI_FailureScenarios(tester *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 		}
 
-		if status != models.JobStatusFailed || !strings.Contains(jobError, "failed to parse sections from LLM response") {
+		if status != models.JobStatusFailed || !strings.Contains(jobError, "failed to generate valid structure after 3 attempts") {
 			subTester.Errorf("Job did not fail as expected: %s (%s)", status, jobError)
 		}
 	})
@@ -707,7 +707,7 @@ func TestTools_GenerationLogic(tester *testing.T) {
 
 	config := &configuration.Configuration{
 		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
-		Safety:  configuration.SafetyConfiguration{MaxLoginAttempts: 100, MaxCostPerJob: 10.0},
+		Safety:  configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
 	promptManager := prompts.NewManager("../../prompts")
@@ -803,7 +803,7 @@ func TestExport_PDFGeneration(tester *testing.T) {
 
 	config := &configuration.Configuration{
 		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
-		Safety:  configuration.SafetyConfiguration{MaxLoginAttempts: 100, MaxCostPerJob: 10.0},
+		Safety:  configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
@@ -895,7 +895,7 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		Security: configuration.SecurityConfiguration{
 			Auth: configuration.AuthConfiguration{Type: "session", SessionTimeoutHours: 1},
 		},
-		Safety: configuration.SafetyConfiguration{MaxLoginAttempts: 100, MaxCostPerJob: 10.0},
+		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
 	promptManager := prompts.NewManager("../../prompts")
@@ -1156,7 +1156,7 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 			Provider:   "openrouter",
 			OpenRouter: configuration.OpenRouterConfiguration{DefaultModel: "gpt-4"},
 		},
-		Safety: configuration.SafetyConfiguration{MaxLoginAttempts: 100, MaxCostPerJob: 10.0},
+		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
 	apiServer := NewServer(config, initializedDatabase, nil, nil, nil, nil)
@@ -1346,7 +1346,7 @@ func TestUpload_ProgressTracking(tester *testing.T) {
 		Security: configuration.SecurityConfiguration{
 			Auth: configuration.AuthConfiguration{Type: "session"},
 		},
-		Safety: configuration.SafetyConfiguration{MaxLoginAttempts: 100, MaxCostPerJob: 10.0},
+		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
 	_, _ = initializedDatabase.Exec("INSERT INTO settings (key, value) VALUES ('admin_password_hash', ?)", "dummy_hash")

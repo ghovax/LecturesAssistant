@@ -23,7 +23,7 @@ func (server *Server) StartStagingCleanupWorker() {
 
 func (server *Server) cleanupOrphanedUploads() {
 	uploadsDir := filepath.Join(server.configuration.Storage.DataDirectory, "tmp", "uploads")
-	
+
 	entries, err := os.ReadDir(uploadsDir)
 	if err != nil {
 		if !os.IsNotExist(err) {

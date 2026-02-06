@@ -76,9 +76,9 @@ func (processor *Processor) processPDF(jobContext context.Context, pdfPath strin
 	var extractedPages []models.ReferencePage
 	totalImages := len(imageFiles)
 
-	for index, imagePath := range imageFiles {
-		pageNumber := index + 1
-		progress := 10 + int(float64(index)/float64(totalImages)*90.0)
+	for imageIndex, imagePath := range imageFiles {
+		pageNumber := imageIndex + 1
+		progress := 10 + int(float64(imageIndex)/float64(totalImages)*90.0)
 		updateProgress(progress, fmt.Sprintf("Interpreting page content %d/%d...", pageNumber, totalImages))
 
 		extractedText, interpretationError := processor.interpretPageContent(jobContext, imagePath, languageCode)

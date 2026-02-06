@@ -5,8 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"lectures/internal/configuration"
 	"lectures/internal/llm"
@@ -29,93 +33,188 @@ func NewToolGenerator(configuration *configuration.Configuration, llmProvider ll
 	}
 }
 
-// GenerateStudyGuide creates a comprehensive study guide section by section using sequential chat
-func (generator *ToolGenerator) GenerateStudyGuide(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, length string, languageCode string, updateProgress func(int, string, any, models.JobMetrics)) (string, string, error) {
+// GenerateStudyGuide implements the self-healing sequential generation pipeline
+func (generator *ToolGenerator) GenerateStudyGuide(
+	jobContext context.Context,
+	lecture models.Lecture,
+	transcript string,
+	referenceFilesContent string,
+	length string,
+	languageCode string,
+	updateProgress func(int, string, any, models.JobMetrics),
+) (string, string, error) {
+	var totalMetrics models.JobMetrics
+	enableTriangulation := true
+
+	// PHASE 2: Context Triangulation
+	updateProgress(5, "Triangulating relevant reference materials...", nil, totalMetrics)
+	relevantMaterials := referenceFilesContent
+	if enableTriangulation && referenceFilesContent != "" {
+		materials, metrics, err := generator.triangulateRelevantMaterials(jobContext, transcript, referenceFilesContent)
+		if err == nil {
+			relevantMaterials = materials
+			totalMetrics.InputTokens += metrics.InputTokens
+			totalMetrics.OutputTokens += metrics.OutputTokens
+			totalMetrics.EstimatedCost += metrics.EstimatedCost
+		} else {
+			slog.Warn("Triangulation failed, falling back to full content", "error", err)
+		}
+	}
+
+	// PHASE 3: Sequential Generation
+	updateProgress(10, "Analyzing lecture structure...", nil, totalMetrics)
+
+	// 3.1 Analyze Structure with Retries
+	structure, metrics, err := generator.analyzeStructureWithRetries(jobContext, transcript, relevantMaterials, length, languageCode)
+	if err != nil {
+		return "", "", fmt.Errorf("structure analysis failed: %w", err)
+	}
+	totalMetrics.InputTokens += metrics.InputTokens
+	totalMetrics.OutputTokens += metrics.OutputTokens
+	totalMetrics.EstimatedCost += metrics.EstimatedCost
+
+	// 3.2 Sequential Building
+	updateProgress(15, "Building study guide sections...", nil, totalMetrics)
+	finalMarkdown, finalTitle, genMetrics, err := generator.generateSequentialStudyGuide(jobContext, lecture, transcript, relevantMaterials, structure, languageCode, updateProgress, totalMetrics)
+	if err != nil {
+		return "", "", fmt.Errorf("sequential generation failed: %w", err)
+	}
+	totalMetrics.InputTokens += genMetrics.InputTokens
+	totalMetrics.OutputTokens += genMetrics.OutputTokens
+	totalMetrics.EstimatedCost += genMetrics.EstimatedCost
+
+	updateProgress(100, "Generation complete.", nil, totalMetrics)
+	return finalMarkdown, finalTitle, nil
+}
+
+func (generator *ToolGenerator) triangulateRelevantMaterials(jobContext context.Context, transcript, fullMaterials string) (string, models.JobMetrics, error) {
+	var waitGroup sync.WaitGroup
+	var mutex sync.Mutex
+	var allMetrics models.JobMetrics
+	var allRanges [][]struct {
+		Start int `json:"start"`
+		End   int `json:"end"`
+	}
+
+	for attemptIndex := 0; attemptIndex < 3; attemptIndex++ {
+		waitGroup.Add(1)
+		go func(runID int) {
+			defer waitGroup.Done()
+
+			prompt, _ := generator.promptManager.GetPrompt(prompts.PromptGetRelevantPages, map[string]string{
+				"transcript":      transcript,
+				"reference_files": fullMaterials,
+			})
+
+			response, stepMetrics, err := generator.callLLM(jobContext, prompt)
+			mutex.Lock()
+			defer mutex.Unlock()
+			allMetrics.InputTokens += stepMetrics.InputTokens
+			allMetrics.OutputTokens += stepMetrics.OutputTokens
+			allMetrics.EstimatedCost += stepMetrics.EstimatedCost
+
+			if err == nil {
+				var result struct {
+					PageRanges []struct {
+						Start int `json:"start"`
+						End   int `json:"end"`
+					} `json:"page_ranges"`
+				}
+				if unmarshalErr := generator.unmarshalJSONWithFallback(response, &result); unmarshalErr == nil {
+					allRanges = append(allRanges, result.PageRanges)
+				}
+			}
+		}(attemptIndex)
+	}
+	waitGroup.Wait()
+
+	if len(allRanges) == 0 {
+		return fullMaterials, allMetrics, fmt.Errorf("all triangulation runs failed")
+	}
+
+	finalRanges := generator.unionAndMergeRanges(allRanges)
+	return generator.filterMaterialsByRanges(fullMaterials, finalRanges), allMetrics, nil
+}
+
+func (generator *ToolGenerator) analyzeStructureWithRetries(jobContext context.Context, transcript, materials, length, language string) (string, models.JobMetrics, error) {
 	var metrics models.JobMetrics
-
-	// 1. Identify Relevant Pages
-	updateProgress(5, "Identifying relevant reference materials...", nil, metrics)
-	relevantMaterials, relevantMetrics, err := generator.getRelevantMaterials(jobContext, transcript, referenceFilesContent)
-	if err == nil {
-		metrics.InputTokens += relevantMetrics.InputTokens
-		metrics.OutputTokens += relevantMetrics.OutputTokens
-		metrics.EstimatedCost += relevantMetrics.EstimatedCost
-	} else {
-		slog.Warn("Failed to narrow down relevant materials, using full content", "error", err)
-		relevantMaterials = referenceFilesContent
+	var sectionCounts struct {
+		minimum, maximum int
+		preferred        string
 	}
 
-	// 2. Analyze Lecture Structure
-	updateProgress(10, "Analyzing lecture structure...", nil, metrics)
-
-	type sectionRange struct {
-		minimum   int
-		maximum   int
-		preferred string
-	}
-
-	var sectionCounts sectionRange
 	switch length {
 	case "short":
-		sectionCounts = sectionRange{minimum: 1, maximum: 4, preferred: "2-3"}
+		sectionCounts.minimum, sectionCounts.maximum, sectionCounts.preferred = 1, 4, "2-3"
 	case "long":
-		sectionCounts = sectionRange{minimum: 4, maximum: 7, preferred: "5-6"}
-	default: // medium
-		sectionCounts = sectionRange{minimum: 2, maximum: 5, preferred: "3-4"}
+		sectionCounts.minimum, sectionCounts.maximum, sectionCounts.preferred = 4, 7, "5-6"
+	default:
+		sectionCounts.minimum, sectionCounts.maximum, sectionCounts.preferred = 2, 5, "3-4"
 	}
 
 	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
-
-	// Load full document example for structure
-	examplePrompt := prompts.PromptStudyGuideWithoutCitationsExample
-	if relevantMaterials != "" {
-		examplePrompt = prompts.PromptStudyGuideWithCitationsExample
+	exampleTemplatePath := prompts.PromptStudyGuideWithoutCitationsExample
+	if materials != "" {
+		exampleTemplatePath = prompts.PromptStudyGuideWithCitationsExample
 	}
-	exampleTemplateForStructure, _ := generator.promptManager.GetPrompt(examplePrompt, nil)
+	exampleTemplate, _ := generator.promptManager.GetPrompt(exampleTemplatePath, nil)
 
-	structurePrompt, err := generator.promptManager.GetPrompt(prompts.PromptAnalyzeLectureStructure, map[string]string{
-		"language_requirement":    fmt.Sprintf("Use language code %s", languageCode),
+	prompt, _ := generator.promptManager.GetPrompt(prompts.PromptAnalyzeLectureStructure, map[string]string{
+		"language_requirement":    fmt.Sprintf("Use language code %s", language),
 		"minimum_section_count":   strconv.Itoa(sectionCounts.minimum),
-		"max_section_count":       strconv.Itoa(sectionCounts.maximum),
+		"maximum_section_count":   strconv.Itoa(sectionCounts.maximum),
 		"preferred_section_range": sectionCounts.preferred,
 		"latex_instructions":      latexInstructions,
-		"example_template":        exampleTemplateForStructure,
+		"example_template":        exampleTemplate,
 		"transcript":              transcript,
-		"reference_materials":     relevantMaterials,
+		"reference_materials":     materials,
 	})
-	if err != nil {
-		return "", "", fmt.Errorf("failed to prepare structure prompt: %w", err)
+
+	for attempt := 1; attempt <= 3; attempt++ {
+		response, stepMetrics, err := generator.callLLM(jobContext, prompt)
+		metrics.InputTokens += stepMetrics.InputTokens
+		metrics.OutputTokens += stepMetrics.OutputTokens
+		metrics.EstimatedCost += stepMetrics.EstimatedCost
+
+		if err != nil {
+			if attempt == 3 {
+				return "", metrics, err
+			}
+			time.Sleep(time.Duration(attempt) * time.Second)
+			continue
+		}
+
+		sections := generator.parseStructure(response)
+		if len(sections) >= sectionCounts.minimum && len(sections) <= sectionCounts.maximum {
+			return response, metrics, nil
+		}
+		slog.Warn("Structure validation failed, retrying...", "count", len(sections), "attempt", attempt)
 	}
 
-	structureResponse, structureMetrics, err := generator.callLLM(jobContext, structurePrompt)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to analyze structure: %w", err)
-	}
-	metrics.InputTokens += structureMetrics.InputTokens
-	metrics.OutputTokens += structureMetrics.OutputTokens
-	metrics.EstimatedCost += structureMetrics.EstimatedCost
+	return "", metrics, fmt.Errorf("failed to generate valid structure after 3 attempts")
+}
 
-	title := generator.parseTitle(structureResponse)
+func (generator *ToolGenerator) generateSequentialStudyGuide(
+	jobContext context.Context,
+	lecture models.Lecture,
+	transcript, materials, structure, language string,
+	updateProgress func(int, string, any, models.JobMetrics),
+	currentMetrics models.JobMetrics,
+) (string, string, models.JobMetrics, error) {
+	var metrics models.JobMetrics
+	title := generator.parseTitle(structure)
 	if title == "" {
 		title = lecture.Title
 	}
-
-	sections := generator.parseStructure(structureResponse)
-	if len(sections) == 0 {
-		return "", "", fmt.Errorf("failed to parse sections from LLM response")
-	}
-
-	// 3. Sequential Generation Setup
-	updateProgress(15, "Initializing sequential generation...", nil, metrics)
+	sections := generator.parseStructure(structure)
 
 	initialContextTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptStudyGuideInitialContext, nil)
-	languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{
-		"language":         languageCode,
-		"bcp_47_lang_code": languageCode,
-	})
+	languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{"language": language, "bcp_47_lang_code": language})
+	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+
 	citationInstructions := ""
 	exampleTemplatePrompt := prompts.PromptSectionWithoutCitationsExample
-	if relevantMaterials != "" {
+	if materials != "" {
 		citationInstructions, _ = generator.promptManager.GetPrompt(prompts.PromptCitationInstructions, nil)
 		exampleTemplatePrompt = prompts.PromptSectionWithCitationsExample
 	}
@@ -124,270 +223,300 @@ func (generator *ToolGenerator) GenerateStudyGuide(jobContext context.Context, l
 	initialContext := generator.replacePromptVariables(initialContextTemplate, map[string]string{
 		"language_requirement": languageRequirement,
 		"transcript":           transcript,
-		"reference_materials":  relevantMaterials,
-		"structure_outline":    structureResponse,
+		"reference_materials":  materials,
+		"structure_outline":    structure,
 	})
 
-	history := []llm.Message{
-		{Role: "user", Content: []llm.ContentPart{{Type: "text", Text: initialContext}}},
-		{Role: "assistant", Content: []llm.ContentPart{{Type: "text", Text: "I understand the lecture content, reference materials, and structural outline. I'm ready to generate each section sequentially with complete coverage and smooth transitions."}}},
-	}
-
-	// 4. Generate Sections
+	var successfulSections []string
 	reconstructor := markdown.NewReconstructor()
 	rootNode := &markdown.Node{Type: markdown.NodeDocument}
-	rootNode.Children = append(rootNode.Children, &markdown.Node{
-		Type:    markdown.NodeHeading,
-		Level:   1,
-		Content: title,
-	})
+	rootNode.Children = append(rootNode.Children, &markdown.Node{Type: markdown.NodeHeading, Level: 1, Content: title})
 
-	totalSections := len(sections)
 	for sectionIndex, section := range sections {
-		sectionTitle := section.Title
-		sectionCoverage := section.Coverage
-
-		sectionMetadata := map[string]any{
-			"section_index":  sectionIndex + 1,
-			"total_sections": totalSections,
-			"section_title":  sectionTitle,
-		}
-
-		progress := 20 + int(float64(sectionIndex)/float64(totalSections)*75)
-		updateProgress(progress, "Generating study guide section...", sectionMetadata, metrics)
+		sectionNumber := sectionIndex + 1
+		progress := 20 + int(float64(sectionIndex)/float64(len(sections))*75)
 
 		sectionPromptTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptStudyGuideSectionGeneration, nil)
 		sectionPrompt := generator.replacePromptVariables(sectionPromptTemplate, map[string]string{
 			"language_requirement":  languageRequirement,
-			"section_title":         sectionTitle,
-			"section_coverage":      sectionCoverage,
-			"structure_outline":     structureResponse,
+			"section_title":         section.Title,
+			"section_coverage":      section.Coverage,
+			"structure_outline":     structure,
 			"citation_instructions": citationInstructions,
 			"latex_instructions":    latexInstructions,
 			"example_template":      exampleTemplate,
 		})
 
-		for attempt := 1; attempt <= 2; attempt++ {
-			response, genMetrics, err := generator.callLLMWithHistory(jobContext, sectionPrompt, history)
-			if err != nil {
-				return "", "", err
+		var acceptedContent string
+		for attempt := 1; attempt <= 3; attempt++ {
+			history := []llm.Message{
+				{Role: "user", Content: []llm.ContentPart{{Type: "text", Text: initialContext}}},
+				{Role: "assistant", Content: []llm.ContentPart{{Type: "text", Text: "Ready."}}},
 			}
-			metrics.InputTokens += genMetrics.InputTokens
-			metrics.OutputTokens += genMetrics.OutputTokens
-			metrics.EstimatedCost += genMetrics.EstimatedCost
+			for i, content := range successfulSections {
+				history = append(history, llm.Message{Role: "user", Content: []llm.ContentPart{{Type: "text", Text: "Generate " + sections[i].Title}}})
+				history = append(history, llm.Message{Role: "assistant", Content: []llm.ContentPart{{Type: "text", Text: content}}})
+			}
 
-			updateProgress(progress, "Verifying section quality...", sectionMetadata, metrics)
-			verifyPromptTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptVerifySectionAdherence, nil)
-			verifyPrompt := generator.replacePromptVariables(verifyPromptTemplate, map[string]string{
-				"section_title":     sectionTitle,
-				"expected_coverage": sectionCoverage,
-				"generated_section": response,
+			updateProgress(progress, fmt.Sprintf("Generating section %d/%d...", sectionNumber, len(sections)), nil, currentMetrics)
+			response, generationMetrics, err := generator.callLLMWithHistory(jobContext, sectionPrompt, history)
+			metrics.InputTokens += generationMetrics.InputTokens
+			metrics.OutputTokens += generationMetrics.OutputTokens
+			metrics.EstimatedCost += generationMetrics.EstimatedCost
+			if err != nil {
+				continue
+			}
+
+			sectionParser := markdown.NewParser()
+			sectionAST := sectionParser.Parse(response)
+			similarity := 0.0
+
+			// Find the actual generated title from the AST
+			generatedTitle := ""
+			for _, child := range sectionAST.Children {
+				if child.Type == markdown.NodeSection && child.Level == 2 {
+					generatedTitle = child.Title
+					break
+				}
+				if child.Type == markdown.NodeHeading && child.Level == 2 {
+					generatedTitle = child.Content
+					break
+				}
+			}
+
+			if generatedTitle != "" {
+				similarity = generator.calculateSimilarity(section.Title, generatedTitle)
+			}
+
+			if similarity < 65 && attempt < 3 {
+				continue
+			}
+
+			updateProgress(progress, "Verifying adherence...", nil, currentMetrics)
+			verificationTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptVerifySectionAdherence, nil)
+			verificationPrompt := generator.replacePromptVariables(verificationTemplate, map[string]string{
+				"section_title": section.Title, "expected_coverage": section.Coverage, "generated_section": response,
 			})
+			verificationResponse, verificationMetrics, _ := generator.callLLM(jobContext, verificationPrompt)
+			metrics.InputTokens += verificationMetrics.InputTokens
+			metrics.OutputTokens += verificationMetrics.OutputTokens
+			metrics.EstimatedCost += verificationMetrics.EstimatedCost
 
-			verifyResponse, verifyMetrics, _ := generator.callLLM(jobContext, verifyPrompt)
-			metrics.InputTokens += verifyMetrics.InputTokens
-			metrics.OutputTokens += verifyMetrics.OutputTokens
-			metrics.EstimatedCost += verifyMetrics.EstimatedCost
-
-			score := generator.parseScore(verifyResponse)
-			if score >= 70 || attempt == 2 {
-				sectionParser := markdown.NewParser()
-				sectionAST := sectionParser.Parse(response)
+			if generator.parseScore(verificationResponse) >= 70 || attempt == 3 {
+				acceptedContent = response
 				rootNode.Children = append(rootNode.Children, sectionAST.Children...)
-
-				history = append(history, llm.Message{Role: "user", Content: []llm.ContentPart{{Type: "text", Text: sectionPrompt}}})
-				history = append(history, llm.Message{Role: "assistant", Content: []llm.ContentPart{{Type: "text", Text: response}}})
+				successfulSections = append(successfulSections, response)
 				break
 			}
+			updateProgress(progress, "Rebuilding history for retry...", nil, currentMetrics)
+		}
 
-			updateProgress(progress, "Regenerating section due to low quality...", map[string]any{
-				"section_index": sectionIndex + 1,
-				"section_title": sectionTitle,
-				"score":         score,
-				"attempt":       attempt,
-			}, metrics)
+		if acceptedContent == "" {
+			return "", "", metrics, fmt.Errorf("failed to generate section %d", sectionNumber)
 		}
 	}
 
-	finalMarkdown := reconstructor.Reconstruct(rootNode)
-	updateProgress(100, "Study guide generation completed", nil, metrics)
-	return finalMarkdown, title, nil
+	return reconstructor.Reconstruct(rootNode), title, metrics, nil
 }
 
-// GenerateFlashcards creates a set of flashcards from the lecture content
-func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, updateProgress func(int, string, any, models.JobMetrics)) (string, string, error) {
-	var metrics models.JobMetrics
-	updateProgress(10, "Preparing flashcard generation...", nil, metrics)
-
-	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
-
-	flashcardPrompt, err := generator.promptManager.GetPrompt(prompts.PromptGenerateFlashcards, map[string]string{
-		"language_requirement": fmt.Sprintf("Generate the flashcards in language code %s", languageCode),
-		"transcript":           transcript,
-		"reference_materials":  referenceFilesContent,
-		"latex_instructions":   latexInstructions,
-	})
-	if err != nil {
-		return "", "", err
-	}
-
-	updateProgress(30, "Generating flashcards via LLM...", nil, metrics)
-	flashcardResponse, llmMetrics, err := generator.callLLM(jobContext, flashcardPrompt)
-	if err != nil {
-		return "", "", err
-	}
-	metrics.InputTokens += llmMetrics.InputTokens
-	metrics.OutputTokens += llmMetrics.OutputTokens
-	metrics.EstimatedCost += llmMetrics.EstimatedCost
-
-	updateProgress(100, "Flashcard generation completed", nil, metrics)
-	return flashcardResponse, "Flashcards: " + lecture.Title, nil
-}
-
-// GenerateQuiz creates a multiple-choice quiz from the lecture content
-func (generator *ToolGenerator) GenerateQuiz(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, updateProgress func(int, string, any, models.JobMetrics)) (string, string, error) {
-	var metrics models.JobMetrics
-	updateProgress(10, "Preparing quiz generation...", nil, metrics)
-
-	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
-
-	quizPrompt, err := generator.promptManager.GetPrompt(prompts.PromptGenerateQuiz, map[string]string{
-		"language_requirement": fmt.Sprintf("Generate the quiz in language code %s", languageCode),
-		"transcript":           transcript,
-		"reference_materials":  referenceFilesContent,
-		"latex_instructions":   latexInstructions,
-	})
-	if err != nil {
-		return "", "", err
-	}
-
-	updateProgress(30, "Generating quiz via LLM...", nil, metrics)
-	quizResponse, llmMetrics, err := generator.callLLM(jobContext, quizPrompt)
-	if err != nil {
-		return "", "", err
-	}
-	metrics.InputTokens += llmMetrics.InputTokens
-	metrics.OutputTokens += llmMetrics.OutputTokens
-	metrics.EstimatedCost += llmMetrics.EstimatedCost
-
-	updateProgress(100, "Quiz generation completed", nil, metrics)
-	return quizResponse, "Quiz: " + lecture.Title, nil
-}
-
-// ProcessFootnotesAI improves the quality of footnotes using AI
 func (generator *ToolGenerator) ProcessFootnotesAI(jobContext context.Context, citations []markdown.ParsedCitation) ([]markdown.ParsedCitation, models.JobMetrics, error) {
 	if len(citations) == 0 {
 		return nil, models.JobMetrics{}, nil
 	}
 
 	var totalMetrics models.JobMetrics
-	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
-
-	// Step 1: Format current citations as markdown for parsing
-	var footnotesMarkdown strings.Builder
-	for _, citation := range citations {
-		footnotesMarkdown.WriteString(fmt.Sprintf("[^%d]: %s\n\n", citation.Number, citation.Description))
-	}
-
-	// Step 2: Parse metadata using AI to verify and enrich
-	parsePrompt, err := generator.promptManager.GetPrompt(prompts.PromptParseFootnotes, map[string]string{
-		"footnotes":          footnotesMarkdown.String(),
-		"latex_instructions": latexInstructions,
-	})
-	if err != nil {
-		return citations, totalMetrics, err
-	}
-
-	parseResponse, parseMetrics, err := generator.callLLM(jobContext, parsePrompt)
-	if err != nil {
-		slog.Warn("Failed to parse footnotes via AI, using original", "error", err)
-		return citations, totalMetrics, nil
-	}
-	totalMetrics.InputTokens += parseMetrics.InputTokens
-	totalMetrics.OutputTokens += parseMetrics.OutputTokens
-	totalMetrics.EstimatedCost += parseMetrics.EstimatedCost
-
-	// Extract JSON from response
-	jsonStr := parseResponse
-	if idx := strings.Index(jsonStr, "{"); idx != -1 {
-		if lastIdx := strings.LastIndex(jsonStr, "}"); lastIdx != -1 {
-			jsonStr = jsonStr[idx : lastIdx+1]
-		}
-	}
-
-	type aiFootnote struct {
-		Number      int    `json:"number"`
-		TextContent string `json:"text_content"`
-		File        string `json:"file"`
-		Pages       []int  `json:"pages"`
-	}
-	type aiResponse struct {
-		Footnotes []aiFootnote `json:"footnotes"`
-	}
-
-	var result aiResponse
-	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
-		slog.Warn("Failed to unmarshal AI footnote response", "error", err)
-		return citations, totalMetrics, nil
-	}
-
-	// Step 3: Fix content using format-footnotes prompt
-	formatPrompt, err := generator.promptManager.GetPrompt(prompts.PromptFormatFootnotes, map[string]string{
-		"footnotes":          footnotesMarkdown.String(),
-		"latex_instructions": latexInstructions,
-	})
-	if err != nil {
-		return citations, totalMetrics, err
-	}
-
-	formatResponse, formatMetrics, err := generator.callLLM(jobContext, formatPrompt)
-	if err != nil {
-		slog.Warn("Failed to format footnotes via AI, using original", "error", err)
-		return citations, totalMetrics, nil
-	}
-	totalMetrics.InputTokens += formatMetrics.InputTokens
-	totalMetrics.OutputTokens += formatMetrics.OutputTokens
-	totalMetrics.EstimatedCost += formatMetrics.EstimatedCost
-
-	// Step 4: Combine AI results back into citations
-	// We parse the formatted response which should be markdown definitions
-	parser := markdown.NewParser()
-	ast := parser.Parse(formatResponse)
-
-	// Create map of formatted content by footnote number
-	formattedContent := make(map[int]string)
-	for _, node := range ast.Children {
-		if node.Type == markdown.NodeFootnote {
-			formattedContent[node.FootnoteNumber] = node.Content
-		}
-	}
-
 	updatedCitations := make([]markdown.ParsedCitation, len(citations))
-	for i, original := range citations {
-		updated := original
+	copy(updatedCitations, citations)
 
-		// Find matching metadata from AI parse
-		for _, aiFn := range result.Footnotes {
-			if aiFn.Number == original.Number {
-				if aiFn.File != "" {
-					updated.File = aiFn.File
-				}
-				if len(aiFn.Pages) > 0 {
-					updated.Pages = aiFn.Pages
-				}
-				break
-			}
+	for citationIndex := 0; citationIndex < len(citations); citationIndex += 10 {
+		end := citationIndex + 10
+		if end > len(citations) {
+			end = len(citations)
 		}
+		batch := citations[citationIndex:end]
 
-		// Update description with formatted content if available
-		if content, ok := formattedContent[original.Number]; ok {
-			updated.Description = content
+		batchMetrics, err := generator.processFootnoteBatch(jobContext, batch, updatedCitations, citationIndex)
+		totalMetrics.InputTokens += batchMetrics.InputTokens
+		totalMetrics.OutputTokens += batchMetrics.OutputTokens
+		totalMetrics.EstimatedCost += batchMetrics.EstimatedCost
+		if err != nil {
+			slog.Error("Footnote batch failed", "error", err)
 		}
-
-		updatedCitations[i] = updated
 	}
 
 	return updatedCitations, totalMetrics, nil
+}
+
+func (generator *ToolGenerator) processFootnoteBatch(ctx context.Context, batch []markdown.ParsedCitation, allCitations []markdown.ParsedCitation, offset int) (models.JobMetrics, error) {
+	var metrics models.JobMetrics
+	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+
+	var markdownBuilder strings.Builder
+	for _, citation := range batch {
+		markdownBuilder.WriteString(fmt.Sprintf("[^%d]: %s\n\n", citation.Number, citation.Description))
+	}
+
+	parsingPrompt, _ := generator.promptManager.GetPrompt(prompts.PromptParseFootnotes, map[string]string{
+		"footnotes": markdownBuilder.String(), "latex_instructions": latexInstructions,
+	})
+	parsingResponse, parsingMetrics, err := generator.callLLM(ctx, parsingPrompt)
+	metrics.InputTokens += parsingMetrics.InputTokens
+	metrics.OutputTokens += parsingMetrics.OutputTokens
+	metrics.EstimatedCost += parsingMetrics.EstimatedCost
+	if err != nil {
+		return metrics, err
+	}
+
+	var result struct {
+		Footnotes []struct {
+			Number      int    `json:"number"`
+			TextContent string `json:"text_content"`
+			File        string `json:"file"`
+			Pages       []int  `json:"pages"`
+		} `json:"footnotes"`
+	}
+	if unmarshalErr := generator.unmarshalJSONWithFallback(parsingResponse, &result); unmarshalErr == nil {
+		for batchCitationIndex, citation := range batch {
+			found := false
+			for _, aiFootnote := range result.Footnotes {
+				if aiFootnote.Number == citation.Number {
+					allCitations[offset+batchCitationIndex].File = aiFootnote.File
+					allCitations[offset+batchCitationIndex].Pages = aiFootnote.Pages
+					found = true
+					break
+				}
+			}
+			if !found && batchCitationIndex < len(result.Footnotes) {
+				allCitations[offset+batchCitationIndex].File = result.Footnotes[batchCitationIndex].File
+				allCitations[offset+batchCitationIndex].Pages = result.Footnotes[batchCitationIndex].Pages
+			}
+		}
+	}
+
+	formattingPrompt, _ := generator.promptManager.GetPrompt(prompts.PromptFormatFootnotes, map[string]string{
+		"footnotes": markdownBuilder.String(), "latex_instructions": latexInstructions,
+	})
+	formattingResponse, formattingMetrics, _ := generator.callLLM(ctx, formattingPrompt)
+	metrics.InputTokens += formattingMetrics.InputTokens
+	metrics.OutputTokens += formattingMetrics.OutputTokens
+	metrics.EstimatedCost += formattingMetrics.EstimatedCost
+
+	parser := markdown.NewParser()
+	ast := parser.Parse(formattingResponse)
+
+	// Extract all footnotes from the AST
+	var aiFootnotes []*markdown.Node
+	for _, node := range ast.Children {
+		if node.Type == markdown.NodeFootnote {
+			aiFootnotes = append(aiFootnotes, node)
+		}
+	}
+
+	for batchCitationIndex, citation := range batch {
+		found := false
+		// Try matching by number first
+		for _, node := range aiFootnotes {
+			if node.FootnoteNumber == citation.Number {
+				allCitations[offset+batchCitationIndex].Description = node.Content
+				found = true
+				break
+			}
+		}
+		// Positional fallback if number matching fails
+		if !found && batchCitationIndex < len(aiFootnotes) {
+			allCitations[offset+batchCitationIndex].Description = aiFootnotes[batchCitationIndex].Content
+		}
+	}
+
+	return metrics, nil
+}
+
+// unmarshalJSONWithFallback attempts idiomatic parsing then robust extraction
+func (generator *ToolGenerator) unmarshalJSONWithFallback(text string, target interface{}) error {
+	if err := json.Unmarshal([]byte(strings.TrimSpace(text)), target); err == nil {
+		return nil
+	}
+	fencedJSON := generator.extractFencedJSON(text)
+	return json.Unmarshal([]byte(fencedJSON), target)
+}
+
+func (generator *ToolGenerator) extractFencedJSON(text string) string {
+	start := strings.Index(text, "{")
+	if start == -1 {
+		start = strings.Index(text, "[")
+	}
+	end := strings.LastIndex(text, "}")
+	if end == -1 {
+		end = strings.LastIndex(text, "]")
+	}
+	if start != -1 && end != -1 && end > start {
+		return text[start : end+1]
+	}
+	return text
+}
+
+func (generator *ToolGenerator) filterMaterialsByRanges(materials string, ranges []struct {
+	Start int `json:"start"`
+	End   int `json:"end"`
+}) string {
+	parser := markdown.NewParser()
+	ast := parser.Parse(materials)
+	reconstructor := markdown.NewReconstructor()
+	filteredRoot := &markdown.Node{Type: markdown.NodeDocument}
+
+	var currentFile *markdown.Node
+	pageRegex := regexp.MustCompile(`(?i)page\s*(\d+)`)
+
+	var processNode func(*markdown.Node)
+	processNode = func(node *markdown.Node) {
+		if node.Type == markdown.NodeSection || node.Type == markdown.NodeHeading {
+			title := node.Title
+			if title == "" {
+				title = node.Content
+			}
+
+			if node.Level == 1 {
+				currentFile = &markdown.Node{Type: markdown.NodeHeading, Level: 1, Content: title}
+			} else {
+				match := pageRegex.FindStringSubmatch(title)
+				if match != nil {
+					pageNum, _ := strconv.Atoi(match[1])
+					isRelevant := false
+					for _, r := range ranges {
+						if pageNum >= r.Start && pageNum <= r.End {
+							isRelevant = true
+							break
+						}
+					}
+
+					if isRelevant {
+						if currentFile != nil {
+							alreadyAdded := false
+							for _, added := range filteredRoot.Children {
+								if added.Type == markdown.NodeHeading && added.Level == 1 && added.Content == currentFile.Content {
+									alreadyAdded = true
+									break
+								}
+							}
+							if !alreadyAdded {
+								filteredRoot.Children = append(filteredRoot.Children, currentFile)
+							}
+						}
+						filteredRoot.Children = append(filteredRoot.Children, &markdown.Node{
+							Type: markdown.NodeHeading, Level: 2, Content: title,
+						})
+						filteredRoot.Children = append(filteredRoot.Children, node.Children...)
+					}
+				}
+			}
+		}
+		for _, child := range node.Children {
+			processNode(child)
+		}
+	}
+
+	processNode(ast)
+	return reconstructor.Reconstruct(filteredRoot)
 }
 
 func (generator *ToolGenerator) callLLM(jobContext context.Context, prompt string) (string, models.JobMetrics, error) {
@@ -401,14 +530,11 @@ func (generator *ToolGenerator) callLLMWithHistory(jobContext context.Context, p
 	}
 
 	messages := append(history, llm.Message{
-		Role:    "user",
-		Content: []llm.ContentPart{{Type: "text", Text: prompt}},
+		Role: "user", Content: []llm.ContentPart{{Type: "text", Text: prompt}},
 	})
 
 	responseChannel, err := generator.llmProvider.Chat(jobContext, llm.ChatRequest{
-		Model:    model,
-		Messages: messages,
-		Stream:   false,
+		Model: model, Messages: messages, Stream: false,
 	})
 	if err != nil {
 		return "", models.JobMetrics{}, err
@@ -426,106 +552,11 @@ func (generator *ToolGenerator) callLLMWithHistory(jobContext context.Context, p
 		metrics.EstimatedCost += chunk.Cost
 	}
 
-	// Safety check: Cost Threshold
-	// Since callLLMWithHistory might be called in a loop, the caller should ideally track the aggregate.
-	// But as a catch-all safety measure, we'll check individual calls too.
-	if generator.configuration.Safety.MaxCostPerJob > 0 && metrics.EstimatedCost > generator.configuration.Safety.MaxCostPerJob {
-		return "", metrics, fmt.Errorf("safety threshold exceeded: call cost $%.4f > limit $%.4f", metrics.EstimatedCost, generator.configuration.Safety.MaxCostPerJob)
+	if generator.configuration.Safety.MaximumCostPerJob > 0 && metrics.EstimatedCost > generator.configuration.Safety.MaximumCostPerJob {
+		return "", metrics, fmt.Errorf("safety threshold exceeded: call cost $%.4f > limit $%.4f", metrics.EstimatedCost, generator.configuration.Safety.MaximumCostPerJob)
 	}
 
 	return resultBuilder.String(), metrics, nil
-}
-
-func (generator *ToolGenerator) getRelevantMaterials(jobContext context.Context, transcript string, fullMaterials string) (string, models.JobMetrics, error) {
-	if fullMaterials == "" {
-		return "", models.JobMetrics{}, nil
-	}
-
-	prompt, err := generator.promptManager.GetPrompt(prompts.PromptGetRelevantPages, map[string]string{
-		"transcript":      transcript,
-		"reference_files": fullMaterials,
-	})
-	if err != nil {
-		return fullMaterials, models.JobMetrics{}, err
-	}
-
-	response, metrics, err := generator.callLLM(jobContext, prompt)
-	if err != nil {
-		return fullMaterials, metrics, err
-	}
-
-	type pageRange struct {
-		Start int `json:"start"`
-		End   int `json:"end"`
-	}
-	type resultType struct {
-		PageRanges []pageRange `json:"page_ranges"`
-	}
-
-	var result resultType
-	jsonStr := response
-	if idx := strings.Index(jsonStr, "{"); idx != -1 {
-		if lastIdx := strings.LastIndex(jsonStr, "}"); lastIdx != -1 {
-			jsonStr = jsonStr[idx : lastIdx+1]
-		}
-	}
-
-	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
-		return fullMaterials, metrics, fmt.Errorf("failed to parse relevant pages JSON: %w", err)
-	}
-
-	if len(result.PageRanges) == 0 {
-		return "", metrics, nil
-	}
-
-	// Refined Filtering using AST
-	parser := markdown.NewParser()
-	ast := parser.Parse(fullMaterials)
-	reconstructor := markdown.NewReconstructor()
-
-	filteredRoot := &markdown.Node{Type: markdown.NodeDocument}
-
-	// We iterate through children. Headings level 1 indicate files, level 2 indicate pages
-	var currentFileNode *markdown.Node
-	includeFile := false
-
-	for _, node := range ast.Children {
-		if node.Type == markdown.NodeHeading && node.Level == 1 {
-			// New file
-			currentFileNode = node
-			includeFile = false
-		} else if node.Type == markdown.NodeHeading && node.Level == 2 {
-			// Check if this page is in any range
-			pageTitle := strings.ToLower(node.Content)
-			if strings.Contains(pageTitle, "page") {
-				numStr := strings.TrimSpace(strings.ReplaceAll(pageTitle, "page", ""))
-				pageNum, _ := strconv.Atoi(numStr)
-
-				isRelevant := false
-				for _, r := range result.PageRanges {
-					if pageNum >= r.Start && pageNum <= r.End {
-						isRelevant = true
-						break
-					}
-				}
-
-				if isRelevant {
-					if !includeFile && currentFileNode != nil {
-						filteredRoot.Children = append(filteredRoot.Children, currentFileNode)
-						includeFile = true
-					}
-					filteredRoot.Children = append(filteredRoot.Children, node)
-				} else {
-					includeFile = false
-				}
-			}
-		} else if includeFile {
-			// Append content of relevant page
-			filteredRoot.Children = append(filteredRoot.Children, node)
-		}
-	}
-
-	return reconstructor.Reconstruct(filteredRoot), metrics, nil
 }
 
 func (generator *ToolGenerator) replacePromptVariables(prompt string, variables map[string]string) string {
@@ -537,21 +568,12 @@ func (generator *ToolGenerator) replacePromptVariables(prompt string, variables 
 	return result
 }
 
-type sectionInfo struct {
-	Title    string
-	Coverage string
-}
-
 func (generator *ToolGenerator) parseTitle(structure string) string {
-	markdownParser := markdown.NewParser()
-	documentAST := markdownParser.Parse(structure)
-
-	for _, child := range documentAST.Children {
+	parser := markdown.NewParser()
+	ast := parser.Parse(structure)
+	for _, child := range ast.Children {
 		if child.Type == markdown.NodeSection && child.Level == 1 {
 			return child.Title
-		}
-		if child.Type == markdown.NodeHeading && child.Level == 1 {
-			return child.Content
 		}
 	}
 	return ""
@@ -559,51 +581,141 @@ func (generator *ToolGenerator) parseTitle(structure string) string {
 
 func (generator *ToolGenerator) parseStructure(structure string) []sectionInfo {
 	parser := markdown.NewParser()
-	documentAST := parser.Parse(structure)
+	ast := parser.Parse(structure)
 	reconstructor := markdown.NewReconstructor()
-
 	var sections []sectionInfo
-
-	var findSections func(*markdown.Node)
-	findSections = func(node *markdown.Node) {
+	var find func(*markdown.Node)
+	find = func(node *markdown.Node) {
 		if node.Type == markdown.NodeSection && node.Level == 2 {
-			coverage := reconstructor.Reconstruct(&markdown.Node{
-				Type:     markdown.NodeDocument,
-				Children: node.Children,
-			})
-			sections = append(sections, sectionInfo{
-				Title:    node.Title,
-				Coverage: coverage,
-			})
+			cov := reconstructor.Reconstruct(&markdown.Node{Type: markdown.NodeDocument, Children: node.Children})
+			sections = append(sections, sectionInfo{Title: node.Title, Coverage: cov})
 		} else {
-			for _, child := range node.Children {
-				findSections(child)
+			for _, c := range node.Children {
+				find(c)
 			}
 		}
 	}
-
-	findSections(documentAST)
+	find(ast)
 	return sections
 }
 
 func (generator *ToolGenerator) parseScore(response string) int {
-	type scoreResponse struct {
+	var result struct {
 		CoverageScore int `json:"coverage_score"`
 	}
-
-	// Try to find JSON block if fenced
-	jsonStr := response
-	if idx := strings.Index(jsonStr, "{"); idx != -1 {
-		if lastIdx := strings.LastIndex(jsonStr, "}"); lastIdx != -1 {
-			jsonStr = jsonStr[idx : lastIdx+1]
-		}
-	}
-
-	var result scoreResponse
-	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
-		slog.Error("Failed to parse coverage score JSON", "error", err, "response", response)
+	if err := generator.unmarshalJSONWithFallback(response, &result); err != nil {
 		return 0
 	}
-
 	return result.CoverageScore
+}
+
+func (generator *ToolGenerator) calculateSimilarity(firstString, secondString string) float64 {
+	firstString = strings.ToLower(strings.TrimSpace(firstString))
+	secondString = strings.ToLower(strings.TrimSpace(secondString))
+	if firstString == secondString {
+		return 100
+	}
+	if len(firstString) == 0 || len(secondString) == 0 {
+		return 0
+	}
+	distanceMatrix := make([][]int, len(firstString)+1)
+	for rowIndex := range distanceMatrix {
+		distanceMatrix[rowIndex] = make([]int, len(secondString)+1)
+		distanceMatrix[rowIndex][0] = rowIndex
+	}
+	for columnIndex := range distanceMatrix[0] {
+		distanceMatrix[0][columnIndex] = columnIndex
+	}
+	for firstStringIndex := 1; firstStringIndex <= len(firstString); firstStringIndex++ {
+		for secondStringIndex := 1; secondStringIndex <= len(secondString); secondStringIndex++ {
+			cost := 1
+			if firstString[firstStringIndex-1] == secondString[secondStringIndex-1] {
+				cost = 0
+			}
+			distanceMatrix[firstStringIndex][secondStringIndex] = generator.minimumInt(distanceMatrix[firstStringIndex-1][secondStringIndex]+1, generator.minimumInt(distanceMatrix[firstStringIndex][secondStringIndex-1]+1, distanceMatrix[firstStringIndex-1][secondStringIndex-1]+cost))
+		}
+	}
+	maximumLength := len(firstString)
+	if len(secondString) > maximumLength {
+		maximumLength = len(secondString)
+	}
+	return (1.0 - float64(distanceMatrix[len(firstString)][len(secondString)])/float64(maximumLength)) * 100
+}
+
+func (generator *ToolGenerator) minimumInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+type sectionInfo struct {
+	Title    string
+	Coverage string
+}
+
+func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, updateProgress func(int, string, any, models.JobMetrics)) (string, string, error) {
+	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+	prompt, _ := generator.promptManager.GetPrompt(prompts.PromptGenerateFlashcards, map[string]string{
+		"language_requirement": fmt.Sprintf("Generate in code %s", languageCode),
+		"transcript":           transcript, "reference_materials": referenceFilesContent, "latex_instructions": latexInstructions,
+	})
+	response, _, err := generator.callLLM(jobContext, prompt)
+	if err != nil {
+		return "", "", err
+	}
+	return response, lecture.Title, nil
+}
+
+func (generator *ToolGenerator) GenerateQuiz(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, updateProgress func(int, string, any, models.JobMetrics)) (string, string, error) {
+	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+	prompt, _ := generator.promptManager.GetPrompt(prompts.PromptGenerateQuiz, map[string]string{
+		"language_requirement": fmt.Sprintf("Generate in code %s", languageCode),
+		"transcript":           transcript, "reference_materials": referenceFilesContent, "latex_instructions": latexInstructions,
+	})
+	response, _, err := generator.callLLM(jobContext, prompt)
+	if err != nil {
+		return "", "", err
+	}
+	return response, lecture.Title, nil
+}
+
+func (generator *ToolGenerator) unionAndMergeRanges(allRuns [][]struct {
+	Start int `json:"start"`
+	End   int `json:"end"`
+}) []struct {
+	Start int `json:"start"`
+	End   int `json:"end"`
+} {
+	var flattenedRanges []struct {
+		Start int `json:"start"`
+		End   int `json:"end"`
+	}
+	for _, run := range allRuns {
+		flattenedRanges = append(flattenedRanges, run...)
+	}
+	if len(flattenedRanges) == 0 {
+		return nil
+	}
+
+	sort.Slice(flattenedRanges, func(i, j int) bool { return flattenedRanges[i].Start < flattenedRanges[j].Start })
+
+	var mergedRanges []struct {
+		Start int `json:"start"`
+		End   int `json:"end"`
+	}
+	currentRange := flattenedRanges[0]
+	for rangeIndex := 1; rangeIndex < len(flattenedRanges); rangeIndex++ {
+		// Gap filling (<= 5 pages)
+		if flattenedRanges[rangeIndex].Start-currentRange.End <= 6 {
+			if flattenedRanges[rangeIndex].End > currentRange.End {
+				currentRange.End = flattenedRanges[rangeIndex].End
+			}
+		} else {
+			mergedRanges = append(mergedRanges, currentRange)
+			currentRange = flattenedRanges[rangeIndex]
+		}
+	}
+	mergedRanges = append(mergedRanges, currentRange)
+	return mergedRanges
 }

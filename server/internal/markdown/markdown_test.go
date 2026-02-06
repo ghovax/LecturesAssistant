@@ -486,3 +486,1134 @@ func TestFootnoteIntegration_ASTAndReconstruction(tester *testing.T) {
 		tester.Errorf("Reconstructed markdown missing or incorrect metadata. Got:\n%s", reconstructed)
 	}
 }
+
+// LaTeX Math Delimiter Conversion Tests
+
+func TestUnwrapBacktickMath(tester *testing.T) {
+	parser := NewParser()
+
+	testCases := []struct {
+		name           string
+		input          string
+		expectedOutput string
+	}{
+		{
+			name:           "Backtick wrapped inline math",
+			input:          "Text with `\\(x + y\\)` inline",
+			expectedOutput: "Text with \\(x + y\\) inline",
+		},
+		{
+			name:           "Backtick wrapped display math",
+			input:          "Text with `\\[E = mc^2\\]` display",
+			expectedOutput: "Text with \\[E = mc^2\\] display",
+		},
+		{
+			name:           "Multiple backtick wrapped expressions",
+			input:          "`\\(a\\)` and `\\[b\\]` together",
+			expectedOutput: "\\(a\\) and \\[b\\] together",
+		},
+		{
+			name:           "No backtick wrapping",
+			input:          "Normal text with no math",
+			expectedOutput: "Normal text with no math",
+		},
+		{
+			name:           "Complex expression in backticks",
+			input:          "`\\(\\frac{x}{y}\\)` fraction",
+			expectedOutput: "\\(\\frac{x}{y}\\) fraction",
+		},
+	}
+
+	for _, testCase := range testCases {
+		tester.Run(testCase.name, func(subTester *testing.T) {
+			result := parser.unwrapBacktickMath(testCase.input)
+			if result != testCase.expectedOutput {
+				subTester.Errorf("Expected: %q\nGot: %q", testCase.expectedOutput, result)
+			}
+		})
+	}
+}
+
+func TestConvertLatexMathDelimiters(tester *testing.T) {
+	parser := NewParser()
+
+	testCases := []struct {
+		name           string
+		input          string
+		expectedOutput string
+	}{
+		{
+			name:           "Inline LaTeX to markdown",
+			input:          "Text \\(x + y\\) more text",
+			expectedOutput: "Text $x + y$ more text",
+		},
+		{
+			name:           "Display LaTeX to markdown",
+			input:          "Text \\[E = mc^2\\] more text",
+			expectedOutput: "Text $$E = mc^2$$ more text",
+		},
+		{
+			name:           "Multiple inline expressions",
+			input:          "\\(a\\) and \\(b\\) and \\(c\\)",
+			expectedOutput: "$a$ and $b$ and $c$",
+		},
+		{
+			name:           "Standalone inline math converted to display",
+			input:          "Text\n\\(x^2 + y^2 = z^2\\)\nMore text",
+			expectedOutput: "Text\n$$x^2 + y^2 = z^2$$\nMore text",
+		},
+		{
+			name:           "Standalone with trailing punctuation",
+			input:          "Text\n\\(f(x) = x^2\\).\nMore",
+			expectedOutput: "Text\n$$f(x) = x^2.$$\nMore",
+		},
+		{
+			name:           "Mixed inline and display",
+			input:          "Inline \\(a\\) and display \\[b\\]",
+			expectedOutput: "Inline $a$ and display $$b$$",
+		},
+		{
+			name:           "Standalone inline math upgraded to display",
+			input:          "\\(  x + y  \\)",
+			expectedOutput: "$$x + y$$",
+		},
+	}
+
+	for _, testCase := range testCases {
+		tester.Run(testCase.name, func(subTester *testing.T) {
+			result := parser.convertLatexMathDelimiters(testCase.input)
+			if result != testCase.expectedOutput {
+				subTester.Errorf("Expected: %q\nGot: %q", testCase.expectedOutput, result)
+			}
+		})
+	}
+}
+
+func TestLatexMathConversionRoundTrip(tester *testing.T) {
+	parser := NewParser()
+	reconstructor := NewReconstructor()
+
+	testCases := []struct {
+		name          string
+		input         string
+		expectedInAST string
+		shouldContain string
+	}{
+		{
+			name:          "Inline LaTeX converted to dollar notation",
+			input:         "Text \\(x+y\\) more",
+			expectedInAST: "x+y",
+			shouldContain: "$",
+		},
+		{
+			name:          "Display LaTeX converted to double dollar",
+			input:         "\\[E=mc^2\\]",
+			expectedInAST: "E=mc^2",
+			shouldContain: "$$",
+		},
+	}
+
+	for _, testCase := range testCases {
+		tester.Run(testCase.name, func(subTester *testing.T) {
+			ast := parser.Parse(testCase.input)
+			reconstructed := reconstructor.Reconstruct(ast)
+
+			// Verify the AST contains a node with expected content
+			found := false
+			var searchNode func(*Node)
+			searchNode = func(node *Node) {
+				if node == nil {
+					return
+				}
+				if strings.Contains(node.Content, testCase.expectedInAST) {
+					found = true
+				}
+				for _, child := range node.Children {
+					searchNode(child)
+				}
+			}
+			searchNode(ast)
+
+			if !found {
+				subTester.Errorf("AST did not contain expected content: %q", testCase.expectedInAST)
+			}
+
+			// Verify reconstruction produces math delimiters
+			if !strings.Contains(reconstructed, testCase.shouldContain) {
+				subTester.Errorf("Reconstructed markdown missing expected pattern %q:\n%s", testCase.shouldContain, reconstructed)
+			}
+		})
+	}
+}
+
+// Equations with Footnote References Tests
+
+func TestEquationsWithFootnoteReferences(tester *testing.T) {
+	parser := NewParser()
+
+	testCases := []struct {
+		name                    string
+		input                   string
+		expectedEquationType    NodeType
+		expectedEquationContent string
+	}{
+		{
+			name:                    "Display equation with footnote reference",
+			input:                   "\\[E = mc^2\\] [^1]",
+			expectedEquationType:    NodeDisplayEquation,
+			expectedEquationContent: "E = mc^2",
+		},
+		{
+			name:                    "Inline equation with footnote reference",
+			input:                   "\\(x + y\\) [^2]",
+			expectedEquationType:    NodeParagraph, // Inline math stays in paragraph after conversion
+			expectedEquationContent: "x + y",
+		},
+		{
+			name:                    "Equation with footnote and period",
+			input:                   "\\[\\alpha + \\beta\\] [^3].",
+			expectedEquationType:    NodeDisplayEquation,
+			expectedEquationContent: "\\alpha + \\beta",
+		},
+		{
+			name:                    "Equation with footnote and comma",
+			input:                   "\\(f(x)\\) [^4],",
+			expectedEquationType:    NodeParagraph,
+			expectedEquationContent: "f(x)",
+		},
+	}
+
+	for _, testCase := range testCases {
+		tester.Run(testCase.name, func(subTester *testing.T) {
+			ast := parser.Parse(testCase.input)
+
+			// Find the equation node
+			var equationNode *Node
+			for _, child := range ast.Children {
+				if child.Type == NodeDisplayEquation {
+					equationNode = child
+					break
+				}
+			}
+
+			if equationNode == nil {
+				subTester.Fatalf("Expected to find %s node in AST", testCase.expectedEquationType)
+			}
+
+			if equationNode.Content != testCase.expectedEquationContent {
+				subTester.Errorf("Expected equation content %q, got %q", testCase.expectedEquationContent, equationNode.Content)
+			}
+		})
+	}
+}
+
+// Paragraph Equation Splitting Tests
+
+func TestSplitParagraphEquations(tester *testing.T) {
+	parser := NewParser()
+
+	testCases := []struct {
+		name              string
+		input             string
+		expectedNodeCount int
+		expectedNodeTypes []NodeType
+		expectedContents  []string
+	}{
+		{
+			name:              "Paragraph with single embedded equation",
+			input:             "Text before $$x^2$$ text after",
+			expectedNodeCount: 3,
+			expectedNodeTypes: []NodeType{NodeParagraph, NodeDisplayEquation, NodeParagraph},
+			expectedContents:  []string{"Text before", "x^2", "text after"},
+		},
+		{
+			name:              "Paragraph with multiple equations",
+			input:             "Start $$eq1$$ middle $$eq2$$ end",
+			expectedNodeCount: 5,
+			expectedNodeTypes: []NodeType{NodeParagraph, NodeDisplayEquation, NodeParagraph, NodeDisplayEquation, NodeParagraph},
+			expectedContents:  []string{"Start", "eq1", "middle", "eq2", "end"},
+		},
+		{
+			name:              "Equation at start of paragraph",
+			input:             "$$first$$ then text",
+			expectedNodeCount: 2,
+			expectedNodeTypes: []NodeType{NodeDisplayEquation, NodeParagraph},
+			expectedContents:  []string{"first", "then text"},
+		},
+		{
+			name:              "Equation at end of paragraph",
+			input:             "Text then $$last$$",
+			expectedNodeCount: 2,
+			expectedNodeTypes: []NodeType{NodeParagraph, NodeDisplayEquation},
+			expectedContents:  []string{"Text then", "last"},
+		},
+		{
+			name:              "Only equation in paragraph",
+			input:             "$$only$$",
+			expectedNodeCount: 1,
+			expectedNodeTypes: []NodeType{NodeDisplayEquation},
+			expectedContents:  []string{"only"},
+		},
+		{
+			name:              "Three consecutive equations",
+			input:             "$$a$$ $$b$$ $$c$$",
+			expectedNodeCount: 3,
+			expectedNodeTypes: []NodeType{NodeDisplayEquation, NodeDisplayEquation, NodeDisplayEquation},
+			expectedContents:  []string{"a", "b", "c"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		tester.Run(testCase.name, func(subTester *testing.T) {
+			ast := parser.Parse(testCase.input)
+
+			if len(ast.Children) != testCase.expectedNodeCount {
+				subTester.Fatalf("Expected %d nodes, got %d", testCase.expectedNodeCount, len(ast.Children))
+			}
+
+			for i, child := range ast.Children {
+				if child.Type != testCase.expectedNodeTypes[i] {
+					subTester.Errorf("Node %d: expected type %s, got %s", i, testCase.expectedNodeTypes[i], child.Type)
+				}
+
+				if child.Content != testCase.expectedContents[i] {
+					subTester.Errorf("Node %d: expected content %q, got %q", i, testCase.expectedContents[i], child.Content)
+				}
+			}
+		})
+	}
+}
+
+// Page Number Formatting and Parsing Tests
+
+func TestFormatPageNumbers(tester *testing.T) {
+	testCases := []struct {
+		name           string
+		pages          []int
+		expectedOutput string
+	}{
+		{
+			name:           "Single page",
+			pages:          []int{5},
+			expectedOutput: "5",
+		},
+		{
+			name:           "Two consecutive pages",
+			pages:          []int{5, 6},
+			expectedOutput: "5–6",
+		},
+		{
+			name:           "Three consecutive pages",
+			pages:          []int{1, 2, 3},
+			expectedOutput: "1–3",
+		},
+		{
+			name:           "Non-consecutive pages",
+			pages:          []int{1, 3, 5},
+			expectedOutput: "1, 3, 5",
+		},
+		{
+			name:           "Mixed ranges and singles",
+			pages:          []int{1, 2, 3, 5, 7, 8, 9},
+			expectedOutput: "1–3, 5, 7–9",
+		},
+		{
+			name:           "Duplicate pages",
+			pages:          []int{1, 1, 2, 3, 3, 3},
+			expectedOutput: "1–3",
+		},
+		{
+			name:           "Unsorted input",
+			pages:          []int{9, 1, 5, 3, 7},
+			expectedOutput: "1, 3, 5, 7, 9",
+		},
+		{
+			name:           "Long consecutive range",
+			pages:          []int{10, 11, 12, 13, 14, 15},
+			expectedOutput: "10–15",
+		},
+		{
+			name:           "Empty array",
+			pages:          []int{},
+			expectedOutput: "",
+		},
+	}
+
+	for _, testCase := range testCases {
+		tester.Run(testCase.name, func(subTester *testing.T) {
+			result := FormatPageNumbers(testCase.pages)
+			if result != testCase.expectedOutput {
+				subTester.Errorf("Expected: %q, Got: %q", testCase.expectedOutput, result)
+			}
+		})
+	}
+}
+
+func TestParsePageStringWithEnDash(tester *testing.T) {
+	testCases := []struct {
+		name          string
+		pageString    string
+		expectedPages []int
+	}{
+		{
+			name:          "Range with en-dash",
+			pageString:    "5–6",
+			expectedPages: []int{5, 6},
+		},
+		{
+			name:          "Range with hyphen",
+			pageString:    "5-6",
+			expectedPages: []int{5, 6},
+		},
+		{
+			name:          "Multiple ranges with en-dash",
+			pageString:    "1–3, 5–7",
+			expectedPages: []int{1, 2, 3, 5, 6, 7},
+		},
+		{
+			name:          "Mixed hyphen and en-dash",
+			pageString:    "1-3, 5–7, 9",
+			expectedPages: []int{1, 2, 3, 5, 6, 7, 9},
+		},
+		{
+			name:          "Single page",
+			pageString:    "42",
+			expectedPages: []int{42},
+		},
+		{
+			name:          "Pages with spaces",
+			pageString:    "1 – 5, 10",
+			expectedPages: []int{1, 2, 3, 4, 5, 10},
+		},
+		{
+			name:          "Page with p prefix",
+			pageString:    "p5-7",
+			expectedPages: []int{5, 6, 7},
+		},
+		{
+			name:          "Empty string",
+			pageString:    "",
+			expectedPages: []int{},
+		},
+	}
+
+	for _, testCase := range testCases {
+		tester.Run(testCase.name, func(subTester *testing.T) {
+			result := ParsePageString(testCase.pageString)
+
+			if len(result) != len(testCase.expectedPages) {
+				subTester.Errorf("Expected %d pages, got %d: %v", len(testCase.expectedPages), len(result), result)
+				return
+			}
+
+			for i, page := range result {
+				if page != testCase.expectedPages[i] {
+					subTester.Errorf("Page %d: expected %d, got %d", i, testCase.expectedPages[i], page)
+				}
+			}
+		})
+	}
+}
+
+func TestPageNumberRoundTrip(tester *testing.T) {
+	testCases := []struct {
+		name          string
+		originalPages []int
+	}{
+		{
+			name:          "Single page round trip",
+			originalPages: []int{5},
+		},
+		{
+			name:          "Range round trip",
+			originalPages: []int{1, 2, 3, 4, 5},
+		},
+		{
+			name:          "Complex pattern round trip",
+			originalPages: []int{1, 2, 3, 7, 9, 10, 11},
+		},
+	}
+
+	for _, testCase := range testCases {
+		tester.Run(testCase.name, func(subTester *testing.T) {
+			formatted := FormatPageNumbers(testCase.originalPages)
+			parsed := ParsePageString(formatted)
+
+			if len(parsed) != len(testCase.originalPages) {
+				subTester.Errorf("Round trip failed: expected %d pages, got %d", len(testCase.originalPages), len(parsed))
+				return
+			}
+
+			for i, page := range parsed {
+				if page != testCase.originalPages[i] {
+					subTester.Errorf("Round trip failed at index %d: expected %d, got %d", i, testCase.originalPages[i], page)
+				}
+			}
+		})
+	}
+}
+
+// Heading Title Cleaning Tests
+
+func TestCleanTitle(tester *testing.T) {
+	parser := NewParser()
+
+	testCases := []struct {
+		name           string
+		input          string
+		expectedOutput string
+	}{
+		{
+			name:           "Numeric prefix with period",
+			input:          "1. Introduction",
+			expectedOutput: "Introduction",
+		},
+		{
+			name:           "Two digit numeric prefix",
+			input:          "42. The Answer",
+			expectedOutput: "The Answer",
+		},
+		{
+			name:           "Roman numeral prefix uppercase",
+			input:          "I. Background",
+			expectedOutput: "Background",
+		},
+		{
+			name:           "Complex roman numeral",
+			input:          "XIV. Chapter Fourteen",
+			expectedOutput: "Chapter Fourteen",
+		},
+		{
+			name:           "No prefix",
+			input:          "Simple Title",
+			expectedOutput: "Simple Title",
+		},
+		{
+			name:           "Title with number but no prefix pattern",
+			input:          "Chapter 1 Overview",
+			expectedOutput: "Chapter 1 Overview",
+		},
+		{
+			name:           "Prefix with multiple spaces",
+			input:          "5.  Multiple Spaces",
+			expectedOutput: "Multiple Spaces",
+		},
+	}
+
+	for _, testCase := range testCases {
+		tester.Run(testCase.name, func(subTester *testing.T) {
+			result := parser.cleanTitle(testCase.input)
+			if result != testCase.expectedOutput {
+				subTester.Errorf("Expected: %q, Got: %q", testCase.expectedOutput, result)
+			}
+		})
+	}
+}
+
+func TestHeadingTitleCleaningInParse(tester *testing.T) {
+	parser := NewParser()
+
+	markdownContent := `# 1. Introduction
+## 2. Background
+### I. Roman Numeral Section`
+
+	ast := parser.Parse(markdownContent)
+
+	// Find all section nodes
+	var sections []*Node
+	var findSections func(*Node)
+	findSections = func(node *Node) {
+		if node == nil {
+			return
+		}
+		if node.Type == NodeSection {
+			sections = append(sections, node)
+		}
+		for _, child := range node.Children {
+			findSections(child)
+		}
+	}
+	findSections(ast)
+
+	if len(sections) != 3 {
+		tester.Fatalf("Expected 3 sections, got %d", len(sections))
+	}
+
+	expectedTitles := []string{"Introduction", "Background", "Roman Numeral Section"}
+	for i, section := range sections {
+		if section.Title != expectedTitles[i] {
+			tester.Errorf("Section %d: expected title %q, got %q", i, expectedTitles[i], section.Title)
+		}
+	}
+}
+
+// Edge Cases: Unclosed Blocks
+
+func TestUnclosedCodeBlock(tester *testing.T) {
+	parser := NewParser()
+
+	markdownContent := "```\ncode line 1\ncode line 2"
+
+	ast := parser.Parse(markdownContent)
+
+	// Unclosed code block should not create a code block node
+	// It should be treated as regular paragraphs
+	hasCodeBlock := false
+	for _, child := range ast.Children {
+		if child.Type == NodeCodeBlock {
+			hasCodeBlock = true
+			break
+		}
+	}
+
+	if hasCodeBlock {
+		tester.Errorf("Unclosed code block should not create a CodeBlock node")
+	}
+}
+
+func TestUnclosedDisplayEquation(tester *testing.T) {
+	parser := NewParser()
+
+	markdownContent := "$$\nequation line 1\nequation line 2"
+
+	ast := parser.Parse(markdownContent)
+
+	// Unclosed equation should not create a display equation node
+	hasDisplayEquation := false
+	for _, child := range ast.Children {
+		if child.Type == NodeDisplayEquation && child.IsMultiline {
+			hasDisplayEquation = true
+			break
+		}
+	}
+
+	if hasDisplayEquation {
+		tester.Errorf("Unclosed display equation should not create a multi-line DisplayEquation node")
+	}
+}
+
+func TestProperlyClosedBlocks(tester *testing.T) {
+	parser := NewParser()
+
+	testCases := []struct {
+		name         string
+		markdown     string
+		expectedType NodeType
+	}{
+		{
+			name:         "Properly closed code block",
+			markdown:     "```\ncode\n```",
+			expectedType: NodeCodeBlock,
+		},
+		{
+			name:         "Properly closed LaTeX display equation",
+			markdown:     "\\[\nequation\n\\]",
+			expectedType: NodeDisplayEquation,
+		},
+	}
+
+	for _, testCase := range testCases {
+		tester.Run(testCase.name, func(subTester *testing.T) {
+			ast := parser.Parse(testCase.markdown)
+
+			found := false
+			for _, child := range ast.Children {
+				if child.Type == testCase.expectedType {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				subTester.Errorf("Expected to find %s node, got %d children", testCase.expectedType, len(ast.Children))
+				for i, child := range ast.Children {
+					subTester.Logf("  Child %d: Type=%s, Content=%q", i, child.Type, child.Content)
+				}
+			}
+		})
+	}
+}
+
+// Table Edge Cases
+
+func TestTableWithInconsistentColumns(tester *testing.T) {
+	parser := NewParser()
+
+	// Table where rows have different numbers of columns
+	markdownContent := `| A | B | C |
+| --- | --- | --- |
+| 1 | 2 |
+| 3 | 4 | 5 | 6 |`
+
+	ast := parser.Parse(markdownContent)
+
+	var tableNode *Node
+	for _, child := range ast.Children {
+		if child.Type == NodeTable {
+			tableNode = child
+			break
+		}
+	}
+
+	if tableNode == nil {
+		tester.Fatalf("Expected to find a table node")
+	}
+
+	// Verify table was parsed despite inconsistent columns
+	if len(tableNode.Rows) != 3 {
+		tester.Errorf("Expected 3 rows, got %d", len(tableNode.Rows))
+	}
+}
+
+func TestTableWithDisplayEquations(tester *testing.T) {
+	parser := NewParser()
+
+	markdownContent := `| Formula | Description |
+| --- | --- |
+| $$E=mc^2$$ | Energy equation |`
+
+	ast := parser.Parse(markdownContent)
+
+	var tableNode *Node
+	for _, child := range ast.Children {
+		if child.Type == NodeTable {
+			tableNode = child
+			break
+		}
+	}
+
+	if tableNode == nil {
+		tester.Fatalf("Expected to find a table node")
+	}
+
+	// Verify the display equation wasn't split
+	if len(tableNode.Rows) < 2 {
+		tester.Fatalf("Expected at least 2 rows")
+	}
+
+	dataRow := tableNode.Rows[1]
+	if len(dataRow.Cells) < 1 {
+		tester.Fatalf("Expected at least 1 cell in data row")
+	}
+
+	// The cell should contain the equation markers (escaped)
+	if !strings.Contains(dataRow.Cells[0], "E=mc^2") {
+		tester.Errorf("Expected cell to contain equation content, got: %q", dataRow.Cells[0])
+	}
+}
+
+func TestTableWithoutAlignmentRow(tester *testing.T) {
+	parser := NewParser()
+
+	// Table without proper alignment row
+	markdownContent := `| A | B |
+| C | D |`
+
+	ast := parser.Parse(markdownContent)
+
+	// This should not be parsed as a table
+	hasTable := false
+	for _, child := range ast.Children {
+		if child.Type == NodeTable {
+			hasTable = true
+			break
+		}
+	}
+
+	if hasTable {
+		tester.Errorf("Table without alignment row should not be parsed as a table")
+	}
+}
+
+func TestEmptyTableCells(tester *testing.T) {
+	parser := NewParser()
+	reconstructor := NewReconstructor()
+
+	markdownContent := `| A | B | C |
+| --- | --- | --- |
+| 1 |  | 3 |
+|  |  |  |`
+
+	ast := parser.Parse(markdownContent)
+	reconstructed := reconstructor.Reconstruct(ast)
+
+	// Verify it round-trips (empty cells are preserved)
+	if !strings.Contains(reconstructed, "|") {
+		tester.Errorf("Table structure not preserved in reconstruction")
+	}
+}
+
+// Deep Nesting Tests
+
+func TestDeeplyNestedLists(tester *testing.T) {
+	parser := NewParser()
+
+	// 6 levels of nesting
+	markdownContent := `- Level 0
+    - Level 1
+        - Level 2
+            - Level 3
+                - Level 4
+                    - Level 5`
+
+	ast := parser.Parse(markdownContent)
+
+	// Find the top-level list item
+	var topLevelItem *Node
+	for _, child := range ast.Children {
+		if child.Type == NodeListItem && child.Depth == 0 {
+			topLevelItem = child
+			break
+		}
+	}
+
+	if topLevelItem == nil {
+		tester.Fatalf("Expected to find top-level list item")
+	}
+
+	// Traverse down to verify depth
+	currentItem := topLevelItem
+	for expectedDepth := 0; expectedDepth <= 5; expectedDepth++ {
+		if currentItem.Depth != expectedDepth {
+			tester.Errorf("Expected depth %d, got %d", expectedDepth, currentItem.Depth)
+		}
+
+		if expectedDepth < 5 {
+			if len(currentItem.Children) == 0 {
+				tester.Fatalf("Expected nested item at depth %d", expectedDepth)
+			}
+			currentItem = currentItem.Children[0]
+		}
+	}
+}
+
+func TestDeeplySectionHierarchy(tester *testing.T) {
+	parser := NewParser()
+
+	// All 6 heading levels
+	markdownContent := `# H1
+## H2
+### H3
+#### H4
+##### H5
+###### H6`
+
+	ast := parser.Parse(markdownContent)
+
+	// Count sections at each level
+	levelCounts := make(map[int]int)
+	var countLevels func(*Node)
+	countLevels = func(node *Node) {
+		if node == nil {
+			return
+		}
+		if node.Type == NodeSection {
+			levelCounts[node.Level]++
+		}
+		for _, child := range node.Children {
+			countLevels(child)
+		}
+	}
+	countLevels(ast)
+
+	// Should have one section at each level
+	for level := 1; level <= 6; level++ {
+		if levelCounts[level] != 1 {
+			tester.Errorf("Expected 1 section at level %d, got %d", level, levelCounts[level])
+		}
+	}
+}
+
+// Reconstructor Edge Cases
+
+func TestReconstructFootnoteWithoutSourceFile(tester *testing.T) {
+	reconstructor := NewReconstructor()
+
+	node := &Node{
+		Type:           NodeFootnote,
+		FootnoteNumber: 1,
+		Content:        "Plain footnote text",
+		SourceFile:     "",
+		SourcePages:    nil,
+	}
+
+	ast := &Node{
+		Type:     NodeDocument,
+		Children: []*Node{node},
+	}
+
+	reconstructed := reconstructor.Reconstruct(ast)
+
+	expected := "[^1]: Plain footnote text"
+	if !strings.Contains(reconstructed, expected) {
+		tester.Errorf("Expected reconstruction to contain %q, got:\n%s", expected, reconstructed)
+	}
+
+	// Should not contain backticks or parentheses
+	if strings.Contains(reconstructed, "`") || strings.Contains(reconstructed, "(") {
+		tester.Errorf("Footnote without source file should not contain metadata markers:\n%s", reconstructed)
+	}
+}
+
+func TestReconstructFootnoteWithSourceButNoPages(tester *testing.T) {
+	reconstructor := NewReconstructor()
+
+	node := &Node{
+		Type:           NodeFootnote,
+		FootnoteNumber: 2,
+		Content:        "Text with file reference",
+		SourceFile:     "document.pdf",
+		SourcePages:    nil,
+	}
+
+	ast := &Node{
+		Type:     NodeDocument,
+		Children: []*Node{node},
+	}
+
+	reconstructed := reconstructor.Reconstruct(ast)
+
+	expectedContent := "[^2]: Text with file reference (`document.pdf`)"
+	if !strings.Contains(reconstructed, expectedContent) {
+		tester.Errorf("Expected reconstruction to contain %q, got:\n%s", expectedContent, reconstructed)
+	}
+
+	// Should not contain "pp." or "p."
+	if strings.Contains(reconstructed, "pp.") || strings.Contains(reconstructed, " p. ") {
+		tester.Errorf("Footnote without pages should not contain page markers:\n%s", reconstructed)
+	}
+}
+
+func TestReconstructHorizontalRule(tester *testing.T) {
+	reconstructor := NewReconstructor()
+
+	node := &Node{
+		Type: NodeHorizontalRule,
+	}
+
+	ast := &Node{
+		Type:     NodeDocument,
+		Children: []*Node{node},
+	}
+
+	reconstructed := reconstructor.Reconstruct(ast)
+
+	if !strings.Contains(reconstructed, "---") {
+		tester.Errorf("Expected horizontal rule '---' in reconstruction, got:\n%s", reconstructed)
+	}
+}
+
+func TestReconstructMixedOrderedUnorderedLists(tester *testing.T) {
+	parser := NewParser()
+	reconstructor := NewReconstructor()
+
+	markdownContent := `- Unordered item
+1. Ordered item
+- Back to unordered
+2. Another ordered`
+
+	ast := parser.Parse(markdownContent)
+	reconstructed := reconstructor.Reconstruct(ast)
+
+	// Verify both list types are preserved
+	if !strings.Contains(reconstructed, "-") {
+		tester.Errorf("Unordered list marker '-' missing from reconstruction")
+	}
+
+	if !strings.Contains(reconstructed, "1.") {
+		tester.Errorf("Ordered list marker '1.' missing from reconstruction")
+	}
+}
+
+// Citation Metadata Parsing Edge Cases
+
+func TestFootnoteMetadataParsingVariations(tester *testing.T) {
+	parser := NewParser()
+
+	testCases := []struct {
+		name               string
+		input              string
+		expectedContent    string
+		expectedFile       string
+		expectedPagesCount int
+	}{
+		{
+			name:               "Footnote with file but no pages",
+			input:              "[^1]: Description (`file.pdf`)",
+			expectedContent:    "Description",
+			expectedFile:       "file.pdf",
+			expectedPagesCount: 0,
+		},
+		{
+			name:               "Footnote with single page using p.",
+			input:              "[^2]: Text (`doc.pdf` p. 5)",
+			expectedContent:    "Text",
+			expectedFile:       "doc.pdf",
+			expectedPagesCount: 1,
+		},
+		{
+			name:               "Footnote with pages using pp.",
+			input:              "[^3]: Info (`file.pdf` pp. 1-3)",
+			expectedContent:    "Info",
+			expectedFile:       "file.pdf",
+			expectedPagesCount: 3,
+		},
+		{
+			name:               "Footnote with extra spaces",
+			input:              "[^4]: Content  (  `file.pdf`   pp.  5 – 7  )",
+			expectedContent:    "Content",
+			expectedFile:       "file.pdf",
+			expectedPagesCount: 3,
+		},
+		{
+			name:               "Footnote without metadata parentheses",
+			input:              "[^5]: Just plain text",
+			expectedContent:    "Just plain text",
+			expectedFile:       "",
+			expectedPagesCount: 0,
+		},
+	}
+
+	for _, testCase := range testCases {
+		tester.Run(testCase.name, func(subTester *testing.T) {
+			ast := parser.Parse(testCase.input)
+
+			var footnoteNode *Node
+			for _, child := range ast.Children {
+				if child.Type == NodeFootnote {
+					footnoteNode = child
+					break
+				}
+			}
+
+			if footnoteNode == nil {
+				subTester.Fatalf("Expected to find footnote node")
+			}
+
+			if footnoteNode.Content != testCase.expectedContent {
+				subTester.Errorf("Expected content %q, got %q", testCase.expectedContent, footnoteNode.Content)
+			}
+
+			if footnoteNode.SourceFile != testCase.expectedFile {
+				subTester.Errorf("Expected file %q, got %q", testCase.expectedFile, footnoteNode.SourceFile)
+			}
+
+			if len(footnoteNode.SourcePages) != testCase.expectedPagesCount {
+				subTester.Errorf("Expected %d pages, got %d: %v", testCase.expectedPagesCount, len(footnoteNode.SourcePages), footnoteNode.SourcePages)
+			}
+		})
+	}
+}
+
+// Complex Integration Tests
+
+func TestComplexDocumentStructure(tester *testing.T) {
+	parser := NewParser()
+	reconstructor := NewReconstructor()
+
+	complexMarkdown := `# Main Title
+
+Introduction paragraph with \(E=mc^2\) equation.
+
+## Section 1
+
+- List item 1
+  - Nested item with \(x+y\) math
+  - Another nested item
+- List item 2
+
+| Header A | Header B |
+| --- | --- |
+| \(\alpha\) | \(\beta\) |
+
+### Subsection 1.1
+
+` + "```" + `
+code block content
+` + "```" + `
+
+\[
+\int_0^\infty e^{-x^2} dx
+\]
+
+Some text[^1]
+
+[^1]: Citation (` + "`source.pdf`" + ` pp. 10–15)`
+
+	ast := parser.Parse(complexMarkdown)
+	reconstructed := reconstructor.Reconstruct(ast)
+
+	// Verify major structures are preserved
+	checks := []struct {
+		name     string
+		mustFind string
+	}{
+		{"Heading", "# Main Title"},
+		{"Display equation", "$$"},
+		{"List marker", "-"},
+		{"Table pipes", "|"},
+		{"Code block", "```"},
+		{"Footnote reference", "[^1]"},
+		{"Footnote definition", "[^1]:"},
+		{"Citation file", "source.pdf"},
+		{"Page range", "10–15"},
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(reconstructed, check.mustFind) {
+			tester.Errorf("%s missing: expected to find %q in reconstruction", check.name, check.mustFind)
+		}
+	}
+}
+
+func TestUnicodeMathSymbolsPreserved(tester *testing.T) {
+	parser := NewParser()
+	reconstructor := NewReconstructor()
+
+	unicodeMarkdown := `$$α + β = γ$$
+
+Text with ∑, ∫, ∂, ∇ symbols.
+
+| Symbol | Meaning |
+| --- | --- |
+| ∞ | Infinity |
+| ≈ | Approximately |`
+
+	ast := parser.Parse(unicodeMarkdown)
+	reconstructed := reconstructor.Reconstruct(ast)
+
+	unicodeSymbols := []string{"α", "β", "γ", "∑", "∫", "∂", "∇", "∞", "≈"}
+	for _, symbol := range unicodeSymbols {
+		if !strings.Contains(reconstructed, symbol) {
+			tester.Errorf("Unicode symbol %q not preserved in reconstruction", symbol)
+		}
+	}
+}
+
+func TestEmptyLinePreservation(tester *testing.T) {
+	parser := NewParser()
+	reconstructor := NewReconstructor()
+
+	markdownWithEmptyLines := `# Title
+
+Paragraph 1
+
+
+Paragraph 2 with multiple empty lines above`
+
+	ast := parser.Parse(markdownWithEmptyLines)
+	reconstructed := reconstructor.Reconstruct(ast)
+
+	// Verify structure is maintained (exact empty line count may vary)
+	if !strings.Contains(reconstructed, "Title") {
+		tester.Errorf("Title missing from reconstruction")
+	}
+
+	if !strings.Contains(reconstructed, "Paragraph 1") {
+		tester.Errorf("Paragraph 1 missing from reconstruction")
+	}
+
+	if !strings.Contains(reconstructed, "Paragraph 2") {
+		tester.Errorf("Paragraph 2 missing from reconstruction")
+	}
+}

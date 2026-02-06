@@ -122,21 +122,27 @@ func (parser *Parser) escapeDollarSigns(text string) string {
 
 func (parser *Parser) convertLatexMathDelimiters(markdown string) string {
 	// \(...\) -> $...$
-	inlineRegex := regexp.MustCompile(`(?s)\\\\\(.*?\\\\\)`)
+	inlineRegex := regexp.MustCompile(`(?s)\\\(.*?\\\)`)
 	markdown = inlineRegex.ReplaceAllStringFunc(markdown, func(match string) string {
 		content := match[2 : len(match)-2]
 		return "$" + strings.TrimSpace(content) + "$"
 	})
 
 	// \[...\] -> $$...$$
-	displayRegex := regexp.MustCompile(`(?s)\\\\\[.*?\\\\\]`)
+	displayRegex := regexp.MustCompile(`(?s)\\\[.*?\\\]`)
 	markdown = displayRegex.ReplaceAllStringFunc(markdown, func(match string) string {
 		content := match[2 : len(match)-2]
+		// Preserve newlines for multi-line equations, only trim leading/trailing whitespace on same line
+		if strings.Contains(content, "\n") {
+			// Multi-line: preserve structure
+			return "$$" + content + "$$"
+		}
+		// Single-line: trim spaces
 		return "$$" + strings.TrimSpace(content) + "$$"
 	})
 
 	standaloneRegex := regexp.MustCompile(`(?m)^(\s*)\$([^$]+)\$([.,]?)(\s*)$`)
-	markdown = standaloneRegex.ReplaceAllString(markdown, "$1$$$2$3$$$4")
+	markdown = standaloneRegex.ReplaceAllString(markdown, "$1$$$$$2$3$$$$$4")
 
 	return markdown
 }
@@ -486,7 +492,7 @@ func (parser *Parser) parseFootnote(lines []string, startIndex int) (*Node, int)
 
 		// Try to extract metadata if present: Content (`file.pdf` , pp. 1–2)
 		// We'll use a more flexible regex that handles optional commas and spaces.
-		metadataRegex := regexp.MustCompile(`^(.*?)\s*\(\x60(.*?)\x60(?:\s*,\s*|\s+)?(p{1,2}\.\s*([\d–\-, ]+))?\)$`)
+		metadataRegex := regexp.MustCompile(`^(.*?)\s*\(\s*\x60(.*?)\x60\s*(?:,\s*)?(p{1,2}\.\s*([\d–\-, ]+))?\s*\)$`)
 		metaMatch := metadataRegex.FindStringSubmatch(fullContent)
 		slog.Info("Footnote metadata match", "content", fullContent, "match", metaMatch)
 
@@ -520,7 +526,8 @@ func (parser *Parser) splitParagraphEquations(paragraph *Node) []*Node {
 	content := paragraph.Content
 	var parts []*Node
 
-	equationRegex := regexp.MustCompile(`\$\$([^$]+)\$\$`)
+	// Match escaped dollar signs (\$\$...\$\$) in the content
+	equationRegex := regexp.MustCompile(`\\\$\\\$([^\$\\]+)\\\$\\\$`)
 	matches := equationRegex.FindAllStringSubmatchIndex(content, -1)
 
 	lastIndex := 0

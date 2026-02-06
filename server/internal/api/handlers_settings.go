@@ -28,7 +28,20 @@ func (server *Server) handleUpdateSettings(responseWriter http.ResponseWriter, r
 		return
 	}
 
+	// Whitelist of allowed settings keys
+	allowedKeys := map[string]bool{
+		"llm":           true,
+		"transcription": true,
+		"documents":     true,
+		"theme":         true,
+	}
+
 	for key, value := range updateSettingsRequest {
+		if !allowedKeys[key] {
+			server.writeError(responseWriter, http.StatusForbidden, "FORBIDDEN_SETTING", "Setting key '"+key+"' is protected or invalid", nil)
+			return
+		}
+
 		valueJSON, err := json.Marshal(value)
 		if err != nil {
 			continue

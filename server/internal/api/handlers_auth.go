@@ -56,6 +56,34 @@ func (server *Server) handleAuthSetup(responseWriter http.ResponseWriter, reques
 
 // handleAuthLogin authenticates user and creates a session
 func (server *Server) handleAuthLogin(responseWriter http.ResponseWriter, request *http.Request) {
+	// Rate Limiting
+	ip := request.RemoteAddr
+	server.loginAttemptsMutex.Lock()
+	attempts := server.loginAttempts[ip]
+	now := time.Now()
+	
+	// Clean old attempts
+	var validAttempts []time.Time
+	for _, t := range attempts {
+		if now.Sub(t) < time.Hour {
+			validAttempts = append(validAttempts, t)
+		}
+	}
+	
+	limit := server.configuration.Safety.MaxLoginAttempts
+	if limit <= 0 {
+		limit = 1000 // Sane high default if not configured
+	}
+	
+	if len(validAttempts) >= limit {
+		server.loginAttemptsMutex.Unlock()
+		server.writeError(responseWriter, http.StatusTooManyRequests, "RATE_LIMIT", "Too many login attempts. Please try again later.", nil)
+		return
+	}
+	
+	server.loginAttempts[ip] = append(validAttempts, now)
+	server.loginAttemptsMutex.Unlock()
+
 	var loginRequest struct {
 		Password string `json:"password"`
 	}
@@ -77,19 +105,24 @@ func (server *Server) handleAuthLogin(responseWriter http.ResponseWriter, reques
 		return
 	}
 
-	// Create session
+	// Create session (without redundant password_hash)
 	sessionID := uuid.New().String()
 	expiresAt := time.Now().Add(time.Duration(server.configuration.Security.Auth.SessionTimeoutHours) * time.Hour)
 
 	_, databaseError = server.database.Exec(`
-		INSERT INTO auth_sessions (id, password_hash, created_at, last_activity, expires_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, sessionID, storedHash, time.Now(), time.Now(), expiresAt)
+		INSERT INTO auth_sessions (id, created_at, last_activity, expires_at)
+		VALUES (?, ?, ?, ?)
+	`, sessionID, time.Now(), time.Now(), expiresAt)
 
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to create session", nil)
 		return
 	}
+
+	// Reset attempts on success
+	server.loginAttemptsMutex.Lock()
+	delete(server.loginAttempts, ip)
+	server.loginAttemptsMutex.Unlock()
 
 	// Set cookie
 	http.SetCookie(responseWriter, &http.Cookie{

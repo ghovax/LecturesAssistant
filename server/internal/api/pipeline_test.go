@@ -156,7 +156,8 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 		Security: configuration.SecurityConfiguration{
 			Auth: configuration.AuthConfiguration{Type: "session", SessionTimeoutHours: 24},
 		},
-		LLM: configuration.LLMConfiguration{Language: "en-US"},
+		LLM:    configuration.LLMConfiguration{Language: "en-US"},
+		Safety: configuration.SafetyConfiguration{MaxLoginAttempts: 100, MaxCostPerJob: 10.0},
 	}
 
 	promptManager := prompts.NewManager("../../prompts")
@@ -225,6 +226,7 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 			tester.Fatalf("Failed to create request: %v", err)
 		}
 		httpRequest.Header.Set("Authorization", "Bearer "+sessionToken)
+		httpRequest.Header.Set("X-Requested-With", "XMLHttpRequest") // CSRF Protection
 		return httpRequest
 	}
 
@@ -379,11 +381,12 @@ func TestUpload_StagedProtocol(tester *testing.T) {
 		Security: configuration.SecurityConfiguration{
 			Auth: configuration.AuthConfiguration{Type: "session"},
 		},
+		Safety: configuration.SafetyConfiguration{MaxLoginAttempts: 100, MaxCostPerJob: 10.0},
 	}
 
 	_, _ = initializedDatabase.Exec("INSERT INTO settings (key, value) VALUES ('admin_password_hash', ?)", "dummy_hash")
 	sessionID := "staged-session"
-	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, password_hash, expires_at) VALUES (?, ?, ?)", sessionID, "dummy_hash", time.Now().Add(1*time.Hour))
+	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, created_at, last_activity, expires_at) VALUES (?, ?, ?, ?)", sessionID, time.Now(), time.Now(), time.Now().Add(1*time.Hour))
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
 	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, nil, nil)
@@ -394,6 +397,7 @@ func TestUpload_StagedProtocol(tester *testing.T) {
 	authenticatedDo := func(method, url string, body io.Reader) *http.Response {
 		httpRequest, _ := http.NewRequest(method, url, body)
 		httpRequest.Header.Set("Authorization", "Bearer "+sessionID)
+		httpRequest.Header.Set("X-Requested-With", "XMLHttpRequest") // CSRF Protection
 		if strings.Contains(url, "prepare") || strings.Contains(url, "stage") || (method == "POST" && strings.Contains(url, "lectures")) {
 			httpRequest.Header.Set("Content-Type", "application/json")
 		}
@@ -409,10 +413,11 @@ func TestUpload_StagedProtocol(tester *testing.T) {
 	examID := examRes.Data.ID
 	examResp.Body.Close()
 
-	// 2. Prepare Upload
+	// 2. Prepare Upload (using correct size)
+	data := []byte("This is some test audio data content.")
 	preparePayload, _ := json.Marshal(map[string]any{
 		"filename":        "test.mp3",
-		"file_size_bytes": 100,
+		"file_size_bytes": len(data),
 	})
 	prepareResp := authenticatedDo("POST", testServer.URL+"/api/uploads/prepare", bytes.NewBuffer(preparePayload))
 	var prepareRes struct {
@@ -429,18 +434,6 @@ func TestUpload_StagedProtocol(tester *testing.T) {
 	}
 
 	// 3. Append Data
-	data := []byte("This is some test audio data content.")
-	
-	// Update Prepare to match actual size for integrity check
-	preparePayload, _ = json.Marshal(map[string]any{
-		"filename":        "test.mp3",
-		"file_size_bytes": len(data),
-	})
-	prepareResp = authenticatedDo("POST", testServer.URL+"/api/uploads/prepare", bytes.NewBuffer(preparePayload))
-	json.NewDecoder(prepareResp.Body).Decode(&prepareRes)
-	uploadID = prepareRes.Data.UploadID
-	prepareResp.Body.Close()
-
 	appendURL := fmt.Sprintf("%s/api/uploads/append?upload_id=%s", testServer.URL, uploadID)
 	appendResp := authenticatedDo("POST", appendURL, bytes.NewBuffer(data))
 	if appendResp.StatusCode != http.StatusOK {
@@ -467,6 +460,7 @@ func TestUpload_StagedProtocol(tester *testing.T) {
 
 	createReq, _ := http.NewRequest("POST", testServer.URL+"/api/lectures", body)
 	createReq.Header.Set("Authorization", "Bearer "+sessionID)
+	createReq.Header.Set("X-Requested-With", "XMLHttpRequest") // CSRF Protection
 	createReq.Header.Set("Content-Type", writer.FormDataContentType())
 	createResp, err := httpClient.Do(createReq)
 	if err != nil {
@@ -508,12 +502,13 @@ func TestWebSocket_ProgressUpdates(tester *testing.T) {
 		Security: configuration.SecurityConfiguration{
 			Auth: configuration.AuthConfiguration{Type: "session"},
 		},
+		Safety: configuration.SafetyConfiguration{MaxLoginAttempts: 100},
 	}
 
 	_, _ = initializedDatabase.Exec("INSERT INTO settings (key, value) VALUES ('admin_password_hash', ?)", "dummy_hash")
 
 	sessionID := "test-session-id"
-	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, password_hash, expires_at) VALUES (?, ?, ?)", sessionID, "dummy_hash", time.Now().Add(1*time.Hour))
+	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, created_at, last_activity, expires_at) VALUES (?, ?, ?, ?)", sessionID, time.Now(), time.Now(), time.Now().Add(1*time.Hour))
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
 	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, nil, nil)
@@ -524,6 +519,7 @@ func TestWebSocket_ProgressUpdates(tester *testing.T) {
 	websocketURL := "ws" + strings.TrimPrefix(testServer.URL, "http") + "/api/socket"
 	headers := http.Header{}
 	headers.Add("Authorization", "Bearer "+sessionID)
+	headers.Add("X-Requested-With", "XMLHttpRequest") // CSRF Protection
 
 	dialer := websocket.Dialer{}
 	websocketConnection, _, err := dialer.Dial(websocketURL, headers)
@@ -593,6 +589,7 @@ func TestAI_FailureScenarios(tester *testing.T) {
 	config := &configuration.Configuration{
 		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
 		LLM:     configuration.LLMConfiguration{Language: "en-US"},
+		Safety:  configuration.SafetyConfiguration{MaxCostPerJob: 10.0, MaxLoginAttempts: 100},
 	}
 
 	promptManager := prompts.NewManager("../../prompts")
@@ -710,6 +707,7 @@ func TestTools_GenerationLogic(tester *testing.T) {
 
 	config := &configuration.Configuration{
 		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
+		Safety:  configuration.SafetyConfiguration{MaxLoginAttempts: 100, MaxCostPerJob: 10.0},
 	}
 
 	promptManager := prompts.NewManager("../../prompts")
@@ -805,6 +803,7 @@ func TestExport_PDFGeneration(tester *testing.T) {
 
 	config := &configuration.Configuration{
 		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
+		Safety:  configuration.SafetyConfiguration{MaxLoginAttempts: 100, MaxCostPerJob: 10.0},
 	}
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
@@ -896,6 +895,7 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		Security: configuration.SecurityConfiguration{
 			Auth: configuration.AuthConfiguration{Type: "session", SessionTimeoutHours: 1},
 		},
+		Safety: configuration.SafetyConfiguration{MaxLoginAttempts: 100, MaxCostPerJob: 10.0},
 	}
 
 	promptManager := prompts.NewManager("../../prompts")
@@ -961,6 +961,7 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 
 	authenticatedDo := func(httpRequest *http.Request) *http.Response {
 		httpRequest.Header.Set("Authorization", "Bearer "+sessionToken)
+		httpRequest.Header.Set("X-Requested-With", "XMLHttpRequest") // CSRF Protection
 		httpResponse, err := httpClient.Do(httpRequest)
 		if err != nil {
 			tester.Fatalf("Request failed: %v", err)
@@ -1155,6 +1156,7 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 			Provider:   "openrouter",
 			OpenRouter: configuration.OpenRouterConfiguration{DefaultModel: "gpt-4"},
 		},
+		Safety: configuration.SafetyConfiguration{MaxLoginAttempts: 100, MaxCostPerJob: 10.0},
 	}
 
 	apiServer := NewServer(config, initializedDatabase, nil, nil, nil, nil)
@@ -1184,6 +1186,7 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 			tester.Fatalf("Failed to create request: %v", err)
 		}
 		httpRequest.Header.Set("Authorization", "Bearer "+sessionToken)
+		httpRequest.Header.Set("X-Requested-With", "XMLHttpRequest") // CSRF Protection
 		httpResponse, err := httpClient.Do(httpRequest)
 		if err != nil {
 			tester.Fatalf("Request failed: %v", err)
@@ -1192,9 +1195,9 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 	}
 
 	tester.Run("Persistent Application Settings State", func(subTester *testing.T) {
-		// 1. Update settings
+		// 1. Update settings (using an allowed key from the whitelist)
 		updatePayload, _ := json.Marshal(map[string]any{
-			"admin_password_hash": "new-hash",
+			"theme": "dark",
 		})
 		patchResponse := authenticatedDo("PATCH", testServer.URL+"/api/settings", bytes.NewBuffer(updatePayload))
 		if patchResponse.StatusCode != http.StatusOK {
@@ -1204,11 +1207,11 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 
 		// 2. Verify in DB
 		var storedValue string
-		err := initializedDatabase.QueryRow("SELECT value FROM settings WHERE key = 'admin_password_hash'").Scan(&storedValue)
+		err := initializedDatabase.QueryRow("SELECT value FROM settings WHERE key = 'theme'").Scan(&storedValue)
 		if err != nil {
 			subTester.Errorf("Setting not found in DB: %v", err)
 		}
-		if !strings.Contains(storedValue, "new-hash") {
+		if !strings.Contains(storedValue, "dark") {
 			subTester.Errorf("Setting not persisted in DB, got %s", storedValue)
 		}
 	})
@@ -1343,11 +1346,12 @@ func TestUpload_ProgressTracking(tester *testing.T) {
 		Security: configuration.SecurityConfiguration{
 			Auth: configuration.AuthConfiguration{Type: "session"},
 		},
+		Safety: configuration.SafetyConfiguration{MaxLoginAttempts: 100, MaxCostPerJob: 10.0},
 	}
 
 	_, _ = initializedDatabase.Exec("INSERT INTO settings (key, value) VALUES ('admin_password_hash', ?)", "dummy_hash")
 	sessionID := "test-session-id"
-	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, password_hash, expires_at) VALUES (?, ?, ?)", sessionID, "dummy_hash", time.Now().Add(1*time.Hour))
+	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, created_at, last_activity, expires_at) VALUES (?, ?, ?, ?)", sessionID, time.Now(), time.Now(), time.Now().Add(1*time.Hour))
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
 	apiServer := NewServer(config, initializedDatabase, jobQueue, nil, nil, nil)
@@ -1358,6 +1362,7 @@ func TestUpload_ProgressTracking(tester *testing.T) {
 	websocketURL := "ws" + strings.TrimPrefix(testServer.URL, "http") + "/api/socket"
 	headers := http.Header{}
 	headers.Add("Authorization", "Bearer "+sessionID)
+	headers.Add("X-Requested-With", "XMLHttpRequest") // CSRF Protection
 	dialer := websocket.Dialer{}
 	websocketConnection, _, err := dialer.Dial(websocketURL, headers)
 	if err != nil {
@@ -1382,10 +1387,11 @@ func TestUpload_ProgressTracking(tester *testing.T) {
 	examPayload, _ := json.Marshal(map[string]string{"title": "Upload Test"})
 	examReq, _ := http.NewRequest("POST", testServer.URL+"/api/exams", bytes.NewBuffer(examPayload))
 	examReq.Header.Set("Authorization", "Bearer "+sessionID)
+	examReq.Header.Set("X-Requested-With", "XMLHttpRequest") // CSRF Protection
 	examReq.Header.Set("Content-Type", "application/json")
 	examResp, _ := testServer.Client().Do(examReq)
 	var examRes struct{ Data models.Exam }
-	_ = json.NewDecoder(examResp.Body).Decode(&examRes)
+	json.NewDecoder(examResp.Body).Decode(&examRes)
 	examID := examRes.Data.ID
 	examResp.Body.Close()
 
@@ -1402,6 +1408,7 @@ func TestUpload_ProgressTracking(tester *testing.T) {
 	uploadURL := fmt.Sprintf("%s/api/lectures?upload_id=%s", testServer.URL, uploadID)
 	uploadReq, _ := http.NewRequest("POST", uploadURL, requestBody)
 	uploadReq.Header.Set("Authorization", "Bearer "+sessionID)
+	uploadReq.Header.Set("X-Requested-With", "XMLHttpRequest") // CSRF Protection
 	uploadReq.Header.Set("Content-Type", multipartWriter.FormDataContentType())
 
 	// We'll run the upload in a goroutine so we can read WebSocket messages

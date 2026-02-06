@@ -15,6 +15,12 @@ type Configuration struct {
 	Transcription TranscriptionConfiguration `yaml:"transcription"`
 	Documents     DocumentsConfiguration     `yaml:"documents"`
 	Uploads       UploadsConfiguration       `yaml:"uploads"`
+	Safety        SafetyConfiguration        `yaml:"safety"`
+}
+
+type SafetyConfiguration struct {
+	MaxCostPerJob    float64 `yaml:"maximum_cost_per_job"`
+	MaxLoginAttempts int     `yaml:"maximum_login_attempts_per_hour"`
 }
 
 type ServerConfiguration struct {
@@ -206,6 +212,10 @@ func defaultConfiguration() *Configuration {
 				MaxPagesPerDocument: 500,
 				SupportedFormats:    []string{"pdf", "pptx", "docx"},
 			},
+		},
+		Safety: SafetyConfiguration{
+			MaxCostPerJob:    10.0, // $10 safety threshold
+			MaxLoginAttempts: 100,  // High limit as requested
 		},
 	}
 }

@@ -193,7 +193,6 @@ func createSchema(database *sql.DB) error {
 	-- Authentication sessions
 	CREATE TABLE IF NOT EXISTS auth_sessions (
 		id TEXT PRIMARY KEY,
-		password_hash TEXT NOT NULL,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		last_activity DATETIME DEFAULT CURRENT_TIMESTAMP,
 		expires_at DATETIME NOT NULL

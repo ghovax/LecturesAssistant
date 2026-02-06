@@ -426,6 +426,13 @@ func (generator *ToolGenerator) callLLMWithHistory(jobContext context.Context, p
 		metrics.EstimatedCost += chunk.Cost
 	}
 
+	// Safety check: Cost Threshold
+	// Since callLLMWithHistory might be called in a loop, the caller should ideally track the aggregate.
+	// But as a catch-all safety measure, we'll check individual calls too.
+	if generator.configuration.Safety.MaxCostPerJob > 0 && metrics.EstimatedCost > generator.configuration.Safety.MaxCostPerJob {
+		return "", metrics, fmt.Errorf("safety threshold exceeded: call cost $%.4f > limit $%.4f", metrics.EstimatedCost, generator.configuration.Safety.MaxCostPerJob)
+	}
+
 	return resultBuilder.String(), metrics, nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"lectures/internal/configuration"
@@ -27,6 +28,9 @@ type Server struct {
 	llmProvider   llm.Provider
 	promptManager *prompts.Manager
 	toolGenerator *tools.ToolGenerator
+	// Security
+	loginAttempts      map[string][]time.Time
+	loginAttemptsMutex sync.Mutex
 }
 
 // NewServer creates a new API server
@@ -40,6 +44,7 @@ func NewServer(configuration *configuration.Configuration, database *sql.DB, job
 		llmProvider:   llmProvider,
 		promptManager: promptManager,
 		toolGenerator: toolGenerator,
+		loginAttempts: make(map[string][]time.Time),
 	}
 
 	go server.wsHub.Run()
@@ -154,6 +159,14 @@ func (server *Server) loggingMiddleware(next http.Handler) http.Handler {
 
 func (server *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		// CSRF Protection: Require custom header for state-changing methods
+		if request.Method == "POST" || request.Method == "PATCH" || request.Method == "DELETE" {
+			if request.Header.Get("X-Requested-With") == "" {
+				server.writeError(responseWriter, http.StatusForbidden, "CSRF_ERROR", "X-Requested-With header is required", nil)
+				return
+			}
+		}
+
 		sessionToken := server.getSessionToken(request)
 		if sessionToken == "" {
 			server.writeError(responseWriter, http.StatusUnauthorized, "AUTH_ERROR", "Authentication required", nil)

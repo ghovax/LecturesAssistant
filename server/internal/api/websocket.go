@@ -11,7 +11,7 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
+	CheckOrigin: func(httpRequest *http.Request) bool {
 		return true
 	},
 }
@@ -58,17 +58,17 @@ func (hub *Hub) Run() {
 			hub.mu.Unlock()
 		case client := <-hub.unregister:
 			hub.mu.Lock()
-			if _, ok := hub.clients[client]; ok {
+			if _, isRegistered := hub.clients[client]; isRegistered {
 				delete(hub.clients, client)
 				close(client.send)
 			}
 			hub.mu.Unlock()
-		case message := <-hub.broadcast:
+		case wsMessage := <-hub.broadcast:
 			hub.mu.RLock()
 			for client := range hub.clients {
-				if client.isSubscribed(message.Channel) {
+				if client.isSubscribed(wsMessage.Channel) {
 					select {
-					case client.send <- message:
+					case client.send <- wsMessage:
 					default:
 						close(client.send)
 						delete(hub.clients, client)
@@ -179,13 +179,13 @@ func (client *WSClient) writePump() {
 
 	for {
 		select {
-		case message, ok := <-client.send:
-			if !ok {
+		case wsMessage, isAvailable := <-client.send:
+			if !isAvailable {
 				client.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
 
-			if err := client.conn.WriteJSON(message); err != nil {
+			if err := client.conn.WriteJSON(wsMessage); err != nil {
 				return
 			}
 

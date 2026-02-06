@@ -46,11 +46,11 @@ type JobUpdate struct {
 
 // NewQueue creates a new job queue
 func NewQueue(database *sql.DB, workers int) *Queue {
-	context, cancel := context.WithCancel(context.Background())
+	jobContext, cancel := context.WithCancel(context.Background())
 	return &Queue{
 		database:           database,
 		workers:            workers,
-		context:            context,
+		context:            jobContext,
 		cancel:             cancel,
 		handlers:           make(map[string]JobHandler),
 		subscribers:        make(map[string][]chan JobUpdate),
@@ -65,9 +65,9 @@ func (queue *Queue) RegisterHandler(jobType string, handler JobHandler) {
 
 // Start begins processing jobs
 func (queue *Queue) Start() {
-	for i := 0; i < queue.workers; i++ {
+	for index := 0; index < queue.workers; index++ {
 		queue.waitGroup.Add(1)
-		go queue.worker(i)
+		go queue.worker(index)
 	}
 	slog.Info("Job queue started", "workers", queue.workers)
 }
@@ -118,10 +118,10 @@ func (queue *Queue) Unsubscribe(jobID string, channel <-chan JobUpdate) {
 	defer queue.subscribersMutex.Unlock()
 
 	subscribersList := queue.subscribers[jobID]
-	for i, subscriber := range subscribersList {
-		if subscriber == channel {
-			queue.subscribers[jobID] = append(subscribersList[:i], subscribersList[i+1:]...)
-			close(subscriber)
+	for index, subscriberChannel := range subscribersList {
+		if subscriberChannel == channel {
+			queue.subscribers[jobID] = append(subscribersList[:index], subscribersList[index+1:]...)
+			close(subscriberChannel)
 			break
 		}
 	}
@@ -148,9 +148,9 @@ func (queue *Queue) publishUpdate(update JobUpdate) {
 }
 
 // worker processes jobs from the queue
-func (queue *Queue) worker(id int) {
+func (queue *Queue) worker(workerID int) {
 	defer queue.waitGroup.Done()
-	slog.Debug("Worker started", "workerID", id)
+	slog.Debug("Worker started", "workerID", workerID)
 
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
@@ -158,10 +158,10 @@ func (queue *Queue) worker(id int) {
 	for {
 		select {
 		case <-queue.context.Done():
-			slog.Debug("Worker stopping", "workerID", id)
+			slog.Debug("Worker stopping", "workerID", workerID)
 			return
 		case <-ticker.C:
-			queue.processNextJob(id)
+			queue.processNextJob(workerID)
 		}
 	}
 }
@@ -287,10 +287,10 @@ func (queue *Queue) executeJob(job *models.Job) {
 	}
 
 	// Execute handler
-	context, cancel := context.WithCancel(queue.context)
-	defer cancel()
+	jobContext, cancelFunc := context.WithCancel(queue.context)
+	defer cancelFunc()
 
-	err := handler(context, job, updateProgress)
+	err := handler(jobContext, job, updateProgress)
 
 	if err != nil {
 		queue.failJob(job.ID, err.Error())
@@ -350,7 +350,7 @@ func (queue *Queue) failJob(jobID, errorMsg string) {
 // GetJob retrieves a job by ID
 func (queue *Queue) GetJob(jobID string) (*models.Job, error) {
 	var job models.Job
-	var startedAt, completedAt sql.NullTime
+	var startedAtTime, completedAtTime sql.NullTime
 	var metadataJSON sql.NullString
 
 	err := queue.database.QueryRow(`
@@ -361,7 +361,7 @@ func (queue *Queue) GetJob(jobID string) (*models.Job, error) {
 	`, jobID).Scan(
 		&job.ID, &job.Type, &job.Status, &job.Progress, &job.ProgressMessageText,
 		&job.Payload, &job.Result, &job.Error, &metadataJSON, &job.InputTokens, &job.OutputTokens, &job.EstimatedCost,
-		&job.CreatedAt, &startedAt, &completedAt,
+		&job.CreatedAt, &startedAtTime, &completedAtTime,
 	)
 
 	if err != nil {
@@ -372,11 +372,11 @@ func (queue *Queue) GetJob(jobID string) (*models.Job, error) {
 		_ = json.Unmarshal([]byte(metadataJSON.String), &job.Metadata)
 	}
 
-	if startedAt.Valid {
-		job.StartedAt = &startedAt.Time
+	if startedAtTime.Valid {
+		job.StartedAt = &startedAtTime.Time
 	}
-	if completedAt.Valid {
-		job.CompletedAt = &completedAt.Time
+	if completedAtTime.Valid {
+		job.CompletedAt = &completedAtTime.Time
 	}
 
 	return &job, nil

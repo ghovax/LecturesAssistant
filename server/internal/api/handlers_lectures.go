@@ -552,17 +552,17 @@ func (server *Server) handleGetTranscript(responseWriter http.ResponseWriter, re
 
 	var segments []map[string]any
 	for transcriptRows.Next() {
-		var id int
+		var segmentInternalID int
 		var segmentID, mediaID, text, speaker sql.NullString
 		var startMs, endMs int64
 		var confidence sql.NullFloat64
 
-		if err := transcriptRows.Scan(&id, &segmentID, &mediaID, &startMs, &endMs, &text, &confidence, &speaker); err != nil {
+		if err := transcriptRows.Scan(&segmentInternalID, &segmentID, &mediaID, &startMs, &endMs, &text, &confidence, &speaker); err != nil {
 			continue
 		}
 
 		segment := map[string]any{
-			"id":                id,
+			"id":                segmentInternalID,
 			"start_millisecond": startMs,
 			"end_millisecond":   endMs,
 			"text":              text.String,

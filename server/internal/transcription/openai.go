@@ -57,7 +57,7 @@ type openAITranscriptionResponse struct {
 	} `json:"segments"`
 }
 
-func (provider *OpenAIProvider) Transcribe(ctx context.Context, audioPath string) ([]Segment, error) {
+func (provider *OpenAIProvider) Transcribe(jobContext context.Context, audioPath string) ([]Segment, error) {
 	file, err := os.Open(audioPath)
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func (provider *OpenAIProvider) Transcribe(ctx context.Context, audioPath string
 		return nil, err
 	}
 
-	request, err := http.NewRequestWithContext(ctx, "POST", provider.baseURL+"/audio/transcriptions", body)
+	request, err := http.NewRequestWithContext(jobContext, "POST", provider.baseURL+"/audio/transcriptions", body)
 	if err != nil {
 		return nil, err
 	}
@@ -113,11 +113,11 @@ func (provider *OpenAIProvider) Transcribe(ctx context.Context, audioPath string
 
 	var segments []Segment
 	if len(openAIResp.Segments) > 0 {
-		for _, s := range openAIResp.Segments {
+		for _, segment := range openAIResp.Segments {
 			segments = append(segments, Segment{
-				Start: s.Start,
-				End:   s.End,
-				Text:  s.Text,
+				Start: segment.Start,
+				End:   segment.End,
+				Text:  segment.Text,
 			})
 		}
 	} else if openAIResp.Text != "" {

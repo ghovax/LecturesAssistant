@@ -119,26 +119,26 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 				}
 				updateProgress(currentProgress, "Transcribing audio segment...", segmentMetadata)
 
-				results, err := service.provider.Transcribe(jobContext, segmentFile)
+				transcriptionResults, err := service.provider.Transcribe(jobContext, segmentFile)
 				if err != nil {
 					return nil, fmt.Errorf("transcription failed for segment %s: %w", segmentFile, err)
 				}
 
 				segmentBaseOffsetMilliseconds := int64(segmentIndex) * int64(segmentDurationSeconds) * 1000
 
-				for _, segment := range results {
-					originalStart := segmentBaseOffsetMilliseconds + int64(segment.Start*1000)
-					originalEnd := segmentBaseOffsetMilliseconds + int64(segment.End*1000)
+				for _, transcriptSegment := range transcriptionResults {
+					originalStart := segmentBaseOffsetMilliseconds + int64(transcriptSegment.Start*1000)
+					originalEnd := segmentBaseOffsetMilliseconds + int64(transcriptSegment.End*1000)
 
 					chunkSegments = append(chunkSegments, models.TranscriptSegment{
 						MediaID:                   media.ID,
 						OriginalStartMilliseconds: originalStart,
 						OriginalEndMilliseconds:   originalEnd,
-						Text:                      segment.Text,
-						Confidence:                segment.Confidence,
-						Speaker:                   segment.Speaker,
+						Text:                      transcriptSegment.Text,
+						Confidence:                transcriptSegment.Confidence,
+						Speaker:                   transcriptSegment.Speaker,
 					})
-					chunkTextBuilder.WriteString(segment.Text + " ")
+					chunkTextBuilder.WriteString(transcriptSegment.Text + " ")
 				}
 			}
 

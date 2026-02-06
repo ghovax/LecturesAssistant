@@ -32,7 +32,7 @@ func (server *Server) cleanupOrphanedUploads() {
 		return
 	}
 
-	now := time.Now()
+	currentTime := time.Now()
 	threshold := 24 * time.Hour
 	deletedCount := 0
 
@@ -47,12 +47,12 @@ func (server *Server) cleanupOrphanedUploads() {
 		}
 
 		// Delete if older than threshold
-		if now.Sub(info.ModTime()) > threshold {
-			path := filepath.Join(uploadsDir, entry.Name())
-			if err := os.RemoveAll(path); err == nil {
+		if currentTime.Sub(info.ModTime()) > threshold {
+			uploadPath := filepath.Join(uploadsDir, entry.Name())
+			if err := os.RemoveAll(uploadPath); err == nil {
 				deletedCount++
 			} else {
-				slog.Error("Failed to delete orphaned upload directory", "path", path, "error", err)
+				slog.Error("Failed to delete orphaned upload directory", "path", uploadPath, "error", err)
 			}
 		}
 	}

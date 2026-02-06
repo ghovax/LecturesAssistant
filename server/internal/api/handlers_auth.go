@@ -57,16 +57,16 @@ func (server *Server) handleAuthSetup(responseWriter http.ResponseWriter, reques
 // handleAuthLogin authenticates user and creates a session
 func (server *Server) handleAuthLogin(responseWriter http.ResponseWriter, request *http.Request) {
 	// Rate Limiting
-	ip := request.RemoteAddr
+	clientIP := request.RemoteAddr
 	server.loginAttemptsMutex.Lock()
-	attempts := server.loginAttempts[ip]
-	now := time.Now()
+	attempts := server.loginAttempts[clientIP]
+	currentTime := time.Now()
 
 	// Clean old attempts
 	var validAttempts []time.Time
-	for _, t := range attempts {
-		if now.Sub(t) < time.Hour {
-			validAttempts = append(validAttempts, t)
+	for _, attemptTime := range attempts {
+		if currentTime.Sub(attemptTime) < time.Hour {
+			validAttempts = append(validAttempts, attemptTime)
 		}
 	}
 
@@ -81,7 +81,7 @@ func (server *Server) handleAuthLogin(responseWriter http.ResponseWriter, reques
 		return
 	}
 
-	server.loginAttempts[ip] = append(validAttempts, now)
+	server.loginAttempts[clientIP] = append(validAttempts, currentTime)
 	server.loginAttemptsMutex.Unlock()
 
 	var loginRequest struct {
@@ -121,7 +121,7 @@ func (server *Server) handleAuthLogin(responseWriter http.ResponseWriter, reques
 
 	// Reset attempts on success
 	server.loginAttemptsMutex.Lock()
-	delete(server.loginAttempts, ip)
+	delete(server.loginAttempts, clientIP)
 	server.loginAttemptsMutex.Unlock()
 
 	// Set cookie

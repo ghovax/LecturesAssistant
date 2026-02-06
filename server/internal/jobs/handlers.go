@@ -218,11 +218,11 @@ func RegisterHandlers(
 				return fmt.Errorf("failed to delete old pages: %w", err)
 			}
 
-			for _, page := range pages {
+			for _, currentPage := range pages {
 				_, err = databaseTransaction.Exec(`
 					INSERT INTO reference_pages (document_id, page_number, image_path, extracted_text)
 					VALUES (?, ?, ?, ?)
-				`, document.ID, page.PageNumber, page.ImagePath, page.ExtractedText)
+				`, document.ID, currentPage.PageNumber, currentPage.ImagePath, currentPage.ExtractedText)
 				if err != nil {
 					return fmt.Errorf("failed to insert page: %w", err)
 				}

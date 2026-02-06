@@ -31,7 +31,7 @@ func (reconstructor *Reconstructor) ParseCitations(text string) (string, []Parse
 	var citations []ParsedCitation
 	result := text
 
-	for i, match := range matches {
+	for citationIndex, match := range matches {
 		fullMatch := match[0]
 		content := strings.TrimSpace(match[1])
 
@@ -64,7 +64,7 @@ func (reconstructor *Reconstructor) ParseCitations(text string) (string, []Parse
 			filename = "unknown"
 		}
 
-		citationNumber := i + 1
+		citationNumber := citationIndex + 1
 		pages := ParsePageString(pageString)
 
 		citations = append(citations, ParsedCitation{
@@ -106,8 +106,8 @@ func ParsePageString(pageString string) []int {
 				start, _ := strconv.Atoi(strings.TrimSpace(rangeParts[0]))
 				end, _ := strconv.Atoi(strings.TrimSpace(rangeParts[1]))
 				if start > 0 && end >= start {
-					for i := start; i <= end; i++ {
-						pages = append(pages, i)
+					for pageIndex := start; pageIndex <= end; pageIndex++ {
+						pages = append(pages, pageIndex)
 					}
 				}
 			}
@@ -129,12 +129,12 @@ func FormatPageNumbers(pages []int) string {
 
 	// Deduplicate and sort
 	uniqueMap := make(map[int]bool)
-	for _, p := range pages {
-		uniqueMap[p] = true
+	for _, pageNumber := range pages {
+		uniqueMap[pageNumber] = true
 	}
 	var sortedPages []int
-	for p := range uniqueMap {
-		sortedPages = append(sortedPages, p)
+	for pageNumber := range uniqueMap {
+		sortedPages = append(sortedPages, pageNumber)
 	}
 	sort.Ints(sortedPages)
 
@@ -146,17 +146,17 @@ func FormatPageNumbers(pages []int) string {
 	rangeStart := sortedPages[0]
 	rangeEnd := sortedPages[0]
 
-	for i := 1; i < len(sortedPages); i++ {
-		if sortedPages[i] == rangeEnd+1 {
-			rangeEnd = sortedPages[i]
+	for pageIndex := 1; pageIndex < len(sortedPages); pageIndex++ {
+		if sortedPages[pageIndex] == rangeEnd+1 {
+			rangeEnd = sortedPages[pageIndex]
 		} else {
 			if rangeStart == rangeEnd {
 				ranges = append(ranges, strconv.Itoa(rangeStart))
 			} else {
 				ranges = append(ranges, fmt.Sprintf("%d–%d", rangeStart, rangeEnd))
 			}
-			rangeStart = sortedPages[i]
-			rangeEnd = sortedPages[i]
+			rangeStart = sortedPages[pageIndex]
+			rangeEnd = sortedPages[pageIndex]
 		}
 	}
 

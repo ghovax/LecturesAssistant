@@ -57,13 +57,13 @@ func (provider *OllamaProvider) Chat(jobContext context.Context, request ChatReq
 		var contentBuilder bytes.Buffer
 		var images []string
 
-		for _, part := range message.Content {
-			switch part.Type {
+		for _, contentPart := range message.Content {
+			switch contentPart.Type {
 			case "text":
-				contentBuilder.WriteString(part.Text)
+				contentBuilder.WriteString(contentPart.Text)
 			case "image":
 				// Ollama expects base64 data without the data:image/... prefix
-				data := part.ImageURL
+				data := contentPart.ImageURL
 				if commaIndex := bytes.IndexByte([]byte(data), ','); commaIndex != -1 {
 					data = data[commaIndex+1:]
 				}
@@ -78,13 +78,13 @@ func (provider *OllamaProvider) Chat(jobContext context.Context, request ChatReq
 		})
 	}
 
-	ollamaReq := ollamaChatRequest{
+	ollamaRequestPayload := ollamaChatRequest{
 		Model:    request.Model,
 		Messages: ollamaMessages,
 		Stream:   request.Stream,
 	}
 
-	payload, jsonError := json.Marshal(ollamaReq)
+	payload, jsonError := json.Marshal(ollamaRequestPayload)
 	if jsonError != nil {
 		return nil, fmt.Errorf("failed to marshal ollama request: %w", jsonError)
 	}
@@ -116,14 +116,14 @@ func (provider *OllamaProvider) Chat(jobContext context.Context, request ChatReq
 
 		scanner := bufio.NewScanner(httpResponse.Body)
 		for scanner.Scan() {
-			line := scanner.Bytes()
-			if len(line) == 0 {
+			responseLine := scanner.Bytes()
+			if len(responseLine) == 0 {
 				continue
 			}
 
 			var ollamaResp ollamaChatResponse
-			if scanError := json.Unmarshal(line, &ollamaResp); scanError != nil {
-				responseChannel <- ChatResponseChunk{Error: fmt.Errorf("failed to decode ollama response line: %w, line: %s", scanError, string(line))}
+			if scanError := json.Unmarshal(responseLine, &ollamaResp); scanError != nil {
+				responseChannel <- ChatResponseChunk{Error: fmt.Errorf("failed to decode ollama response line: %w, line: %s", scanError, string(responseLine))}
 				return
 			}
 

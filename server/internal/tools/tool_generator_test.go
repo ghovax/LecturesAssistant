@@ -22,14 +22,14 @@ type UnbreakableSequentialMock struct {
 	mutex     sync.Mutex
 }
 
-func (mock *UnbreakableSequentialMock) Chat(ctx context.Context, req llm.ChatRequest) (<-chan llm.ChatResponseChunk, error) {
+func (mock *UnbreakableSequentialMock) Chat(jobContext context.Context, chatRequest llm.ChatRequest) (<-chan llm.ChatResponseChunk, error) {
 	mock.mutex.Lock()
 	defer mock.mutex.Unlock()
 
 	channel := make(chan llm.ChatResponseChunk, 1)
 	defer close(channel)
 
-	mock.Histories = append(mock.Histories, req.Messages)
+	mock.Histories = append(mock.Histories, chatRequest.Messages)
 
 	if mock.CallIndex < len(mock.Responses) {
 		channel <- llm.ChatResponseChunk{Text: mock.Responses[mock.CallIndex]}

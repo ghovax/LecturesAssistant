@@ -35,37 +35,37 @@ func (parser *Parser) Parse(markdown string) *Node {
 	parser.indentUnit = parser.detectIndentationPattern(lines)
 
 	var allElements []*Node
-	for i := 0; i < len(lines); i++ {
+	for lineIndex := 0; lineIndex < len(lines); lineIndex++ {
 		// Check for code blocks first
-		if codeBlock, nextIndex := parser.parseCodeBlock(lines, i); codeBlock != nil {
+		if codeBlock, nextIndex := parser.parseCodeBlock(lines, lineIndex); codeBlock != nil {
 			allElements = append(allElements, codeBlock)
-			i = nextIndex
+			lineIndex = nextIndex
 			continue
 		}
 
 		// Check for multi-line display equations
-		if equation, nextIndex := parser.parseDisplayEquation(lines, i); equation != nil {
+		if equation, nextIndex := parser.parseDisplayEquation(lines, lineIndex); equation != nil {
 			allElements = append(allElements, equation)
-			i = nextIndex
+			lineIndex = nextIndex
 			continue
 		}
 
 		// Check for tables
-		if table, nextIndex := parser.parseTable(lines, i); table != nil {
+		if table, nextIndex := parser.parseTable(lines, lineIndex); table != nil {
 			allElements = append(allElements, table)
-			i = nextIndex
+			lineIndex = nextIndex
 			continue
 		}
 
 		// Check for multi-line footnotes
-		if footnote, nextIndex := parser.parseFootnote(lines, i); footnote != nil {
+		if footnote, nextIndex := parser.parseFootnote(lines, lineIndex); footnote != nil {
 			allElements = append(allElements, footnote)
-			i = nextIndex
+			lineIndex = nextIndex
 			continue
 		}
 
 		// Parse single-line elements
-		if element := parser.parseMarkdownElement(lines[i]); element != nil {
+		if element := parser.parseMarkdownElement(lines[lineIndex]); element != nil {
 			if element.Type == NodeParagraph {
 				splitElements := parser.splitParagraphEquations(element)
 				allElements = append(allElements, splitElements...)
@@ -103,11 +103,11 @@ func (parser *Parser) unwrapBacktickMath(markdown string) string {
 func (parser *Parser) escapeDollarSigns(text string) string {
 	var builder strings.Builder
 	runes := []rune(text)
-	for i := range runes {
-		if runes[i] == '$' {
+	for runeIndex := range runes {
+		if runes[runeIndex] == '$' {
 			// Count backslashes before this dollar sign
 			backslashCount := 0
-			for j := i - 1; j >= 0 && runes[j] == '\\'; j-- {
+			for backslashIndex := runeIndex - 1; backslashIndex >= 0 && runes[backslashIndex] == '\\'; backslashIndex-- {
 				backslashCount++
 			}
 			// If backslash count is even, the dollar is unescaped
@@ -115,7 +115,7 @@ func (parser *Parser) escapeDollarSigns(text string) string {
 				builder.WriteRune('\\')
 			}
 		}
-		builder.WriteRune(runes[i])
+		builder.WriteRune(runes[runeIndex])
 	}
 	return builder.String()
 }
@@ -221,34 +221,34 @@ func (parser *Parser) splitByPipesOutsideMath(line string) []string {
 	inDisplayMath := false
 
 	runes := []rune(line)
-	for i := 0; i < len(runes); i++ {
-		char := runes[i]
+	for runeIndex := 0; runeIndex < len(runes); runeIndex++ {
+		character := runes[runeIndex]
 
 		// Check for $$
-		if char == '$' && i+1 < len(runes) && runes[i+1] == '$' {
+		if character == '$' && runeIndex+1 < len(runes) && runes[runeIndex+1] == '$' {
 			inDisplayMath = !inDisplayMath
-			currentCell.WriteRune(char)
-			currentCell.WriteRune(runes[i+1])
-			i++
+			currentCell.WriteRune(character)
+			currentCell.WriteRune(runes[runeIndex+1])
+			runeIndex++
 			continue
 		}
 
 		// Check for $
-		if char == '$' && !inDisplayMath {
+		if character == '$' && !inDisplayMath {
 			inInlineMath = !inInlineMath
-			currentCell.WriteRune(char)
+			currentCell.WriteRune(character)
 			continue
 		}
 
 		// Split on | only if not inside math
-		if char == '|' && !inInlineMath && !inDisplayMath {
+		if character == '|' && !inInlineMath && !inDisplayMath {
 			trimmed := strings.TrimSpace(currentCell.String())
 			if trimmed != "" {
 				cells = append(cells, trimmed)
 			}
 			currentCell.Reset()
 		} else {
-			currentCell.WriteRune(char)
+			currentCell.WriteRune(character)
 		}
 	}
 
@@ -416,14 +416,14 @@ func (parser *Parser) parseCodeBlock(lines []string, startIndex int) (*Node, int
 	}
 
 	var codeLines []string
-	for i := startIndex + 1; i < len(lines); i++ {
-		if strings.TrimSpace(lines[i]) == "```" {
+	for lineIndex := startIndex + 1; lineIndex < len(lines); lineIndex++ {
+		if strings.TrimSpace(lines[lineIndex]) == "```" {
 			return &Node{
 				Type:    NodeCodeBlock,
 				Content: strings.Join(codeLines, "\n"),
-			}, i
+			}, lineIndex
 		}
-		codeLines = append(codeLines, lines[i])
+		codeLines = append(codeLines, lines[lineIndex])
 	}
 	return nil, startIndex
 }
@@ -432,15 +432,15 @@ func (parser *Parser) parseDisplayEquation(lines []string, startIndex int) (*Nod
 	line := strings.TrimSpace(lines[startIndex])
 	if line == "$$" {
 		var equationLines []string
-		for i := startIndex + 1; i < len(lines); i++ {
-			if strings.TrimSpace(lines[i]) == "$$" {
+		for lineIndex := startIndex + 1; lineIndex < len(lines); lineIndex++ {
+			if strings.TrimSpace(lines[lineIndex]) == "$$" {
 				return &Node{
 					Type:        NodeDisplayEquation,
 					Content:     strings.Join(equationLines, "\n"),
 					IsMultiline: true,
-				}, i
+				}, lineIndex
 			}
-			equationLines = append(equationLines, lines[i])
+			equationLines = append(equationLines, lines[lineIndex])
 		}
 	}
 	return nil, startIndex

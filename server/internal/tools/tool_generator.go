@@ -103,7 +103,7 @@ func (generator *ToolGenerator) triangulateRelevantMaterials(jobContext context.
 
 	for attemptIndex := 0; attemptIndex < maximumAttempts; attemptIndex++ {
 		waitGroup.Add(1)
-		go func(runID int) {
+		go func(attemptIndex int) {
 			defer waitGroup.Done()
 
 			prompt, _ := generator.promptManager.GetPrompt(prompts.PromptGetRelevantPages, map[string]string{
@@ -381,7 +381,7 @@ func (generator *ToolGenerator) ProcessFootnotesAI(jobContext context.Context, c
 	return updatedCitations, totalMetrics, nil
 }
 
-func (generator *ToolGenerator) processFootnoteBatch(ctx context.Context, batch []markdown.ParsedCitation, allCitations []markdown.ParsedCitation, offset int, options models.GenerationOptions) (models.JobMetrics, error) {
+func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context, batch []markdown.ParsedCitation, allCitations []markdown.ParsedCitation, offset int, options models.GenerationOptions) (models.JobMetrics, error) {
 	var metrics models.JobMetrics
 	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 
@@ -393,7 +393,7 @@ func (generator *ToolGenerator) processFootnoteBatch(ctx context.Context, batch 
 	parsingPrompt, _ := generator.promptManager.GetPrompt(prompts.PromptParseFootnotes, map[string]string{
 		"footnotes": markdownBuilder.String(), "latex_instructions": latexInstructions,
 	})
-	parsingResponse, parsingMetrics, err := generator.callLLMWithModel(ctx, parsingPrompt, options.ModelFootnoteParsing)
+	parsingResponse, parsingMetrics, err := generator.callLLMWithModel(jobContext, parsingPrompt, options.ModelFootnoteParsing)
 	metrics.InputTokens += parsingMetrics.InputTokens
 	metrics.OutputTokens += parsingMetrics.OutputTokens
 	metrics.EstimatedCost += parsingMetrics.EstimatedCost
@@ -430,7 +430,7 @@ func (generator *ToolGenerator) processFootnoteBatch(ctx context.Context, batch 
 	formattingPrompt, _ := generator.promptManager.GetPrompt(prompts.PromptFormatFootnotes, map[string]string{
 		"footnotes": markdownBuilder.String(), "latex_instructions": latexInstructions,
 	})
-	formattingResponse, formattingMetrics, _ := generator.callLLMWithModel(ctx, formattingPrompt, options.ModelFootnoteFormatting)
+	formattingResponse, formattingMetrics, _ := generator.callLLMWithModel(jobContext, formattingPrompt, options.ModelFootnoteFormatting)
 	metrics.InputTokens += formattingMetrics.InputTokens
 	metrics.OutputTokens += formattingMetrics.OutputTokens
 	metrics.EstimatedCost += formattingMetrics.EstimatedCost
@@ -516,8 +516,8 @@ func (generator *ToolGenerator) filterMaterialsByRanges(materials string, ranges
 				if match != nil {
 					pageNum, _ := strconv.Atoi(match[1])
 					isRelevant := false
-					for _, r := range ranges {
-						if pageNum >= r.Start && pageNum <= r.End {
+					for _, pageRange := range ranges {
+						if pageNum >= pageRange.Start && pageNum <= pageRange.End {
 							isRelevant = true
 							break
 						}
@@ -623,11 +623,11 @@ func (generator *ToolGenerator) parseStructure(structure string) []sectionInfo {
 	var find func(*markdown.Node)
 	find = func(node *markdown.Node) {
 		if node.Type == markdown.NodeSection && node.Level == 2 {
-			cov := reconstructor.Reconstruct(&markdown.Node{Type: markdown.NodeDocument, Children: node.Children})
-			sections = append(sections, sectionInfo{Title: node.Title, Coverage: cov})
+			coverage := reconstructor.Reconstruct(&markdown.Node{Type: markdown.NodeDocument, Children: node.Children})
+			sections = append(sections, sectionInfo{Title: node.Title, Coverage: coverage})
 		} else {
-			for _, c := range node.Children {
-				find(c)
+			for _, child := range node.Children {
+				find(child)
 			}
 		}
 	}
@@ -685,7 +685,7 @@ func (generator *ToolGenerator) minimumInt(a, b int) int {
 	return b
 }
 
-func (generator *ToolGenerator) CleanDocumentTitle(ctx context.Context, title string, options models.GenerationOptions) (string, models.JobMetrics, error) {
+func (generator *ToolGenerator) CleanDocumentTitle(jobContext context.Context, title string, options models.GenerationOptions) (string, models.JobMetrics, error) {
 	if title == "" || title == "Untitled Document" {
 		return title, models.JobMetrics{}, nil
 	}
@@ -697,7 +697,7 @@ func (generator *ToolGenerator) CleanDocumentTitle(ctx context.Context, title st
 		return title, models.JobMetrics{}, err
 	}
 
-	response, metrics, err := generator.callLLMWithModel(ctx, prompt, options.ModelTitleCleaning)
+	response, metrics, err := generator.callLLMWithModel(jobContext, prompt, options.ModelTitleCleaning)
 	if err != nil {
 		return title, metrics, err
 	}
@@ -715,7 +715,7 @@ func (generator *ToolGenerator) CleanDocumentTitle(ctx context.Context, title st
 	return title, metrics, nil
 }
 
-func (generator *ToolGenerator) GenerateSuggestedQuestions(ctx context.Context, documentMarkdown string, model string) ([]string, models.JobMetrics, error) {
+func (generator *ToolGenerator) GenerateSuggestedQuestions(jobContext context.Context, documentMarkdown string, model string) ([]string, models.JobMetrics, error) {
 	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 	prompt, err := generator.promptManager.GetPrompt(prompts.PromptGenerateChatQuestions, map[string]string{
 		"document_content":   documentMarkdown,
@@ -725,7 +725,7 @@ func (generator *ToolGenerator) GenerateSuggestedQuestions(ctx context.Context, 
 		return nil, models.JobMetrics{}, err
 	}
 
-	response, metrics, err := generator.callLLMWithModel(ctx, prompt, model)
+	response, metrics, err := generator.callLLMWithModel(jobContext, prompt, model)
 	if err != nil {
 		return nil, metrics, err
 	}
@@ -789,7 +789,9 @@ func (generator *ToolGenerator) unionAndMergeRanges(allRuns [][]struct {
 		return nil
 	}
 
-	sort.Slice(flattenedRanges, func(i, j int) bool { return flattenedRanges[i].Start < flattenedRanges[j].Start })
+	sort.Slice(flattenedRanges, func(firstIndex, secondIndex int) bool {
+		return flattenedRanges[firstIndex].Start < flattenedRanges[secondIndex].Start
+	})
 
 	var mergedRanges []struct {
 		Start int `json:"start"`

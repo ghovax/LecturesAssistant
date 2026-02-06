@@ -28,18 +28,18 @@ func (provider *OpenRouterProvider) Chat(jobContext context.Context, request Cha
 	var chatMessages []openrouter.ChatCompletionMessage
 	for _, message := range request.Messages {
 		var contentParts []openrouter.ChatMessagePart
-		for _, part := range message.Content {
-			switch part.Type {
+		for _, contentPart := range message.Content {
+			switch contentPart.Type {
 			case "text":
 				contentParts = append(contentParts, openrouter.ChatMessagePart{
 					Type: openrouter.ChatMessagePartTypeText,
-					Text: part.Text,
+					Text: contentPart.Text,
 				})
 			case "image":
 				contentParts = append(contentParts, openrouter.ChatMessagePart{
 					Type: "image_url", // Based on common patterns, though type alias exists
 					ImageURL: &openrouter.ChatMessageImageURL{
-						URL: part.ImageURL,
+						URL: contentPart.ImageURL,
 					},
 				})
 			}

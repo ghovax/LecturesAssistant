@@ -60,20 +60,20 @@ func (server *Server) handleUpdateSettings(responseWriter http.ResponseWriter, r
 	}
 
 	// Update server.configuration in-memory to ensure immediate effect
-	if value, ok := updateSettingsRequest["llm"]; ok {
-		if llmMap, ok := value.(map[string]any); ok {
-			if provider, ok := llmMap["provider"].(string); ok {
-				server.configuration.LLM.Provider = provider
+	if settingValue, exists := updateSettingsRequest["llm"]; exists {
+		if llmMap, isMap := settingValue.(map[string]any); isMap {
+			if llmProvider, isString := llmMap["provider"].(string); isString {
+				server.configuration.LLM.Provider = llmProvider
 			}
-			if language, ok := llmMap["language"].(string); ok {
-				server.configuration.LLM.Language = language
+			if languageCode, isString := llmMap["language"].(string); isString {
+				server.configuration.LLM.Language = languageCode
 			}
 		}
 	}
-	if value, ok := updateSettingsRequest["transcription"]; ok {
-		if transMap, ok := value.(map[string]any); ok {
-			if provider, ok := transMap["provider"].(string); ok {
-				server.configuration.Transcription.Provider = provider
+	if settingValue, exists := updateSettingsRequest["transcription"]; exists {
+		if transMap, isMap := settingValue.(map[string]any); isMap {
+			if transProvider, isString := transMap["provider"].(string); isString {
+				server.configuration.Transcription.Provider = transProvider
 			}
 		}
 	}

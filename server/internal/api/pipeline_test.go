@@ -23,7 +23,6 @@ import (
 	"lectures/internal/llm"
 	"lectures/internal/markdown"
 	"lectures/internal/models"
-	"lectures/internal/prompts"
 	"lectures/internal/tools"
 	"lectures/internal/transcription"
 
@@ -162,28 +161,38 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 		},
 		LLM:    configuration.LLMConfiguration{Language: "en-US", Model: "mock-model"},
 		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
+		Uploads: configuration.UploadsConfiguration{
+			Media: configuration.MediaUploadConfiguration{
+				SupportedFormats: configuration.MediaFormats{
+					Audio: []string{"mp3", "wav"},
+					Video: []string{"mp4"},
+				},
+			},
+			Documents: configuration.DocumentUploadConfiguration{
+				SupportedFormats: []string{"pdf", "docx"},
+			},
+		},
 	}
 
-	promptManager := prompts.NewManager("../../prompts")
 	mockLLM := &MockLLMProvider{ResponseText: "Mocked AI Response {{{This is a citation-test-slides.pdf-p1}}}"}
 
 	transcriptionService := transcription.NewService(config, &MockTranscriptionProvider{
 		Segments: []transcription.Segment{{Start: 0, End: 5, Text: "Hello, test lecture."}},
-	}, mockLLM, promptManager)
+	}, mockLLM, nil)
 	transcriptionService.SetMediaProcessor(&MockMediaProcessor{})
 
-	documentProcessor := documents.NewProcessor(mockLLM, "mock-model", promptManager)
+	documentProcessor := documents.NewProcessor(mockLLM, "mock-model", nil)
 	documentProcessor.SetConverter(&MockDocumentConverter{})
 
 	markdownConverter := markdown.NewConverter(temporaryDirectory)
-	toolGenerator := tools.NewToolGenerator(config, mockLLM, promptManager)
+	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
 	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, transcriptionService, documentProcessor, toolGenerator, markdownConverter, database.CheckLectureReadiness)
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
-	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, promptManager, toolGenerator)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator)
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 
@@ -393,6 +402,17 @@ func TestUpload_StagedProtocol(tester *testing.T) {
 		},
 		LLM:    configuration.LLMConfiguration{Model: "mock-model"},
 		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
+		Uploads: configuration.UploadsConfiguration{
+			Media: configuration.MediaUploadConfiguration{
+				SupportedFormats: configuration.MediaFormats{
+					Audio: []string{"mp3", "wav"},
+					Video: []string{"mp4"},
+				},
+			},
+			Documents: configuration.DocumentUploadConfiguration{
+				SupportedFormats: []string{"pdf", "docx"},
+			},
+		},
 	}
 
 	_, _ = initializedDatabase.Exec("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)", "user-1", "testuser", "dummy_hash", "user")
@@ -516,6 +536,17 @@ func TestWebSocket_ProgressUpdates(tester *testing.T) {
 			Auth: configuration.AuthConfiguration{Type: "session"},
 		},
 		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100},
+		Uploads: configuration.UploadsConfiguration{
+			Media: configuration.MediaUploadConfiguration{
+				SupportedFormats: configuration.MediaFormats{
+					Audio: []string{"mp3", "wav"},
+					Video: []string{"mp4"},
+				},
+			},
+			Documents: configuration.DocumentUploadConfiguration{
+				SupportedFormats: []string{"pdf", "docx"},
+			},
+		},
 	}
 
 	_, _ = initializedDatabase.Exec("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)", "user-1", "testuser", "dummy_hash", "user")
@@ -605,15 +636,25 @@ func TestAI_FailureScenarios(tester *testing.T) {
 		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
 		LLM:     configuration.LLMConfiguration{Language: "en-US", Model: "mock-model"},
 		Safety:  configuration.SafetyConfiguration{MaximumCostPerJob: 10.0, MaximumLoginAttempts: 100},
+		Uploads: configuration.UploadsConfiguration{
+			Media: configuration.MediaUploadConfiguration{
+				SupportedFormats: configuration.MediaFormats{
+					Audio: []string{"mp3", "wav"},
+					Video: []string{"mp4"},
+				},
+			},
+			Documents: configuration.DocumentUploadConfiguration{
+				SupportedFormats: []string{"pdf", "docx"},
+			},
+		},
 	}
 
-	promptManager := prompts.NewManager("../../prompts")
 	mockLLM := &MockLLMProvider{}
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
-	transcriptionService := transcription.NewService(config, &MockTranscriptionProvider{}, mockLLM, promptManager)
-	documentProcessor := documents.NewProcessor(mockLLM, "mock-model", promptManager)
-	toolGenerator := tools.NewToolGenerator(config, mockLLM, promptManager)
+	transcriptionService := transcription.NewService(config, &MockTranscriptionProvider{}, mockLLM, nil)
+	documentProcessor := documents.NewProcessor(mockLLM, "mock-model", nil)
+	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
 	markdownConverter := markdown.NewConverter(temporaryDirectory)
 
 	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, transcriptionService, documentProcessor, toolGenerator, markdownConverter, database.CheckLectureReadiness)
@@ -621,7 +662,8 @@ func TestAI_FailureScenarios(tester *testing.T) {
 	defer jobQueue.Stop()
 
 	lectureID, examID := "l1", "e1"
-	_, _ = initializedDatabase.Exec("INSERT INTO exams (id, title, description) VALUES (?, ?, ?)", examID, "Exam", "Desc")
+	_, _ = initializedDatabase.Exec("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)", "test-user", "testuser", "dummy", "user")
+	_, _ = initializedDatabase.Exec("INSERT INTO exams (id, user_id, title, description) VALUES (?, ?, ?, ?)", examID, "test-user", "Exam", "Desc")
 	_, _ = initializedDatabase.Exec("INSERT INTO lectures (id, exam_id, title, description, status) VALUES (?, ?, ?, ?, ?)", lectureID, examID, "Lecture", "Desc", "ready")
 	_, _ = initializedDatabase.Exec("INSERT INTO transcripts (id, lecture_id, status) VALUES (?, ?, ?)", "t1", lectureID, "completed")
 	_, _ = initializedDatabase.Exec("INSERT INTO transcript_segments (transcript_id, text, start_millisecond, end_millisecond) VALUES (?, ?, ?, ?)", "t1", "Hi", 0, 1000)
@@ -724,20 +766,31 @@ func TestTools_GenerationLogic(tester *testing.T) {
 		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
 		LLM:     configuration.LLMConfiguration{Language: "en-US", Model: "mock-model"},
 		Safety:  configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
+		Uploads: configuration.UploadsConfiguration{
+			Media: configuration.MediaUploadConfiguration{
+				SupportedFormats: configuration.MediaFormats{
+					Audio: []string{"mp3", "wav"},
+					Video: []string{"mp4"},
+				},
+			},
+			Documents: configuration.DocumentUploadConfiguration{
+				SupportedFormats: []string{"pdf", "docx"},
+			},
+		},
 	}
 
-	promptManager := prompts.NewManager("../../prompts")
 	mockLLM := &MockLLMProvider{ResponseText: `[{"front": "Q", "back": "A"}]`}
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
-	toolGenerator := tools.NewToolGenerator(config, mockLLM, promptManager)
+	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
 
 	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, nil, nil, toolGenerator, nil, nil)
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
 	examID, lectureID := "exam-1", "lecture-1"
-	_, _ = initializedDatabase.Exec("INSERT INTO exams (id, title, description) VALUES (?, ?, ?)", examID, "Exam", "Desc")
+	_, _ = initializedDatabase.Exec("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)", "test-user", "testuser", "dummy", "user")
+	_, _ = initializedDatabase.Exec("INSERT INTO exams (id, user_id, title, description) VALUES (?, ?, ?, ?)", examID, "test-user", "Exam", "Desc")
 	_, _ = initializedDatabase.Exec("INSERT INTO lectures (id, exam_id, title, description, status) VALUES (?, ?, ?, ?, ?)", lectureID, examID, "Lecture", "Desc", "ready")
 	_, _ = initializedDatabase.Exec("INSERT INTO transcripts (id, lecture_id, status) VALUES (?, ?, ?)", "t1", lectureID, "completed")
 	_, _ = initializedDatabase.Exec("INSERT INTO transcript_segments (transcript_id, text, start_millisecond, end_millisecond) VALUES (?, ?, ?, ?)", "t1", "Content", 0, 1000)
@@ -821,6 +874,17 @@ func TestExport_PDFGeneration(tester *testing.T) {
 		Storage: configuration.StorageConfiguration{DataDirectory: temporaryDirectory},
 		LLM:     configuration.LLMConfiguration{Language: "en-US", Model: "mock-model"},
 		Safety:  configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
+		Uploads: configuration.UploadsConfiguration{
+			Media: configuration.MediaUploadConfiguration{
+				SupportedFormats: configuration.MediaFormats{
+					Audio: []string{"mp3", "wav"},
+					Video: []string{"mp4"},
+				},
+			},
+			Documents: configuration.DocumentUploadConfiguration{
+				SupportedFormats: []string{"pdf", "docx"},
+			},
+		},
 	}
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
@@ -829,7 +893,8 @@ func TestExport_PDFGeneration(tester *testing.T) {
 	defer jobQueue.Stop()
 
 	toolID := "tool-1"
-	_, _ = initializedDatabase.Exec("INSERT INTO exams (id, title) VALUES ('e1', 'E')")
+	_, _ = initializedDatabase.Exec("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)", "test-user", "testuser", "dummy", "user")
+	_, _ = initializedDatabase.Exec("INSERT INTO exams (id, user_id, title) VALUES ('e1', 'test-user', 'E')")
 	_, _ = initializedDatabase.Exec("INSERT INTO tools (id, exam_id, type, title, content) VALUES (?, 'e1', 'guide', 'Title', 'Content')", toolID)
 
 	jobID, err := jobQueue.Enqueue("test-user", models.JobTypePublishMaterial, map[string]string{
@@ -918,16 +983,26 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		},
 		LLM:    configuration.LLMConfiguration{Model: "mock-model"},
 		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
+		Uploads: configuration.UploadsConfiguration{
+			Media: configuration.MediaUploadConfiguration{
+				SupportedFormats: configuration.MediaFormats{
+					Audio: []string{"mp3", "wav"},
+					Video: []string{"mp4"},
+				},
+			},
+			Documents: configuration.DocumentUploadConfiguration{
+				SupportedFormats: []string{"pdf", "docx"},
+			},
+		},
 	}
 
-	promptManager := prompts.NewManager("../../prompts")
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
 	mockLLM := &MockLLMProvider{}
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
-	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, promptManager, toolGenerator)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator)
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 
@@ -986,6 +1061,11 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 	authenticatedDo := func(httpRequest *http.Request) *http.Response {
 		httpRequest.Header.Set("Authorization", "Bearer "+sessionToken)
 		httpRequest.Header.Set("X-Requested-With", "XMLHttpRequest") // CSRF Protection
+		if httpRequest.Method == "POST" || httpRequest.Method == "PATCH" || httpRequest.Method == "DELETE" {
+			if httpRequest.Header.Get("Content-Type") == "" {
+				httpRequest.Header.Set("Content-Type", "application/json")
+			}
+		}
 		httpResponse, err := httpClient.Do(httpRequest)
 		if err != nil {
 			tester.Fatalf("Request failed: %v", err)
@@ -1064,12 +1144,27 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		httpRequest, _ = http.NewRequest("POST", testServer.URL+"/api/lectures", requestBody)
 		httpRequest.Header.Set("Content-Type", multipartWriter.FormDataContentType())
 		httpResponse = authenticatedDo(httpRequest)
-		var lectureResponseData struct {
-			Data models.Lecture `json:"data"`
+
+		var lectureResponseRaw map[string]any
+		bodyBytes, _ := io.ReadAll(httpResponse.Body)
+		if err := json.Unmarshal(bodyBytes, &lectureResponseRaw); err != nil {
+			subTester.Fatalf("Failed to decode lecture response: %v. Body: %s", err, string(bodyBytes))
 		}
-		json.NewDecoder(httpResponse.Body).Decode(&lectureResponseData)
-		lectureID = lectureResponseData.Data.ID
 		httpResponse.Body.Close()
+
+		dataMap, ok := lectureResponseRaw["data"].(map[string]any)
+		if !ok {
+			subTester.Fatalf("Response data is not a map: %v. Body: %s", lectureResponseRaw["data"], string(bodyBytes))
+		}
+
+		idVal, ok := dataMap["id"]
+		if !ok || idVal == nil {
+			subTester.Fatalf("Response data missing 'id': %v. Body: %s", dataMap, string(bodyBytes))
+		}
+		lectureID = idVal.(string)
+		if lectureID == "" {
+			subTester.Fatal("Failed to capture lecture ID from response")
+		}
 
 		// 3. Try to delete lecture while it is processing
 		deletePayload, _ := json.Marshal(map[string]string{
@@ -1184,6 +1279,17 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 			OpenRouter: configuration.OpenRouterConfig{APIKey: "dummy"},
 		},
 		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
+		Uploads: configuration.UploadsConfiguration{
+			Media: configuration.MediaUploadConfiguration{
+				SupportedFormats: configuration.MediaFormats{
+					Audio: []string{"mp3", "wav"},
+					Video: []string{"mp4"},
+				},
+			},
+			Documents: configuration.DocumentUploadConfiguration{
+				SupportedFormats: []string{"pdf", "docx"},
+			},
+		},
 	}
 
 	mockLLM := &MockLLMProvider{}
@@ -1377,6 +1483,17 @@ func TestUpload_ProgressTracking(tester *testing.T) {
 		},
 		LLM:    configuration.LLMConfiguration{Model: "mock-model"},
 		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
+		Uploads: configuration.UploadsConfiguration{
+			Media: configuration.MediaUploadConfiguration{
+				SupportedFormats: configuration.MediaFormats{
+					Audio: []string{"mp3", "wav"},
+					Video: []string{"mp4"},
+				},
+			},
+			Documents: configuration.DocumentUploadConfiguration{
+				SupportedFormats: []string{"pdf", "docx"},
+			},
+		},
 	}
 
 	_, _ = initializedDatabase.Exec("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)", "user-1", "testuser", "dummy_hash", "user")

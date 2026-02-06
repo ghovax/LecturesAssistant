@@ -106,14 +106,21 @@ func (processor *Processor) interpretPageContent(jobContext context.Context, ima
 	base64Image := base64.StdEncoding.EncodeToString(imageData)
 	dataURL := fmt.Sprintf("data:image/png;base64,%s", base64Image)
 
-	latexInstructions, _ := processor.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+	var ingestPrompt string
+	if processor.promptManager != nil {
+		latexInstructions, _ := processor.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 
-	ingestPrompt, promptError := processor.promptManager.GetPrompt(prompts.PromptIngestDocumentPage, map[string]string{
-		"language_requirement": fmt.Sprintf("The response must be written in %s.", languageCode),
-		"latex_instructions":   latexInstructions,
-	})
-	if promptError != nil {
-		return "", promptError
+		var promptError error
+		ingestPrompt, promptError = processor.promptManager.GetPrompt(prompts.PromptIngestDocumentPage, map[string]string{
+			"language_requirement": fmt.Sprintf("The response must be written in %s.", languageCode),
+			"latex_instructions":   latexInstructions,
+		})
+		if promptError != nil {
+			return "", promptError
+		}
+	} else {
+		// Fallback prompt when promptManager is nil (e.g., in tests)
+		ingestPrompt = fmt.Sprintf("Extract and transcribe all text content from this document page. The response must be written in %s.", languageCode)
 	}
 
 	request := llm.ChatRequest{

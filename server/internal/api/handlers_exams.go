@@ -233,7 +233,6 @@ func (server *Server) handleDeleteExam(responseWriter http.ResponseWriter, reque
 		}
 		lectureRows.Close()
 	}
-
 	// 2. Delete from database
 	result, err := server.database.Exec("DELETE FROM exams WHERE id = ? AND user_id = ?", deleteRequest.ExamID, userID)
 	if err != nil {

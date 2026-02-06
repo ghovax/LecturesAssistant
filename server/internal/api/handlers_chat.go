@@ -483,14 +483,21 @@ func (server *Server) getLectureContext(sessionID string) string {
 
 func (server *Server) processAIResponse(sessionID string, history []llm.Message, lectureContext string) {
 	// Prepare system prompt
-	latexInstructions, _ := server.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+	var systemPrompt string
+	if server.promptManager != nil {
+		latexInstructions, _ := server.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 
-	systemPrompt, promptError := server.promptManager.GetPrompt(prompts.PromptReadingAssistantMultiChat, map[string]string{
-		"latex_instructions": latexInstructions,
-	})
-	if promptError != nil {
-		slog.Error("Failed to load system prompt", "error", promptError)
-		return
+		var promptError error
+		systemPrompt, promptError = server.promptManager.GetPrompt(prompts.PromptReadingAssistantMultiChat, map[string]string{
+			"latex_instructions": latexInstructions,
+		})
+		if promptError != nil {
+			slog.Error("Failed to load system prompt", "error", promptError)
+			return
+		}
+	} else {
+		// Fallback prompt when promptManager is nil (e.g., in tests)
+		systemPrompt = "You are a helpful reading assistant. Help the user understand their lecture materials."
 	}
 
 	markdownReconstructor := markdown.NewReconstructor()

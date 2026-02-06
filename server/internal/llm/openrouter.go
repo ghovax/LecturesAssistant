@@ -42,6 +42,14 @@ func (provider *OpenRouterProvider) Chat(jobContext context.Context, request Cha
 						URL: contentPart.ImageURL,
 					},
 				})
+			case "input_audio":
+				contentParts = append(contentParts, openrouter.ChatMessagePart{
+					Type: openrouter.ChatMessagePartTypeInputAudio,
+					InputAudio: &openrouter.ChatMessageInputAudio{
+						Data:   contentPart.AudioData,
+						Format: openrouter.AudioFormat(contentPart.AudioFormat),
+					},
+				})
 			}
 		}
 		chatMessages = append(chatMessages, openrouter.ChatCompletionMessage{

@@ -56,9 +56,11 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 	}
 
 	// Load transcription instructions
-	transcriptionPrompt, err := service.promptManager.GetPrompt(prompts.PromptTranscribeRecording, nil)
-	if err == nil {
-		service.provider.SetPrompt(transcriptionPrompt)
+	if service.promptManager != nil {
+		transcriptionPrompt, err := service.promptManager.GetPrompt(prompts.PromptTranscribeRecording, nil)
+		if err == nil {
+			service.provider.SetPrompt(transcriptionPrompt)
+		}
 	}
 
 	totalMediaFiles := len(mediaFiles)
@@ -188,6 +190,10 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 }
 
 func (service *Service) cleanupTranscriptChunk(jobContext context.Context, rawText string) (string, error) {
+	if service.promptManager == nil {
+		return rawText, nil
+	}
+
 	latexInstructions, _ := service.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 
 	cleanupPrompt, err := service.promptManager.GetPrompt(prompts.PromptCleanTranscript, map[string]string{

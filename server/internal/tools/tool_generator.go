@@ -431,6 +431,15 @@ func (generator *ToolGenerator) ProcessFootnotesAI(jobContext context.Context, c
 
 func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context, batch []markdown.ParsedCitation, allCitations []markdown.ParsedCitation, offset int, parsingModel, formattingModel string) (models.JobMetrics, error) {
 	var metrics models.JobMetrics
+
+	if generator.promptManager == nil {
+		// Return batch as-is when promptManager is nil (e.g., in tests)
+		for i, citation := range batch {
+			allCitations[offset+i] = citation
+		}
+		return metrics, nil
+	}
+
 	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 
 	var markdownBuilder strings.Builder

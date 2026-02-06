@@ -4,11 +4,13 @@ import (
 	"context"
 )
 
-// ContentPart represents a part of a message (text or image)
+// ContentPart represents a part of a message (text, image, or audio)
 type ContentPart struct {
-	Type     string `json:"type"`                // "text" or "image"
-	Text     string `json:"text,omitempty"`      // For type "text"
-	ImageURL string `json:"image_url,omitempty"` // For type "image" (base64 or URL)
+	Type        string `json:"type"`                   // "text", "image", or "input_audio"
+	Text        string `json:"text,omitempty"`         // For type "text"
+	ImageURL    string `json:"image_url,omitempty"`    // For type "image" (base64 or URL)
+	AudioData   string `json:"audio_data,omitempty"`   // For type "input_audio" (base64-encoded)
+	AudioFormat string `json:"audio_format,omitempty"` // For type "input_audio" (e.g., "wav", "mp3")
 }
 
 // Message represents a chat message

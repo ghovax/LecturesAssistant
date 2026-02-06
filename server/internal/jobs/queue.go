@@ -81,7 +81,7 @@ func (queue *Queue) Stop() {
 }
 
 // Enqueue creates a new job and adds it to the queue
-func (queue *Queue) Enqueue(jobType string, payload interface{}) (string, error) {
+func (queue *Queue) Enqueue(userID string, jobType string, payload interface{}) (string, error) {
 	jobID := uuid.New().String()
 
 	payloadJSON, err := json.Marshal(payload)
@@ -90,15 +90,15 @@ func (queue *Queue) Enqueue(jobType string, payload interface{}) (string, error)
 	}
 
 	_, err = queue.database.Exec(`
-		INSERT INTO jobs (id, type, status, progress, payload, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, jobID, jobType, models.JobStatusPending, 0, string(payloadJSON), time.Now())
+		INSERT INTO jobs (id, user_id, type, status, progress, payload, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, jobID, userID, jobType, models.JobStatusPending, 0, string(payloadJSON), time.Now())
 
 	if err != nil {
 		return "", fmt.Errorf("failed to insert job: %w", err)
 	}
 
-	slog.Info("Enqueued job", "jobID", jobID, "type", jobType)
+	slog.Info("Enqueued job", "jobID", jobID, "type", jobType, "userID", userID)
 	return jobID, nil
 }
 
@@ -179,13 +179,13 @@ func (queue *Queue) processNextJob(workerID int) {
 	var job models.Job
 	var metadataJSON, progressMessageText sql.NullString
 	err = transaction.QueryRow(`
-		SELECT id, type, status, progress, progress_message_text, payload, metadata, created_at
+		SELECT id, user_id, type, status, progress, progress_message_text, payload, metadata, created_at
 		FROM jobs
 		WHERE status = ?
 		ORDER BY created_at ASC
 		LIMIT 1
 	`, models.JobStatusPending).Scan(
-		&job.ID, &job.Type, &job.Status, &job.Progress,
+		&job.ID, &job.UserID, &job.Type, &job.Status, &job.Progress,
 		&progressMessageText, &job.Payload, &metadataJSON, &job.CreatedAt,
 	)
 

@@ -121,28 +121,28 @@ func (provider *OllamaProvider) Chat(jobContext context.Context, request ChatReq
 				continue
 			}
 
-			var ollamaResp ollamaChatResponse
-			if scanError := json.Unmarshal(responseLine, &ollamaResp); scanError != nil {
-				responseChannel <- ChatResponseChunk{Error: fmt.Errorf("failed to decode ollama response line: %w, line: %s", scanError, string(responseLine))}
+			var ollamaResponse ollamaChatResponse
+			if scanningError := json.Unmarshal(responseLine, &ollamaResponse); scanningError != nil {
+				responseChannel <- ChatResponseChunk{Error: fmt.Errorf("failed to decode ollama response line: %w, line: %s", scanningError, string(responseLine))}
 				return
 			}
 
 			chunk := ChatResponseChunk{
-				Text: ollamaResp.Message.Content,
+				Text: ollamaResponse.Message.Content,
 			}
 
-			if ollamaResp.Done {
-				chunk.InputTokens = ollamaResp.PromptEvalCount
-				chunk.OutputTokens = ollamaResp.EvalCount
+			if ollamaResponse.Done {
+				chunk.InputTokens = ollamaResponse.PromptEvalCount
+				chunk.OutputTokens = ollamaResponse.EvalCount
 			}
 
-			if chunk.Text != "" || ollamaResp.Done {
+			if chunk.Text != "" || ollamaResponse.Done {
 				responseChannel <- chunk
 			}
 		}
 
-		if scanError := scanner.Err(); scanError != nil {
-			responseChannel <- ChatResponseChunk{Error: scanError}
+		if scanningError := scanner.Err(); scanningError != nil {
+			responseChannel <- ChatResponseChunk{Error: scanningError}
 		}
 	}()
 

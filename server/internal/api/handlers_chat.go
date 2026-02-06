@@ -35,9 +35,11 @@ func (server *Server) handleCreateChatSession(responseWriter http.ResponseWriter
 		return
 	}
 
-	// Verify exam exists
+	userID := server.getUserID(request)
+
+	// Verify exam exists and belongs to user
 	var examExists bool
-	databaseError := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ?)", createSessionRequest.ExamID).Scan(&examExists)
+	databaseError := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ? AND user_id = ?)", createSessionRequest.ExamID, userID).Scan(&examExists)
 	if databaseError != nil || !examExists {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
 		return
@@ -87,7 +89,7 @@ func (server *Server) handleCreateChatSession(responseWriter http.ResponseWriter
 	server.writeJSON(responseWriter, http.StatusCreated, session)
 }
 
-// handleListChatSessions lists all chat sessions for an exam
+// handleListChatSessions lists all chat sessions for an exam (must belong to the user)
 func (server *Server) handleListChatSessions(responseWriter http.ResponseWriter, request *http.Request) {
 	examID := request.URL.Query().Get("exam_id")
 	if examID == "" {
@@ -95,12 +97,15 @@ func (server *Server) handleListChatSessions(responseWriter http.ResponseWriter,
 		return
 	}
 
+	userID := server.getUserID(request)
+
 	sessionRows, databaseError := server.database.Query(`
-		SELECT id, exam_id, title, created_at, updated_at
+		SELECT chat_sessions.id, chat_sessions.exam_id, chat_sessions.title, chat_sessions.created_at, chat_sessions.updated_at
 		FROM chat_sessions
-		WHERE exam_id = ?
-		ORDER BY updated_at DESC
-	`, examID)
+		JOIN exams ON chat_sessions.exam_id = exams.id
+		WHERE chat_sessions.exam_id = ? AND exams.user_id = ?
+		ORDER BY chat_sessions.updated_at DESC
+	`, examID, userID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list chat sessions", nil)
 		return
@@ -129,12 +134,15 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 		return
 	}
 
+	userID := server.getUserID(request)
+
 	var session models.ChatSession
 	databaseError := server.database.QueryRow(`
-		SELECT id, exam_id, title, created_at, updated_at
+		SELECT chat_sessions.id, chat_sessions.exam_id, chat_sessions.title, chat_sessions.created_at, chat_sessions.updated_at
 		FROM chat_sessions
-		WHERE id = ? AND exam_id = ?
-	`, sessionID, examID).Scan(&session.ID, &session.ExamID, &session.Title, &session.CreatedAt, &session.UpdatedAt)
+		JOIN exams ON chat_sessions.exam_id = exams.id
+		WHERE chat_sessions.id = ? AND chat_sessions.exam_id = ? AND exams.user_id = ?
+	`, sessionID, examID, userID).Scan(&session.ID, &session.ExamID, &session.Title, &session.CreatedAt, &session.UpdatedAt)
 
 	if databaseError == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Chat session not found in this exam", nil)
@@ -207,7 +215,14 @@ func (server *Server) handleDeleteChatSession(responseWriter http.ResponseWriter
 		return
 	}
 
-	result, databaseError := server.database.Exec("DELETE FROM chat_sessions WHERE id = ? AND exam_id = ?", deleteRequest.SessionID, deleteRequest.ExamID)
+	userID := server.getUserID(request)
+
+	result, databaseError := server.database.Exec(`
+		DELETE FROM chat_sessions 
+		WHERE id = ? AND exam_id = ? AND EXISTS (
+			SELECT 1 FROM exams WHERE id = ? AND user_id = ?
+		)
+	`, deleteRequest.SessionID, deleteRequest.ExamID, deleteRequest.ExamID, userID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete chat session", nil)
 		return
@@ -240,9 +255,15 @@ func (server *Server) handleUpdateChatContext(responseWriter http.ResponseWriter
 		return
 	}
 
-	// Verify session and get its exam_id
+	userID := server.getUserID(request)
+
+	// Verify session and get its exam_id and verify ownership
 	var examID string
-	err := server.database.QueryRow("SELECT exam_id FROM chat_sessions WHERE id = ?", updateContextRequest.SessionID).Scan(&examID)
+	err := server.database.QueryRow(`
+		SELECT chat_sessions.exam_id FROM chat_sessions 
+		JOIN exams ON chat_sessions.exam_id = exams.id
+		WHERE chat_sessions.id = ? AND exams.user_id = ?
+	`, updateContextRequest.SessionID, userID).Scan(&examID)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Chat session not found", nil)
 		return
@@ -302,9 +323,15 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 		return
 	}
 
+	userID := server.getUserID(request)
+
 	// 1. Verify session and save user message
 	var session models.ChatSession
-	databaseError := server.database.QueryRow("SELECT id, exam_id FROM chat_sessions WHERE id = ?", sendMessageRequest.SessionID).Scan(&session.ID, &session.ExamID)
+	databaseError := server.database.QueryRow(`
+		SELECT chat_sessions.id, chat_sessions.exam_id FROM chat_sessions 
+		JOIN exams ON chat_sessions.exam_id = exams.id
+		WHERE chat_sessions.id = ? AND exams.user_id = ?
+	`, sendMessageRequest.SessionID, userID).Scan(&session.ID, &session.ExamID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Chat session not found", nil)
 		return

@@ -58,9 +58,11 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	// Clean title and description
 	cleanedTitle, cleanedDescription, _, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), title, description, "")
 
-	// Verify exam exists
+	userID := server.getUserID(request)
+
+	// Verify exam exists and belongs to user
 	var examExists bool
-	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ?)", examID).Scan(&examExists)
+	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ? AND user_id = ?)", examID, userID).Scan(&examExists)
 	if err != nil || !examExists {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
 		return
@@ -133,8 +135,8 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	}
 
 	// 5. Trigger Async Jobs
-	server.jobQueue.Enqueue(models.JobTypeTranscribeMedia, map[string]string{"lecture_id": lectureID})
-	server.jobQueue.Enqueue(models.JobTypeIngestDocuments, map[string]string{"lecture_id": lectureID, "language_code": server.configuration.LLM.Language})
+	server.jobQueue.Enqueue(userID, models.JobTypeTranscribeMedia, map[string]string{"lecture_id": lectureID})
+	server.jobQueue.Enqueue(userID, models.JobTypeIngestDocuments, map[string]string{"lecture_id": lectureID, "language_code": server.configuration.LLM.Language})
 
 	server.writeJSON(responseWriter, http.StatusCreated, lecture)
 }
@@ -289,8 +291,39 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 	os.MkdirAll(destinationDirectory, 0755)
 
 	fileID := uuid.New().String()
-	fileExtension := filepath.Ext(metadata.Filename)
-	destinationPath := filepath.Join(destinationDirectory, fileID+fileExtension)
+	rawExtension := filepath.Ext(metadata.Filename)
+
+	// Sanitize extension: only allow lowercase alphanumeric extensions from our supported list
+	cleanExtension := strings.ToLower(strings.TrimPrefix(rawExtension, "."))
+	isSupported := false
+
+	if targetType == "media" {
+		for _, extension := range server.configuration.Uploads.Media.SupportedFormats.Video {
+			if extension == cleanExtension {
+				isSupported = true
+				break
+			}
+		}
+		for _, extension := range server.configuration.Uploads.Media.SupportedFormats.Audio {
+			if extension == cleanExtension {
+				isSupported = true
+				break
+			}
+		}
+	} else {
+		for _, extension := range server.configuration.Uploads.Documents.SupportedFormats {
+			if extension == cleanExtension {
+				isSupported = true
+				break
+			}
+		}
+	}
+
+	if !isSupported {
+		return fmt.Errorf("unsupported or malicious file extension: %s", cleanExtension)
+	}
+
+	destinationPath := filepath.Join(destinationDirectory, fileID+"."+cleanExtension)
 
 	stagedPath := filepath.Join(uploadDirectory, "upload.data")
 	if err := os.Rename(stagedPath, destinationPath); err != nil {
@@ -316,17 +349,17 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 	if targetType == "media" {
 		mediaType := "audio"
 		for _, videoExtension := range server.configuration.Uploads.Media.SupportedFormats.Video {
-			if "."+videoExtension == strings.ToLower(fileExtension) {
+			if videoExtension == cleanExtension {
 				mediaType = "video"
 				break
 			}
 		}
 		_, err = transaction.Exec(`
-			INSERT INTO lecture_media (id, lecture_id, media_type, sequence_order, file_path, created_at)
-			VALUES (?, ?, ?, ?, ?, ?)
-		`, fileID, lectureID, mediaType, sequenceOrder, destinationPath, time.Now())
+			INSERT INTO lecture_media (id, lecture_id, media_type, sequence_order, duration_milliseconds, file_path, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`, fileID, lectureID, mediaType, sequenceOrder, 0, destinationPath, time.Now())
 	} else {
-		documentType := strings.TrimPrefix(strings.ToLower(fileExtension), ".")
+		documentType := cleanExtension
 		normalizedTitle := strings.ReplaceAll(metadata.Filename, " ", "_")
 		_, err = transaction.Exec(`
 			INSERT INTO reference_documents (id, lecture_id, document_type, title, file_path, page_count, extraction_status, created_at, updated_at)
@@ -342,7 +375,7 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 	return nil
 }
 
-// handleListLectures lists all lectures for an exam
+// handleListLectures lists all lectures for an exam (must belong to the user)
 func (server *Server) handleListLectures(responseWriter http.ResponseWriter, request *http.Request) {
 	examID := request.URL.Query().Get("exam_id")
 	if examID == "" {
@@ -350,12 +383,15 @@ func (server *Server) handleListLectures(responseWriter http.ResponseWriter, req
 		return
 	}
 
+	userID := server.getUserID(request)
+
 	lectureRows, databaseError := server.database.Query(`
-		SELECT id, exam_id, title, description, created_at, updated_at
+		SELECT lectures.id, lectures.exam_id, lectures.title, lectures.description, lectures.created_at, lectures.updated_at
 		FROM lectures
-		WHERE exam_id = ?
-		ORDER BY created_at DESC
-	`, examID)
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE lectures.exam_id = ? AND exams.user_id = ?
+		ORDER BY lectures.created_at DESC
+	`, examID, userID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list lectures", nil)
 		return
@@ -385,12 +421,15 @@ func (server *Server) handleGetLecture(responseWriter http.ResponseWriter, reque
 		return
 	}
 
+	userID := server.getUserID(request)
+
 	var lecture models.Lecture
 	err := server.database.QueryRow(`
-		SELECT id, exam_id, title, description, status, created_at, updated_at
+		SELECT lectures.id, lectures.exam_id, lectures.title, lectures.description, lectures.status, lectures.created_at, lectures.updated_at
 		FROM lectures
-		WHERE id = ? AND exam_id = ?
-	`, lectureID, examID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt)
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE lectures.id = ? AND lectures.exam_id = ? AND exams.user_id = ?
+	`, lectureID, examID, userID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found in this exam", nil)
@@ -423,9 +462,17 @@ func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, re
 		return
 	}
 
-	// Check if lecture exists and belongs to exam
+	userID := server.getUserID(request)
+
+	// Check if lecture exists and belongs to exam and user
 	var exists bool
-	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM lectures WHERE id = ? AND exam_id = ?)", updateRequest.LectureID, updateRequest.ExamID).Scan(&exists)
+	err := server.database.QueryRow(`
+		SELECT EXISTS(
+			SELECT 1 FROM lectures 
+			JOIN exams ON lectures.exam_id = exams.id
+			WHERE lectures.id = ? AND lectures.exam_id = ? AND exams.user_id = ?
+		)
+	`, updateRequest.LectureID, updateRequest.ExamID, userID).Scan(&exists)
 	if err != nil || !exists {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found in this exam", nil)
 		return
@@ -503,10 +550,17 @@ func (server *Server) handleDeleteLecture(responseWriter http.ResponseWriter, re
 		return
 	}
 
-	// Check if lecture is currently processing or belongs to another exam
+	userID := server.getUserID(request)
+
+	// Check if lecture is currently processing or belongs to another exam/user
 	var status string
 	var currentExamID string
-	err := server.database.QueryRow("SELECT status, exam_id FROM lectures WHERE id = ?", deleteRequest.LectureID).Scan(&status, &currentExamID)
+	err := server.database.QueryRow(`
+		SELECT status, exam_id FROM lectures 
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE lectures.id = ? AND exams.user_id = ?
+	`, deleteRequest.LectureID, userID).Scan(&status, &currentExamID)
+
 	if err == sql.ErrNoRows || currentExamID != deleteRequest.ExamID {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found in this exam", nil)
 		return
@@ -544,11 +598,17 @@ func (server *Server) handleGetTranscript(responseWriter http.ResponseWriter, re
 		return
 	}
 
-	// Get transcript metadata
+	userID := server.getUserID(request)
+
+	// Get transcript metadata and verify ownership
 	var transcriptID, status string
 	err := server.database.QueryRow(`
-		SELECT id, status FROM transcripts WHERE lecture_id = ?
-	`, lectureID).Scan(&transcriptID, &status)
+		SELECT transcripts.id, transcripts.status 
+		FROM transcripts 
+		JOIN lectures ON transcripts.lecture_id = lectures.id
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE transcripts.lecture_id = ? AND exams.user_id = ?
+	`, lectureID, userID).Scan(&transcriptID, &status)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Transcript not found", nil)

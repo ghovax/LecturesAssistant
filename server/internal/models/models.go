@@ -2,9 +2,20 @@ package models
 
 import "time"
 
+// User represents a system user
+type User struct {
+	ID           string    `json:"id"`
+	Username     string    `json:"username"`
+	PasswordHash string    `json:"-"`
+	Role         string    `json:"role"` // "admin", "user"
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
 // Exam represents a course or exam grouping
 type Exam struct {
 	ID          string    `json:"id"`
+	UserID      string    `json:"user_id"`
 	Title       string    `json:"title"`
 	Description string    `json:"description,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
@@ -120,6 +131,7 @@ type JobMetrics struct {
 // Job represents a background task
 type Job struct {
 	ID                  string     `json:"id"`
+	UserID              string     `json:"user_id"`
 	Type                string     `json:"type"`
 	Status              string     `json:"status"`
 	Progress            int        `json:"progress"`

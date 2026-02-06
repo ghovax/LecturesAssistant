@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,7 +13,13 @@ import (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(httpRequest *http.Request) bool {
-		return true
+		// Strict check: only allow localhost in development
+		origin := httpRequest.Header.Get("Origin")
+		if origin == "" {
+			return true
+		}
+		// Allow localhost and 127.0.0.1
+		return strings.HasPrefix(origin, "http://localhost") || strings.HasPrefix(origin, "http://127.0.0.1")
 	},
 }
 
@@ -22,7 +29,7 @@ type Hub struct {
 	broadcast  chan WSMessage
 	register   chan *WSClient
 	unregister chan *WSClient
-	mu         sync.RWMutex
+	mutex      sync.RWMutex
 }
 
 // WSMessage represents a message to be broadcast
@@ -53,18 +60,18 @@ func (hub *Hub) Run() {
 	for {
 		select {
 		case client := <-hub.register:
-			hub.mu.Lock()
+			hub.mutex.Lock()
 			hub.clients[client] = true
-			hub.mu.Unlock()
+			hub.mutex.Unlock()
 		case client := <-hub.unregister:
-			hub.mu.Lock()
+			hub.mutex.Lock()
 			if _, isRegistered := hub.clients[client]; isRegistered {
 				delete(hub.clients, client)
 				close(client.send)
 			}
-			hub.mu.Unlock()
+			hub.mutex.Unlock()
 		case wsMessage := <-hub.broadcast:
-			hub.mu.RLock()
+			hub.mutex.RLock()
 			for client := range hub.clients {
 				if client.isSubscribed(wsMessage.Channel) {
 					select {
@@ -75,7 +82,7 @@ func (hub *Hub) Run() {
 					}
 				}
 			}
-			hub.mu.RUnlock()
+			hub.mutex.RUnlock()
 		}
 	}
 }
@@ -84,15 +91,16 @@ func (hub *Hub) Run() {
 type WSClient struct {
 	hub           *Hub
 	server        *Server
-	conn          *websocket.Conn
+	connection    *websocket.Conn
 	send          chan any
 	subscriptions map[string]chan bool
-	mu            sync.Mutex
+	userID        string
+	mutex         sync.Mutex
 }
 
 func (client *WSClient) isSubscribed(channel string) bool {
-	client.mu.Lock()
-	defer client.mu.Unlock()
+	client.mutex.Lock()
+	defer client.mutex.Unlock()
 	_, exists := client.subscriptions[channel]
 	return exists
 }
@@ -105,15 +113,18 @@ func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, reques
 		return
 	}
 
-	// Verify session
+	// Verify session and get user ID
+	var userID string
 	var expiresAt time.Time
-	databaseError := server.database.QueryRow("SELECT expires_at FROM auth_sessions WHERE id = ?", sessionToken).Scan(&expiresAt)
+	databaseError := server.database.QueryRow("SELECT user_id, expires_at FROM auth_sessions WHERE id = ?", sessionToken).Scan(&userID, &expiresAt)
 	if databaseError != nil || time.Now().After(expiresAt) {
 		server.writeError(responseWriter, http.StatusUnauthorized, "AUTH_ERROR", "Invalid or expired session", nil)
 		return
 	}
 
-	conn, upgradeError := upgrader.Upgrade(responseWriter, request, nil)
+	// Correctly set user ID in context before upgrade if needed (though we'll use local variable)
+
+	connection, upgradeError := upgrader.Upgrade(responseWriter, request, nil)
 	if upgradeError != nil {
 		slog.Error("WebSocket upgrade failed", "error", upgradeError)
 		return
@@ -122,9 +133,10 @@ func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, reques
 	client := &WSClient{
 		hub:           server.wsHub,
 		server:        server,
-		conn:          conn,
+		connection:    connection,
 		send:          make(chan any, 256),
 		subscriptions: make(map[string]chan bool),
+		userID:        userID, // Add this field to WSClient
 	}
 	client.hub.register <- client
 
@@ -146,7 +158,7 @@ func (client *WSClient) readPump() {
 	}()
 
 	for {
-		_, message, err := client.conn.ReadMessage()
+		_, message, err := client.connection.ReadMessage()
 		if err != nil {
 			break
 		}
@@ -174,26 +186,26 @@ func (client *WSClient) writePump() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer func() {
 		ticker.Stop()
-		client.conn.Close()
+		client.connection.Close()
 	}()
 
 	for {
 		select {
 		case wsMessage, isAvailable := <-client.send:
 			if !isAvailable {
-				client.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				client.connection.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
 
-			if err := client.conn.WriteJSON(wsMessage); err != nil {
+			if err := client.connection.WriteJSON(wsMessage); err != nil {
 				return
 			}
 
 		case <-ticker.C:
-			if err := client.conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+			if err := client.connection.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
 				return
 			}
-			if err := client.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			if err := client.connection.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
 		}
@@ -201,8 +213,8 @@ func (client *WSClient) writePump() {
 }
 
 func (client *WSClient) handleSubscribe(channel string) {
-	client.mu.Lock()
-	defer client.mu.Unlock()
+	client.mutex.Lock()
+	defer client.mutex.Unlock()
 
 	if _, exists := client.subscriptions[channel]; exists {
 		return
@@ -224,8 +236,8 @@ func (client *WSClient) handleSubscribe(channel string) {
 }
 
 func (client *WSClient) handleUnsubscribe(channel string) {
-	client.mu.Lock()
-	defer client.mu.Unlock()
+	client.mutex.Lock()
+	defer client.mutex.Unlock()
 
 	if stopChannel, exists := client.subscriptions[channel]; exists {
 		close(stopChannel)
@@ -234,6 +246,13 @@ func (client *WSClient) handleUnsubscribe(channel string) {
 }
 
 func (client *WSClient) monitorJob(jobID string, stopChannel chan bool) {
+	// Verify job ownership
+	job, err := client.server.jobQueue.GetJob(jobID)
+	if err != nil || job.UserID != client.userID {
+		slog.Warn("Unauthorized job subscription attempt", "jobID", jobID, "userID", client.userID)
+		return
+	}
+
 	jobUpdates := client.server.jobQueue.Subscribe(jobID)
 	defer client.server.jobQueue.Unsubscribe(jobID, jobUpdates)
 
@@ -259,12 +278,12 @@ func (client *WSClient) monitorJob(jobID string, stopChannel chan bool) {
 }
 
 func (client *WSClient) close() {
-	client.mu.Lock()
-	defer client.mu.Unlock()
+	client.mutex.Lock()
+	defer client.mutex.Unlock()
 
 	for channel, stopChannel := range client.subscriptions {
 		close(stopChannel)
 		delete(client.subscriptions, channel)
 	}
-	client.conn.Close()
+	client.connection.Close()
 }

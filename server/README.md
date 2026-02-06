@@ -4,12 +4,24 @@ Backend server for the Lectures Assistant application written in Go.
 
 ## Architecture
 
-- **API Layer** (`internal/api`): Clean RESTful API handlers using a Stage-and-Bind architecture.
+- **Multi-Tenant Security**: Full data isolation between users. Resources (Exams, Lectures, Jobs) are owned by specific users.
+- **API Layer** (`internal/api`): Clean RESTful API handlers using a Stage-and-Bind architecture with JWT-like session management.
 - **Job Queue** (`internal/jobs`): Asynchronous background job processing for heavy AI tasks.
-- **Database** (`internal/database`): SQLite database with robust schema and resource boundary enforcement.
-- **Transcription** (`internal/transcription`): Multi-segment Whisper processing with LLM polishing.
+- **Database** (`internal/database`): SQLite database with a robust schema and resource boundary enforcement.
+- **Transcription** (`internal/transcription`): Multi-segment processing with LLM polishing and variable batch sizes.
 - **Documents** (`internal/documents`): PDF/PPTX/DOCX processing and Vision LLM OCR.
-- **LLM** (`internal/llm`): Provider-agnostic interface for OpenRouter and Ollama.
+- **LLM** (`internal/llm`): Provider-agnostic interface for OpenRouter and Ollama with granular task-specific model selection.
+
+## Logical Configuration (`configuration.yaml`)
+
+The server configuration is organized into task-specific operational settings and global provider credentials.
+
+### Key Sections:
+
+- **`llm`**: Global fallback model and granular model selection for ingestion, generation, polishing, etc.
+- **`transcription`**: Provider and model settings for audio processing.
+- **`providers`**: Centralized API keys and base URLs for OpenRouter, OpenAI, and Ollama.
+- **`safety`**: Global thresholds for maximum cost per job, maximum retries for self-healing loops, and login rate limiting.
 
 ## Staged Upload Protocol (Prepare, Append, Stage)
 
@@ -33,49 +45,63 @@ The server employs a robust "Stage-and-Bind" protocol for all binary materials (
 
 ## API Endpoints
 
-All resource identifiers are passed via **payload arguments** (POST/PATCH/DELETE) or **query parameters** (GET) to ensure a clean and flexible interface.
+### Authentication
+
+- `POST /api/auth/setup`: Create the initial admin user.
+- `POST /api/auth/login`: Authenticate and receive a session token.
+- `GET /api/auth/status`: Check current session and user details.
+- `POST /api/auth/logout`: Invalidate the current session.
 
 ### Exams
-- `GET /api/exams`: List all exams.
-- `POST /api/exams`: Create a new exam.
+
+- `GET /api/exams`: List exams for the current user.
+- `POST /api/exams`: Create a new exam (supports AI title/description polishing).
 - `GET /api/exams/details?exam_id=...`: Get exam metadata.
-- `PATCH /api/exams`: Update exam (requires `exam_id` in body).
-- `DELETE /api/exams`: Delete exam (requires `exam_id` in body).
+- `PATCH /api/exams`: Update exam (supports AI polishing).
+- `DELETE /api/exams`: Delete exam and all associated data.
 
 ### Lectures
+
 - `GET /api/lectures?exam_id=...`: List lectures for an exam.
-- `POST /api/lectures`: Create a lecture and bind staged uploads.
-  - Body: `{"exam_id", "title", "media_upload_ids": [], "document_upload_ids": []}`
+- `POST /api/lectures`: Create a lecture and bind staged uploads (supports AI title/description polishing and file extension sanitization).
 - `GET /api/lectures/details?lecture_id=...`: Get lecture details.
-- `PATCH /api/lectures`: Update lecture (requires `lecture_id` in body).
-- `DELETE /api/lectures`: Delete lecture (requires `lecture_id` in body).
+- `PATCH /api/lectures`: Update lecture.
+- `DELETE /api/lectures`: Delete lecture.
 
 ### Study Tools
+
 - `GET /api/tools?exam_id=...`: List tools (filter with `?type=guide|flashcard|quiz`).
-- `POST /api/tools`: Trigger tool generation.
-  - Body: `{"exam_id", "lecture_id", "type", "length", "language_code"}`
+- `POST /api/tools`: Trigger tool generation with optional model overrides.
 - `GET /api/tools/details?tool_id=...`: Get tool content.
-- `DELETE /api/tools`: Delete tool (requires `tool_id` in body).
+- `DELETE /api/tools`: Delete tool.
 
 ### Chat Sessions
+
 - `GET /api/chat/sessions?exam_id=...`: List sessions in an exam.
-- `POST /api/chat/sessions`: Create session (requires `exam_id`).
+- `POST /api/chat/sessions`: Create session.
 - `GET /api/chat/sessions/details?session_id=...`: Get history and context.
-- `PATCH /api/chat/sessions/context`: Update context (requires `session_id`, `included_lecture_ids`).
-- `POST /api/chat/messages`: Send message (requires `session_id`, `content`).
+- `PATCH /api/chat/sessions/context`: Update context (materials included).
+- `POST /api/chat/messages`: Send message and stream AI response.
 
 ### Jobs & Settings
-- `GET /api/jobs`: List recent background jobs.
+
+- `GET /api/jobs`: List recent background jobs for the current user.
 - `GET /api/jobs/details?job_id=...`: Get specific job status.
-- `DELETE /api/jobs`: Cancel a job (requires `job_id` in body).
-- `GET /api/settings`: Get current preferences.
-- `PATCH /api/settings`: Update preferences (updates in-memory config immediately).
+- `DELETE /api/jobs`: Cancel a job.
+- `GET /api/settings`: Get current operational preferences.
+- `PATCH /api/settings`: Update preferences (LLM models, providers, UI themes).
 
 ## WebSocket Protocol
 
 Connect to `ws://localhost:3000/api/socket` with a valid session token.
 
+### Security
+
+- **Origin Restriction**: Only localhost/127.0.0.1 allowed by default.
+- **Job Ownership**: Users can only subscribe to progress updates for their own jobs.
+
 ### Channels
+
 - **Subscribe**: `{"type": "subscribe", "channel": "job:<id> | upload:<id> | chat:<id>"}`
 - **Job Progress**: Received on `job:<id>` channel.
 - **Upload Progress**: Received on `upload:<id>` (from staging session).
@@ -84,6 +110,7 @@ Connect to `ws://localhost:3000/api/socket` with a valid session token.
 ## Development & Testing
 
 ### Building
+
 ```bash
 cd server
 go mod download
@@ -91,8 +118,10 @@ go build -o lectures ./cmd/server
 ```
 
 ### Testing
-All changes are verified via a comprehensive integration suite that tests the entire pipeline from staging to AI generation.
+
+All changes are verified via a comprehensive integration suite that tests multi-user isolation, safety thresholds, and the AI pipeline.
+
 ```bash
 cd server
-go test -v ./internal/api/...
+go test -v ./...
 ```

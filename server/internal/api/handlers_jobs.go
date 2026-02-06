@@ -5,14 +5,17 @@ import (
 	"net/http"
 )
 
-// handleListJobs lists recent background jobs
+// handleListJobs lists recent background jobs for the current user
 func (server *Server) handleListJobs(responseWriter http.ResponseWriter, request *http.Request) {
+	userID := server.getUserID(request)
+
 	jobRows, databaseError := server.database.Query(`
 		SELECT id, type, status, progress, progress_message_text, input_tokens, output_tokens, estimated_cost, created_at
 		FROM jobs
+		WHERE user_id = ?
 		ORDER BY created_at DESC
 		LIMIT 50
-	`)
+	`, userID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list jobs", nil)
 		return
@@ -54,8 +57,10 @@ func (server *Server) handleGetJob(responseWriter http.ResponseWriter, request *
 		return
 	}
 
+	userID := server.getUserID(request)
+
 	job, err := server.jobQueue.GetJob(jobID)
-	if err != nil {
+	if err != nil || job.UserID != userID {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Job not found", nil)
 		return
 	}
@@ -75,6 +80,14 @@ func (server *Server) handleCancelJob(responseWriter http.ResponseWriter, reques
 
 	if cancelRequest.JobID == "" {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "job_id is required", nil)
+		return
+	}
+
+	userID := server.getUserID(request)
+
+	job, err := server.jobQueue.GetJob(cancelRequest.JobID)
+	if err != nil || job.UserID != userID {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Job not found", nil)
 		return
 	}
 

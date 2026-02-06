@@ -33,8 +33,11 @@ func (server *Server) handleCreateExam(responseWriter http.ResponseWriter, reque
 	// Clean title and description
 	title, description, _, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), createExamRequest.Title, createExamRequest.Description, "")
 
+	userID := server.getUserID(request)
+
 	exam := models.Exam{
 		ID:          uuid.New().String(),
+		UserID:      userID,
 		Title:       title,
 		Description: description,
 		CreatedAt:   time.Now(),
@@ -42,9 +45,9 @@ func (server *Server) handleCreateExam(responseWriter http.ResponseWriter, reque
 	}
 
 	_, err := server.database.Exec(`
-		INSERT INTO exams (id, title, description, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, exam.ID, exam.Title, exam.Description, exam.CreatedAt, exam.UpdatedAt)
+		INSERT INTO exams (id, user_id, title, description, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, exam.ID, exam.UserID, exam.Title, exam.Description, exam.CreatedAt, exam.UpdatedAt)
 
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to create exam", nil)
@@ -54,13 +57,16 @@ func (server *Server) handleCreateExam(responseWriter http.ResponseWriter, reque
 	server.writeJSON(responseWriter, http.StatusCreated, exam)
 }
 
-// handleListExams lists all exams
+// handleListExams lists all exams for the current user
 func (server *Server) handleListExams(responseWriter http.ResponseWriter, request *http.Request) {
+	userID := server.getUserID(request)
+
 	examRows, databaseError := server.database.Query(`
-		SELECT id, title, description, created_at, updated_at
+		SELECT id, user_id, title, description, created_at, updated_at
 		FROM exams
+		WHERE user_id = ?
 		ORDER BY created_at DESC
-	`)
+	`, userID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list exams", nil)
 		return
@@ -70,7 +76,7 @@ func (server *Server) handleListExams(responseWriter http.ResponseWriter, reques
 	exams := []models.Exam{}
 	for examRows.Next() {
 		var exam models.Exam
-		if err := examRows.Scan(&exam.ID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt); err != nil {
+		if err := examRows.Scan(&exam.ID, &exam.UserID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt); err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to scan exam", nil)
 			return
 		}
@@ -80,7 +86,7 @@ func (server *Server) handleListExams(responseWriter http.ResponseWriter, reques
 	server.writeJSON(responseWriter, http.StatusOK, exams)
 }
 
-// handleGetExam retrieves a specific exam
+// handleGetExam retrieves a specific exam for the current user
 func (server *Server) handleGetExam(responseWriter http.ResponseWriter, request *http.Request) {
 	examID := request.URL.Query().Get("exam_id")
 	if examID == "" {
@@ -88,12 +94,14 @@ func (server *Server) handleGetExam(responseWriter http.ResponseWriter, request 
 		return
 	}
 
+	userID := server.getUserID(request)
+
 	var exam models.Exam
 	err := server.database.QueryRow(`
-		SELECT id, title, description, created_at, updated_at
+		SELECT id, user_id, title, description, created_at, updated_at
 		FROM exams
-		WHERE id = ?
-	`, examID).Scan(&exam.ID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt)
+		WHERE id = ? AND user_id = ?
+	`, examID, userID).Scan(&exam.ID, &exam.UserID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
@@ -107,7 +115,7 @@ func (server *Server) handleGetExam(responseWriter http.ResponseWriter, request 
 	server.writeJSON(responseWriter, http.StatusOK, exam)
 }
 
-// handleUpdateExam updates an exam
+// handleUpdateExam updates an exam owned by the user
 func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, request *http.Request) {
 	var updateExamRequest struct {
 		ExamID      string  `json:"exam_id"`
@@ -125,9 +133,11 @@ func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, reque
 		return
 	}
 
-	// Check if exam exists
+	userID := server.getUserID(request)
+
+	// Check if exam exists and belongs to user
 	var exists bool
-	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ?)", updateExamRequest.ExamID).Scan(&exists)
+	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ? AND user_id = ?)", updateExamRequest.ExamID, userID).Scan(&exists)
 	if err != nil || !exists {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
 		return
@@ -141,7 +151,7 @@ func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, reque
 	if updateExamRequest.Title != nil || updateExamRequest.Description != nil {
 		currentTitle := ""
 		currentDescription := ""
-		server.database.QueryRow("SELECT title, description FROM exams WHERE id = ?", updateExamRequest.ExamID).Scan(&currentTitle, &currentDescription)
+		server.database.QueryRow("SELECT title, description FROM exams WHERE id = ? AND user_id = ?", updateExamRequest.ExamID, userID).Scan(&currentTitle, &currentDescription)
 
 		newTitle := currentTitle
 		if updateExamRequest.Title != nil {
@@ -164,8 +174,8 @@ func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, reque
 		}
 	}
 
-	query += " WHERE id = ?"
-	updates = append(updates, updateExamRequest.ExamID)
+	query += " WHERE id = ? AND user_id = ?"
+	updates = append(updates, updateExamRequest.ExamID, userID)
 
 	_, err = server.database.Exec(query, updates...)
 	if err != nil {
@@ -176,10 +186,10 @@ func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, reque
 	// Fetch updated exam
 	var exam models.Exam
 	err = server.database.QueryRow(`
-		SELECT id, title, description, created_at, updated_at
+		SELECT id, user_id, title, description, created_at, updated_at
 		FROM exams
-		WHERE id = ?
-	`, updateExamRequest.ExamID).Scan(&exam.ID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt)
+		WHERE id = ? AND user_id = ?
+	`, updateExamRequest.ExamID, userID).Scan(&exam.ID, &exam.UserID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt)
 
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to fetch updated exam", nil)
@@ -204,8 +214,15 @@ func (server *Server) handleDeleteExam(responseWriter http.ResponseWriter, reque
 		return
 	}
 
+	userID := server.getUserID(request)
+
 	// 1. Get all lecture IDs for this exam to clean up files later
-	lectureRows, queryError := server.database.Query("SELECT id FROM lectures WHERE exam_id = ?", deleteRequest.ExamID)
+	lectureRows, queryError := server.database.Query(`
+		SELECT lectures.id FROM lectures 
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE exams.id = ? AND exams.user_id = ?
+	`, deleteRequest.ExamID, userID)
+
 	var lectureIdentifiers []string
 	if queryError == nil {
 		for lectureRows.Next() {
@@ -218,7 +235,7 @@ func (server *Server) handleDeleteExam(responseWriter http.ResponseWriter, reque
 	}
 
 	// 2. Delete from database
-	result, err := server.database.Exec("DELETE FROM exams WHERE id = ?", deleteRequest.ExamID)
+	result, err := server.database.Exec("DELETE FROM exams WHERE id = ? AND user_id = ?", deleteRequest.ExamID, userID)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete exam", nil)
 		return

@@ -76,13 +76,13 @@ func (whisper *WhisperProvider) Transcribe(context context.Context, audioPath st
 
 	defer os.Remove(jsonPath) // Cleanup
 
-	data, err := os.ReadFile(jsonPath)
+	whisperOutputData, err := os.ReadFile(jsonPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read whisper output: %w", err)
 	}
 
 	var output whisperOutput
-	if err := json.Unmarshal(data, &output); err != nil {
+	if err := json.Unmarshal(whisperOutputData, &output); err != nil {
 		return nil, fmt.Errorf("failed to parse whisper output: %w", err)
 	}
 

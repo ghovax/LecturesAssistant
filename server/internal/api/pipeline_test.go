@@ -189,8 +189,11 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 
 	httpClient := testServer.Client()
 
-	// Setup initial password
-	setupPayload, err := json.Marshal(map[string]string{"password": "password123"})
+	// Setup initial admin user
+	setupPayload, err := json.Marshal(map[string]string{
+		"username": "admin",
+		"password": "password123",
+	})
 	if err != nil {
 		tester.Fatalf("Failed to marshal setup payload: %v", err)
 	}
@@ -202,7 +205,10 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 	setupResponse.Body.Close()
 
 	// Login to get session token
-	loginPayload, err := json.Marshal(map[string]string{"password": "password123"})
+	loginPayload, err := json.Marshal(map[string]string{
+		"username": "admin",
+		"password": "password123",
+	})
 	if err != nil {
 		tester.Fatalf("Failed to marshal login payload: %v", err)
 	}
@@ -389,9 +395,9 @@ func TestUpload_StagedProtocol(tester *testing.T) {
 		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
-	_, _ = initializedDatabase.Exec("INSERT INTO settings (key, value) VALUES ('admin_password_hash', ?)", "dummy_hash")
+	_, _ = initializedDatabase.Exec("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)", "user-1", "testuser", "dummy_hash", "user")
 	sessionID := "staged-session"
-	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, created_at, last_activity, expires_at) VALUES (?, ?, ?, ?)", sessionID, time.Now(), time.Now(), time.Now().Add(1*time.Hour))
+	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, user_id, created_at, last_activity, expires_at) VALUES (?, ?, ?, ?, ?)", sessionID, "user-1", time.Now(), time.Now(), time.Now().Add(1*time.Hour))
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
 	mockLLM := &MockLLMProvider{}
@@ -408,8 +414,8 @@ func TestUpload_StagedProtocol(tester *testing.T) {
 		if strings.Contains(url, "prepare") || strings.Contains(url, "stage") || (method == "POST" && strings.Contains(url, "lectures")) {
 			httpRequest.Header.Set("Content-Type", "application/json")
 		}
-		resp, _ := httpClient.Do(httpRequest)
-		return resp
+		httpResponse, _ := httpClient.Do(httpRequest)
+		return httpResponse
 	}
 
 	// 1. Create Exam
@@ -512,10 +518,10 @@ func TestWebSocket_ProgressUpdates(tester *testing.T) {
 		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100},
 	}
 
-	_, _ = initializedDatabase.Exec("INSERT INTO settings (key, value) VALUES ('admin_password_hash', ?)", "dummy_hash")
+	_, _ = initializedDatabase.Exec("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)", "user-1", "testuser", "dummy_hash", "user")
 
 	sessionID := "test-session-id"
-	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, created_at, last_activity, expires_at) VALUES (?, ?, ?, ?)", sessionID, time.Now(), time.Now(), time.Now().Add(1*time.Hour))
+	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, user_id, created_at, last_activity, expires_at) VALUES (?, ?, ?, ?, ?)", sessionID, "user-1", time.Now(), time.Now(), time.Now().Add(1*time.Hour))
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
 	mockLLM := &MockLLMProvider{}
@@ -625,7 +631,7 @@ func TestAI_FailureScenarios(tester *testing.T) {
 		mockLLM.Error = nil
 		mockLLM.Delay = 0
 
-		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
+		jobID, _ := jobQueue.Enqueue("test-user", models.JobTypeBuildMaterial, map[string]string{
 			"lecture_id": lectureID,
 			"type":       "guide",
 		})
@@ -649,7 +655,7 @@ func TestAI_FailureScenarios(tester *testing.T) {
 	tester.Run("AI Provider Connection Error", func(subTester *testing.T) {
 		mockLLM.Error = errors.New("connection refused")
 
-		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
+		jobID, _ := jobQueue.Enqueue("test-user", models.JobTypeBuildMaterial, map[string]string{
 			"lecture_id": lectureID,
 			"type":       "guide",
 		})
@@ -674,7 +680,7 @@ func TestAI_FailureScenarios(tester *testing.T) {
 		mockLLM.Error = nil
 		mockLLM.Delay = 2 * time.Second
 
-		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
+		jobID, _ := jobQueue.Enqueue("test-user", models.JobTypeBuildMaterial, map[string]string{
 			"lecture_id": lectureID,
 			"type":       "guide",
 		})
@@ -737,7 +743,7 @@ func TestTools_GenerationLogic(tester *testing.T) {
 	_, _ = initializedDatabase.Exec("INSERT INTO transcript_segments (transcript_id, text, start_millisecond, end_millisecond) VALUES (?, ?, ?, ?)", "t1", "Content", 0, 1000)
 
 	tester.Run("Successfully Generate Flashcards", func(subTester *testing.T) {
-		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
+		jobID, _ := jobQueue.Enqueue("test-user", models.JobTypeBuildMaterial, map[string]string{
 			"lecture_id": lectureID,
 			"exam_id":    examID,
 			"type":       "flashcard",
@@ -762,7 +768,7 @@ func TestTools_GenerationLogic(tester *testing.T) {
 	tester.Run("Successfully Generate Quiz", func(subTester *testing.T) {
 		mockLLM.ResponseText = `[{"question": "Q", "options": ["A", "B", "C", "D"], "correct_answer": "A", "explanation": "E"}]`
 
-		jobID, _ := jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
+		jobID, _ := jobQueue.Enqueue("test-user", models.JobTypeBuildMaterial, map[string]string{
 			"lecture_id": lectureID,
 			"exam_id":    examID,
 			"type":       "quiz",
@@ -826,7 +832,7 @@ func TestExport_PDFGeneration(tester *testing.T) {
 	_, _ = initializedDatabase.Exec("INSERT INTO exams (id, title) VALUES ('e1', 'E')")
 	_, _ = initializedDatabase.Exec("INSERT INTO tools (id, exam_id, type, title, content) VALUES (?, 'e1', 'guide', 'Title', 'Content')", toolID)
 
-	jobID, err := jobQueue.Enqueue(models.JobTypePublishMaterial, map[string]string{
+	jobID, err := jobQueue.Enqueue("test-user", models.JobTypePublishMaterial, map[string]string{
 		"tool_id": toolID,
 	})
 	if err != nil {
@@ -930,15 +936,15 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 
 	tester.Run("User Authentication Flow and Misusage Recovery", func(subTester *testing.T) {
 		// 1. Try to login before setup
-		loginPayload, _ := json.Marshal(map[string]string{"password": "password123"})
+		loginPayload, _ := json.Marshal(map[string]string{"username": "admin", "password": "password123"})
 		httpResponse, _ := httpClient.Post(testServer.URL+"/api/auth/login", "application/json", bytes.NewBuffer(loginPayload))
-		if httpResponse.StatusCode != http.StatusForbidden {
-			subTester.Errorf("Expected 403 Forbidden for login before setup, got %d", httpResponse.StatusCode)
+		if httpResponse.StatusCode != http.StatusUnauthorized {
+			subTester.Errorf("Expected 401 Unauthorized for login before setup, got %d", httpResponse.StatusCode)
 		}
 		httpResponse.Body.Close()
 
 		// 2. Setup with too short password
-		setupPayload, _ := json.Marshal(map[string]string{"password": "short"})
+		setupPayload, _ := json.Marshal(map[string]string{"username": "admin", "password": "short"})
 		httpResponse, _ = httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
 		if httpResponse.StatusCode != http.StatusBadRequest {
 			subTester.Errorf("Expected 400 Bad Request for short password, got %d", httpResponse.StatusCode)
@@ -946,7 +952,7 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		httpResponse.Body.Close()
 
 		// 3. Valid setup
-		setupPayload, _ = json.Marshal(map[string]string{"password": "valid_password"})
+		setupPayload, _ = json.Marshal(map[string]string{"username": "admin", "password": "valid_password"})
 		httpResponse, _ = httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
 		if httpResponse.StatusCode != http.StatusOK {
 			subTester.Errorf("Expected 200 OK for valid setup, got %d", httpResponse.StatusCode)
@@ -961,7 +967,7 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		httpResponse.Body.Close()
 
 		// 5. Valid login
-		loginPayload, _ = json.Marshal(map[string]string{"password": "valid_password"})
+		loginPayload, _ = json.Marshal(map[string]string{"username": "admin", "password": "valid_password"})
 		httpResponse, _ = httpClient.Post(testServer.URL+"/api/auth/login", "application/json", bytes.NewBuffer(loginPayload))
 
 		var loginResponseData struct {
@@ -1189,9 +1195,9 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 	httpClient := testServer.Client()
 
 	// Auth setup
-	setupPayload, _ := json.Marshal(map[string]string{"password": "password123"})
+	setupPayload, _ := json.Marshal(map[string]string{"username": "admin", "password": "password123"})
 	_, _ = httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
-	loginPayload, _ := json.Marshal(map[string]string{"password": "password123"})
+	loginPayload, _ := json.Marshal(map[string]string{"username": "admin", "password": "password123"})
 	loginResponse, _ := httpClient.Post(testServer.URL+"/api/auth/login", "application/json", bytes.NewBuffer(loginPayload))
 
 	var loginData struct {
@@ -1373,9 +1379,9 @@ func TestUpload_ProgressTracking(tester *testing.T) {
 		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 	}
 
-	_, _ = initializedDatabase.Exec("INSERT INTO settings (key, value) VALUES ('admin_password_hash', ?)", "dummy_hash")
+	_, _ = initializedDatabase.Exec("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)", "user-1", "testuser", "dummy_hash", "user")
 	sessionID := "test-session-id"
-	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, created_at, last_activity, expires_at) VALUES (?, ?, ?, ?)", sessionID, time.Now(), time.Now(), time.Now().Add(1*time.Hour))
+	_, _ = initializedDatabase.Exec("INSERT INTO auth_sessions (id, user_id, created_at, last_activity, expires_at) VALUES (?, ?, ?, ?, ?)", sessionID, "user-1", time.Now(), time.Now(), time.Now().Add(1*time.Hour))
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
 	mockLLM := &MockLLMProvider{}
@@ -1440,8 +1446,8 @@ func TestUpload_ProgressTracking(tester *testing.T) {
 	// We'll run the upload in a goroutine so we can read WebSocket messages
 	uploadDone := make(chan bool)
 	go func() {
-		resp, _ := testServer.Client().Do(uploadReq)
-		resp.Body.Close()
+		httpResponse, _ := testServer.Client().Do(uploadReq)
+		httpResponse.Body.Close()
 		uploadDone <- true
 	}()
 
@@ -1458,12 +1464,12 @@ func TestUpload_ProgressTracking(tester *testing.T) {
 			}
 			return
 		default:
-			var msg WSMessage
+			var websocketMessage WSMessage
 			websocketConnection.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
-			if err := websocketConnection.ReadJSON(&msg); err == nil {
-				if msg.Type == "upload:progress" {
+			if err := websocketConnection.ReadJSON(&websocketMessage); err == nil {
+				if websocketMessage.Type == "upload:progress" {
 					progressReceived = true
-					payload, ok := msg.Payload.(map[string]any)
+					payload, ok := websocketMessage.Payload.(map[string]any)
 					if ok && payload["upload_id"] != uploadID {
 						tester.Errorf("Expected upload_id %s, got %v", uploadID, payload["upload_id"])
 					}

@@ -29,9 +29,20 @@ func Initialize(path string) (*sql.DB, error) {
 
 func createSchema(database *sql.DB) error {
 	schema := `
-	-- Root: Exams
+	-- Users
+	CREATE TABLE IF NOT EXISTS users (
+		id TEXT PRIMARY KEY,
+		username TEXT NOT NULL UNIQUE,
+		password_hash TEXT NOT NULL,
+		role TEXT CHECK(role IN ('admin', 'user')) DEFAULT 'user',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	-- Root: Exams (now owned by a user)
 	CREATE TABLE IF NOT EXISTS exams (
 		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		title TEXT NOT NULL,
 		description TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -167,6 +178,7 @@ func createSchema(database *sql.DB) error {
 	-- Background jobs
 	CREATE TABLE IF NOT EXISTS jobs (
 		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		type TEXT CHECK(type IN ('TRANSCRIBE_MEDIA', 'INGEST_DOCUMENTS', 'BUILD_MATERIAL', 'PUBLISH_MATERIAL')) NOT NULL,
 		status TEXT CHECK(status IN ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED')) DEFAULT 'PENDING',
 		progress INTEGER DEFAULT 0,
@@ -183,7 +195,7 @@ func createSchema(database *sql.DB) error {
 		completed_at DATETIME
 	);
 
-	-- User settings
+	-- User settings (can be global or user-specific if we added user_id, but keeping as is for global defaults)
 	CREATE TABLE IF NOT EXISTS settings (
 		key TEXT PRIMARY KEY,
 		value JSON NOT NULL,
@@ -193,12 +205,15 @@ func createSchema(database *sql.DB) error {
 	-- Authentication sessions
 	CREATE TABLE IF NOT EXISTS auth_sessions (
 		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		last_activity DATETIME DEFAULT CURRENT_TIMESTAMP,
 		expires_at DATETIME NOT NULL
 	);
 
 	-- Create indexes for common queries
+	CREATE INDEX IF NOT EXISTS index_users_username ON users(username);
+	CREATE INDEX IF NOT EXISTS index_exams_user_id ON exams(user_id);
 	CREATE INDEX IF NOT EXISTS index_lectures_exam_id ON lectures(exam_id);
 	CREATE INDEX IF NOT EXISTS index_lecture_media_lecture_id ON lecture_media(lecture_id);
 	CREATE INDEX IF NOT EXISTS index_transcripts_lecture_id ON transcripts(lecture_id);
@@ -208,7 +223,9 @@ func createSchema(database *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS index_tools_exam_id ON tools(exam_id);
 	CREATE INDEX IF NOT EXISTS index_chat_sessions_exam_id ON chat_sessions(exam_id);
 	CREATE INDEX IF NOT EXISTS index_chat_messages_session_id ON chat_messages(session_id);
+	CREATE INDEX IF NOT EXISTS index_jobs_user_id ON jobs(user_id);
 	CREATE INDEX IF NOT EXISTS index_jobs_status ON jobs(status);
+	CREATE INDEX IF NOT EXISTS index_auth_sessions_user_id ON auth_sessions(user_id);
 	`
 
 	_, err := database.Exec(schema)

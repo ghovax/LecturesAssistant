@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -148,14 +150,25 @@ func (server *Server) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		startTime := time.Now()
 		next.ServeHTTP(responseWriter, request)
+
+		// Strip query parameters for logging to prevent leaking sensitive info
+		uri := request.RequestURI
+		if questionMarkIndex := strings.Index(uri, "?"); questionMarkIndex != -1 {
+			uri = uri[:questionMarkIndex]
+		}
+
 		// Log request
 		slog.Info("Request processed",
 			"method", request.Method,
-			"uri", request.RequestURI,
+			"uri", uri,
 			"duration", time.Since(startTime),
 		)
 	})
 }
+
+type contextKey string
+
+const userIDKey contextKey = "user_id"
 
 func (server *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
@@ -173,8 +186,9 @@ func (server *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		var userID string
 		var expiresAt time.Time
-		databaseError := server.database.QueryRow("SELECT expires_at FROM auth_sessions WHERE id = ?", sessionToken).Scan(&expiresAt)
+		databaseError := server.database.QueryRow("SELECT user_id, expires_at FROM auth_sessions WHERE id = ?", sessionToken).Scan(&userID, &expiresAt)
 		if databaseError != nil {
 			server.writeError(responseWriter, http.StatusUnauthorized, "AUTH_ERROR", "Invalid session", nil)
 			return
@@ -188,7 +202,9 @@ func (server *Server) authMiddleware(next http.Handler) http.Handler {
 		// Update last activity
 		_, _ = server.database.Exec("UPDATE auth_sessions SET last_activity = ? WHERE id = ?", time.Now(), sessionToken)
 
-		next.ServeHTTP(responseWriter, request)
+		// Inject user_id into context
+		requestContext := context.WithValue(request.Context(), userIDKey, userID)
+		next.ServeHTTP(responseWriter, request.WithContext(requestContext))
 	})
 }
 
@@ -238,5 +254,12 @@ func (server *Server) getSessionToken(request *http.Request) string {
 		return authHeader[7:]
 	}
 
+	return ""
+}
+
+func (server *Server) getUserID(request *http.Request) string {
+	if userID, ok := request.Context().Value(userIDKey).(string); ok {
+		return userID
+	}
 	return ""
 }

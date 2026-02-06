@@ -62,8 +62,10 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 		createToolRequest.LanguageCode = server.configuration.LLM.Language
 	}
 
+	userID := server.getUserID(request)
+
 	// Enqueue job
-	jobIdentifier, err := server.jobQueue.Enqueue(models.JobTypeBuildMaterial, map[string]string{
+	jobIdentifier, err := server.jobQueue.Enqueue(userID, models.JobTypeBuildMaterial, map[string]string{
 		"exam_id":              createToolRequest.ExamID,
 		"lecture_id":           createToolRequest.LectureID,
 		"type":                 createToolRequest.Type,
@@ -90,7 +92,7 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 	})
 }
 
-// handleListTools lists all tools for an exam
+// handleListTools lists all tools for an exam (must belong to the user)
 func (server *Server) handleListTools(responseWriter http.ResponseWriter, request *http.Request) {
 	examID := request.URL.Query().Get("exam_id")
 	if examID == "" {
@@ -98,21 +100,23 @@ func (server *Server) handleListTools(responseWriter http.ResponseWriter, reques
 		return
 	}
 
+	userID := server.getUserID(request)
 	toolType := request.URL.Query().Get("type")
 
 	query := `
-		SELECT id, exam_id, type, title, created_at, updated_at
+		SELECT tools.id, tools.exam_id, tools.type, tools.title, tools.created_at, tools.updated_at
 		FROM tools
-		WHERE exam_id = ?
+		JOIN exams ON tools.exam_id = exams.id
+		WHERE tools.exam_id = ? AND exams.user_id = ?
 	`
-	arguments := []any{examID}
+	arguments := []any{examID, userID}
 
 	if toolType != "" {
-		query += " AND type = ?"
+		query += " AND tools.type = ?"
 		arguments = append(arguments, toolType)
 	}
 
-	query += " ORDER BY created_at DESC"
+	query += " ORDER BY tools.created_at DESC"
 
 	toolRows, databaseError := server.database.Query(query, arguments...)
 	if databaseError != nil {
@@ -143,12 +147,15 @@ func (server *Server) handleGetTool(responseWriter http.ResponseWriter, request 
 		return
 	}
 
+	userID := server.getUserID(request)
+
 	var tool models.Tool
 	err := server.database.QueryRow(`
-		SELECT id, exam_id, type, title, content, created_at, updated_at
+		SELECT tools.id, tools.exam_id, tools.type, tools.title, tools.content, tools.created_at, tools.updated_at
 		FROM tools
-		WHERE id = ? AND exam_id = ?
-	`, toolID, examID).Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.Content, &tool.CreatedAt, &tool.UpdatedAt)
+		JOIN exams ON tools.exam_id = exams.id
+		WHERE tools.id = ? AND tools.exam_id = ? AND exams.user_id = ?
+	`, toolID, examID, userID).Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.Content, &tool.CreatedAt, &tool.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found in this exam", nil)
@@ -178,7 +185,14 @@ func (server *Server) handleDeleteTool(responseWriter http.ResponseWriter, reque
 		return
 	}
 
-	result, err := server.database.Exec("DELETE FROM tools WHERE id = ? AND exam_id = ?", deleteRequest.ToolID, deleteRequest.ExamID)
+	userID := server.getUserID(request)
+
+	result, err := server.database.Exec(`
+		DELETE FROM tools 
+		WHERE id = ? AND exam_id = ? AND EXISTS (
+			SELECT 1 FROM exams WHERE id = ? AND user_id = ?
+		)
+	`, deleteRequest.ToolID, deleteRequest.ExamID, deleteRequest.ExamID, userID)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete tool", nil)
 		return

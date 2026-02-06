@@ -15,12 +15,16 @@ func (server *Server) handleListMedia(responseWriter http.ResponseWriter, reques
 		return
 	}
 
+	userID := server.getUserID(request)
+
 	mediaRows, databaseError := server.database.Query(`
-		SELECT id, lecture_id, media_type, sequence_order, duration_milliseconds, file_path, created_at
+		SELECT lecture_media.id, lecture_media.lecture_id, lecture_media.media_type, lecture_media.sequence_order, lecture_media.duration_milliseconds, lecture_media.file_path, lecture_media.created_at
 		FROM lecture_media
-		WHERE lecture_id = ?
-		ORDER BY sequence_order ASC
-	`, lectureID)
+		JOIN lectures ON lecture_media.lecture_id = lectures.id
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE lecture_media.lecture_id = ? AND exams.user_id = ?
+		ORDER BY lecture_media.sequence_order ASC
+	`, lectureID, userID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to list media", nil)
 		return

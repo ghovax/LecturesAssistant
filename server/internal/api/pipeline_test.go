@@ -856,7 +856,15 @@ func (markdownConverter *MockMarkdownConverter) HTMLToPDF(htmlContent, outputPat
 	return os.WriteFile(outputPath, []byte("fake pdf"), 0644)
 }
 
-func TestExport_PDFGeneration(tester *testing.T) {
+func (markdownConverter *MockMarkdownConverter) HTMLToDocx(htmlContent, outputPath string, options markdown.ConversionOptions) error {
+	return os.WriteFile(outputPath, []byte("fake docx"), 0644)
+}
+
+func (markdownConverter *MockMarkdownConverter) SaveMarkdown(markdownText, outputPath string) error {
+	return os.WriteFile(outputPath, []byte(markdownText), 0644)
+}
+
+func TestExport_ToolGeneration(tester *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-export-test-*")
 	if err != nil {
 		tester.Fatalf("Failed to create temporary directory: %v", err)
@@ -897,26 +905,39 @@ func TestExport_PDFGeneration(tester *testing.T) {
 	_, _ = initializedDatabase.Exec("INSERT INTO exams (id, user_id, title) VALUES ('e1', 'test-user', 'E')")
 	_, _ = initializedDatabase.Exec("INSERT INTO tools (id, exam_id, type, title, language_code, content) VALUES (?, 'e1', 'guide', 'Title', 'en-US', 'Content')", toolID)
 
-	jobID, err := jobQueue.Enqueue("test-user", models.JobTypePublishMaterial, map[string]string{
-		"tool_id": toolID,
-	})
-	if err != nil {
-		tester.Fatalf("Failed to enqueue job: %v", err)
-	}
-
-	// Poll for completion
-	deadline := time.Now().Add(5 * time.Second)
-	var status, result string
-	for time.Now().Before(deadline) {
-		_ = initializedDatabase.QueryRow("SELECT status, result FROM jobs WHERE id = ?", jobID).Scan(&status, &result)
-		if status == models.JobStatusCompleted || status == models.JobStatusFailed {
-			break
+	exportFormats := []string{"pdf", "docx", "md"}
+	for _, format := range exportFormats {
+		jobID, err := jobQueue.Enqueue("test-user", models.JobTypePublishMaterial, map[string]string{
+			"tool_id": toolID,
+			"format":  format,
+		})
+		if err != nil {
+			tester.Fatalf("Failed to enqueue %s export job: %v", format, err)
 		}
-		time.Sleep(100 * time.Millisecond)
-	}
 
-	if status != models.JobStatusCompleted || !strings.Contains(result, "pdf_path") {
-		tester.Errorf("Export failed: %s (%s)", status, result)
+		// Poll for completion
+		deadline := time.Now().Add(5 * time.Second)
+		var status, result string
+		for time.Now().Before(deadline) {
+			_ = initializedDatabase.QueryRow("SELECT status, result FROM jobs WHERE id = ?", jobID).Scan(&status, &result)
+			if status == models.JobStatusCompleted || status == models.JobStatusFailed {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		if status != models.JobStatusCompleted {
+			tester.Errorf("Expected completed for %s, got %s", format, status)
+			continue
+		}
+
+		var resultData map[string]string
+		json.Unmarshal([]byte(result), &resultData)
+		outputPath := resultData["file_path"]
+
+		if _, statError := os.Stat(outputPath); os.IsNotExist(statError) {
+			tester.Errorf("%s export file does not exist: %s", format, outputPath)
+		}
 	}
 }
 

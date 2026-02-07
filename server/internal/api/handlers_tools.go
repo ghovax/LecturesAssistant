@@ -222,14 +222,15 @@ func (server *Server) handleDeleteTool(responseWriter http.ResponseWriter, reque
 	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Tool deleted successfully"})
 }
 
-// handleExportTool triggers a PDF export job for a specific tool
+// handleExportTool triggers an export job for a specific tool (PDF, Docx, MD)
 func (server *Server) handleExportTool(responseWriter http.ResponseWriter, request *http.Request) {
 	var exportRequest struct {
 		ToolID string `json:"tool_id"`
 		ExamID string `json:"exam_id"`
+		Format string `json:"format"` // "pdf", "docx", "md"
 	}
 
-	if err := json.NewDecoder(request.Body).Decode(&exportRequest); err != nil {
+	if decodingError := json.NewDecoder(request.Body).Decode(&exportRequest); decodingError != nil {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
 		return
 	}
@@ -239,33 +240,38 @@ func (server *Server) handleExportTool(responseWriter http.ResponseWriter, reque
 		return
 	}
 
+	if exportRequest.Format == "" {
+		exportRequest.Format = "pdf"
+	}
+
 	userID := server.getUserID(request)
 
 	// Verify tool exists and belongs to the user
 	var toolID, languageCode string
-	err := server.database.QueryRow(`
+	queryError := server.database.QueryRow(`
 		SELECT tools.id, tools.language_code
 		FROM tools
 		JOIN exams ON tools.exam_id = exams.id
 		WHERE tools.id = ? AND tools.exam_id = ? AND exams.user_id = ?
 	`, exportRequest.ToolID, exportRequest.ExamID, userID).Scan(&toolID, &languageCode)
 
-	if err == sql.ErrNoRows {
+	if queryError == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found in this exam", nil)
 		return
 	}
-	if err != nil {
+	if queryError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to verify tool", nil)
 		return
 	}
 
 	// Enqueue export job
-	jobIdentifier, err := server.jobQueue.Enqueue(userID, models.JobTypePublishMaterial, map[string]string{
+	jobIdentifier, enqueuingError := server.jobQueue.Enqueue(userID, models.JobTypePublishMaterial, map[string]string{
 		"tool_id":       exportRequest.ToolID,
 		"language_code": languageCode,
+		"format":        exportRequest.Format,
 	})
 
-	if err != nil {
+	if enqueuingError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "JOB_ERROR", "Failed to create export job", nil)
 		return
 	}

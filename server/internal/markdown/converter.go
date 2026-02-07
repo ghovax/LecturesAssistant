@@ -16,6 +16,8 @@ type MarkdownConverter interface {
 	CheckDependencies() error
 	MarkdownToHTML(markdownText string) (string, error)
 	HTMLToPDF(htmlContent string, outputPath string, options ConversionOptions) error
+	HTMLToDocx(htmlContent string, outputPath string, options ConversionOptions) error
+	SaveMarkdown(markdownText string, outputPath string) error
 }
 
 // ExternalConverter handles document format conversions using Pandoc
@@ -146,11 +148,36 @@ func (converter *ExternalConverter) HTMLToPDF(htmlContent string, outputPath str
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
 
-	if err := command.Run(); err != nil {
-		return fmt.Errorf("pandoc pdf conversion failed: %v, stderr: %s", err, stderr.String())
+	if executionError := command.Run(); executionError != nil {
+		return fmt.Errorf("pandoc pdf conversion failed: %v, stderr: %s", executionError, stderr.String())
 	}
 
 	return nil
+}
+
+// HTMLToDocx converts HTML content to a Docx file
+func (converter *ExternalConverter) HTMLToDocx(htmlContent string, outputPath string, options ConversionOptions) error {
+	arguments := []string{
+		"-f", "html",
+		"-t", "docx",
+		"-o", outputPath,
+	}
+
+	command := exec.Command("pandoc", arguments...)
+	command.Stdin = strings.NewReader(htmlContent)
+	var stderr bytes.Buffer
+	command.Stderr = &stderr
+
+	if executionError := command.Run(); executionError != nil {
+		return fmt.Errorf("pandoc docx conversion failed: %v, stderr: %s", executionError, stderr.String())
+	}
+
+	return nil
+}
+
+// SaveMarkdown saves the markdown text to a file (GFM format)
+func (converter *ExternalConverter) SaveMarkdown(markdownText string, outputPath string) error {
+	return os.WriteFile(outputPath, []byte(markdownText), 0644)
 }
 
 func fileExists(path string) bool {
@@ -235,7 +262,7 @@ func (converter *ExternalConverter) writeMetadataFile(path string, options Conve
 	}
 
 	yamlContent := builder.String()
-	slog.Info("Writing PDF metadata YAML", "path", path, "yaml_length", len(yamlContent), "yaml_content", yamlContent)
+	slog.Info("Writing PDF metadata YAML", "path", path, "yaml_length", len(yamlContent))
 
 	return os.WriteFile(path, []byte(yamlContent), 0644)
 }

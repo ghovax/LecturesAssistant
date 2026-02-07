@@ -5,6 +5,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime/multipart"
@@ -268,41 +269,62 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 		time.Sleep(2 * time.Second)
 	}
 
-	// F. Export to PDF
-	tester.Log("Exporting to PDF...")
-	exportPayload, _ := json.Marshal(map[string]string{
-		"tool_id": toolID,
-		"exam_id": examID,
-	})
-	exportReq := authenticatedRequest("POST", testServer.URL+"/api/tools/export", bytes.NewBuffer(exportPayload))
-	exportReq.Header.Set("Content-Type", "application/json")
-	exportResp, _ := httpClient.Do(exportReq)
-	var exportJobRes struct {
-		Data struct {
-			JobID string `json:"job_id"`
+	// F. Export to PDF, Docx and MD
+	exportFormats := []string{"pdf", "docx", "md"}
+	for _, format := range exportFormats {
+		tester.Logf("Exporting to %s...", format)
+		exportPayload, _ := json.Marshal(map[string]string{
+			"tool_id": toolID,
+			"exam_id": examID,
+			"format":  format,
+		})
+		exportReq := authenticatedRequest("POST", testServer.URL+"/api/tools/export", bytes.NewBuffer(exportPayload))
+		exportReq.Header.Set("Content-Type", "application/json")
+		exportResp, _ := httpClient.Do(exportReq)
+
+		if exportResp.StatusCode != http.StatusAccepted {
+			tester.Fatalf("Failed to trigger %s export: %d", format, exportResp.StatusCode)
+		}
+
+		var exportJobRes struct {
+			Data struct {
+				JobID string `json:"job_id"`
+			}
+		}
+		json.NewDecoder(exportResp.Body).Decode(&exportJobRes)
+		publishJobID := exportJobRes.Data.JobID
+
+		var outputPath string
+		for time.Now().Before(deadline) {
+			var status, result string
+			_ = initializedDatabase.QueryRow("SELECT status, result FROM jobs WHERE id = ?", publishJobID).Scan(&status, &result)
+			if status == "COMPLETED" {
+				var resultData map[string]string
+				json.Unmarshal([]byte(result), &resultData)
+				outputPath = resultData["file_path"]
+				break
+			}
+			if status == "FAILED" {
+				var errorString string
+				_ = initializedDatabase.QueryRow("SELECT error FROM jobs WHERE id = ?", publishJobID).Scan(&errorString)
+				tester.Fatalf("%s export job failed: %s", format, errorString)
+			}
+			time.Sleep(2 * time.Second)
+		}
+
+		// G. Verify Result
+		if _, statError := os.Stat(outputPath); statError != nil {
+			tester.Errorf("Final %s not found at %s", format, outputPath)
+		} else {
+			tester.Logf("Success! Final %s generated at: %s", format, outputPath)
+
+			// Copy to results folder
+			resultFileName := fmt.Sprintf("exported_guide.%s", format)
+			resultFilePath := filepath.Join(testRunDataDir, resultFileName)
+			input, _ := os.ReadFile(outputPath)
+			os.WriteFile(resultFilePath, input, 0644)
 		}
 	}
-	json.NewDecoder(exportResp.Body).Decode(&exportJobRes)
-	publishJobID := exportJobRes.Data.JobID
 
-	var pdfPath string
-	for time.Now().Before(deadline) {
-		var status, result string
-		_ = initializedDatabase.QueryRow("SELECT status, result FROM jobs WHERE id = ?", publishJobID).Scan(&status, &result)
-		if status == "COMPLETED" {
-			var resultData map[string]string
-			json.Unmarshal([]byte(result), &resultData)
-			pdfPath = resultData["pdf_path"]
-			break
-		}
-		time.Sleep(2 * time.Second)
-	}
-
-	// G. Verify Results
-	tester.Log("Verifying output files...")
-	if _, statError := os.Stat(pdfPath); statError != nil {
-		tester.Errorf("Final PDF not found at %s", pdfPath)
-	} else {
-		tester.Logf("Success! Final PDF generated at: %s", pdfPath)
-	}
+	tester.Log("Integration test completed successfully")
 }

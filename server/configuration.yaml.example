@@ -9,9 +9,10 @@ storage:
   data_directory: "./data"
 
 security:
-  session_timeout_hours: 72 # How long users stay logged in
-  require_https: false # Set true in production for secure cookies
-  maximum_login_attempts_per_hour: 10
+  auth:
+    type: "session"
+    session_timeout_hours: 72 # How long users stay logged in
+    require_https: false # Set true in production for secure cookies
 
 # API credentials for external providers
 providers:
@@ -32,9 +33,9 @@ llm:
     recording_transcription: "google/gemini-2.5-flash-lite" # Convert audio/video to text
     documents_ingestion: "google/gemini-2.5-flash-lite" # Vision-LLM OCR for PDF/slide pages
     documents_matching: "google/gemini-2.5-flash-lite" # Match document pages to transcript sections
-    outline_creation: "google/gemini-3-flash" # Analyze lecture flow and create structure
-    content_generation: "google/gemini-3-flash" # Main content writing (section by section)
-    content_verification: "google/gemini-3-flash" # Verify generated content matches outline
+    outline_creation: "google/gemini-3-flash-preview" # Analyze lecture flow and create structure
+    content_generation: "google/gemini-3-flash-preview" # Main content writing (section by section)
+    content_verification: "google/gemini-3-flash-preview" # Verify generated content matches outline
     content_polishing: "google/gemini-2.5-flash-lite" # Title cleaning, footnote formatting
 
 # Transcription settings
@@ -69,4 +70,5 @@ uploads:
 # Safety and cost controls
 safety:
   maximum_cost_per_job: 15.0 # Max estimated USD per generation job
+  maximum_login_attempts_per_hour: 10 # Rate limiting for authentication
   maximum_retries: 3 # Attempts for self-healing loops

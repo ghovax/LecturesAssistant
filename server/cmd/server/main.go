@@ -116,6 +116,11 @@ func main() {
 
 	// Initialize document processor
 	ingestionModel := loadedConfiguration.LLM.GetModelForTask("documents_ingestion")
+	if ingestionModel == "" {
+		slog.Error("No model configured for documents_ingestion")
+		os.Exit(1)
+	}
+	slog.Info("Document processor initialized", "model", ingestionModel)
 	documentProcessor := documents.NewProcessor(llmProvider, ingestionModel, promptManager)
 
 	// Initialize markdown converter

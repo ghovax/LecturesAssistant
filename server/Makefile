@@ -18,8 +18,9 @@ test:
 	go test -v ./...
 
 # Run integration tests (requires test files in internal/api/test_input/)
+# Usage: make test-integration TEST=TestFullPipeline_RealProviders
 test-integration:
-	go test -v -tags=integration ./internal/api/...
+	go test -v -tags=integration $(if $(TEST),-run $(TEST)) ./internal/api/...
 
 # Format the code
 fmt:

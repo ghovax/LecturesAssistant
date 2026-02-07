@@ -70,13 +70,14 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 	llmProvider := llm.NewOpenRouterProvider(config.Providers.OpenRouter.APIKey)
 
 	// Use OpenRouter's chat API for transcription instead of Whisper endpoint
+	transcriptionModel := config.Transcription.GetModel(&config.LLM)
 	transcriptionProvider := transcription.NewOpenRouterTranscriptionProvider(
 		llmProvider,
-		config.Transcription.Model,
+		transcriptionModel,
 	)
 	transcriptionService := transcription.NewService(config, transcriptionProvider, llmProvider, promptManager)
 
-	documentProcessor := documents.NewProcessor(llmProvider, config.LLM.Models.Ingestion, promptManager)
+	documentProcessor := documents.NewProcessor(llmProvider, config.LLM.GetModelForTask("documents_ingestion"), promptManager)
 	markdownConverter := markdown.NewConverter(testRunDataDir)
 	toolGenerator := tools.NewToolGenerator(config, llmProvider, promptManager)
 
@@ -96,13 +97,27 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 	// A. Auth Setup & Login
 	tester.Log("Setting up user...")
 	setupPayload, _ := json.Marshal(map[string]string{"username": "tester", "password": "password123"})
-	httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
+	setupResp, _ := httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
+	if setupResp.StatusCode != http.StatusOK && setupResp.StatusCode != http.StatusCreated {
+		bodyBytes, _ := io.ReadAll(setupResp.Body)
+		tester.Fatalf("Setup failed with status %d: %s", setupResp.StatusCode, string(bodyBytes))
+	}
 
 	loginPayload, _ := json.Marshal(map[string]string{"username": "tester", "password": "password123"})
 	loginResponse, _ := httpClient.Post(testServer.URL+"/api/auth/login", "application/json", bytes.NewBuffer(loginPayload))
+	if loginResponse.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(loginResponse.Body)
+		tester.Fatalf("Login failed with status %d: %s", loginResponse.StatusCode, string(bodyBytes))
+	}
 	var loginData struct{ Data struct{ Token string } }
-	json.NewDecoder(loginResponse.Body).Decode(&loginData)
+	if err := json.NewDecoder(loginResponse.Body).Decode(&loginData); err != nil {
+		tester.Fatalf("Failed to decode login response: %v", err)
+	}
 	sessionToken := loginData.Data.Token
+	if sessionToken == "" {
+		tester.Fatalf("Session token is empty after login")
+	}
+	tester.Logf("Logged in with token: %s...", sessionToken[:20])
 
 	authenticatedRequest := func(method, url string, body io.Reader) *http.Request {
 		httpRequest, _ := http.NewRequest(method, url, body)
@@ -143,12 +158,22 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 	if uploadError != nil {
 		tester.Fatalf("Lecture upload failed: %v", uploadError)
 	}
+	if lectureResp.StatusCode != http.StatusOK && lectureResp.StatusCode != http.StatusCreated {
+		bodyBytes, _ := io.ReadAll(lectureResp.Body)
+		tester.Fatalf("Lecture creation failed with status %d: %s", lectureResp.StatusCode, string(bodyBytes))
+	}
 	var lectureRes struct{ Data models.Lecture }
-	json.NewDecoder(lectureResp.Body).Decode(&lectureRes)
+	if err := json.NewDecoder(lectureResp.Body).Decode(&lectureRes); err != nil {
+		tester.Fatalf("Failed to decode lecture response: %v", err)
+	}
 	lectureID := lectureRes.Data.ID
+	if lectureID == "" {
+		tester.Fatalf("Lecture ID is empty after creation")
+	}
+	tester.Logf("Created lecture with ID: %s", lectureID)
 
 	// D. Wait for Processing (Transcription + Ingestion)
-	tester.Log("Waiting for AI ingestion (transcription and OCR)...")
+	tester.Log("Waiting for AI ingestion of media and documents...")
 	deadline := time.Now().Add(10 * time.Minute)
 	var lectureStatus string
 	for time.Now().Before(deadline) {

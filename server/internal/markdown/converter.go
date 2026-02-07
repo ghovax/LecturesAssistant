@@ -207,6 +207,10 @@ func (converter *ExternalConverter) writeMetadataFile(path string, options Conve
 
 	if len(options.AudioFiles) > 0 {
 		builder.WriteString("audiofile:\n")
+		hourLabel := getI18nLabel(options.Language, "hour_label")
+		minuteLabel := getI18nLabel(options.Language, "minute_label")
+		secondLabel := getI18nLabel(options.Language, "second_label")
+
 		for _, file := range options.AudioFiles {
 			durationStr := ""
 			if file.Duration > 0 {
@@ -216,13 +220,13 @@ func (converter *ExternalConverter) writeMetadataFile(path string, options Conve
 
 				if hours > 0 {
 					// Show hours and minutes only
-					durationStr = fmt.Sprintf("%dh %dm", hours, minutes)
+					durationStr = fmt.Sprintf("%d%s %d%s", hours, hourLabel, minutes, minuteLabel)
 				} else if minutes > 0 {
 					// Show minutes and seconds only
-					durationStr = fmt.Sprintf("%dm %ds", minutes, seconds)
+					durationStr = fmt.Sprintf("%d%s %d%s", minutes, minuteLabel, seconds, secondLabel)
 				} else {
 					// Show seconds only
-					durationStr = fmt.Sprintf("%ds", seconds)
+					durationStr = fmt.Sprintf("%d%s", seconds, secondLabel)
 				}
 			}
 			slog.Debug("Adding audio file to PDF metadata", "filename", file.Filename, "duration_seconds", file.Duration, "duration_formatted", durationStr)

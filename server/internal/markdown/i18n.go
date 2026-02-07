@@ -44,6 +44,9 @@ var i18nMap = map[string]map[string]string{
 		"reference_files": "Reference Files",
 		"page_label":      "p.",
 		"pages_label":     "pp.",
+		"hour_label":      "h",
+		"minute_label":    "m",
+		"second_label":    "s",
 	},
 	"it": {
 		"abstract":        "sommario",
@@ -51,6 +54,9 @@ var i18nMap = map[string]map[string]string{
 		"reference_files": "Materiali di Riferimento",
 		"page_label":      "p.",
 		"pages_label":     "pp.",
+		"hour_label":      "o",
+		"minute_label":    "m",
+		"second_label":    "s",
 	},
 	"es": {
 		"abstract":        "resumen",
@@ -58,6 +64,9 @@ var i18nMap = map[string]map[string]string{
 		"reference_files": "Materiales de Referencia",
 		"page_label":      "pág.",
 		"pages_label":     "págs.",
+		"hour_label":      "h",
+		"minute_label":    "m",
+		"second_label":    "s",
 	},
 	"fr": {
 		"abstract":        "résumé",
@@ -65,6 +74,9 @@ var i18nMap = map[string]map[string]string{
 		"reference_files": "Documents de Référence",
 		"page_label":      "p.",
 		"pages_label":     "pp.",
+		"hour_label":      "h",
+		"minute_label":    "m",
+		"second_label":    "s",
 	},
 	"de": {
 		"abstract":        "Zusammenfassung",
@@ -72,6 +84,9 @@ var i18nMap = map[string]map[string]string{
 		"reference_files": "Referenzmaterialien",
 		"page_label":      "S.",
 		"pages_label":     "S.",
+		"hour_label":      "Std.",
+		"minute_label":    "Min.",
+		"second_label":    "Sek.",
 	},
 	"pt": {
 		"abstract":        "resumo",
@@ -79,6 +94,9 @@ var i18nMap = map[string]map[string]string{
 		"reference_files": "Materiais de Referência",
 		"page_label":      "p.",
 		"pages_label":     "pp.",
+		"hour_label":      "h",
+		"minute_label":    "m",
+		"second_label":    "s",
 	},
 }
 

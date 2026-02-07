@@ -131,11 +131,19 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 				totalMetrics.OutputTokens += stepMetrics.OutputTokens
 				totalMetrics.EstimatedCost += stepMetrics.EstimatedCost
 
+				// Get actual segment duration as fallback for providers that don't return timestamps (like Chat API)
+				actualSegmentDuration, _ := service.mediaProcessor.GetDuration(segmentFile)
+
 				segmentBaseOffsetMilliseconds := int64(segmentIndex) * int64(segmentDurationSeconds) * 1000
 
 				for _, transcriptSegment := range transcriptionResults {
 					originalStart := segmentBaseOffsetMilliseconds + int64(transcriptSegment.Start*1000)
-					originalEnd := segmentBaseOffsetMilliseconds + int64(transcriptSegment.End*1000)
+
+					endSeconds := transcriptSegment.End
+					if endSeconds == 0 && actualSegmentDuration > 0 {
+						endSeconds = actualSegmentDuration
+					}
+					originalEnd := segmentBaseOffsetMilliseconds + int64(endSeconds*1000)
 
 					chunkSegments = append(chunkSegments, models.TranscriptSegment{
 						MediaID:                   media.ID,
@@ -216,7 +224,7 @@ func (service *Service) cleanupTranscriptChunk(jobContext context.Context, rawTe
 
 	model := service.configuration.LLM.Model
 
-	responseChannel, chatError := service.llmProvider.Chat(jobContext, llm.ChatRequest{
+	responseChannel, chatError := service.llmProvider.Chat(jobContext, &llm.ChatRequest{
 		Model: model,
 		Messages: []llm.Message{
 			{Role: "user", Content: []llm.ContentPart{{Type: "text", Text: cleanupPrompt}}},

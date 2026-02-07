@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 
 	openrouter "github.com/revrost/go-openrouter"
 )
@@ -22,7 +23,11 @@ func (provider *OpenRouterProvider) Name() string {
 	return "openrouter"
 }
 
-func (provider *OpenRouterProvider) Chat(jobContext context.Context, request ChatRequest) (<-chan ChatResponseChunk, error) {
+func (provider *OpenRouterProvider) Chat(jobContext context.Context, request *ChatRequest) (<-chan ChatResponseChunk, error) {
+	// Safety check: ensure "openrouter:" prefix is stripped
+	modelName := strings.TrimPrefix(request.Model, "openrouter:")
+	request.Model = modelName
+
 	responseChannel := make(chan ChatResponseChunk)
 
 	var chatMessages []openrouter.ChatCompletionMessage

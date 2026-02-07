@@ -26,10 +26,13 @@ func NewFFmpeg() *FFmpeg {
 	return &FFmpeg{}
 }
 
-// CheckDependencies verifies that ffmpeg is installed
+// CheckDependencies verifies that ffmpeg and ffprobe are installed
 func (ffmpeg *FFmpeg) CheckDependencies() error {
 	if _, lookError := exec.LookPath("ffmpeg"); lookError != nil {
 		return fmt.Errorf("ffmpeg not found in PATH")
+	}
+	if _, lookError := exec.LookPath("ffprobe"); lookError != nil {
+		return fmt.Errorf("ffprobe not found in PATH")
 	}
 	return nil
 }
@@ -75,7 +78,7 @@ func (ffmpeg *FFmpeg) SplitAudio(inputPath string, outputDirectory string, segme
 
 // GetDuration returns the duration of the media file in seconds
 func (ffmpeg *FFmpeg) GetDuration(inputPath string) (float64, error) {
-	// ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 input.mp4
+	// ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 [file]
 	command := exec.Command("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", inputPath)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -86,9 +89,25 @@ func (ffmpeg *FFmpeg) GetDuration(inputPath string) (float64, error) {
 	}
 
 	durationString := strings.TrimSpace(stdout.String())
+	if durationString == "" || durationString == "N/A" {
+		// Fallback: try stream duration
+		command = exec.Command("ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=duration", "-of", "default=noprint_wrappers=1:nokey=1", inputPath)
+		stdout.Reset()
+		stderr.Reset()
+		command.Stdout = &stdout
+		command.Stderr = &stderr
+		if executionError := command.Run(); executionError == nil {
+			durationString = strings.TrimSpace(stdout.String())
+		}
+	}
+
+	if durationString == "" || durationString == "N/A" {
+		return 0, fmt.Errorf("duration not found in ffprobe output")
+	}
+
 	duration, parsingError := strconv.ParseFloat(durationString, 64)
 	if parsingError != nil {
-		return 0, fmt.Errorf("failed to parse duration: %v", parsingError)
+		return 0, fmt.Errorf("failed to parse duration '%s': %v", durationString, parsingError)
 	}
 	return duration, nil
 }

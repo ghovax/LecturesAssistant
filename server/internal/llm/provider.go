@@ -3,7 +3,9 @@ package llm
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
+	"sync"
 )
 
 // ContentPart represents a part of a message (text, image, or audio)
@@ -40,7 +42,7 @@ type ChatResponseChunk struct {
 // Provider defines the common interface for LLM services
 type Provider interface {
 	// Chat sends a request to the LLM and returns a stream of response chunks
-	Chat(context context.Context, request ChatRequest) (<-chan ChatResponseChunk, error)
+	Chat(context context.Context, request *ChatRequest) (<-chan ChatResponseChunk, error)
 
 	// Name returns the identifier of the provider
 	Name() string
@@ -50,6 +52,7 @@ type Provider interface {
 type RoutingProvider struct {
 	providers       map[string]Provider
 	defaultProvider Provider
+	providersMutex  sync.RWMutex
 }
 
 func NewRoutingProvider(defaultProvider Provider) *RoutingProvider {
@@ -60,32 +63,60 @@ func NewRoutingProvider(defaultProvider Provider) *RoutingProvider {
 }
 
 func (routingProvider *RoutingProvider) Register(name string, provider Provider) {
+	routingProvider.providersMutex.Lock()
+	defer routingProvider.providersMutex.Unlock()
 	routingProvider.providers[name] = provider
 }
 
-func (routingProvider *RoutingProvider) Chat(jobContext context.Context, request ChatRequest) (<-chan ChatResponseChunk, error) {
-	modelName := request.Model
+func (routingProvider *RoutingProvider) Chat(jobContext context.Context, request *ChatRequest) (<-chan ChatResponseChunk, error) {
+	originalModelName := request.Model
 	providerName := ""
+	modelName := originalModelName
 
-	if strings.Contains(modelName, ":") {
-		parts := strings.SplitN(modelName, ":", 2)
-		providerName = parts[0]
-		request.Model = parts[1]
-	}
+	// Check for provider prefix (e.g., "openrouter:google/gemini-2.5-flash-lite")
+	if strings.Contains(originalModelName, ":") {
+		parts := strings.SplitN(originalModelName, ":", 2)
+		potentialProvider := parts[0]
 
-	if providerName != "" {
-		if provider, exists := routingProvider.providers[providerName]; exists {
-			return provider.Chat(jobContext, request)
+		// Check if it's a known registered provider
+		routingProvider.providersMutex.RLock()
+		_, exists := routingProvider.providers[potentialProvider]
+		routingProvider.providersMutex.RUnlock()
+
+		// Also allow "openrouter" and "ollama" as hardcoded known prefixes
+		if exists || potentialProvider == "openrouter" || potentialProvider == "ollama" {
+			providerName = potentialProvider
+			modelName = parts[1]
+			request.Model = modelName // Strip the prefix from the request
+			slog.Info("Routing LLM request with prefix stripping", "model", modelName)
 		}
 	}
 
+	// Route to specific provider if prefix was found
+	if providerName != "" {
+		routingProvider.providersMutex.RLock()
+		provider, exists := routingProvider.providers[providerName]
+		routingProvider.providersMutex.RUnlock()
+
+		if exists {
+			return provider.Chat(jobContext, request)
+		}
+
+		// If prefix matched "openrouter" or "ollama" but wasn't in the map,
+		// fall back to default if it matches the name
+		if routingProvider.defaultProvider != nil && routingProvider.defaultProvider.Name() == providerName {
+			return routingProvider.defaultProvider.Chat(jobContext, request)
+		}
+	}
+
+	// Fallback to default provider
 	if routingProvider.defaultProvider != nil {
+		slog.Debug("Routing LLM request to default provider", "provider", routingProvider.defaultProvider.Name(), "model", request.Model)
 		return routingProvider.defaultProvider.Chat(jobContext, request)
 	}
 
-	return nil, fmt.Errorf("no LLM provider found for: %s", modelName)
+	return nil, fmt.Errorf("no LLM provider found for: %s", originalModelName)
 }
-
 func (routingProvider *RoutingProvider) Name() string {
 	return "routing-provider"
 }

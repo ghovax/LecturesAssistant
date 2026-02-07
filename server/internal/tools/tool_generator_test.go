@@ -24,7 +24,7 @@ type UnbreakableSequentialMock struct {
 	mutex      sync.Mutex
 }
 
-func (mock *UnbreakableSequentialMock) Chat(jobContext context.Context, chatRequest llm.ChatRequest) (<-chan llm.ChatResponseChunk, error) {
+func (mock *UnbreakableSequentialMock) Chat(jobContext context.Context, chatRequest *llm.ChatRequest) (<-chan llm.ChatResponseChunk, error) {
 	mock.mutex.Lock()
 	defer mock.mutex.Unlock()
 

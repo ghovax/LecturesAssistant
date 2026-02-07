@@ -239,8 +239,8 @@ func (generator *ToolGenerator) analyzeStructureWithRetries(jobContext context.C
 		slog.Info("Structure parsed",
 			"attempt", attempt,
 			"sections_found", len(sections),
-			"required_minimum", sectionCounts.minimum,
-			"required_maximum", sectionCounts.maximum)
+			"minimum_required_sections", sectionCounts.minimum,
+			"maximum_required_sections", sectionCounts.maximum)
 
 		if len(sections) >= sectionCounts.minimum && len(sections) <= sectionCounts.maximum {
 			slog.Info("Structure validation passed", "sections", len(sections))
@@ -273,10 +273,18 @@ func (generator *ToolGenerator) analyzeStructureWithRetries(jobContext context.C
 				"total_cost", metrics.EstimatedCost)
 			return response, metrics, nil
 		}
+
+		// Log the failed response for debugging
+		preview := response
+		if len(preview) > 500 {
+			// preview = preview[:500] + "..."
+		}
 		slog.Warn("Structure validation failed, retrying...",
 			"count", len(sections),
 			"attempt", attempt,
-			"expected_range", fmt.Sprintf("%d-%d", sectionCounts.minimum, sectionCounts.maximum))
+			"minimum_expected_sections", sectionCounts.minimum,
+			"maximum_expected_sections", sectionCounts.maximum,
+			"raw_response", preview)
 	}
 
 	return "", metrics, fmt.Errorf("failed to generate valid structure after %d attempts", maximumRetries)
@@ -756,7 +764,7 @@ func (generator *ToolGenerator) callLLMWithHistoryAndModel(jobContext context.Co
 		Role: "user", Content: []llm.ContentPart{{Type: "text", Text: prompt}},
 	})
 
-	responseChannel, err := generator.llmProvider.Chat(jobContext, llm.ChatRequest{
+	responseChannel, err := generator.llmProvider.Chat(jobContext, &llm.ChatRequest{
 		Model: model, Messages: messages, Stream: false,
 	})
 	if err != nil {
@@ -813,18 +821,57 @@ func (generator *ToolGenerator) parseStructure(structure string) []sectionInfo {
 	ast := parser.Parse(structure)
 	reconstructor := markdown.NewReconstructor()
 	var sections []sectionInfo
-	var find func(*markdown.Node)
-	find = func(node *markdown.Node) {
+
+	// Helper to extract sections from an AST
+	var findInAST func(*markdown.Node)
+	findInAST = func(node *markdown.Node) {
 		if node.Type == markdown.NodeSection && node.Level == 2 {
 			coverage := reconstructor.Reconstruct(&markdown.Node{Type: markdown.NodeDocument, Children: node.Children})
 			sections = append(sections, sectionInfo{Title: node.Title, Coverage: coverage})
 		} else {
 			for _, child := range node.Children {
-				find(child)
+				findInAST(child)
 			}
 		}
 	}
-	find(ast)
+
+	findInAST(ast)
+
+	// Fallback for smaller/dumb models: If no sections were found via AST (possibly because they are
+	// wrapped in a code block or the parser failed to create sections),
+	// try to look into code blocks or use a simpler line-by-line approach.
+	if len(sections) == 0 {
+		slog.Info("No sections found in primary AST, attempting fallback extraction")
+
+		// Check inside code blocks first
+		for _, node := range ast.Children {
+			if node.Type == markdown.NodeCodeBlock {
+				innerAST := parser.Parse(node.Content)
+				findInAST(innerAST)
+			}
+		}
+	}
+
+	// Final fallback: Regex-based extraction if the Markdown parser is still not yielding results
+	if len(sections) == 0 {
+		slog.Info("No sections found in code blocks, attempting regex extraction")
+		sectionRegex := regexp.MustCompile(`(?m)^##\s+(.+)$`)
+		matches := sectionRegex.FindAllStringSubmatchIndex(structure, -1)
+
+		for i, match := range matches {
+			title := strings.TrimSpace(structure[match[2]:match[3]])
+
+			// Find coverage (text between this heading and the next)
+			endIndex := len(structure)
+			if i+1 < len(matches) {
+				endIndex = matches[i+1][0]
+			}
+			coverage := strings.TrimSpace(structure[match[1]:endIndex])
+
+			sections = append(sections, sectionInfo{Title: title, Coverage: coverage})
+		}
+	}
+
 	return sections
 }
 

@@ -21,7 +21,7 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 		Type                    string `json:"type"` // "guide", "flashcard", "quiz"
 		Length                  string `json:"length"`
 		LanguageCode            string `json:"language_code"`
-		EnableDocumentsMatching bool   `json:"enable_documents_matching"`
+		EnableDocumentsMatching *bool  `json:"enable_documents_matching"`
 		AdherenceThreshold      int    `json:"adherence_threshold"`
 		MaximumRetries          int    `json:"maximum_retries"`
 		// Models
@@ -66,6 +66,11 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 		createToolRequest.LanguageCode = server.configuration.LLM.Language
 	}
 
+	enableMatching := server.configuration.LLM.EnableDocumentsMatching
+	if createToolRequest.EnableDocumentsMatching != nil {
+		enableMatching = *createToolRequest.EnableDocumentsMatching
+	}
+
 	// Validate BCP-47 language code
 	if !bcp47Regex.MatchString(createToolRequest.LanguageCode) {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid language_code format (BCP-47 required)", nil)
@@ -81,7 +86,7 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 		"type":                      createToolRequest.Type,
 		"length":                    createToolRequest.Length,
 		"language_code":             createToolRequest.LanguageCode,
-		"enable_documents_matching": fmt.Sprintf("%v", createToolRequest.EnableDocumentsMatching),
+		"enable_documents_matching": fmt.Sprintf("%v", enableMatching),
 		"adherence_threshold":       fmt.Sprintf("%d", createToolRequest.AdherenceThreshold),
 		"maximum_retries":           fmt.Sprintf("%d", createToolRequest.MaximumRetries),
 		"model_documents_matching":  createToolRequest.ModelDocumentsMatching,

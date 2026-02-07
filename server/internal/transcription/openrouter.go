@@ -92,7 +92,7 @@ func (provider *OpenRouterTranscriptionProvider) Transcribe(jobContext context.C
 	}
 
 	// Call LLM
-	responseChannel, chatError := provider.llmProvider.Chat(jobContext, request)
+	responseChannel, chatError := provider.llmProvider.Chat(jobContext, &request)
 	if chatError != nil {
 		return nil, metrics, fmt.Errorf("LLM chat failed: %w", chatError)
 	}

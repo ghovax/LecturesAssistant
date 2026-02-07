@@ -25,6 +25,7 @@ providers:
 llm:
   provider: "openrouter" # Default provider: openrouter, ollama
   language: "en-US" # BCP-47 language code for generated content
+  enable_documents_matching: true # Global toggle for matching reference materials to transcript
 
   # Models for each pipeline task
   # You can use a simple string (uses default provider) or a structured object

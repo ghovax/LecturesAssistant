@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"encoding/base64"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -34,7 +35,11 @@ func (provider *OllamaProvider) Name() string {
 	return "ollama"
 }
 
-func (provider *OllamaProvider) Chat(jobContext context.Context, request ChatRequest) (<-chan ChatResponseChunk, error) {
+func (provider *OllamaProvider) Chat(jobContext context.Context, request *ChatRequest) (<-chan ChatResponseChunk, error) {
+	// Safety check: ensure "ollama:" prefix is stripped
+	modelName := strings.TrimPrefix(request.Model, "ollama:")
+	request.Model = modelName
+
 	responseChannel := make(chan ChatResponseChunk)
 
 	var ollamaMessages []api.Message
@@ -78,6 +83,10 @@ func (provider *OllamaProvider) Chat(jobContext context.Context, request ChatReq
 		defer close(responseChannel)
 
 		responseHandler := func(chatResponse api.ChatResponse) error {
+			if chatResponse.Done {
+				slog.Debug("Ollama request complete", "model", request.Model, "input_tokens", chatResponse.PromptEvalCount, "output_tokens", chatResponse.EvalCount)
+			}
+
 			responseChunk := ChatResponseChunk{
 				Text: chatResponse.Message.Content,
 			}
@@ -85,7 +94,10 @@ func (provider *OllamaProvider) Chat(jobContext context.Context, request ChatReq
 				responseChunk.InputTokens = chatResponse.PromptEvalCount
 				responseChunk.OutputTokens = chatResponse.EvalCount
 			}
-			responseChannel <- responseChunk
+
+			if responseChunk.Text != "" || chatResponse.Done {
+				responseChannel <- responseChunk
+			}
 			return nil
 		}
 

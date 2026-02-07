@@ -554,7 +554,7 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 
 	model := server.configuration.LLM.Model
 
-	responseChannel, chatError := server.llmProvider.Chat(context.Background(), llm.ChatRequest{
+	responseChannel, chatError := server.llmProvider.Chat(context.Background(), &llm.ChatRequest{
 		Model:    model,
 		Messages: fullMessages,
 		Stream:   true,

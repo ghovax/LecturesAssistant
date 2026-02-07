@@ -143,7 +143,7 @@ func (processor *Processor) interpretPageContent(jobContext context.Context, ima
 		},
 	}
 
-	responseChannel, chatError := processor.llmProvider.Chat(jobContext, request)
+	responseChannel, chatError := processor.llmProvider.Chat(jobContext, &request)
 	if chatError != nil {
 		return "", metrics, chatError
 	}

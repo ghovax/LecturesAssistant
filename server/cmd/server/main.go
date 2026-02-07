@@ -92,22 +92,18 @@ func main() {
 
 	switch loadedConfiguration.Transcription.Provider {
 	case "openrouter":
-		// Always use OpenRouter for transcription if requested,
-		// even if the main LLM provider is Ollama
-		transcriptionLLMProvider := llm.NewOpenRouterProvider(loadedConfiguration.Providers.OpenRouter.APIKey)
+		// Use the centralized llmProvider (RoutingProvider) which handles multiple providers
 		transcriptionProvider = transcription.NewOpenRouterTranscriptionProvider(
-			transcriptionLLMProvider,
+			llmProvider,
 			transcriptionModel,
 		)
 	default:
 		slog.Warn("Unknown transcription provider or provider not supporting audio, falling back to openrouter", "provider", loadedConfiguration.Transcription.Provider)
-		transcriptionLLMProvider := llm.NewOpenRouterProvider(loadedConfiguration.Providers.OpenRouter.APIKey)
 		transcriptionProvider = transcription.NewOpenRouterTranscriptionProvider(
-			transcriptionLLMProvider,
+			llmProvider,
 			transcriptionModel,
 		)
 	}
-
 	transcriptionService := transcription.NewService(loadedConfiguration, transcriptionProvider, llmProvider, promptManager)
 
 	// Initialize document processor

@@ -35,7 +35,7 @@ type MockLLMProvider struct {
 	Error        error
 }
 
-func (mock *MockLLMProvider) Chat(jobContext context.Context, request llm.ChatRequest) (<-chan llm.ChatResponseChunk, error) {
+func (mock *MockLLMProvider) Chat(jobContext context.Context, request *llm.ChatRequest) (<-chan llm.ChatResponseChunk, error) {
 	if mock.Error != nil {
 		return nil, mock.Error
 	}

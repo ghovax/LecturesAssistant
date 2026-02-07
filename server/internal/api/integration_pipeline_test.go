@@ -88,9 +88,28 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 	defer initializedDatabase.Close()
 
 	promptManager := prompts.NewManager("prompts")
-	llmProvider := llm.NewOpenRouterProvider(config.Providers.OpenRouter.APIKey)
 
-	// Use OpenRouter's chat API for transcription instead of Whisper endpoint
+	// Initialize LLM providers for the test
+	openRouterProvider := llm.NewOpenRouterProvider(config.Providers.OpenRouter.APIKey)
+	ollamaProvider := llm.NewOllamaProvider(config.Providers.Ollama.BaseURL)
+
+	var defaultProvider llm.Provider
+	switch config.LLM.Provider {
+	case "openrouter":
+		defaultProvider = openRouterProvider
+	case "ollama":
+		defaultProvider = ollamaProvider
+	default:
+		defaultProvider = openRouterProvider
+	}
+
+	routingProvider := llm.NewRoutingProvider(defaultProvider)
+	routingProvider.Register("openrouter", openRouterProvider)
+	routingProvider.Register("ollama", ollamaProvider)
+
+	llmProvider := routingProvider
+
+	// Use RoutingProvider for transcription as well
 	transcriptionModel := config.Transcription.GetModel(&config.LLM)
 	transcriptionProvider := transcription.NewOpenRouterTranscriptionProvider(
 		llmProvider,

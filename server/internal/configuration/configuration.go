@@ -46,9 +46,10 @@ type AuthConfiguration struct {
 }
 
 type LLMConfiguration struct {
-	Provider string              `yaml:"provider"`
-	Language string              `yaml:"language"`
-	Models   ModelsConfiguration `yaml:"models"`
+	Provider                string              `yaml:"provider"`
+	Language                string              `yaml:"language"`
+	EnableDocumentsMatching bool                `yaml:"enable_documents_matching"`
+	Models                  ModelsConfiguration `yaml:"models"`
 
 	// Backwards compatibility (deprecated)
 	Model        string `yaml:"model,omitempty"`
@@ -291,9 +292,10 @@ func defaultConfiguration() *Configuration {
 			},
 		},
 		LLM: LLMConfiguration{
-			Provider: "openrouter",
-			Model:    "anthropic/claude-3.5-sonnet",
-			Language: "en-US",
+			Provider:                "openrouter",
+			Model:                   "anthropic/claude-3.5-sonnet",
+			Language:                "en-US",
+			EnableDocumentsMatching: true,
 		},
 		Transcription: TranscriptionConfiguration{
 			Provider:                "openrouter",

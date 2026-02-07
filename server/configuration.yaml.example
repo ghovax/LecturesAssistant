@@ -25,7 +25,7 @@ providers:
 llm:
   provider: "openrouter" # Default provider: openrouter, ollama
   language: "en-US" # BCP-47 language code for generated content
-  enable_documents_matching: true # Global toggle for matching reference materials to transcript
+  enable_documents_matching: false # Global toggle for matching reference materials to transcript
 
   # Models for each pipeline task
   # You can use a simple string (uses default provider) or a structured object
@@ -37,8 +37,8 @@ llm:
     documents_matching: "google/gemini-2.5-flash-lite" # Match document pages to transcript sections
     outline_creation: "google/gemini-3-flash-preview" # Analyze lecture flow and create structure
     content_generation: 
-      model: "llama3"
-      provider: "ollama" # Use local model for heavy generation
+      model: "google/gemini-3-flash-preview"
+      provider: "openrouter" # Use local model for heavy generation
     content_verification: "google/gemini-3-flash-preview" # Verify generated content matches outline
     content_polishing: "google/gemini-2.5-flash-lite" # Title cleaning, footnote formatting
 

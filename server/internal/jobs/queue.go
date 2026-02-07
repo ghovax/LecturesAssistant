@@ -314,13 +314,26 @@ func (queue *Queue) completeJob(jobID, result string) {
 		return
 	}
 
-	slog.Info("Job completed successfully", "jobID", jobID)
+	// Get final metrics for logging
+	var inputTokens, outputTokens int
+	var estimatedCost float64
+	queue.database.QueryRow("SELECT input_tokens, output_tokens, estimated_cost FROM jobs WHERE id = ?", jobID).Scan(&inputTokens, &outputTokens, &estimatedCost)
+
+	slog.Info("Job completed successfully",
+		"jobID", jobID,
+		"input_tokens", inputTokens,
+		"output_tokens", outputTokens,
+		"estimated_cost_usd", estimatedCost,
+		"total_tokens", inputTokens+outputTokens)
 
 	queue.publishUpdate(JobUpdate{
-		JobID:    jobID,
-		Status:   models.JobStatusCompleted,
-		Progress: 100,
-		Result:   result,
+		JobID:         jobID,
+		Status:        models.JobStatusCompleted,
+		Progress:      100,
+		Result:        result,
+		InputTokens:   inputTokens,
+		OutputTokens:  outputTokens,
+		EstimatedCost: estimatedCost,
 	})
 }
 

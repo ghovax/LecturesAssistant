@@ -375,9 +375,9 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 		documentType := cleanExtension
 		normalizedTitle := strings.ReplaceAll(metadata.Filename, " ", "_")
 		_, err = transaction.Exec(`
-			INSERT INTO reference_documents (id, lecture_id, document_type, title, file_path, page_count, extraction_status, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, fileID, lectureID, documentType, normalizedTitle, destinationPath, 0, "pending", time.Now(), time.Now())
+			INSERT INTO reference_documents (id, lecture_id, document_type, title, file_path, original_filename, page_count, extraction_status, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, fileID, lectureID, documentType, normalizedTitle, destinationPath, metadata.Filename, 0, "pending", time.Now(), time.Now())
 	}
 
 	if err != nil {

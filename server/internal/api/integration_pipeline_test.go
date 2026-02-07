@@ -47,8 +47,8 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 
 	// 1. Setup Environment
 	inputDirectory := filepath.Join(originalDir, "test_input")
-	audioPath := filepath.Join(inputDirectory, "test_audio.mp3")
-	documentPath := filepath.Join(inputDirectory, "test_document.pdf")
+	audioPath := filepath.Join(inputDirectory, "Where Are You From Part 1 - Dialogue ( lingoneo.org ).mp3")
+	documentPath := filepath.Join(inputDirectory, "Where Are You From Part 1 - Dialogue ( lingoneo.org ).pdf")
 
 	// Make paths absolute since we changed directory
 	audioPath, _ = filepath.Abs(audioPath)

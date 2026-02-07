@@ -105,6 +105,7 @@ func createSchema(database *sql.DB) error {
 		document_type TEXT CHECK(document_type IN ('pdf', 'pptx', 'docx', 'other')) NOT NULL,
 		title TEXT NOT NULL,
 		file_path TEXT NOT NULL,
+		original_filename TEXT,
 		page_count INTEGER NOT NULL,
 		extraction_status TEXT CHECK(extraction_status IN ('pending', 'processing', 'completed', 'failed')) DEFAULT 'pending',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

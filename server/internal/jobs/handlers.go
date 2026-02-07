@@ -621,15 +621,19 @@ func RegisterHandlers(
 			}
 
 			// Get reference documents
-			docRows, err := database.Query("SELECT title, page_count FROM reference_documents WHERE lecture_id = ?", lectureID)
+			docRows, err := database.Query("SELECT title, original_filename, page_count FROM reference_documents WHERE lecture_id = ?", lectureID)
 			if err == nil {
 				defer docRows.Close()
 				for docRows.Next() {
 					var title string
+					var originalFilename sql.NullString
 					var pageCount int
-					if err := docRows.Scan(&title, &pageCount); err == nil {
-						// Restore spaces in filename (they were replaced with underscores)
-						filename := strings.ReplaceAll(title, "_", " ")
+					if err := docRows.Scan(&title, &originalFilename, &pageCount); err == nil {
+						// Use original filename if available, otherwise use title
+						filename := title
+						if originalFilename.Valid && originalFilename.String != "" {
+							filename = originalFilename.String
+						}
 						slog.Debug("Found reference file", "filename", filename, "pages", pageCount)
 						referenceFiles = append(referenceFiles, markdown.ReferenceFileMetadata{
 							Filename:  filename,

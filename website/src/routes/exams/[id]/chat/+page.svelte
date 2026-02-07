@@ -39,9 +39,9 @@
 	onMount(fetchData);
 </script>
 
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-lg); margin-bottom: var(--space-lg); flex-wrap: wrap;">
 	<h1>Chat Sessions</h1>
-	<a href="/exams/{examID}" class="button">Back to Course</a>
+	<a href="/exams/{examID}" class="button" style="min-width: 140px;">Back to Course</a>
 </div>
 
 <div class="card" style="margin-top: 24px;">

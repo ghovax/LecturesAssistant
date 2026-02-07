@@ -156,21 +156,125 @@ aside {
 	display: flex;
 	flex-direction: column;
 	background: #fafafa;
+	flex-shrink: 0;
 }
 
 main {
 	flex: 1;
 	padding: var(--space-xl) var(--space-xl);
 	max-width: 1200px;
+	width: 100%;
+}
+
+@media (max-width: 1024px) {
+	aside {
+		width: 220px;
+	}
+	main {
+		padding: var(--space-lg);
+	}
+}
+
+.desktop-only {
+	display: block;
+}
+
+@media (max-width: 768px) {
+	.desktop-only {
+		display: none !important;
+	}
+	.container {
+		flex-direction: column;
+	}
+	aside {
+		position: fixed;
+		top: 60px; /* Height of mobile header */
+		left: 0;
+		right: 0;
+		bottom: 0;
+		width: 100%;
+		border-right: none;
+		border-top: 1px solid var(--border-color);
+		padding: var(--space-md);
+		display: none;
+		z-index: 100;
+		background: #ffffff;
+	}
+	aside.open {
+		display: flex;
+	}
+	main {
+		padding: var(--space-md);
+		margin-top: 0;
+	}
+	
+	table {
+		display: block;
+		overflow-x: auto;
+		white-space: nowrap;
+	}
+
+	.mobile-header {
+		display: flex !important;
+		justify-content: space-between;
+		align-items: center;
+		padding: 0 var(--space-md);
+		height: 60px;
+		border-bottom: 1px solid var(--border-color);
+		background: #fafafa;
+		flex-shrink: 0;
+	}
+}
+
+.mobile-header {
+	display: none;
+}
+
+.responsive-grid {
+	display: grid;
+	gap: var(--space-lg);
+	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+@media (max-width: 768px) {
+	.chat-container {
+		display: flex !important;
+		flex-direction: column !important;
+		height: auto !important;
+	}
+	.chat-sidebar {
+		width: 100% !important;
+		border-left: none !important;
+		border-top: 1px solid var(--border-color) !important;
+		padding-left: 0 !important;
+		padding-top: var(--space-md) !important;
+		margin-top: var(--space-lg) !important;
+	}
+	.document-page-card {
+		grid-template-columns: 1fr !important;
+	}
 }
 
 .nav-item {
-	display: block;
+	display: flex;
+	flex-direction: column;
 	padding: 10px 12px;
 	margin-bottom: var(--space-xs);
 	border-radius: var(--radius);
 	font-size: 13px;
 	color: #444;
+	border: 1px solid transparent;
+	transition: background-color 0.1s ease;
+}
+
+.nav-item::after {
+	content: attr(data-text);
+	height: 0;
+	visibility: hidden;
+	overflow: hidden;
+	user-select: none;
+	pointer-events: none;
+	font-weight: 600;
 }
 
 .nav-item:hover {

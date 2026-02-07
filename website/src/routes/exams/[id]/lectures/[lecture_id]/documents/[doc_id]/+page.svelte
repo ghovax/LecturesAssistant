@@ -32,13 +32,14 @@
 	<div class="error">{error}</div>
 	<a href="/exams/{examID}/lectures/{lectureID}">Back to Lecture</a>
 {:else if document}
-	<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+	<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-lg); margin-bottom: var(--space-lg); flex-wrap: wrap;">
 		<h1>{document.title}</h1>
-		<a href="/exams/{examID}/lectures/{lectureID}" class="button">Back to Lecture</a>
+		<a href="/exams/{examID}/lectures/{lectureID}" class="button" style="min-width: 140px;">Back to Lecture</a>
 	</div>
+	
 		<div style="margin-top: 24px; display: flex; flex-direction: column; gap: 32px;">
 		{#each pages as p}
-			<div class="card" style="display: grid; grid-template-columns: 300px 1fr; gap: 24px;">
+			<div class="card document-page-card" style="display: grid; grid-template-columns: 300px 1fr; gap: var(--space-lg);">
 				<div>
 					<img 
 						src="/api/documents/pages/image?document_id=${docID}&lecture_id=${lectureID}&page_number=${p.page_number}" 

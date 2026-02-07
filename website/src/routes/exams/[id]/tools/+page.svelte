@@ -64,14 +64,14 @@
 	onMount(fetchData);
 </script>
 
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-lg); margin-bottom: var(--space-lg); flex-wrap: wrap;">
 	<h1>Study Tools</h1>
-	<a href="/exams/{examID}" class="button">Back to Course</a>
+	<a href="/exams/{examID}" class="button" style="min-width: 140px;">Back to Course</a>
 </div>
 
 <div class="card" style="margin-top: var(--space-lg);">
 	<h3>Generate New Tool</h3>
-	<div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: var(--space-md); align-items: end;">
+	<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-md); align-items: end;">
 		<label>
 			Lecture
 			<select bind:value={selectedLecture}>

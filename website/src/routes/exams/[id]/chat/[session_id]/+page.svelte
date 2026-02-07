@@ -90,8 +90,8 @@
 	});
 </script>
 
-<div style="display: grid; grid-template-columns: 1fr 300px; gap: var(--space-lg); height: calc(100vh - 120px);">
-	<div style="display: flex; flex-direction: column;">
+<div class="chat-container" style="display: grid; grid-template-columns: 1fr 300px; gap: var(--space-lg); height: calc(100vh - 120px);">
+	<div style="display: flex; flex-direction: column; min-width: 0;">
 		<h1>Chat Assistant</h1>
 		
 		<div style="flex: 1; overflow-y: auto; padding: var(--space-md); border: 1px solid var(--border-color); margin-bottom: var(--space-md); border-radius: var(--radius);">
@@ -115,7 +115,7 @@
 		</form>
 	</div>
 
-	<aside style="width: 100%; border-left: 1px solid var(--border-color); padding-left: var(--space-md); border-right: none;">
+	<aside class="chat-sidebar" style="width: 100%; border-left: 1px solid var(--border-color); padding-left: var(--space-md); border-right: none;">
 		<h3>Source Materials</h3>
 		<p style="font-size: 0.8em; color: #666;">Select which lectures the AI should use for this chat.</p>
 		

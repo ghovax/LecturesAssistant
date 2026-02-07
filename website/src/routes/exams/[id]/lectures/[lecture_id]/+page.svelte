@@ -37,18 +37,18 @@
 	<div class="error">{error}</div>
 	<a href="/exams/{examID}">Back to Exam</a>
 {:else if lecture}
-	<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-lg);">
-		<div style="flex: 1;">
-			<h1>{lecture.title}</h1>
-			<p style="margin: 0;">{lecture.description || 'No description'}</p>
+	<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-lg); flex-wrap: wrap;">
+		<div style="flex: 1; min-width: 300px;">
+			<h1 style="margin-bottom: var(--space-xs);">{lecture.title}</h1>
+			<p style="margin: 0; color: #666;">{lecture.description || 'No description provided'}</p>
 			<div class="badge" style="margin-top: var(--space-sm);">{lecture.status}</div>
 		</div>
-		<div style="margin-top: 4px;">
-			<a href="/exams/{examID}" class="button">Back to Course</a>
+		<div style="margin-top: var(--space-xs);">
+			<a href="/exams/{examID}" class="button" style="min-width: 140px;">Back to Course</a>
 		</div>
 	</div>
 
-	<div style="margin-top: var(--space-lg); display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-lg);">
+	<div style="margin-top: var(--space-lg); display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-lg); align-items: start;">
 		<div>
 			<h2>Transcript</h2>
 			{#if transcript && transcript.segments}

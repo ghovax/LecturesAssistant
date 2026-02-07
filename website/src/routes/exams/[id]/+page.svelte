@@ -44,14 +44,14 @@
 	<div class="error">{error}</div>
 	<a href="/exams">Back to list</a>
 {:else if exam}
-	<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-lg);">
-		<div style="flex: 1;">
-			<h1>{exam.title}</h1>
-			<p style="margin: 0;">{exam.description || 'No description'}</p>
+	<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-lg); flex-wrap: wrap;">
+		<div style="flex: 1; min-width: 300px;">
+			<h1 style="margin-bottom: var(--space-xs);">{exam.title}</h1>
+			<p style="margin: 0; color: #666;">{exam.description || 'No description provided'}</p>
 		</div>
-		<div style="display: flex; gap: var(--space-sm); align-items: center; white-space: nowrap; margin-top: 4px;">
-			<a href="/exams" class="button">Back to Courses</a>
-			<button onclick={deleteExam} class="danger">Delete Course</button>
+		<div style="display: flex; gap: var(--space-md); align-items: center; margin-top: var(--space-xs);">
+			<a href="/exams" class="button" style="min-width: 140px;">Back to Courses</a>
+			<button onclick={deleteExam} class="danger" style="min-width: 140px;">Delete Course</button>
 		</div>
 	</div>
 

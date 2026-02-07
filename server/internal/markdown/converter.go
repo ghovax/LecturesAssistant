@@ -3,6 +3,7 @@ package markdown
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -191,5 +192,8 @@ func (converter *ExternalConverter) writeMetadataFile(path string, options Conve
 		}
 	}
 
-	return os.WriteFile(path, []byte(builder.String()), 0644)
+	yamlContent := builder.String()
+	slog.Debug("Writing PDF metadata YAML", "path", path, "content", yamlContent)
+
+	return os.WriteFile(path, []byte(yamlContent), 0644)
 }

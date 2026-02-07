@@ -867,6 +867,47 @@ func (generator *ToolGenerator) GenerateSuggestedQuestions(jobContext context.Co
 	return result.Questions, metrics, nil
 }
 
+func (generator *ToolGenerator) GenerateAbstract(jobContext context.Context, documentMarkdown string, languageCode string, model string) (string, models.JobMetrics, error) {
+	if generator.llmProvider == nil {
+		return "", models.JobMetrics{}, nil
+	}
+
+	var prompt string
+	if generator.promptManager != nil {
+		latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+		languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{
+			"language":         languageCode,
+			"bcp_47_lang_code": languageCode,
+		})
+		prompt, _ = generator.promptManager.GetPrompt(prompts.PromptGenerateDocumentDescription, map[string]string{
+			"document_content":      documentMarkdown,
+			"latex_instructions":    latexInstructions,
+			"language_requirement":  languageRequirement,
+		})
+	}
+
+	if model == "" {
+		model = generator.configuration.LLM.GetModelForTask("content_polishing")
+		if model == "" {
+			model = generator.configuration.LLM.Model
+		}
+	}
+
+	response, metrics, err := generator.callLLMWithModel(jobContext, prompt, model)
+	if err != nil {
+		return "", metrics, err
+	}
+
+	var result struct {
+		Description string `json:"description"`
+	}
+	if err := generator.unmarshalJSONWithFallback(response, &result); err != nil {
+		return "", metrics, err
+	}
+
+	return result.Description, metrics, nil
+}
+
 type sectionInfo struct {
 	Title    string
 	Coverage string

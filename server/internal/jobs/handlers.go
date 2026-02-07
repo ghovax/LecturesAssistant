@@ -414,7 +414,8 @@ func RegisterHandlers(
 		}
 
 		var tool models.Tool
-		err := database.QueryRow("SELECT id, type, title, content, created_at FROM tools WHERE id = ?", payload.ToolID).Scan(&tool.ID, &tool.Type, &tool.Title, &tool.Content, &tool.CreatedAt)
+		var examID string
+		err := database.QueryRow("SELECT id, exam_id, type, title, content, created_at FROM tools WHERE id = ?", payload.ToolID).Scan(&tool.ID, &examID, &tool.Type, &tool.Title, &tool.Content, &tool.CreatedAt)
 		if err != nil {
 			return fmt.Errorf("failed to get tool: %w", err)
 		}
@@ -493,11 +494,120 @@ func RegisterHandlers(
 			return fmt.Errorf("failed to convert to HTML: %w", err)
 		}
 
+		updateProgress(30, "Gathering lecture metadata...", nil, models.JobMetrics{})
+
+		// Get lectures for this exam to collect metadata
+		lectureRows, err := database.Query("SELECT id FROM lectures WHERE exam_id = ? AND status = 'ready'", examID)
+		if err != nil {
+			return fmt.Errorf("failed to query lectures: %w", err)
+		}
+		defer lectureRows.Close()
+
+		var audioFiles []markdown.AudioFileMetadata
+		var referenceFiles []markdown.ReferenceFileMetadata
+		var transcriptBuilder strings.Builder
+
+		for lectureRows.Next() {
+			var lectureID string
+			if err := lectureRows.Scan(&lectureID); err != nil {
+				slog.Error("Failed to scan lecture ID", "error", err)
+				continue
+			}
+			slog.Debug("Processing lecture for metadata", "lecture_id", lectureID)
+
+			// Get media files (audio/video) - extract filename from file_path
+			mediaRows, err := database.Query("SELECT file_path, duration_milliseconds FROM lecture_media WHERE lecture_id = ? ORDER BY sequence_order", lectureID)
+			if err == nil {
+				defer mediaRows.Close()
+				for mediaRows.Next() {
+					var filePath string
+					var durationMs int64
+					if err := mediaRows.Scan(&filePath, &durationMs); err == nil {
+						filename := filepath.Base(filePath)
+						durationSeconds := durationMs / 1000
+						slog.Debug("Found audio file", "filename", filename, "duration_seconds", durationSeconds)
+						audioFiles = append(audioFiles, markdown.AudioFileMetadata{
+							Filename: filename,
+							Duration: durationSeconds,
+						})
+					}
+				}
+			} else {
+				slog.Warn("Failed to query media files", "lecture_id", lectureID, "error", err)
+			}
+
+			// Get reference documents
+			docRows, err := database.Query("SELECT title, page_count FROM reference_documents WHERE lecture_id = ?", lectureID)
+			if err == nil {
+				defer docRows.Close()
+				for docRows.Next() {
+					var title string
+					var pageCount int
+					if err := docRows.Scan(&title, &pageCount); err == nil {
+						// Restore spaces in filename (they were replaced with underscores)
+						filename := strings.ReplaceAll(title, "_", " ")
+						slog.Debug("Found reference file", "filename", filename, "pages", pageCount)
+						referenceFiles = append(referenceFiles, markdown.ReferenceFileMetadata{
+							Filename:  filename,
+							PageCount: pageCount,
+						})
+					}
+				}
+			} else {
+				slog.Warn("Failed to query documents", "lecture_id", lectureID, "error", err)
+			}
+
+			// Get transcript for abstract generation - join transcript_segments
+			var transcriptID string
+			err = database.QueryRow("SELECT id FROM transcripts WHERE lecture_id = ? AND status = 'completed'", lectureID).Scan(&transcriptID)
+			if err == nil {
+				segmentRows, err := database.Query("SELECT text FROM transcript_segments WHERE transcript_id = ? ORDER BY start_millisecond", transcriptID)
+				if err == nil {
+					defer segmentRows.Close()
+					for segmentRows.Next() {
+						var segmentText string
+						if err := segmentRows.Scan(&segmentText); err == nil {
+							transcriptBuilder.WriteString(segmentText)
+							transcriptBuilder.WriteString(" ")
+						}
+					}
+					slog.Debug("Found transcript", "lecture_id", lectureID, "length", transcriptBuilder.Len())
+				}
+			}
+		}
+
+		slog.Info("Collected metadata", "audio_files", len(audioFiles), "reference_files", len(referenceFiles), "transcript_length", transcriptBuilder.Len())
+
+		// Generate abstract from transcript
+		updateProgress(40, "Generating document abstract...", nil, models.JobMetrics{})
+		abstract := ""
+		if transcriptBuilder.Len() > 0 && toolGenerator != nil {
+			slog.Debug("Generating abstract from transcript")
+			generatedAbstract, _, err := toolGenerator.GenerateAbstract(jobContext, transcriptBuilder.String(), config.LLM.Language, "")
+			if err == nil {
+				abstract = generatedAbstract
+				slog.Info("Generated abstract", "abstract", abstract)
+			} else {
+				slog.Error("Failed to generate abstract", "error", err)
+			}
+		} else {
+			slog.Warn("Skipping abstract generation", "has_transcript", transcriptBuilder.Len() > 0, "has_generator", toolGenerator != nil)
+		}
+
 		updateProgress(50, "Generating PDF document...", nil, models.JobMetrics{})
 		options := markdown.ConversionOptions{
-			Language:     config.LLM.Language,
-			CreationDate: tool.CreatedAt,
+			Language:       config.LLM.Language,
+			Description:    abstract,
+			CreationDate:   tool.CreatedAt,
+			ReferenceFiles: referenceFiles,
+			AudioFiles:     audioFiles,
 		}
+
+		slog.Info("PDF conversion options",
+			"language", options.Language,
+			"has_abstract", options.Description != "",
+			"audio_files_count", len(options.AudioFiles),
+			"reference_files_count", len(options.ReferenceFiles))
 
 		err = markdownConverter.HTMLToPDF(htmlContent, pdfPath, options)
 		if err != nil {

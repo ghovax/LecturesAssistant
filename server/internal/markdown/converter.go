@@ -159,6 +159,13 @@ func fileExists(path string) bool {
 }
 
 func (converter *ExternalConverter) writeMetadataFile(path string, options ConversionOptions) error {
+	slog.Info("Preparing PDF metadata",
+		"language", options.Language,
+		"description", options.Description,
+		"creation_date", options.CreationDate,
+		"reference_files", options.ReferenceFiles,
+		"audio_files", options.AudioFiles)
+
 	var builder strings.Builder
 
 	if options.Description != "" {
@@ -194,18 +201,26 @@ func (converter *ExternalConverter) writeMetadataFile(path string, options Conve
 			if file.Duration > 0 {
 				hours := file.Duration / 3600
 				minutes := (file.Duration % 3600) / 60
+				seconds := file.Duration % 60
+
 				if hours > 0 {
+					// Show hours and minutes only
 					durationStr = fmt.Sprintf("%dh %dm", hours, minutes)
+				} else if minutes > 0 {
+					// Show minutes and seconds only
+					durationStr = fmt.Sprintf("%dm %ds", minutes, seconds)
 				} else {
-					durationStr = fmt.Sprintf("%dm", minutes)
+					// Show seconds only
+					durationStr = fmt.Sprintf("%ds", seconds)
 				}
 			}
+			slog.Debug("Adding audio file to PDF metadata", "filename", file.Filename, "duration_seconds", file.Duration, "duration_formatted", durationStr)
 			fmt.Fprintf(&builder, "  - filename: \"%s\"\n    metadata: \"%s\"\n", file.Filename, durationStr)
 		}
 	}
 
 	yamlContent := builder.String()
-	slog.Debug("Writing PDF metadata YAML", "path", path, "content", yamlContent)
+	slog.Info("Writing PDF metadata YAML", "path", path, "yaml_length", len(yamlContent), "yaml_content", yamlContent)
 
 	return os.WriteFile(path, []byte(yamlContent), 0644)
 }

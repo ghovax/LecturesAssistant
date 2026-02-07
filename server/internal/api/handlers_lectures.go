@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"lectures/internal/media"
 	"lectures/internal/models"
 
 	"github.com/google/uuid"
@@ -355,10 +357,20 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 				break
 			}
 		}
+
+		// Extract duration using ffprobe
+		durationMs := int64(0)
+		if extractedDuration, err := media.GetDurationMilliseconds(destinationPath); err == nil {
+			durationMs = extractedDuration
+			slog.Info("Extracted media duration", "file_id", fileID, "duration_milliseconds", durationMs, "duration_seconds", durationMs/1000)
+		} else {
+			slog.Warn("Failed to extract media duration, setting to 0", "file_id", fileID, "error", err)
+		}
+
 		_, err = transaction.Exec(`
 			INSERT INTO lecture_media (id, lecture_id, media_type, sequence_order, duration_milliseconds, file_path, original_filename, created_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		`, fileID, lectureID, mediaType, sequenceOrder, 0, destinationPath, metadata.Filename, time.Now())
+		`, fileID, lectureID, mediaType, sequenceOrder, durationMs, destinationPath, metadata.Filename, time.Now())
 	} else {
 		documentType := cleanExtension
 		normalizedTitle := strings.ReplaceAll(metadata.Filename, " ", "_")

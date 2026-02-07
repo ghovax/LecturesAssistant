@@ -22,6 +22,27 @@ import (
 	"github.com/google/uuid"
 )
 
+// sanitizeFilename replaces unsafe characters with underscores while keeping spaces
+func sanitizeFilename(name string) string {
+	// Characters that are unsafe in filenames across different filesystems
+	unsafeChars := []string{"/", "\\", ":", "*", "?", "\"", "<", ">", "|", "#", "\x00", "\n", "\r", "\t"}
+
+	result := name
+	for _, char := range unsafeChars {
+		result = strings.ReplaceAll(result, char, "_")
+	}
+
+	// Trim leading/trailing spaces and dots (problematic on some systems)
+	result = strings.Trim(result, " .")
+
+	// If the result is empty or only underscores, use a default
+	if result == "" || strings.Trim(result, "_") == "" {
+		result = "document"
+	}
+
+	return result
+}
+
 // RegisterHandlers registers all standard job handlers
 func RegisterHandlers(
 	queue *Queue,
@@ -138,7 +159,14 @@ func RegisterHandlers(
 				WHERE media_id = ?
 			`, media.ID).Scan(&lastEndTime)
 
-			if err == nil && lastEndTime > 0 {
+			if err != nil {
+				slog.Warn("Failed to query max segment end time", "media_id", media.ID, "error", err)
+				continue
+			}
+
+			slog.Info("Found media segment end time", "media_id", media.ID, "last_end_milliseconds", lastEndTime, "last_end_seconds", lastEndTime/1000)
+
+			if lastEndTime > 0 {
 				_, err = databaseTransaction.Exec(`
 					UPDATE lecture_media
 					SET duration_milliseconds = ?
@@ -148,8 +176,10 @@ func RegisterHandlers(
 				if err != nil {
 					slog.Warn("Failed to update media duration", "media_id", media.ID, "error", err)
 				} else {
-					slog.Debug("Updated media duration", "media_id", media.ID, "duration_milliseconds", lastEndTime, "duration_seconds", lastEndTime/1000)
+					slog.Info("Updated media duration", "media_id", media.ID, "duration_milliseconds", lastEndTime, "duration_seconds", lastEndTime/1000)
 				}
+			} else {
+				slog.Warn("Media has no segments or zero duration", "media_id", media.ID)
 			}
 		}
 
@@ -218,8 +248,8 @@ func RegisterHandlers(
 				return fmt.Errorf("failed to update document status: %w", err)
 			}
 
-			// 3. Create output directory for pages
-			outputDirectory := filepath.Join(config.Storage.DataDirectory, "files", "lectures", payload.LectureID, "documents", document.ID)
+			// 3. Create output directory for pages in system tmp
+			outputDirectory := filepath.Join(os.TempDir(), "lectures-documents", document.ID)
 
 			// 4. Run document processing
 			pages, err := documentProcessor.ProcessDocument(jobContext, document, outputDirectory, payload.LanguageCode, func(progress int, message string) {
@@ -468,7 +498,11 @@ func RegisterHandlers(
 		if err := os.MkdirAll(exportDirectory, 0755); err != nil {
 			return fmt.Errorf("failed to create export directory: %w", err)
 		}
-		pdfPath := filepath.Join(exportDirectory, "export.pdf")
+
+		// Use sanitized tool title as filename
+		safeFilename := sanitizeFilename(tool.Title) + ".pdf"
+		pdfPath := filepath.Join(exportDirectory, safeFilename)
+		slog.Info("Exporting PDF", "tool_title", tool.Title, "filename", safeFilename, "path", pdfPath)
 
 		// 3. Prepare content for PDF (convert JSON to Markdown if needed)
 		contentToConvert := tool.Content
@@ -627,6 +661,12 @@ func RegisterHandlers(
 		}
 
 		slog.Info("Collected metadata", "audio_files", len(audioFiles), "reference_files", len(referenceFiles), "transcript_length", transcriptBuilder.Len())
+		for i, af := range audioFiles {
+			slog.Debug("Audio file metadata", "index", i, "filename", af.Filename, "duration_seconds", af.Duration)
+		}
+		for i, rf := range referenceFiles {
+			slog.Debug("Reference file metadata", "index", i, "filename", rf.Filename, "page_count", rf.PageCount)
+		}
 
 		// Generate abstract from transcript
 		updateProgress(40, "Generating document abstract...", nil, models.JobMetrics{})

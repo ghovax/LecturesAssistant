@@ -17,6 +17,7 @@ import (
 	"lectures/internal/jobs"
 	"lectures/internal/llm"
 	"lectures/internal/markdown"
+	"lectures/internal/media"
 	"lectures/internal/prompts"
 	"lectures/internal/tools"
 	"lectures/internal/transcription"
@@ -137,7 +138,12 @@ func main() {
 		os.Exit(1)
 	}
 	if err := markdownConverter.CheckDependencies(); err != nil {
-		slog.Warn("Markdown converter dependencies check failed (PDF export may not work)", "error", err)
+		slog.Error("Markdown converter dependencies check failed", "error", err)
+		os.Exit(1)
+	}
+	if err := media.CheckDependencies(); err != nil {
+		slog.Error("Media dependencies check failed", "error", err)
+		os.Exit(1)
 	}
 
 	// Initialize tool generator

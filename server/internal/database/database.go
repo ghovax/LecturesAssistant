@@ -217,22 +217,6 @@ func createSchema(database *sql.DB) error {
 		last_activity DATETIME DEFAULT CURRENT_TIMESTAMP,
 		expires_at DATETIME NOT NULL
 	);
-
-	-- Create indexes for common queries
-	CREATE INDEX IF NOT EXISTS index_users_username ON users(username);
-	CREATE INDEX IF NOT EXISTS index_exams_user_id ON exams(user_id);
-	CREATE INDEX IF NOT EXISTS index_lectures_exam_id ON lectures(exam_id);
-	CREATE INDEX IF NOT EXISTS index_lecture_media_lecture_id ON lecture_media(lecture_id);
-	CREATE INDEX IF NOT EXISTS index_transcripts_lecture_id ON transcripts(lecture_id);
-	CREATE INDEX IF NOT EXISTS index_transcript_segments_transcript_id ON transcript_segments(transcript_id);
-	CREATE INDEX IF NOT EXISTS index_reference_documents_lecture_id ON reference_documents(lecture_id);
-	CREATE INDEX IF NOT EXISTS index_reference_pages_document_id ON reference_pages(document_id);
-	CREATE INDEX IF NOT EXISTS index_tools_exam_id ON tools(exam_id);
-	CREATE INDEX IF NOT EXISTS index_chat_sessions_exam_id ON chat_sessions(exam_id);
-	CREATE INDEX IF NOT EXISTS index_chat_messages_session_id ON chat_messages(session_id);
-	CREATE INDEX IF NOT EXISTS index_jobs_user_id ON jobs(user_id);
-	CREATE INDEX IF NOT EXISTS index_jobs_status ON jobs(status);
-	CREATE INDEX IF NOT EXISTS index_auth_sessions_user_id ON auth_sessions(user_id);
 	`
 
 	if _, err := database.Exec(schema); err != nil {
@@ -241,6 +225,11 @@ func createSchema(database *sql.DB) error {
 
 	// Run migrations for schema updates
 	migrations := []string{
+		// Add user_id column to tables if they were created in older versions without it
+		`ALTER TABLE exams ADD COLUMN user_id TEXT`,
+		`ALTER TABLE jobs ADD COLUMN user_id TEXT`,
+		`ALTER TABLE auth_sessions ADD COLUMN user_id TEXT`,
+
 		// Add original_filename column to lecture_media if it doesn't exist
 		`ALTER TABLE lecture_media ADD COLUMN original_filename TEXT`,
 		// Add token and cost columns to chat_messages
@@ -251,10 +240,27 @@ func createSchema(database *sql.DB) error {
 		`ALTER TABLE tools ADD COLUMN language_code TEXT`,
 		// Add specified_date to lectures
 		`ALTER TABLE lectures ADD COLUMN specified_date DATETIME`,
+
+		// Create indexes (using individual migrations to ignore "already exists" errors)
+		`CREATE INDEX index_users_username ON users(username)`,
+		`CREATE INDEX index_exams_user_id ON exams(user_id)`,
+		`CREATE INDEX index_lectures_exam_id ON lectures(exam_id)`,
+		`CREATE INDEX index_lecture_media_lecture_id ON lecture_media(lecture_id)`,
+		`CREATE INDEX index_transcripts_lecture_id ON transcripts(lecture_id)`,
+		`CREATE INDEX index_transcript_segments_transcript_id ON transcript_segments(transcript_id)`,
+		`CREATE INDEX index_reference_documents_lecture_id ON reference_documents(lecture_id)`,
+		`CREATE INDEX index_reference_pages_document_id ON reference_pages(document_id)`,
+		`CREATE INDEX index_tools_exam_id ON tools(exam_id)`,
+		`CREATE INDEX index_chat_sessions_exam_id ON chat_sessions(exam_id)`,
+		`CREATE INDEX index_chat_messages_session_id ON chat_messages(session_id)`,
+		`CREATE INDEX index_jobs_user_id ON jobs(user_id)`,
+		`CREATE INDEX index_jobs_status ON jobs(status)`,
+		`CREATE INDEX index_auth_sessions_user_id ON auth_sessions(user_id)`,
 	}
 
 	for _, migration := range migrations {
-		// SQLite doesn't have IF NOT EXISTS for ALTER TABLE, so we ignore errors if column already exists
+		// SQLite doesn't have IF NOT EXISTS for ALTER TABLE or column checks,
+		// so we ignore errors (like "duplicate column name" or "index already exists")
 		database.Exec(migration)
 	}
 

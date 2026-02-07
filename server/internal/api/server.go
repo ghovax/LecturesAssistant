@@ -62,6 +62,14 @@ func (server *Server) Handler() http.Handler {
 
 // setupRoutes configures all API routes
 func (server *Server) setupRoutes() {
+	// Add global CORS middleware - must be first
+	server.router.Use(server.corsMiddleware)
+
+	// Explicitly handle OPTIONS for all routes globally to prevent 405
+	server.router.PathPrefix("/").Methods("OPTIONS").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Handled by corsMiddleware
+	})
+
 	// Public routes
 	server.router.HandleFunc("/api/health", server.handleHealth).Methods("GET")
 	server.router.HandleFunc("/api/auth/setup", server.handleAuthSetup).Methods("POST")
@@ -115,6 +123,7 @@ func (server *Server) setupRoutes() {
 	apiRouter.HandleFunc("/tools/details", server.handleGetTool).Methods("GET")
 	apiRouter.HandleFunc("/tools", server.handleDeleteTool).Methods("DELETE")
 	apiRouter.HandleFunc("/tools/export", server.handleExportTool).Methods("POST")
+	apiRouter.HandleFunc("/exports/download", server.handleDownloadExport).Methods("GET")
 
 	// Chat
 	apiRouter.HandleFunc("/chat/sessions", server.handleCreateChatSession).Methods("POST")
@@ -138,6 +147,26 @@ func (server *Server) setupRoutes() {
 }
 
 // Middleware
+
+func (server *Server) corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		origin := request.Header.Get("Origin")
+
+		if origin != "" {
+			responseWriter.Header().Set("Access-Control-Allow-Origin", origin)
+			responseWriter.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, PATCH")
+			responseWriter.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Requested-With")
+			responseWriter.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
+
+		if request.Method == "OPTIONS" {
+			responseWriter.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(responseWriter, request)
+	})
+}
 
 func (server *Server) requestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
@@ -174,6 +203,12 @@ const userIDKey contextKey = "user_id"
 
 func (server *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		// Skip authentication for OPTIONS requests (preflight)
+		if request.Method == "OPTIONS" {
+			next.ServeHTTP(responseWriter, request)
+			return
+		}
+
 		// CSRF Protection: Require custom header for state-changing methods
 		if request.Method == "POST" || request.Method == "PATCH" || request.Method == "DELETE" {
 			if request.Header.Get("X-Requested-With") == "" {

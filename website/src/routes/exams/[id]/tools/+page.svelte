@@ -1,0 +1,141 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { page } from '$app/state';
+	import { apiFetch } from '$lib/api';
+
+	const examID = $derived(page.params.id);
+
+	let tools = $state([]);
+	let lectures = $state([]);
+	let loading = $state(true);
+	let error = $state(null);
+
+	// Form state
+	let selectedLecture = $state('');
+	let type = $state('guide');
+	let length = $state('medium');
+	let creating = $state(false);
+
+	async function fetchData() {
+		try {
+			tools = await apiFetch(`/api/tools?exam_id=${examID}`);
+			lectures = await apiFetch(`/api/lectures?exam_id=${examID}`);
+		} catch (e) {
+			error = e.message;
+		} finally {
+			loading = false;
+		}
+	}
+
+	async function createTool() {
+		creating = true;
+		try {
+			const res = await apiFetch('/api/tools', {
+				method: 'POST',
+				body: {
+					exam_id: examID,
+					lecture_id: selectedLecture,
+					type,
+					length
+				}
+			});
+			alert('Generation job created: ' + res.job_id);
+			window.location.href = '/jobs';
+		} catch (e) {
+			alert('Failed: ' + e.message);
+		} finally {
+			creating = false;
+		}
+	}
+
+	async function deleteTool(toolID: string) {
+		if (!confirm('Delete this tool?')) return;
+		try {
+			await apiFetch('/api/tools', {
+				method: 'DELETE',
+				body: { tool_id: toolID, exam_id: examID }
+			});
+			tools = tools.filter(t => t.id !== toolID);
+		} catch (e) {
+			alert('Failed: ' + e.message);
+		}
+	}
+
+	onMount(fetchData);
+</script>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+	<h1>Study Tools</h1>
+	<a href="/exams/{examID}" class="button">Back to Course</a>
+</div>
+
+<div class="card" style="margin-top: var(--space-lg);">
+	<h3>Generate New Tool</h3>
+	<div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: var(--space-md); align-items: end;">
+		<label>
+			Lecture
+			<select bind:value={selectedLecture}>
+				<option value="">Select a lecture...</option>
+				{#each lectures as l}
+					<option value={l.id}>{l.title}</option>
+				{/each}
+			</select>
+		</label>
+		<label>
+			Type
+			<select bind:value={type}>
+				<option value="guide">Study Guide</option>
+				<option value="flashcard">Flashcards</option>
+				<option value="quiz">Quiz</option>
+			</select>
+		</label>
+		{#if type === 'guide'}
+			<label>
+				Length
+				<select bind:value={length}>
+					<option value="short">Short</option>
+					<option value="medium">Medium</option>
+					<option value="long">Long</option>
+				</select>
+			</label>
+		{:else}
+			<div style="height: 36px;"></div>
+		{/if}
+		<button onclick={createTool} disabled={creating || !selectedLecture}>
+			{creating ? 'Starting...' : 'Generate'}
+		</button>
+	</div>
+</div>
+
+{#if loading}
+	<p>Loading tools...</p>
+{:else if error}
+	<div class="error">{error}</div>
+{:else}
+	<h2 style="margin-top: var(--space-xl);">Existing Tools</h2>
+	<table>
+		<thead>
+			<tr>
+				<th>Title</th>
+				<th>Type</th>
+				<th>Created At</th>
+				<th>Actions</th>
+			</tr>
+		</thead>
+		<tbody>
+			{#each tools as tool}
+				<tr>
+					<td>{tool.title}</td>
+					<td>{tool.type}</td>
+					<td>{new Date(tool.created_at).toLocaleString()}</td>
+					<td style="display: flex; gap: var(--space-md); align-items: center;">
+						<a href="/exams/{examID}/tools/{tool.id}">View</a>
+						<button onclick={() => deleteTool(tool.id)} class="danger" style="border: none; padding: 0; min-width: auto; height: auto; background: transparent;">Delete</button>
+					</td>
+				</tr>
+			{:else}
+				<tr><td colspan="4">No tools generated yet.</td></tr>
+			{/each}
+		</tbody>
+	</table>
+{/if}

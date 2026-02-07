@@ -18,19 +18,39 @@ type DocumentConverter interface {
 // ExternalDocumentConverter implementation that uses Ghostscript and LibreOffice
 type ExternalDocumentConverter struct{}
 
+func (c *ExternalDocumentConverter) resolveSofficePath() (string, error) {
+	// 1. Check PATH
+	if path, err := exec.LookPath("soffice"); err == nil {
+		return path, nil
+	}
+
+	// 2. Check common macOS location
+	macOSPath := "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+	if _, err := os.Stat(macOSPath); err == nil {
+		return macOSPath, nil
+	}
+
+	return "", fmt.Errorf("libreoffice (soffice) not found in PATH or /Applications")
+}
+
 func (c *ExternalDocumentConverter) CheckDependencies() error {
 	if _, lookError := exec.LookPath("gs"); lookError != nil {
 		return fmt.Errorf("ghostscript (gs) not found in PATH")
 	}
-	if _, lookError := exec.LookPath("soffice"); lookError != nil {
-		return fmt.Errorf("libreoffice (soffice) not found in PATH")
+	if _, err := c.resolveSofficePath(); err != nil {
+		return err
 	}
 	return nil
 }
 
 func (c *ExternalDocumentConverter) ConvertToPDF(inputPath string, outputPath string) error {
+	sofficePath, err := c.resolveSofficePath()
+	if err != nil {
+		return err
+	}
+
 	outputDirectory := filepath.Dir(outputPath)
-	command := exec.Command("soffice", "--headless", "--convert-to", "pdf", "--outdir", outputDirectory, inputPath)
+	command := exec.Command(sofficePath, "--headless", "--convert-to", "pdf", "--outdir", outputDirectory, inputPath)
 
 	var stderr strings.Builder
 	command.Stderr = &stderr

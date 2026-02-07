@@ -1,0 +1,107 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { page } from '$app/state';
+	import { apiFetch } from '$lib/api';
+	import { goto } from '$app/navigation';
+
+	let id = $derived(page.params.id);
+	let exam = $state(null);
+	let lectures = $state([]);
+	let loading = $state(true);
+	let error = $state(null);
+
+	async function fetchData() {
+		loading = true;
+		try {
+			exam = await apiFetch(`/api/exams/details?exam_id=${id}`);
+			lectures = await apiFetch(`/api/lectures?exam_id=${id}`);
+		} catch (e) {
+			error = e.message;
+		} finally {
+			loading = false;
+		}
+	}
+
+	async function deleteExam() {
+		if (!confirm('Are you sure you want to delete this exam and all its data?')) return;
+		try {
+			await apiFetch('/api/exams', {
+				method: 'DELETE',
+				body: { exam_id: id }
+			});
+			goto('/exams');
+		} catch (e) {
+			alert('Delete failed: ' + e.message);
+		}
+	}
+
+	onMount(fetchData);
+</script>
+
+{#if loading}
+	<p>Loading exam details...</p>
+{:else if error}
+	<div class="error">{error}</div>
+	<a href="/exams">Back to list</a>
+{:else if exam}
+	<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-lg);">
+		<div style="flex: 1;">
+			<h1>{exam.title}</h1>
+			<p style="margin: 0;">{exam.description || 'No description'}</p>
+		</div>
+		<div style="display: flex; gap: var(--space-sm); align-items: center; white-space: nowrap; margin-top: 4px;">
+			<a href="/exams" class="button">Back to Courses</a>
+			<button onclick={deleteExam} class="danger">Delete Course</button>
+		</div>
+	</div>
+
+	<hr />
+
+	<div style="display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-lg);">
+		<h2>Lectures</h2>
+		<a href="/exams/{id}/lectures/create" class="button">Add Lecture</a>
+	</div>
+
+	{#if lectures.length === 0}
+		<div class="card">
+			<p>No lectures yet for this exam.</p>
+		</div>
+	{:else}
+		<table>
+			<thead>
+				<tr>
+					<th>Title</th>
+					<th>Date</th>
+					<th>Status</th>
+					<th>Actions</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each lectures as lecture}
+					<tr>
+						<td>{lecture.title}</td>
+						<td>{lecture.specified_date ? new Date(lecture.specified_date).toLocaleDateString() : '-'}</td>
+						<td>
+							<span class="badge">{lecture.status}</span>
+						</td>
+						<td>
+							<a href="/exams/{id}/lectures/{lecture.id}">Details</a>
+						</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	{/if}
+
+	<div style="margin-top: var(--space-lg);">
+		<h2>Study Tools & Chat</h2>
+		<div class="card" style="display: flex; gap: 16px;">
+			<a href="/exams/{id}/chat" class="button" style="flex: 1; text-align: center;">
+				Chat Assistant
+			</a>
+			<a href="/exams/{id}/tools" class="button" style="flex: 1; text-align: center;">
+				Study Guides & Quizzes
+			</a>
+		</div>
+	</div>
+{/if}

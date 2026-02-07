@@ -302,6 +302,15 @@ func defaultConfiguration() *Configuration {
 			Model:                   "anthropic/claude-3.5-sonnet",
 			Language:                "en-US",
 			EnableDocumentsMatching: true,
+			Models: ModelsConfiguration{
+				RecordingTranscription: ModelConfiguration{Model: "google/gemini-2.5-flash-lite"},
+				DocumentsIngestion:     ModelConfiguration{Model: "google/gemini-2.5-flash-lite"},
+				DocumentsMatching:      ModelConfiguration{Model: "google/gemini-2.5-flash-lite"},
+				OutlineCreation:        ModelConfiguration{Model: "google/gemini-3-flash-preview"},
+				ContentGeneration:      ModelConfiguration{Model: "google/gemini-3-flash-preview"},
+				ContentVerification:    ModelConfiguration{Model: "google/gemini-3-flash-preview"},
+				ContentPolishing:       ModelConfiguration{Model: "google/gemini-2.5-flash-lite"},
+			},
 		},
 		Transcription: TranscriptionConfiguration{
 			Provider:                "openrouter",

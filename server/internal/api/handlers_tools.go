@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 
 	"lectures/internal/models"
@@ -280,4 +282,33 @@ func (server *Server) handleExportTool(responseWriter http.ResponseWriter, reque
 		"job_id":  jobIdentifier,
 		"message": "Export job created",
 	})
+}
+
+// handleDownloadExport serves the generated export file
+func (server *Server) handleDownloadExport(responseWriter http.ResponseWriter, request *http.Request) {
+	filePath := request.URL.Query().Get("path")
+	if filePath == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "path is required", nil)
+		return
+	}
+
+	// Basic security check: ensure path is within data directory
+	absoluteDataDir, _ := filepath.Abs(server.configuration.Storage.DataDirectory)
+	absoluteFilePath, _ := filepath.Abs(filePath)
+
+	if !filepath.HasPrefix(absoluteFilePath, absoluteDataDir) {
+		server.writeError(responseWriter, http.StatusForbidden, "ACCESS_DENIED", "Access to this file is forbidden", nil)
+		return
+	}
+
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "File not found", nil)
+		return
+	}
+
+	// Set content-disposition to force download with original filename
+	fileName := filepath.Base(filePath)
+	responseWriter.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
+
+	http.ServeFile(responseWriter, request, filePath)
 }

@@ -56,18 +56,26 @@ func (reconstructor *Reconstructor) ParseCitations(text string) (string, []Parse
 			remaining = content[:len(content)-len(pageMatch[0])]
 		}
 
-		// Now remaining should be [description]-[file]
-		// Since filenames are normalized to not contain dashes, the last dash
+		// Now remaining should be [description]-[filename]
+		// Since we normalized filenames to replace dashes with underscores, the last dash
 		// must be the separator between description and filename.
-		lastDash := strings.LastIndex(remaining, "-")
+		// However, to be even more robust, we look for the file extension.
+		extensionRegex := regexp.MustCompile(`^(.*)-([^\-]+?\.[a-z0-9]+)$`)
+		extMatch := extensionRegex.FindStringSubmatch(remaining)
 
-		if lastDash != -1 {
-			description = strings.TrimSpace(remaining[:lastDash])
-			filename = strings.TrimSpace(remaining[lastDash+1:])
+		if extMatch != nil {
+			description = strings.TrimSpace(extMatch[1])
+			filename = strings.TrimSpace(extMatch[2])
 		} else {
-			// Fallback if no dash found
-			description = remaining
-			filename = "unknown"
+			// Fallback to last dash split if regex fails
+			lastDash := strings.LastIndex(remaining, "-")
+			if lastDash != -1 {
+				description = strings.TrimSpace(remaining[:lastDash])
+				filename = strings.TrimSpace(remaining[lastDash+1:])
+			} else {
+				description = remaining
+				filename = "unknown"
+			}
 		}
 
 		citationNumber := citationIndex + 1

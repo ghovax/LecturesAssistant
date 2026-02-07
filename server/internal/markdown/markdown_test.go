@@ -482,7 +482,7 @@ func TestFootnoteIntegration_ASTAndReconstruction(tester *testing.T) {
 		tester.Errorf("Reconstructed markdown missing footnote definition. Got:\n%s", reconstructed)
 	}
 
-	if !strings.Contains(reconstructed, "(`file.pdf` pp. 5–6)") {
+	if !strings.Contains(reconstructed, "(`file.pdf`, pp. 5–6)") {
 		tester.Errorf("Reconstructed markdown missing or incorrect metadata. Got:\n%s", reconstructed)
 	}
 }
@@ -1460,14 +1460,14 @@ func TestFootnoteMetadataParsingVariations(tester *testing.T) {
 			expectedPagesCount: 1,
 		},
 		{
-			name:               "Footnote with pages using pp.",
-			input:              "[^3]: Info (`file.pdf` pp. 1-3)",
+			name:               "Footnote with pages and comma",
+			input:              "[^3]: Info (`file.pdf`, pp. 1-3)",
 			expectedContent:    "Info",
 			expectedFile:       "file.pdf",
 			expectedPagesCount: 3,
 		},
 		{
-			name:               "Footnote with extra spaces",
+			name:               "Footnote with extra spaces and no comma",
 			input:              "[^4]: Content  (  `file.pdf`   pp.  5 – 7  )",
 			expectedContent:    "Content",
 			expectedFile:       "file.pdf",

@@ -377,7 +377,17 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 		`, fileID, lectureID, mediaType, sequenceOrder, durationMs, destinationPath, metadata.Filename, time.Now())
 	} else {
 		documentType := cleanExtension
-		normalizedTitle := strings.ReplaceAll(metadata.Filename, " ", "_")
+		// Keep spaces for readability, but replace dashes with underscores
+		// to ensure the citation parser (which splits on dashes) works correctly.
+		normalizedTitle := strings.ReplaceAll(metadata.Filename, "-", "_")
+
+		// Remove characters that are dangerous in filenames.
+		unsafeChars := []string{"/", "\\", ":", "*", "?", "\"", "<", ">", "|", "\x00", "\n", "\r", "\t"}
+		for _, char := range unsafeChars {
+			normalizedTitle = strings.ReplaceAll(normalizedTitle, char, "_")
+		}
+		normalizedTitle = strings.Trim(normalizedTitle, " .")
+
 		_, err = transaction.Exec(`
 			INSERT INTO reference_documents (id, lecture_id, document_type, title, file_path, original_filename, page_count, extraction_status, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

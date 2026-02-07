@@ -13,14 +13,9 @@ clean:
 	rm -f lectures
 	go clean
 
-# Run tests
-test:
-	go test -v ./...
-
-# Run integration tests (requires test files in internal/api/test_input/)
-# Usage: make test-integration TEST=TestFullPipeline_RealProviders
-test-integration:
-	go test -v -tags=integration $(if $(TEST),-run $(TEST)) ./internal/api/...
+# Run tests (can take TEST argument, runs all including integration)
+test: fmt
+	go test -v -tags=integration ./... $(if $(TEST),-run $(TEST))
 
 # Format the code
 fmt:

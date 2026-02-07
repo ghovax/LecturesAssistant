@@ -122,7 +122,7 @@ func (reconstructor *Reconstructor) reconstructNode(node *Node, markdownLines *[
 				}
 			}
 			if pageInfo != "" {
-				footnoteText = fmt.Sprintf("%s (`%s` %s)", footnoteText, node.SourceFile, pageInfo)
+				footnoteText = fmt.Sprintf("%s (`%s`, %s)", footnoteText, node.SourceFile, pageInfo)
 			} else {
 				footnoteText = fmt.Sprintf("%s (`%s`)", footnoteText, node.SourceFile)
 			}

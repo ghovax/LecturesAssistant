@@ -5,7 +5,6 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"mime/multipart"
@@ -70,7 +69,7 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 
 	// Override storage to a local 'test_run_data' folder for inspection
 	// Use absolute path based on original directory
-	testRunDataDir := filepath.Join(originalDir, "test_integration_pipeline_results")
+	testRunDataDir := filepath.Join(originalDir, "test_integration_pipeline")
 	testRunDataDir, _ = filepath.Abs(testRunDataDir)
 	os.RemoveAll(testRunDataDir)
 	config.Storage.DataDirectory = testRunDataDir
@@ -78,14 +77,14 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 	os.MkdirAll(filepath.Join(os.TempDir(), "lectures-uploads"), 0755)
 
 	// Setup detailed logging to file for debugging
-	logFile, _ := os.Create(filepath.Join(testRunDataDir, "test_debug.log"))
+	logFile, _ := os.Create(filepath.Join(testRunDataDir, "debug.log"))
 	defer logFile.Close()
 
 	logger := slog.New(slog.NewJSONHandler(logFile, nil))
 	slog.SetDefault(logger)
 
 	// 2. Initialize Real Components
-	initializedDatabase, _ := database.Initialize(filepath.Join(testRunDataDir, "test_database.db"))
+	initializedDatabase, _ := database.Initialize(filepath.Join(testRunDataDir, "database.db"))
 	defer initializedDatabase.Close()
 
 	promptManager := prompts.NewManager("prompts")
@@ -313,16 +312,10 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 		}
 
 		// G. Verify Result
-		if _, statError := os.Stat(outputPath); statError != nil {
+		if _, statError := os.Stat(outputPath); os.IsNotExist(statError) {
 			tester.Errorf("Final %s not found at %s", format, outputPath)
 		} else {
 			tester.Logf("Success! Final %s generated at: %s", format, outputPath)
-
-			// Copy to results folder
-			resultFileName := fmt.Sprintf("exported_guide.%s", format)
-			resultFilePath := filepath.Join(testRunDataDir, resultFileName)
-			input, _ := os.ReadFile(outputPath)
-			os.WriteFile(resultFilePath, input, 0644)
 		}
 	}
 

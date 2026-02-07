@@ -81,8 +81,8 @@ func RegisterHandlers(
 		var mediaFiles []models.LectureMedia
 		for mediaRows.Next() {
 			var media models.LectureMedia
-			if err := mediaRows.Scan(&media.ID, &media.LectureID, &media.MediaType, &media.SequenceOrder, &media.FilePath, &media.CreatedAt); err != nil {
-				return fmt.Errorf("failed to scan media file: %w", err)
+			if scanningError := mediaRows.Scan(&media.ID, &media.LectureID, &media.MediaType, &media.SequenceOrder, &media.FilePath, &media.CreatedAt); scanningError != nil {
+				return fmt.Errorf("failed to scan media file: %w", scanningError)
 			}
 			mediaFiles = append(mediaFiles, media)
 		}
@@ -93,63 +93,63 @@ func RegisterHandlers(
 
 		// 2. Create transcript record if not exists
 		transcriptID := uuid.New().String()
-		_, err := database.Exec(`
+		_, executionError := database.Exec(`
 			INSERT OR IGNORE INTO transcripts (id, lecture_id, status, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?)
 		`, transcriptID, payload.LectureID, "processing", time.Now(), time.Now())
-		if err != nil {
-			return fmt.Errorf("failed to create transcript: %w", err)
+		if executionError != nil {
+			return fmt.Errorf("failed to create transcript: %w", executionError)
 		}
 
 		// Get the actual transcript ID (in case it already existed)
-		err = database.QueryRow("SELECT id FROM transcripts WHERE lecture_id = ?", payload.LectureID).Scan(&transcriptID)
-		if err != nil {
-			return fmt.Errorf("failed to get transcript ID: %w", err)
+		executionError = database.QueryRow("SELECT id FROM transcripts WHERE lecture_id = ?", payload.LectureID).Scan(&transcriptID)
+		if executionError != nil {
+			return fmt.Errorf("failed to get transcript ID: %w", executionError)
 		}
 
 		// Update transcript status to processing
-		_, err = database.Exec("UPDATE transcripts SET status = ?, updated_at = ? WHERE id = ?", "processing", time.Now(), transcriptID)
-		if err != nil {
-			return fmt.Errorf("failed to update transcript status: %w", err)
+		_, executionError = database.Exec("UPDATE transcripts SET status = ?, updated_at = ? WHERE id = ?", "processing", time.Now(), transcriptID)
+		if executionError != nil {
+			return fmt.Errorf("failed to update transcript status: %w", executionError)
 		}
 
 		// 3. Create temporary directory for transcription
 		temporaryDirectory := filepath.Join(os.TempDir(), "lectures-jobs", job.ID)
-		if err := os.MkdirAll(temporaryDirectory, 0755); err != nil {
-			return fmt.Errorf("failed to create temporary directory: %w", err)
+		if mkdirError := os.MkdirAll(temporaryDirectory, 0755); mkdirError != nil {
+			return fmt.Errorf("failed to create temporary directory: %w", mkdirError)
 		}
 		defer os.RemoveAll(temporaryDirectory)
 
 		// 4. Run transcription
-		segments, totalMetrics, err := transcriptionService.TranscribeLecture(jobContext, mediaFiles, temporaryDirectory, func(progress int, message string, metadata any) {
+		segments, totalMetrics, transcriptionError := transcriptionService.TranscribeLecture(jobContext, mediaFiles, temporaryDirectory, func(progress int, message string, metadata any) {
 			updateProgress(progress, "Transcribing media files...", metadata, models.JobMetrics{})
 		})
-		if err != nil {
+		if transcriptionError != nil {
 			database.Exec("UPDATE transcripts SET status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), transcriptID)
 			database.Exec("UPDATE lectures SET status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), payload.LectureID)
-			return fmt.Errorf("transcription service failed: %w", err)
+			return fmt.Errorf("transcription service failed: %w", transcriptionError)
 		}
 
 		// 5. Store segments in database
-		databaseTransaction, err := database.Begin()
-		if err != nil {
-			return fmt.Errorf("failed to begin transaction: %w", err)
+		databaseTransaction, transactionError := database.Begin()
+		if transactionError != nil {
+			return fmt.Errorf("failed to begin transaction: %w", transactionError)
 		}
 		defer databaseTransaction.Rollback()
 
 		// Delete existing segments if any
-		_, err = databaseTransaction.Exec("DELETE FROM transcript_segments WHERE transcript_id = ?", transcriptID)
-		if err != nil {
-			return fmt.Errorf("failed to delete old segments: %w", err)
+		_, transactionError = databaseTransaction.Exec("DELETE FROM transcript_segments WHERE transcript_id = ?", transcriptID)
+		if transactionError != nil {
+			return fmt.Errorf("failed to delete old segments: %w", transactionError)
 		}
 
 		for _, segment := range segments {
-			_, err = databaseTransaction.Exec(`
+			_, transactionError = databaseTransaction.Exec(`
 				INSERT INTO transcript_segments (transcript_id, media_id, start_millisecond, end_millisecond, original_start_milliseconds, original_end_milliseconds, text, confidence, speaker)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`, transcriptID, segment.MediaID, segment.StartMillisecond, segment.EndMillisecond, segment.OriginalStartMilliseconds, segment.OriginalEndMilliseconds, segment.Text, segment.Confidence, segment.Speaker)
-			if err != nil {
-				return fmt.Errorf("failed to insert segment: %w", err)
+			if transactionError != nil {
+				return fmt.Errorf("failed to insert segment: %w", transactionError)
 			}
 		}
 
@@ -157,28 +157,28 @@ func RegisterHandlers(
 		for _, media := range mediaFiles {
 			// Find the last segment for this media file
 			var lastEndTime int64
-			err := databaseTransaction.QueryRow(`
+			queryError := databaseTransaction.QueryRow(`
 				SELECT MAX(end_millisecond)
 				FROM transcript_segments
 				WHERE media_id = ?
 			`, media.ID).Scan(&lastEndTime)
 
-			if err != nil {
-				slog.Warn("Failed to query max segment end time", "media_id", media.ID, "error", err)
+			if queryError != nil {
+				slog.Warn("Failed to query max segment end time", "media_id", media.ID, "error", queryError)
 				continue
 			}
 
 			slog.Info("Found media segment end time", "media_id", media.ID, "last_end_milliseconds", lastEndTime, "last_end_seconds", lastEndTime/1000)
 
 			if lastEndTime > 0 {
-				_, err = databaseTransaction.Exec(`
+				_, updateError := databaseTransaction.Exec(`
 					UPDATE lecture_media
 					SET duration_milliseconds = ?
 					WHERE id = ?
 				`, lastEndTime, media.ID)
 
-				if err != nil {
-					slog.Warn("Failed to update media duration", "media_id", media.ID, "error", err)
+				if updateError != nil {
+					slog.Warn("Failed to update media duration", "media_id", media.ID, "error", updateError)
 				} else {
 					slog.Info("Updated media duration", "media_id", media.ID, "duration_milliseconds", lastEndTime, "duration_seconds", lastEndTime/1000)
 				}
@@ -188,13 +188,13 @@ func RegisterHandlers(
 		}
 
 		// 7. Finalize transcript
-		_, err = databaseTransaction.Exec("UPDATE transcripts SET status = ?, updated_at = ? WHERE id = ?", "completed", time.Now(), transcriptID)
-		if err != nil {
-			return fmt.Errorf("failed to finalize transcript status: %w", err)
+		_, transactionError = databaseTransaction.Exec("UPDATE transcripts SET status = ?, updated_at = ? WHERE id = ?", "completed", time.Now(), transcriptID)
+		if transactionError != nil {
+			return fmt.Errorf("failed to finalize transcript status: %w", transactionError)
 		}
 
-		if err := databaseTransaction.Commit(); err != nil {
-			return fmt.Errorf("failed to commit transaction: %w", err)
+		if commitError := databaseTransaction.Commit(); commitError != nil {
+			return fmt.Errorf("failed to commit transaction: %w", commitError)
 		}
 
 		if checkReadiness != nil {
@@ -232,8 +232,8 @@ func RegisterHandlers(
 		var documentsList []models.ReferenceDocument
 		for documentRows.Next() {
 			var document models.ReferenceDocument
-			if err := documentRows.Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt); err != nil {
-				return fmt.Errorf("failed to scan document: %w", err)
+			if scanningError := documentRows.Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt); scanningError != nil {
+				return fmt.Errorf("failed to scan document: %w", scanningError)
 			}
 			documentsList = append(documentsList, document)
 		}
@@ -248,16 +248,16 @@ func RegisterHandlers(
 			updateProgress(int(float64(documentIndex)/float64(totalDocuments)*100), "Ingesting reference documents...", metadata, totalMetrics)
 
 			// 2. Update status to processing
-			_, err := database.Exec("UPDATE reference_documents SET extraction_status = ?, updated_at = ? WHERE id = ?", "processing", time.Now(), document.ID)
-			if err != nil {
-				return fmt.Errorf("failed to update document status: %w", err)
+			_, executionError := database.Exec("UPDATE reference_documents SET extraction_status = ?, updated_at = ? WHERE id = ?", "processing", time.Now(), document.ID)
+			if executionError != nil {
+				return fmt.Errorf("failed to update document status: %w", executionError)
 			}
 
 			// 3. Create output directory for pages in system tmp
 			outputDirectory := filepath.Join(os.TempDir(), "lectures-documents", document.ID)
 
 			// 4. Run document processing
-			pages, docMetrics, err := documentProcessor.ProcessDocument(jobContext, document, outputDirectory, payload.LanguageCode, func(progress int, message string) {
+			pages, docMetrics, processingError := documentProcessor.ProcessDocument(jobContext, document, outputDirectory, payload.LanguageCode, func(progress int, message string) {
 				updateProgress(progress, "Extracting and processing document pages...", metadata, totalMetrics)
 			})
 
@@ -265,62 +265,62 @@ func RegisterHandlers(
 			totalMetrics.OutputTokens += docMetrics.OutputTokens
 			totalMetrics.EstimatedCost += docMetrics.EstimatedCost
 
-			if err != nil {
+			if processingError != nil {
 				// Clean up PNG images on failure
 				os.RemoveAll(outputDirectory)
 				slog.Warn("Cleaned up document images after processing failure", "document_id", document.ID, "output_directory", outputDirectory)
 
 				database.Exec("UPDATE reference_documents SET extraction_status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), document.ID)
 				database.Exec("UPDATE lectures SET status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), payload.LectureID)
-				return fmt.Errorf("document processor failed for %s: %w", document.Title, err)
+				return fmt.Errorf("document processor failed for %s: %w", document.Title, processingError)
 			}
 
 			// 5. Store pages in database
-			databaseTransaction, err := database.Begin()
-			if err != nil {
+			databaseTransaction, transactionError := database.Begin()
+			if transactionError != nil {
 				// Clean up PNG images since we can't store the data
 				os.RemoveAll(outputDirectory)
 				slog.Warn("Cleaned up document images after database transaction begin failure", "document_id", document.ID, "output_directory", outputDirectory)
-				return fmt.Errorf("failed to begin transaction: %w", err)
+				return fmt.Errorf("failed to begin transaction: %w", transactionError)
 			}
 			defer databaseTransaction.Rollback()
 
 			// Delete existing pages if any
-			_, err = databaseTransaction.Exec("DELETE FROM reference_pages WHERE document_id = ?", document.ID)
-			if err != nil {
+			_, transactionError = databaseTransaction.Exec("DELETE FROM reference_pages WHERE document_id = ?", document.ID)
+			if transactionError != nil {
 				// Clean up PNG images since we can't store the new data
 				os.RemoveAll(outputDirectory)
 				slog.Warn("Cleaned up document images after database delete failure", "document_id", document.ID, "output_directory", outputDirectory)
-				return fmt.Errorf("failed to delete old pages: %w", err)
+				return fmt.Errorf("failed to delete old pages: %w", transactionError)
 			}
 
 			for _, currentPage := range pages {
-				_, err = databaseTransaction.Exec(`
+				_, transactionError = databaseTransaction.Exec(`
 					INSERT INTO reference_pages (document_id, page_number, image_path, extracted_text)
 					VALUES (?, ?, ?, ?)
 				`, document.ID, currentPage.PageNumber, currentPage.ImagePath, currentPage.ExtractedText)
-				if err != nil {
+				if transactionError != nil {
 					// Clean up PNG images since we can't store the page data
 					os.RemoveAll(outputDirectory)
 					slog.Warn("Cleaned up document images after page insert failure", "document_id", document.ID, "output_directory", outputDirectory)
-					return fmt.Errorf("failed to insert page: %w", err)
+					return fmt.Errorf("failed to insert page: %w", transactionError)
 				}
 			}
 
 			// 6. Update document as completed
-			_, err = databaseTransaction.Exec("UPDATE reference_documents SET extraction_status = ?, page_count = ?, updated_at = ? WHERE id = ?", "completed", len(pages), time.Now(), document.ID)
-			if err != nil {
+			_, transactionError = databaseTransaction.Exec("UPDATE reference_documents SET extraction_status = ?, page_count = ?, updated_at = ? WHERE id = ?", "completed", len(pages), time.Now(), document.ID)
+			if transactionError != nil {
 				// Clean up PNG images since we can't finalize the document
 				os.RemoveAll(outputDirectory)
 				slog.Warn("Cleaned up document images after document status update failure", "document_id", document.ID, "output_directory", outputDirectory)
-				return fmt.Errorf("failed to finalize document status: %w", err)
+				return fmt.Errorf("failed to finalize document status: %w", transactionError)
 			}
 
-			if err := databaseTransaction.Commit(); err != nil {
+			if commitError := databaseTransaction.Commit(); commitError != nil {
 				// Clean up PNG images since we can't commit the data
 				os.RemoveAll(outputDirectory)
 				slog.Warn("Cleaned up document images after transaction commit failure", "document_id", document.ID, "output_directory", outputDirectory)
-				return fmt.Errorf("failed to commit transaction: %w", err)
+				return fmt.Errorf("failed to commit transaction: %w", commitError)
 			}
 		}
 
@@ -370,9 +370,9 @@ func RegisterHandlers(
 		}
 
 		var lecture models.Lecture
-		err := database.QueryRow("SELECT id, exam_id, title, description FROM lectures WHERE id = ?", payload.LectureID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description)
-		if err != nil {
-			return fmt.Errorf("failed to get lecture: %w", err)
+		queryError := database.QueryRow("SELECT id, exam_id, title, description FROM lectures WHERE id = ?", payload.LectureID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description)
+		if queryError != nil {
+			return fmt.Errorf("failed to get lecture: %w", queryError)
 		}
 
 		transcriptRows, databaseError := database.Query(`
@@ -388,7 +388,7 @@ func RegisterHandlers(
 		var transcriptBuilder strings.Builder
 		for transcriptRows.Next() {
 			var text string
-			if err := transcriptRows.Scan(&text); err == nil {
+			if scanningError := transcriptRows.Scan(&text); scanningError == nil {
 				transcriptBuilder.WriteString(text + " ")
 			}
 		}
@@ -413,7 +413,7 @@ func RegisterHandlers(
 		for documentRows.Next() {
 			var title, text string
 			var pageNumber int
-			if err := documentRows.Scan(&title, &pageNumber, &text); err == nil {
+			if scanningError := documentRows.Scan(&title, &pageNumber, &text); scanningError == nil {
 				if title != currentDocumentTitle {
 					rootNode.Children = append(rootNode.Children, &markdown.Node{
 						Type:    markdown.NodeHeading,
@@ -438,27 +438,27 @@ func RegisterHandlers(
 
 		var toolContent, toolTitle string
 		var totalMetrics models.JobMetrics
-		var genErr error
+		var generationError error
 
 		switch payload.Type {
 		case "flashcard":
-			toolContent, toolTitle, totalMetrics, genErr = toolGenerator.GenerateFlashcards(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.LanguageCode, options, func(progress int, message string, metadata any, metrics models.JobMetrics) {
+			toolContent, toolTitle, totalMetrics, generationError = toolGenerator.GenerateFlashcards(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.LanguageCode, options, func(progress int, message string, metadata any, metrics models.JobMetrics) {
 				updateProgress(progress, message, metadata, metrics)
 			})
 		case "quiz":
-			toolContent, toolTitle, totalMetrics, genErr = toolGenerator.GenerateQuiz(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.LanguageCode, options, func(progress int, message string, metadata any, metrics models.JobMetrics) {
+			toolContent, toolTitle, totalMetrics, generationError = toolGenerator.GenerateQuiz(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.LanguageCode, options, func(progress int, message string, metadata any, metrics models.JobMetrics) {
 				updateProgress(progress, message, metadata, metrics)
 			})
 		default:
-			toolContent, toolTitle, genErr = toolGenerator.GenerateStudyGuide(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.Length, payload.LanguageCode, options, func(progress int, message string, metadata any, metrics models.JobMetrics) {
+			toolContent, toolTitle, generationError = toolGenerator.GenerateStudyGuide(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.Length, payload.LanguageCode, options, func(progress int, message string, metadata any, metrics models.JobMetrics) {
 				// Metrics are already aggregated inside GenerateStudyGuide and passed back via this callback
 				totalMetrics = metrics
 				updateProgress(progress, message, metadata, metrics)
 			})
 		}
 
-		if genErr != nil {
-			return fmt.Errorf("tool generation failed: %w", genErr)
+		if generationError != nil {
+			return fmt.Errorf("tool generation failed: %w", generationError)
 		}
 
 		// Parse citations and convert to standard footnotes
@@ -486,12 +486,12 @@ func RegisterHandlers(
 
 		toolID := uuid.New().String()
 
-		_, err = database.Exec(`
+		_, executionError := database.Exec(`
 			INSERT INTO tools (id, exam_id, type, title, language_code, content, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		`, toolID, payload.ExamID, payload.Type, toolTitle, payload.LanguageCode, finalToolContent, time.Now(), time.Now())
-		if err != nil {
-			return fmt.Errorf("failed to store tool: %w", err)
+		if executionError != nil {
+			return fmt.Errorf("failed to store tool: %w", executionError)
 		}
 
 		job.Result = fmt.Sprintf(`{"tool_id": "%s"}`, toolID)
@@ -616,9 +616,9 @@ func RegisterHandlers(
 
 		var tool models.Tool
 		var examID string
-		err := database.QueryRow("SELECT id, exam_id, type, title, language_code, content, created_at FROM tools WHERE id = ?", payload.ToolID).Scan(&tool.ID, &examID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.Content, &tool.CreatedAt)
-		if err != nil {
-			return fmt.Errorf("failed to get tool: %w", err)
+		queryError := database.QueryRow("SELECT id, exam_id, type, title, language_code, content, created_at FROM tools WHERE id = ?", payload.ToolID).Scan(&tool.ID, &examID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.Content, &tool.CreatedAt)
+		if queryError != nil {
+			return fmt.Errorf("failed to get tool: %w", queryError)
 		}
 
 		if payload.LanguageCode == "" {
@@ -629,8 +629,8 @@ func RegisterHandlers(
 		}
 
 		exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", tool.ID)
-		if err := os.MkdirAll(exportDirectory, 0755); err != nil {
-			return fmt.Errorf("failed to create export directory: %w", err)
+		if mkdirError := os.MkdirAll(exportDirectory, 0755); mkdirError != nil {
+			return fmt.Errorf("failed to create export directory: %w", mkdirError)
 		}
 
 		// Use sanitized tool title as filename
@@ -639,7 +639,7 @@ func RegisterHandlers(
 		outputPath := filepath.Join(exportDirectory, safeFilename)
 		slog.Info("Exporting tool", "tool_title", tool.Title, "format", payload.Format, "filename", safeFilename, "path", outputPath)
 
-		// 3. Prepare content for PDF (convert JSON to Markdown if needed)
+		// 3. Prepare content for PDF/Docx/MD (convert JSON to Markdown if needed)
 		contentToConvert := tool.Content
 		if tool.Type == "flashcard" || tool.Type == "quiz" {
 			markdownReconstructor := markdown.NewReconstructor()
@@ -655,7 +655,7 @@ func RegisterHandlers(
 			switch tool.Type {
 			case "flashcard":
 				var flashcards []map[string]string
-				if err := json.Unmarshal([]byte(tool.Content), &flashcards); err == nil {
+				if unmarshalingError := json.Unmarshal([]byte(tool.Content), &flashcards); unmarshalingError == nil {
 					for _, flashcard := range flashcards {
 						rootNode.Children = append(rootNode.Children, &markdown.Node{
 							Type:    markdown.NodeHeading,
@@ -670,7 +670,7 @@ func RegisterHandlers(
 				}
 			case "quiz":
 				var quiz []map[string]any
-				if err := json.Unmarshal([]byte(tool.Content), &quiz); err == nil {
+				if unmarshalingError := json.Unmarshal([]byte(tool.Content), &quiz); unmarshalingError == nil {
 					for _, quizItem := range quiz {
 						rootNode.Children = append(rootNode.Children, &markdown.Node{
 							Type:    markdown.NodeHeading,
@@ -702,8 +702,103 @@ func RegisterHandlers(
 			contentToConvert = markdownReconstructor.Reconstruct(rootNode)
 		}
 
+		updateProgress(30, "Gathering lecture metadata...", nil, models.JobMetrics{})
+
+		// Get lectures for this exam to collect metadata
+		lectureRows, databaseError := database.Query("SELECT id, specified_date FROM lectures WHERE exam_id = ? AND status = 'ready'", examID)
+		if databaseError != nil {
+			return fmt.Errorf("failed to query lectures: %w", databaseError)
+		}
+		defer lectureRows.Close()
+
+		var audioFiles []markdown.AudioFileMetadata
+		var referenceFiles []markdown.ReferenceFileMetadata
+		var finalDate time.Time = tool.CreatedAt
+
+		for lectureRows.Next() {
+			var lectureID string
+			var specifiedDate sql.NullTime
+			if scanningError := lectureRows.Scan(&lectureID, &specifiedDate); scanningError != nil {
+				slog.Error("Failed to scan lecture ID", "error", scanningError)
+				continue
+			}
+
+			if specifiedDate.Valid {
+				finalDate = specifiedDate.Time
+			}
+
+			// Get media files
+			mediaRows, mediaQueryError := database.Query("SELECT original_filename, file_path, duration_milliseconds FROM lecture_media WHERE lecture_id = ? ORDER BY sequence_order", lectureID)
+			if mediaQueryError == nil {
+				for mediaRows.Next() {
+					var originalFilename sql.NullString
+					var filePath string
+					var durationMs int64
+					if scanError := mediaRows.Scan(&originalFilename, &filePath, &durationMs); scanError == nil {
+						filename := filepath.Base(filePath)
+						if originalFilename.Valid && originalFilename.String != "" {
+							filename = originalFilename.String
+						}
+						audioFiles = append(audioFiles, markdown.AudioFileMetadata{
+							Filename: filename,
+							Duration: durationMs / 1000,
+						})
+					}
+				}
+				mediaRows.Close()
+			}
+
+			// Get documents
+			docRows, docQueryError := database.Query("SELECT title, original_filename, page_count FROM reference_documents WHERE lecture_id = ?", lectureID)
+			if docQueryError == nil {
+				for docRows.Next() {
+					var title string
+					var originalFilename sql.NullString
+					var pageCount int
+					if scanError := docRows.Scan(&title, &originalFilename, &pageCount); scanError == nil {
+						filename := title
+						if originalFilename.Valid && originalFilename.String != "" {
+							filename = originalFilename.String
+						}
+						referenceFiles = append(referenceFiles, markdown.ReferenceFileMetadata{
+							Filename:  filename,
+							PageCount: pageCount,
+						})
+					}
+				}
+				docRows.Close()
+			}
+		}
+
+		// Generate abstract
+		updateProgress(40, "Generating document abstract...", nil, totalMetrics)
+		abstract := ""
+		if contentToConvert != "" && toolGenerator != nil {
+			generatedAbstract, abstractMetrics, generationError := toolGenerator.GenerateAbstract(jobContext, contentToConvert, payload.LanguageCode, "")
+			if generationError == nil {
+				abstract = generatedAbstract
+				totalMetrics.InputTokens += abstractMetrics.InputTokens
+				totalMetrics.OutputTokens += abstractMetrics.OutputTokens
+				totalMetrics.EstimatedCost += abstractMetrics.EstimatedCost
+			}
+		}
+
+		updateProgress(50, fmt.Sprintf("Generating %s document...", payload.Format), nil, models.JobMetrics{})
+		options := markdown.ConversionOptions{
+			Language:       payload.LanguageCode,
+			Description:    abstract,
+			CreationDate:   finalDate,
+			ReferenceFiles: referenceFiles,
+			AudioFiles:     audioFiles,
+		}
+
+		// Prepend metadata header for md and docx
+		if payload.Format == "md" || payload.Format == "docx" {
+			metadataHeader := markdownConverter.GenerateMetadataHeader(options)
+			contentToConvert = metadataHeader + contentToConvert
+		}
+
 		if payload.Format == "md" {
-			updateProgress(50, "Saving markdown file...", nil, models.JobMetrics{})
 			if saveError := markdownConverter.SaveMarkdown(contentToConvert, outputPath); saveError != nil {
 				return fmt.Errorf("failed to save markdown: %w", saveError)
 			}
@@ -712,139 +807,6 @@ func RegisterHandlers(
 			htmlContent, conversionError := markdownConverter.MarkdownToHTML(contentToConvert)
 			if conversionError != nil {
 				return fmt.Errorf("failed to convert to HTML: %w", conversionError)
-			}
-
-			updateProgress(30, "Gathering lecture metadata...", nil, models.JobMetrics{})
-
-			// Get lectures for this exam to collect metadata
-			lectureRows, databaseError := database.Query("SELECT id, specified_date FROM lectures WHERE exam_id = ? AND status = 'ready'", examID)
-			if databaseError != nil {
-				return fmt.Errorf("failed to query lectures: %w", databaseError)
-			}
-			defer lectureRows.Close()
-
-			var audioFiles []markdown.AudioFileMetadata
-			var referenceFiles []markdown.ReferenceFileMetadata
-			var transcriptBuilder strings.Builder
-			var finalDate time.Time = tool.CreatedAt
-
-			for lectureRows.Next() {
-				var lectureID string
-				var specifiedDate sql.NullTime
-				if scanningError := lectureRows.Scan(&lectureID, &specifiedDate); scanningError != nil {
-					slog.Error("Failed to scan lecture ID", "error", scanningError)
-					continue
-				}
-
-				// If any lecture has a specified date, we use it (preferring the latest one found if multiple)
-				if specifiedDate.Valid {
-					finalDate = specifiedDate.Time
-				}
-				slog.Debug("Processing lecture for metadata", "lecture_id", lectureID)
-
-				// Get media files (audio/video)
-				mediaRows, databaseError := database.Query("SELECT original_filename, file_path, duration_milliseconds FROM lecture_media WHERE lecture_id = ? ORDER BY sequence_order", lectureID)
-				if databaseError == nil {
-					defer mediaRows.Close()
-					for mediaRows.Next() {
-						var originalFilename sql.NullString
-						var filePath string
-						var durationMs int64
-						if scanningError := mediaRows.Scan(&originalFilename, &filePath, &durationMs); scanningError == nil {
-							// Use original filename if available, otherwise extract from file_path
-							filename := filepath.Base(filePath)
-							if originalFilename.Valid && originalFilename.String != "" {
-								filename = originalFilename.String
-							}
-
-							durationSeconds := durationMs / 1000
-							slog.Debug("Found audio file", "filename", filename, "duration_seconds", durationSeconds)
-							audioFiles = append(audioFiles, markdown.AudioFileMetadata{
-								Filename: filename,
-								Duration: durationSeconds,
-							})
-						}
-					}
-				} else {
-					slog.Warn("Failed to query media files", "lecture_id", lectureID, "error", databaseError)
-				}
-
-				// Get reference documents
-				docRows, databaseError := database.Query("SELECT title, original_filename, page_count FROM reference_documents WHERE lecture_id = ?", lectureID)
-				if databaseError == nil {
-					defer docRows.Close()
-					for docRows.Next() {
-						var title string
-						var originalFilename sql.NullString
-						var pageCount int
-						if scanningError := docRows.Scan(&title, &originalFilename, &pageCount); scanningError == nil {
-							// Use original filename if available, otherwise use title
-							filename := title
-							if originalFilename.Valid && originalFilename.String != "" {
-								filename = originalFilename.String
-							}
-							slog.Debug("Found reference file", "filename", filename, "pages", pageCount)
-							referenceFiles = append(referenceFiles, markdown.ReferenceFileMetadata{
-								Filename:  filename,
-								PageCount: pageCount,
-							})
-						}
-					}
-				} else {
-					slog.Warn("Failed to query documents", "lecture_id", lectureID, "error", databaseError)
-				}
-
-				// Get transcript for abstract generation - join transcript_segments
-				var transcriptID string
-				queryError := database.QueryRow("SELECT id FROM transcripts WHERE lecture_id = ? AND status = 'completed'", lectureID).Scan(&transcriptID)
-				if queryError == nil {
-					segmentRows, databaseError := database.Query("SELECT text FROM transcript_segments WHERE transcript_id = ? ORDER BY start_millisecond", transcriptID)
-					if databaseError == nil {
-						defer segmentRows.Close()
-						for segmentRows.Next() {
-							var segmentText string
-							if scanningError := segmentRows.Scan(&segmentText); scanningError == nil {
-								transcriptBuilder.WriteString(segmentText)
-								transcriptBuilder.WriteString(" ")
-							}
-						}
-						slog.Debug("Found transcript", "lecture_id", lectureID, "length", transcriptBuilder.Len())
-					}
-				}
-			}
-
-			slog.Info("Collected metadata", "audio_files", len(audioFiles), "reference_files", len(referenceFiles), "transcript_length", transcriptBuilder.Len())
-
-			// Generate abstract from the tool content itself
-			updateProgress(40, "Generating document abstract...", nil, totalMetrics)
-			abstract := ""
-			if contentToConvert != "" && toolGenerator != nil {
-				slog.Debug("Generating abstract from tool content")
-				generatedAbstract, abstractMetrics, generationError := toolGenerator.GenerateAbstract(jobContext, contentToConvert, payload.LanguageCode, "")
-				if generationError == nil {
-					abstract = generatedAbstract
-					totalMetrics.InputTokens += abstractMetrics.InputTokens
-					totalMetrics.OutputTokens += abstractMetrics.OutputTokens
-					totalMetrics.EstimatedCost += abstractMetrics.EstimatedCost
-					slog.Info("Generated abstract",
-						"abstract", abstract,
-						"input_tokens", abstractMetrics.InputTokens,
-						"output_tokens", abstractMetrics.OutputTokens,
-						"cost", abstractMetrics.EstimatedCost)
-				} else {
-					slog.Error("Failed to generate abstract", "error", generationError)
-				}
-			} else {
-				slog.Warn("Skipping abstract generation", "has_content", contentToConvert != "", "has_generator", toolGenerator != nil)
-			}
-
-			updateProgress(50, fmt.Sprintf("Generating %s document...", payload.Format), nil, models.JobMetrics{})
-			options := markdown.ConversionOptions{
-				Language:       payload.LanguageCode,
-				Description:    abstract,
-				CreationDate:   finalDate,
-				ReferenceFiles: referenceFiles,
-				AudioFiles:     audioFiles,
 			}
 
 			slog.Info("Document conversion options",

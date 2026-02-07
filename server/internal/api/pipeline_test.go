@@ -864,6 +864,10 @@ func (markdownConverter *MockMarkdownConverter) SaveMarkdown(markdownText, outpu
 	return os.WriteFile(outputPath, []byte(markdownText), 0644)
 }
 
+func (markdownConverter *MockMarkdownConverter) GenerateMetadataHeader(options markdown.ConversionOptions) string {
+	return "Mock Metadata Header\n\n"
+}
+
 func TestExport_ToolGeneration(tester *testing.T) {
 	temporaryDirectory, err := os.MkdirTemp("", "lectures-export-test-*")
 	if err != nil {
@@ -1604,14 +1608,20 @@ func TestUpload_ProgressTracking(tester *testing.T) {
 		default:
 			var websocketMessage WSMessage
 			websocketConnection.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
-			if err := websocketConnection.ReadJSON(&websocketMessage); err == nil {
+			if readingError := websocketConnection.ReadJSON(&websocketMessage); readingError == nil {
 				if websocketMessage.Type == "upload:progress" {
 					progressReceived = true
-					payload, ok := websocketMessage.Payload.(map[string]any)
-					if ok && payload["upload_id"] != uploadID {
-						tester.Errorf("Expected upload_id %s, got %v", uploadID, payload["upload_id"])
+					payloadMap, ok := websocketMessage.Payload.(map[string]any)
+					if ok && payloadMap["upload_id"] != uploadID {
+						tester.Errorf("Expected upload_id %s, got %v", uploadID, payloadMap["upload_id"])
 					}
 				}
+			} else if !strings.Contains(readingError.Error(), "timeout") {
+				// If it's not a timeout, it might be a connection error, so we should stop trying to read
+				if !progressReceived {
+					tester.Errorf("Websocket read failed: %v", readingError)
+				}
+				return
 			}
 		}
 	}

@@ -18,6 +18,7 @@ type MarkdownConverter interface {
 	HTMLToPDF(htmlContent string, outputPath string, options ConversionOptions) error
 	HTMLToDocx(htmlContent string, outputPath string, options ConversionOptions) error
 	SaveMarkdown(markdownText string, outputPath string) error
+	GenerateMetadataHeader(options ConversionOptions) string
 }
 
 // ExternalConverter handles document format conversions using Pandoc
@@ -160,6 +161,7 @@ func (converter *ExternalConverter) HTMLToDocx(htmlContent string, outputPath st
 	arguments := []string{
 		"-f", "html",
 		"-t", "docx",
+		"--toc",
 		"-o", outputPath,
 	}
 
@@ -178,6 +180,94 @@ func (converter *ExternalConverter) HTMLToDocx(htmlContent string, outputPath st
 // SaveMarkdown saves the markdown text to a file (GFM format)
 func (converter *ExternalConverter) SaveMarkdown(markdownText string, outputPath string) error {
 	return os.WriteFile(outputPath, []byte(markdownText), 0644)
+}
+
+// FormatDuration formats a duration in seconds into a localized string
+func (converter *ExternalConverter) FormatDuration(durationSeconds int64, language string) string {
+	if durationSeconds <= 0 {
+		return ""
+	}
+
+	hourLabel := getI18nLabel(language, "hour_label")
+	minuteLabel := getI18nLabel(language, "minute_label")
+	secondLabel := getI18nLabel(language, "second_label")
+
+	hours := durationSeconds / 3600
+	minutes := (durationSeconds % 3600) / 60
+	seconds := durationSeconds % 60
+
+	if hours > 0 {
+		return fmt.Sprintf("%d%s %d%s", hours, hourLabel, minutes, minuteLabel)
+	} else if minutes > 0 {
+		return fmt.Sprintf("%d%s %d%s", minutes, minuteLabel, seconds, secondLabel)
+	} else {
+		return fmt.Sprintf("%d%s", seconds, secondLabel)
+	}
+}
+
+// GenerateMetadataHeader generates a localized Markdown header containing the document metadata
+func (converter *ExternalConverter) GenerateMetadataHeader(options ConversionOptions) string {
+	var builder strings.Builder
+
+	// 1. Date
+	if !options.CreationDate.IsZero() {
+		dateLabel := getI18nLabel(options.Language, "date_label")
+		dateString := formatLocalizedDate(options.CreationDate, options.Language)
+		fmt.Fprintf(&builder, "**%s**: %s\n\n", dateLabel, dateString)
+	}
+
+	// 2. Abstract
+	if options.Description != "" {
+		abstractLabel := getI18nLabel(options.Language, "abstract")
+		// Capitalize first letter of label
+		capitalizedLabel := strings.ToUpper(abstractLabel[:1]) + abstractLabel[1:]
+		fmt.Fprintf(&builder, "### %s\n\n%s\n\n", capitalizedLabel, options.Description)
+	}
+
+	// 3. Audio Files
+	if len(options.AudioFiles) > 0 {
+		audioLabel := getI18nLabel(options.Language, "audio_files")
+		fmt.Fprintf(&builder, "### %s\n\n", audioLabel)
+		for _, audio := range options.AudioFiles {
+			duration := converter.FormatDuration(audio.Duration, options.Language)
+			if duration != "" {
+				fmt.Fprintf(&builder, "- %s (%s)\n", audio.Filename, duration)
+			} else {
+				fmt.Fprintf(&builder, "- %s\n", audio.Filename)
+			}
+		}
+		builder.WriteString("\n")
+	}
+
+	// 4. Reference Files
+	if len(options.ReferenceFiles) > 0 {
+		referenceLabel := getI18nLabel(options.Language, "reference_files")
+		pageLabel := getI18nLabel(options.Language, "page_label")
+		pagesLabel := getI18nLabel(options.Language, "pages_label")
+
+		fmt.Fprintf(&builder, "### %s\n\n", referenceLabel)
+		for _, file := range options.ReferenceFiles {
+			metadataStr := ""
+			if file.PageRange != "" {
+				metadataStr = pagesLabel + " " + file.PageRange
+			} else if file.PageCount > 0 {
+				label := pagesLabel
+				if file.PageCount == 1 {
+					label = pageLabel
+				}
+				metadataStr = fmt.Sprintf("%s 1-%d", label, file.PageCount)
+			}
+
+			if metadataStr != "" {
+				fmt.Fprintf(&builder, "- %s (%s)\n", file.Filename, metadataStr)
+			} else {
+				fmt.Fprintf(&builder, "- %s\n", file.Filename)
+			}
+		}
+		builder.WriteString("\n")
+	}
+
+	return builder.String()
 }
 
 func fileExists(path string) bool {
@@ -234,28 +324,8 @@ func (converter *ExternalConverter) writeMetadataFile(path string, options Conve
 
 	if len(options.AudioFiles) > 0 {
 		builder.WriteString("audiofile:\n")
-		hourLabel := getI18nLabel(options.Language, "hour_label")
-		minuteLabel := getI18nLabel(options.Language, "minute_label")
-		secondLabel := getI18nLabel(options.Language, "second_label")
-
 		for _, file := range options.AudioFiles {
-			durationStr := ""
-			if file.Duration > 0 {
-				hours := file.Duration / 3600
-				minutes := (file.Duration % 3600) / 60
-				seconds := file.Duration % 60
-
-				if hours > 0 {
-					// Show hours and minutes only
-					durationStr = fmt.Sprintf("%d%s %d%s", hours, hourLabel, minutes, minuteLabel)
-				} else if minutes > 0 {
-					// Show minutes and seconds only
-					durationStr = fmt.Sprintf("%d%s %d%s", minutes, minuteLabel, seconds, secondLabel)
-				} else {
-					// Show seconds only
-					durationStr = fmt.Sprintf("%d%s", seconds, secondLabel)
-				}
-			}
+			durationStr := converter.FormatDuration(file.Duration, options.Language)
 			slog.Debug("Adding audio file to PDF metadata", "filename", file.Filename, "duration_seconds", file.Duration, "duration_formatted", durationStr)
 			fmt.Fprintf(&builder, "  - filename: \"%s\"\n    metadata: \"%s\"\n", file.Filename, durationStr)
 		}

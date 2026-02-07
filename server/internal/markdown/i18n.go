@@ -47,6 +47,7 @@ var i18nMap = map[string]map[string]string{
 		"hour_label":      "h",
 		"minute_label":    "m",
 		"second_label":    "s",
+		"date_label":      "Date",
 	},
 	"it": {
 		"abstract":        "sommario",
@@ -57,6 +58,7 @@ var i18nMap = map[string]map[string]string{
 		"hour_label":      "o",
 		"minute_label":    "m",
 		"second_label":    "s",
+		"date_label":      "Data",
 	},
 	"es": {
 		"abstract":        "resumen",
@@ -67,6 +69,7 @@ var i18nMap = map[string]map[string]string{
 		"hour_label":      "h",
 		"minute_label":    "m",
 		"second_label":    "s",
+		"date_label":      "Fecha",
 	},
 	"fr": {
 		"abstract":        "résumé",
@@ -77,6 +80,7 @@ var i18nMap = map[string]map[string]string{
 		"hour_label":      "h",
 		"minute_label":    "m",
 		"second_label":    "s",
+		"date_label":      "Date",
 	},
 	"de": {
 		"abstract":        "Zusammenfassung",
@@ -87,6 +91,7 @@ var i18nMap = map[string]map[string]string{
 		"hour_label":      "Std.",
 		"minute_label":    "Min.",
 		"second_label":    "Sek.",
+		"date_label":      "Datum",
 	},
 	"pt": {
 		"abstract":        "resumo",
@@ -97,6 +102,7 @@ var i18nMap = map[string]map[string]string{
 		"hour_label":      "h",
 		"minute_label":    "m",
 		"second_label":    "s",
+		"date_label":      "Data",
 	},
 }
 

@@ -226,6 +226,10 @@ func RegisterHandlers(
 				updateProgress(progress, "Extracting and processing document pages...", metadata, models.JobMetrics{})
 			})
 			if err != nil {
+				// Clean up PNG images on failure
+				os.RemoveAll(outputDirectory)
+				slog.Warn("Cleaned up document images after processing failure", "document_id", document.ID, "output_directory", outputDirectory)
+
 				database.Exec("UPDATE reference_documents SET extraction_status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), document.ID)
 				database.Exec("UPDATE lectures SET status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), payload.LectureID)
 				return fmt.Errorf("document processor failed for %s: %w", document.Title, err)
@@ -234,6 +238,9 @@ func RegisterHandlers(
 			// 5. Store pages in database
 			databaseTransaction, err := database.Begin()
 			if err != nil {
+				// Clean up PNG images since we can't store the data
+				os.RemoveAll(outputDirectory)
+				slog.Warn("Cleaned up document images after database transaction begin failure", "document_id", document.ID, "output_directory", outputDirectory)
 				return fmt.Errorf("failed to begin transaction: %w", err)
 			}
 			defer databaseTransaction.Rollback()
@@ -241,6 +248,9 @@ func RegisterHandlers(
 			// Delete existing pages if any
 			_, err = databaseTransaction.Exec("DELETE FROM reference_pages WHERE document_id = ?", document.ID)
 			if err != nil {
+				// Clean up PNG images since we can't store the new data
+				os.RemoveAll(outputDirectory)
+				slog.Warn("Cleaned up document images after database delete failure", "document_id", document.ID, "output_directory", outputDirectory)
 				return fmt.Errorf("failed to delete old pages: %w", err)
 			}
 
@@ -250,6 +260,9 @@ func RegisterHandlers(
 					VALUES (?, ?, ?, ?)
 				`, document.ID, currentPage.PageNumber, currentPage.ImagePath, currentPage.ExtractedText)
 				if err != nil {
+					// Clean up PNG images since we can't store the page data
+					os.RemoveAll(outputDirectory)
+					slog.Warn("Cleaned up document images after page insert failure", "document_id", document.ID, "output_directory", outputDirectory)
 					return fmt.Errorf("failed to insert page: %w", err)
 				}
 			}
@@ -257,10 +270,16 @@ func RegisterHandlers(
 			// 6. Update document as completed
 			_, err = databaseTransaction.Exec("UPDATE reference_documents SET extraction_status = ?, page_count = ?, updated_at = ? WHERE id = ?", "completed", len(pages), time.Now(), document.ID)
 			if err != nil {
+				// Clean up PNG images since we can't finalize the document
+				os.RemoveAll(outputDirectory)
+				slog.Warn("Cleaned up document images after document status update failure", "document_id", document.ID, "output_directory", outputDirectory)
 				return fmt.Errorf("failed to finalize document status: %w", err)
 			}
 
 			if err := databaseTransaction.Commit(); err != nil {
+				// Clean up PNG images since we can't commit the data
+				os.RemoveAll(outputDirectory)
+				slog.Warn("Cleaned up document images after transaction commit failure", "document_id", document.ID, "output_directory", outputDirectory)
 				return fmt.Errorf("failed to commit transaction: %w", err)
 			}
 		}

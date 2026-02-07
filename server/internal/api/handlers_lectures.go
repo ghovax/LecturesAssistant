@@ -276,6 +276,7 @@ func (server *Server) stageMultipartFile(fileHeader *multipart.FileHeader) strin
 
 func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, uploadID string, targetType string, sequenceOrder int) error {
 	uploadDirectory := filepath.Join(os.TempDir(), "lectures-uploads", uploadID)
+	defer os.RemoveAll(uploadDirectory)
 
 	metadataBytes, err := os.ReadFile(filepath.Join(uploadDirectory, "metadata.json"))
 	if err != nil {
@@ -371,7 +372,6 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 		return fmt.Errorf("failed to insert metadata: %w", err)
 	}
 
-	os.RemoveAll(uploadDirectory)
 	return nil
 }
 

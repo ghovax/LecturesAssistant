@@ -50,7 +50,7 @@ func (mock *UnbreakableSequentialMock) Chat(jobContext context.Context, chatRequ
 
 func (mock *UnbreakableSequentialMock) Name() string { return "unbreakable-sequential-mock" }
 
-func TestToolGenerator_Triangulation(tester *testing.T) {
+func TestToolGenerator_DocumentsMatching(tester *testing.T) {
 	config := &configuration.Configuration{}
 	promptManager := prompts.NewManager("../../prompts")
 
@@ -74,13 +74,13 @@ Content 4
 
 ## Page 12
 Content 12`
-	materials, _, err := generator.triangulateRelevantMaterials(context.Background(), "Transcript", fullMaterials, models.GenerationOptions{EnableTriangulation: true})
+	materials, _, err := generator.matchRelevantDocuments(context.Background(), "Transcript", fullMaterials, models.GenerationOptions{EnableDocumentsMatching: true})
 	if err != nil {
-		tester.Fatalf("Triangulation failed: %v", err)
+		tester.Fatalf("Documents matching failed: %v", err)
 	}
 
 	if !strings.Contains(materials, "Page 1") || !strings.Contains(materials, "Page 4") || !strings.Contains(materials, "Page 12") {
-		tester.Errorf("Triangulation missed pages. Result:\n%s", materials)
+		tester.Errorf("Documents matching missed pages. Result:\n%s", materials)
 	}
 }
 
@@ -90,7 +90,7 @@ func TestToolGenerator_SequentialBuildingWithCleanHistory(tester *testing.T) {
 
 	mockLLM := &UnbreakableSequentialMock{
 		Responses: []string{
-			// Triangulation (3 calls)
+			// Documents Matching (3 calls)
 			`{"page_ranges": []}`,
 			`{"page_ranges": []}`,
 			`{"page_ranges": []}`,
@@ -121,9 +121,9 @@ Success 2`,
 	lecture := models.Lecture{Title: "Lecture Title"}
 
 	options := models.GenerationOptions{
-		EnableTriangulation: true,
-		AdherenceThreshold:  70,
-		MaximumRetries:      3,
+		EnableDocumentsMatching: true,
+		AdherenceThreshold:      70,
+		MaximumRetries:          3,
 	}
 
 	result, _, err := generator.GenerateStudyGuide(context.Background(), lecture, "Transcript", "References", "medium", "en", options, func(p int, m string, meta any, met models.JobMetrics) {})
@@ -182,19 +182,19 @@ func TestToolGenerator_ModelFallbackLogic(tester *testing.T) {
 		LLM: configuration.LLMConfiguration{
 			Model: "global-fallback",
 			Models: configuration.ModelsConfiguration{
-				Triangulation: "task-specific",
-				Structure:     "", // Empty to test global fallback
-				Polishing:     "polishing-model",
+				DocumentsMatching: "task-specific",
+				Structure:         "", // Empty to test global fallback
+				Polishing:         "polishing-model",
 			},
 		},
 	}
 
 	// Case 1: Task-specific model from config is used
-	triangulationMock := &UnbreakableSequentialMock{Responses: []string{`{"page_ranges": []}`}}
-	triangulationGenerator := NewToolGenerator(globalConfig, triangulationMock, nil)
-	_, _, _ = triangulationGenerator.triangulateRelevantMaterials(context.Background(), "T", "F", models.GenerationOptions{EnableTriangulation: true})
-	if triangulationMock.ModelsUsed[0] != "task-specific" {
-		tester.Errorf("Case 1: Expected 'task-specific' model, got %s", triangulationMock.ModelsUsed[0])
+	matchingMock := &UnbreakableSequentialMock{Responses: []string{`{"page_ranges": []}`}}
+	matchingGenerator := NewToolGenerator(globalConfig, matchingMock, nil)
+	_, _, _ = matchingGenerator.matchRelevantDocuments(context.Background(), "T", "F", models.GenerationOptions{EnableDocumentsMatching: true})
+	if matchingMock.ModelsUsed[0] != "task-specific" {
+		tester.Errorf("Case 1: Expected 'task-specific' model, got %s", matchingMock.ModelsUsed[0])
 	}
 
 	// Case 2: Empty task model falls back to global LLM model
@@ -208,9 +208,9 @@ func TestToolGenerator_ModelFallbackLogic(tester *testing.T) {
 	// Case 3: Explicit options override everything
 	overrideMock := &UnbreakableSequentialMock{Responses: []string{`{"page_ranges": []}`}}
 	overrideGenerator := NewToolGenerator(globalConfig, overrideMock, nil)
-	_, _, _ = overrideGenerator.triangulateRelevantMaterials(context.Background(), "T", "F", models.GenerationOptions{
-		EnableTriangulation: true,
-		ModelTriangulation:  "explicit-override",
+	_, _, _ = overrideGenerator.matchRelevantDocuments(context.Background(), "T", "F", models.GenerationOptions{
+		EnableDocumentsMatching: true,
+		ModelDocumentsMatching:  "explicit-override",
 	})
 	if overrideMock.ModelsUsed[0] != "explicit-override" {
 		tester.Errorf("Case 3: Expected 'explicit-override' model, got %s", overrideMock.ModelsUsed[0])

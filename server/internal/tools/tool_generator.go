@@ -46,18 +46,18 @@ func (generator *ToolGenerator) GenerateStudyGuide(
 ) (string, string, error) {
 	var totalMetrics models.JobMetrics
 
-	// PHASE 2: Context Triangulation
-	updateProgress(5, "Triangulating relevant reference materials...", nil, totalMetrics)
+	// PHASE 2: Documents Matching
+	updateProgress(5, "Matching relevant reference materials...", nil, totalMetrics)
 	relevantMaterials := referenceFilesContent
-	if options.EnableTriangulation && referenceFilesContent != "" {
-		materials, metrics, err := generator.triangulateRelevantMaterials(jobContext, transcript, referenceFilesContent, options)
+	if options.EnableDocumentsMatching && referenceFilesContent != "" {
+		materials, metrics, err := generator.matchRelevantDocuments(jobContext, transcript, referenceFilesContent, options)
 		if err == nil {
 			relevantMaterials = materials
 			totalMetrics.InputTokens += metrics.InputTokens
 			totalMetrics.OutputTokens += metrics.OutputTokens
 			totalMetrics.EstimatedCost += metrics.EstimatedCost
 		} else {
-			slog.Warn("Triangulation failed, falling back to full content", "error", err)
+			slog.Warn("Documents matching failed, falling back to full content", "error", err)
 		}
 	}
 
@@ -87,7 +87,7 @@ func (generator *ToolGenerator) GenerateStudyGuide(
 	return finalMarkdown, finalTitle, nil
 }
 
-func (generator *ToolGenerator) triangulateRelevantMaterials(jobContext context.Context, transcript, fullMaterials string, options models.GenerationOptions) (string, models.JobMetrics, error) {
+func (generator *ToolGenerator) matchRelevantDocuments(jobContext context.Context, transcript, fullMaterials string, options models.GenerationOptions) (string, models.JobMetrics, error) {
 	if generator.llmProvider == nil {
 		return fullMaterials, models.JobMetrics{}, nil
 	}
@@ -100,7 +100,7 @@ func (generator *ToolGenerator) triangulateRelevantMaterials(jobContext context.
 		End   int `json:"end"`
 	}
 
-	model := options.ModelTriangulation
+	model := options.ModelDocumentsMatching
 	if model == "" {
 		model = generator.configuration.LLM.GetModelForTask("documents_matching")
 	}
@@ -149,7 +149,7 @@ func (generator *ToolGenerator) triangulateRelevantMaterials(jobContext context.
 	waitGroup.Wait()
 
 	if len(allRanges) == 0 {
-		return fullMaterials, allMetrics, fmt.Errorf("all triangulation runs failed")
+		return fullMaterials, allMetrics, fmt.Errorf("all document matching runs failed")
 	}
 
 	finalRanges := generator.unionAndMergeRanges(allRanges)

@@ -12,20 +12,20 @@ import (
 // handleCreateTool triggers a tool generation job
 func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, request *http.Request) {
 	var createToolRequest struct {
-		ExamID              string `json:"exam_id"`
-		LectureID           string `json:"lecture_id"`
-		Type                string `json:"type"` // "guide", "flashcard", "quiz"
-		Length              string `json:"length"`
-		LanguageCode        string `json:"language_code"`
-		EnableTriangulation bool   `json:"enable_triangulation"`
-		AdherenceThreshold  int    `json:"adherence_threshold"`
-		MaximumRetries      int    `json:"maximum_retries"`
+		ExamID                  string `json:"exam_id"`
+		LectureID               string `json:"lecture_id"`
+		Type                    string `json:"type"` // "guide", "flashcard", "quiz"
+		Length                  string `json:"length"`
+		LanguageCode            string `json:"language_code"`
+		EnableDocumentsMatching bool   `json:"enable_documents_matching"`
+		AdherenceThreshold      int    `json:"adherence_threshold"`
+		MaximumRetries          int    `json:"maximum_retries"`
 		// Models
-		ModelTriangulation string `json:"model_triangulation"`
-		ModelStructure     string `json:"model_structure"`
-		ModelGeneration    string `json:"model_generation"`
-		ModelAdherence     string `json:"model_adherence"`
-		ModelPolishing     string `json:"model_polishing"`
+		ModelDocumentsMatching string `json:"model_documents_matching"`
+		ModelStructure         string `json:"model_structure"`
+		ModelGeneration        string `json:"model_generation"`
+		ModelAdherence         string `json:"model_adherence"`
+		ModelPolishing         string `json:"model_polishing"`
 	}
 
 	if err := json.NewDecoder(request.Body).Decode(&createToolRequest); err != nil {
@@ -66,19 +66,19 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 
 	// Enqueue job
 	jobIdentifier, err := server.jobQueue.Enqueue(userID, models.JobTypeBuildMaterial, map[string]string{
-		"exam_id":              createToolRequest.ExamID,
-		"lecture_id":           createToolRequest.LectureID,
-		"type":                 createToolRequest.Type,
-		"length":               createToolRequest.Length,
-		"language_code":        createToolRequest.LanguageCode,
-		"enable_triangulation": fmt.Sprintf("%v", createToolRequest.EnableTriangulation),
-		"adherence_threshold":  fmt.Sprintf("%d", createToolRequest.AdherenceThreshold),
-		"maximum_retries":      fmt.Sprintf("%d", createToolRequest.MaximumRetries),
-		"model_triangulation":  createToolRequest.ModelTriangulation,
-		"model_structure":      createToolRequest.ModelStructure,
-		"model_generation":     createToolRequest.ModelGeneration,
-		"model_adherence":      createToolRequest.ModelAdherence,
-		"model_polishing":      createToolRequest.ModelPolishing,
+		"exam_id":                   createToolRequest.ExamID,
+		"lecture_id":                createToolRequest.LectureID,
+		"type":                      createToolRequest.Type,
+		"length":                    createToolRequest.Length,
+		"language_code":             createToolRequest.LanguageCode,
+		"enable_documents_matching": fmt.Sprintf("%v", createToolRequest.EnableDocumentsMatching),
+		"adherence_threshold":       fmt.Sprintf("%d", createToolRequest.AdherenceThreshold),
+		"maximum_retries":           fmt.Sprintf("%d", createToolRequest.MaximumRetries),
+		"model_documents_matching":  createToolRequest.ModelDocumentsMatching,
+		"model_structure":           createToolRequest.ModelStructure,
+		"model_generation":          createToolRequest.ModelGeneration,
+		"model_adherence":           createToolRequest.ModelAdherence,
+		"model_polishing":           createToolRequest.ModelPolishing,
 	})
 
 	if err != nil {

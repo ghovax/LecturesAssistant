@@ -293,20 +293,20 @@ func RegisterHandlers(
 
 	queue.RegisterHandler(models.JobTypeBuildMaterial, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, models.JobMetrics)) error {
 		var payload struct {
-			LectureID           string `json:"lecture_id"`
-			ExamID              string `json:"exam_id"`
-			Type                string `json:"type"`
-			Length              string `json:"length"`
-			LanguageCode        string `json:"language_code"`
-			EnableTriangulation string `json:"enable_triangulation"`
-			AdherenceThreshold  string `json:"adherence_threshold"`
-			MaximumRetries      string `json:"maximum_retries"`
+			LectureID               string `json:"lecture_id"`
+			ExamID                  string `json:"exam_id"`
+			Type                    string `json:"type"`
+			Length                  string `json:"length"`
+			LanguageCode            string `json:"language_code"`
+			EnableDocumentsMatching string `json:"enable_documents_matching"`
+			AdherenceThreshold      string `json:"adherence_threshold"`
+			MaximumRetries          string `json:"maximum_retries"`
 			// Models
-			ModelTriangulation string `json:"model_triangulation"`
-			ModelStructure     string `json:"model_structure"`
-			ModelGeneration    string `json:"model_generation"`
-			ModelAdherence     string `json:"model_adherence"`
-			ModelPolishing     string `json:"model_polishing"`
+			ModelDocumentsMatching string `json:"model_documents_matching"`
+			ModelStructure         string `json:"model_structure"`
+			ModelGeneration        string `json:"model_generation"`
+			ModelAdherence         string `json:"model_adherence"`
+			ModelPolishing         string `json:"model_polishing"`
 		}
 		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
 			return fmt.Errorf("failed to unmarshal job payload: %w", err)
@@ -315,14 +315,14 @@ func RegisterHandlers(
 		threshold, _ := strconv.Atoi(payload.AdherenceThreshold)
 		maximumRetries, _ := strconv.Atoi(payload.MaximumRetries)
 		options := models.GenerationOptions{
-			EnableTriangulation: payload.EnableTriangulation == "true",
-			AdherenceThreshold:  threshold,
-			MaximumRetries:      maximumRetries,
-			ModelTriangulation:  payload.ModelTriangulation,
-			ModelStructure:      payload.ModelStructure,
-			ModelGeneration:     payload.ModelGeneration,
-			ModelAdherence:      payload.ModelAdherence,
-			ModelPolishing:      payload.ModelPolishing,
+			EnableDocumentsMatching: payload.EnableDocumentsMatching == "true",
+			AdherenceThreshold:      threshold,
+			MaximumRetries:          maximumRetries,
+			ModelDocumentsMatching:  payload.ModelDocumentsMatching,
+			ModelStructure:          payload.ModelStructure,
+			ModelGeneration:         payload.ModelGeneration,
+			ModelAdherence:          payload.ModelAdherence,
+			ModelPolishing:          payload.ModelPolishing,
 		}
 
 		if payload.Type == "" {

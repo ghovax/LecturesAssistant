@@ -31,7 +31,7 @@
 
 	async function handleLogout() {
 		await auth.logout();
-		goto('/login');
+		window.location.href = '/login';
 	}
 
 	onMount(checkAuth);
@@ -52,17 +52,13 @@
 		{#if user || page.url.pathname === '/login'}
 			{#if user}
 				<div class="mobile-header">
-					<a href="/" style="color: inherit; text-decoration: none; font-weight: bold;">LECTURES ASSISTANT</a>
+					<div style="flex: 1;"></div>
 					<button onclick={toggleMenu} style="min-width: auto; padding: 4px 8px;">
 						{mobileMenuOpen ? 'CLOSE' : 'MENU'}
 					</button>
 				</div>
 
 				<aside class:open={mobileMenuOpen}>
-					<div class="desktop-only" style="margin-bottom: var(--space-xl);">
-						<a href="/" style="color: inherit; text-decoration: none; font-size: 1.1rem;"><strong>LECTURES ASSISTANT</strong></a>
-					</div>
-
 					<nav style="flex: 1;">
 						<a href="/" class="nav-item" class:active={page.url.pathname === '/'} data-text="Overview" onclick={closeMenu}>Overview</a>
 						<a href="/exams" class="nav-item" class:active={page.url.pathname.startsWith('/exams')} data-text="Courses" onclick={closeMenu}>Courses</a>

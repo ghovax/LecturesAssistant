@@ -1,15 +1,11 @@
 <script lang="ts">
 </script>
 
-<h1>Overview</h1>
+<h1>Welcome to Your Personal Learning Assistant</h1>
 
 
 
-<div class="card">
-
-	<h3>System Status</h3>
-
-	<p>Welcome to your personal learning assistant.</p>
+<div style="margin-bottom: var(--space-xl);">
 
 	<p>Use the sidebar to manage your courses, view recent activity, or adjust your settings.</p>
 
@@ -17,11 +13,13 @@
 
 
 
-<div class="card">
+
+
+<div style="margin-bottom: var(--space-xl);">
 
 	<h3>Quick Actions</h3>
 
-	<ul>
+	<ul style="padding-left: var(--space-lg);">
 
 		<li><a href="/exams">View All Courses</a></li>
 
@@ -30,3 +28,5 @@
 	</ul>
 
 </div>
+
+

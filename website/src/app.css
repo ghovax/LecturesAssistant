@@ -155,7 +155,7 @@ aside {
 	padding: var(--space-xl) var(--space-md);
 	display: flex;
 	flex-direction: column;
-	background: #fafafa;
+	background: #fdfdfd;
 	flex-shrink: 0;
 }
 
@@ -301,8 +301,8 @@ main {
 
 .card {
 	border: 1px solid var(--border-color);
-	padding: var(--space-lg);
-	margin-bottom: var(--space-lg);
+	padding: var(--space-md);
+	margin-bottom: var(--space-md);
 	border-radius: var(--radius);
 }
 

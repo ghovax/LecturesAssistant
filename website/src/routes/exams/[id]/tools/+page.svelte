@@ -69,7 +69,7 @@
 	<a href="/exams/{examID}" class="button" style="min-width: 140px;">Back to Course</a>
 </div>
 
-<div class="card" style="margin-top: var(--space-lg);">
+<div style="margin-top: var(--space-lg); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border-color);">
 	<h3>Generate New Tool</h3>
 	<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-md); align-items: end;">
 		<label>

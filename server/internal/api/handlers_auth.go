@@ -181,9 +181,17 @@ func (server *Server) handleAuthLogout(responseWriter http.ResponseWriter, reque
 
 // handleAuthStatus checks if current request is authenticated
 func (server *Server) handleAuthStatus(responseWriter http.ResponseWriter, request *http.Request) {
+	// Check if any users exist to determine if system is initialized
+	var userCount int
+	server.database.QueryRow("SELECT COUNT(*) FROM users").Scan(&userCount)
+	initialized := userCount > 0
+
 	sessionToken := server.getSessionToken(request)
 	if sessionToken == "" {
-		server.writeJSON(responseWriter, http.StatusOK, map[string]any{"authenticated": false})
+		server.writeJSON(responseWriter, http.StatusOK, map[string]any{
+			"authenticated": false,
+			"initialized":   initialized,
+		})
 		return
 	}
 
@@ -197,12 +205,16 @@ func (server *Server) handleAuthStatus(responseWriter http.ResponseWriter, reque
 	`, sessionToken).Scan(&expiresAt, &userID, &username, &role)
 
 	if databaseError != nil || time.Now().After(expiresAt) {
-		server.writeJSON(responseWriter, http.StatusOK, map[string]any{"authenticated": false})
+		server.writeJSON(responseWriter, http.StatusOK, map[string]any{
+			"authenticated": false,
+			"initialized":   initialized,
+		})
 		return
 	}
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]any{
 		"authenticated": true,
+		"initialized":   initialized,
 		"expires_at":    expiresAt.Format(time.RFC3339),
 		"user": map[string]string{
 			"id":       userID,

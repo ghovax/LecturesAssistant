@@ -25,16 +25,16 @@
 	onMount(fetchExams);
 </script>
 
-<h1>Exams</h1>
+<h1>Courses</h1>
 
 {#if loading}
-	<p>Loading exams...</p>
+	<p>Loading courses...</p>
 {:else if error}
 	<div class="error">{error}</div>
 {:else}
-	<div class="card" style="display: flex; gap: 8px;">
+	<div style="display: flex; gap: var(--space-sm); margin-bottom: var(--space-lg);">
 		<button onclick={fetchExams}>Refresh</button>
-		<a href="/exams/create" class="button">Create New Exam</a>
+		<a href="/exams/create" class="button">Add New Course</a>
 	</div>
 
 	<table>

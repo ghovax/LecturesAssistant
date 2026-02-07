@@ -53,7 +53,7 @@
 {:else if error}
 	<div class="error">{error}</div>
 {:else if settings}
-	<div class="card">
+	<div style="margin-bottom: var(--space-xl);">
 		<h3>LLM Configuration</h3>
 		<label>
 			Provider
@@ -69,7 +69,7 @@
 		</label>
 	</div>
 
-	<div class="card">
+	<div style="margin-bottom: var(--space-xl);">
 		<h3>Transcription</h3>
 		<label>
 			Provider
@@ -81,7 +81,7 @@
 		</label>
 	</div>
 
-	<button onclick={saveSettings} disabled={saving}>
+	<button onclick={saveSettings} disabled={saving} style="min-width: 160px;">
 		{saving ? 'Saving...' : 'Save Settings'}
 	</button>
 {/if}

@@ -9,16 +9,42 @@
 	let lectures = $state([]);
 	let loading = $state(true);
 	let error = $state(null);
+	let isEditing = $state(false);
+	let editTitle = $state('');
+	let editDescription = $state('');
+	let saving = $state(false);
 
 	async function fetchData() {
 		loading = true;
 		try {
 			exam = await apiFetch(`/api/exams/details?exam_id=${id}`);
 			lectures = await apiFetch(`/api/lectures?exam_id=${id}`);
+			editTitle = exam.title;
+			editDescription = exam.description || '';
 		} catch (e) {
 			error = e.message;
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function saveChanges() {
+		saving = true;
+		try {
+			const updated = await apiFetch('/api/exams', {
+				method: 'PATCH',
+				body: {
+					exam_id: id,
+					title: editTitle,
+					description: editDescription
+				}
+			});
+			exam = updated;
+			isEditing = false;
+		} catch (e) {
+			alert('Failed to save: ' + e.message);
+		} finally {
+			saving = false;
 		}
 	}
 
@@ -63,9 +89,7 @@
 	</div>
 
 	{#if lectures.length === 0}
-		<div class="card">
-			<p>No lectures yet for this exam.</p>
-		</div>
+		<p style="color: #666; margin-top: var(--space-md);">No lectures yet for this course.</p>
 	{:else}
 		<table>
 			<thead>
@@ -93,13 +117,13 @@
 		</table>
 	{/if}
 
-	<div style="margin-top: var(--space-lg);">
+	<div style="margin-top: var(--space-xl);">
 		<h2>Study Tools & Chat</h2>
-		<div class="card" style="display: flex; gap: 16px;">
-			<a href="/exams/{id}/chat" class="button" style="flex: 1; text-align: center;">
+		<div style="display: flex; gap: var(--space-md); margin-top: var(--space-md);">
+			<a href="/exams/{id}/chat" class="button" style="flex: 1;">
 				Chat Assistant
 			</a>
-			<a href="/exams/{id}/tools" class="button" style="flex: 1; text-align: center;">
+			<a href="/exams/{id}/tools" class="button" style="flex: 1;">
 				Study Guides & Quizzes
 			</a>
 		</div>

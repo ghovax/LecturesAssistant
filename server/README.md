@@ -1,6 +1,6 @@
-# Lectures Assistant Server
+# Learning Assistant Server
 
-Backend server for the Lectures Assistant application written in Go.
+Backend server for the learning assistant application written in Go.
 
 ## Architecture
 

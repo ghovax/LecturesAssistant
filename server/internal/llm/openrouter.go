@@ -64,56 +64,56 @@ func (provider *OpenRouterProvider) Chat(jobContext context.Context, request Cha
 		defer close(responseChannel)
 
 		if request.Stream {
-			stream, err := provider.client.CreateChatCompletionStream(jobContext, openrouter.ChatCompletionRequest{
+			completionStream, streamError := provider.client.CreateChatCompletionStream(jobContext, openrouter.ChatCompletionRequest{
 				Model:    request.Model,
 				Messages: chatMessages,
 				Stream:   true,
 			})
-			if err != nil {
-				responseChannel <- ChatResponseChunk{Error: err}
+			if streamError != nil {
+				responseChannel <- ChatResponseChunk{Error: streamError}
 				return
 			}
-			defer stream.Close()
+			defer completionStream.Close()
 
 			for {
-				response, err := stream.Recv()
-				if err != nil {
-					if errors.Is(err, io.EOF) {
+				chatResponse, receiveError := completionStream.Recv()
+				if receiveError != nil {
+					if errors.Is(receiveError, io.EOF) {
 						return
 					}
-					responseChannel <- ChatResponseChunk{Error: err}
+					responseChannel <- ChatResponseChunk{Error: receiveError}
 					return
 				}
-				if len(response.Choices) > 0 {
-					content := response.Choices[0].Delta.Content
-					chunk := ChatResponseChunk{Text: content}
-					if response.Usage != nil {
-						chunk.InputTokens = response.Usage.PromptTokens
-						chunk.OutputTokens = response.Usage.CompletionTokens
-						chunk.Cost = response.Usage.Cost
+				if len(chatResponse.Choices) > 0 {
+					responseContent := chatResponse.Choices[0].Delta.Content
+					responseChunk := ChatResponseChunk{Text: responseContent}
+					if chatResponse.Usage != nil {
+						responseChunk.InputTokens = chatResponse.Usage.PromptTokens
+						responseChunk.OutputTokens = chatResponse.Usage.CompletionTokens
+						responseChunk.Cost = chatResponse.Usage.Cost
 					}
-					if content != "" || response.Usage != nil {
-						responseChannel <- chunk
+					if responseContent != "" || chatResponse.Usage != nil {
+						responseChannel <- responseChunk
 					}
 				}
 			}
 		} else {
-			response, err := provider.client.CreateChatCompletion(jobContext, openrouter.ChatCompletionRequest{
+			chatResponse, chatError := provider.client.CreateChatCompletion(jobContext, openrouter.ChatCompletionRequest{
 				Model:    request.Model,
 				Messages: chatMessages,
 			})
-			if err != nil {
-				responseChannel <- ChatResponseChunk{Error: err}
+			if chatError != nil {
+				responseChannel <- ChatResponseChunk{Error: chatError}
 				return
 			}
-			if len(response.Choices) > 0 {
-				chunk := ChatResponseChunk{
-					Text:         response.Choices[0].Message.Content.Text,
-					InputTokens:  response.Usage.PromptTokens,
-					OutputTokens: response.Usage.CompletionTokens,
-					Cost:         response.Usage.Cost,
+			if len(chatResponse.Choices) > 0 {
+				responseChunk := ChatResponseChunk{
+					Text:         chatResponse.Choices[0].Message.Content.Text,
+					InputTokens:  chatResponse.Usage.PromptTokens,
+					OutputTokens: chatResponse.Usage.CompletionTokens,
+					Cost:         chatResponse.Usage.Cost,
 				}
-				responseChannel <- chunk
+				responseChannel <- responseChunk
 			}
 		}
 	}()

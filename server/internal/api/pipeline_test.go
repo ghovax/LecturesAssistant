@@ -895,7 +895,7 @@ func TestExport_PDFGeneration(tester *testing.T) {
 	toolID := "tool-1"
 	_, _ = initializedDatabase.Exec("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)", "test-user", "testuser", "dummy", "user")
 	_, _ = initializedDatabase.Exec("INSERT INTO exams (id, user_id, title) VALUES ('e1', 'test-user', 'E')")
-	_, _ = initializedDatabase.Exec("INSERT INTO tools (id, exam_id, type, title, content) VALUES (?, 'e1', 'guide', 'Title', 'Content')", toolID)
+	_, _ = initializedDatabase.Exec("INSERT INTO tools (id, exam_id, type, title, language_code, content) VALUES (?, 'e1', 'guide', 'Title', 'en-US', 'Content')", toolID)
 
 	jobID, err := jobQueue.Enqueue("test-user", models.JobTypePublishMaterial, map[string]string{
 		"tool_id": toolID,

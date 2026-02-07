@@ -55,76 +55,111 @@ type LLMConfiguration struct {
 	DefaultModel string `yaml:"default_model,omitempty"`
 }
 
+type ModelConfiguration struct {
+	Model    string `yaml:"model"`
+	Provider string `yaml:"provider,omitempty"`
+}
+
+func (modelConfig *ModelConfiguration) UnmarshalYAML(value *yaml.Node) error {
+	// Try string first
+	var modelName string
+	if err := value.Decode(&modelName); err == nil {
+		modelConfig.Model = modelName
+		return nil
+	}
+
+	// Try struct
+	type alias ModelConfiguration
+	var structuredModel alias
+	if err := value.Decode(&structuredModel); err == nil {
+		*modelConfig = ModelConfiguration(structuredModel)
+		return nil
+	}
+
+	return nil
+}
+
+func (modelConfig ModelConfiguration) String() string {
+	if modelConfig.Provider != "" {
+		return modelConfig.Provider + ":" + modelConfig.Model
+	}
+	return modelConfig.Model
+}
+
 type ModelsConfiguration struct {
 	// New naming convention
-	RecordingTranscription string `yaml:"recording_transcription,omitempty"`
-	DocumentsIngestion     string `yaml:"documents_ingestion,omitempty"`
-	DocumentsMatching      string `yaml:"documents_matching,omitempty"`
-	OutlineCreation        string `yaml:"outline_creation,omitempty"`
-	ContentGeneration      string `yaml:"content_generation,omitempty"`
-	ContentVerification    string `yaml:"content_verification,omitempty"`
-	ContentPolishing       string `yaml:"content_polishing,omitempty"`
+	RecordingTranscription ModelConfiguration `yaml:"recording_transcription,omitempty"`
+	DocumentsIngestion     ModelConfiguration `yaml:"documents_ingestion,omitempty"`
+	DocumentsMatching      ModelConfiguration `yaml:"documents_matching,omitempty"`
+	OutlineCreation        ModelConfiguration `yaml:"outline_creation,omitempty"`
+	ContentGeneration      ModelConfiguration `yaml:"content_generation,omitempty"`
+	ContentVerification    ModelConfiguration `yaml:"content_verification,omitempty"`
+	ContentPolishing       ModelConfiguration `yaml:"content_polishing,omitempty"`
 
 	// Backwards compatibility (deprecated)
-	Ingestion     string `yaml:"ingestion,omitempty"`
-	Triangulation string `yaml:"triangulation,omitempty"`
-	Structure     string `yaml:"structure,omitempty"`
-	Generation    string `yaml:"generation,omitempty"`
-	Adherence     string `yaml:"adherence,omitempty"`
-	Polishing     string `yaml:"polishing,omitempty"`
+	Ingestion     ModelConfiguration `yaml:"ingestion,omitempty"`
+	Triangulation ModelConfiguration `yaml:"triangulation,omitempty"`
+	Structure     ModelConfiguration `yaml:"structure,omitempty"`
+	Generation    ModelConfiguration `yaml:"generation,omitempty"`
+	Adherence     ModelConfiguration `yaml:"adherence,omitempty"`
+	Polishing     ModelConfiguration `yaml:"polishing,omitempty"`
 }
 
 // GetModelForTask returns the model to use for a specific task
 func (llmConfig *LLMConfiguration) GetModelForTask(task string) string {
-	var model string
+	var modelConfig ModelConfiguration
 
 	// Try new naming convention first
 	switch task {
 	case "recording_transcription":
-		model = llmConfig.Models.RecordingTranscription
+		modelConfig = llmConfig.Models.RecordingTranscription
 	case "documents_ingestion":
-		model = llmConfig.Models.DocumentsIngestion
+		modelConfig = llmConfig.Models.DocumentsIngestion
 	case "documents_matching":
-		model = llmConfig.Models.DocumentsMatching
+		modelConfig = llmConfig.Models.DocumentsMatching
 	case "outline_creation":
-		model = llmConfig.Models.OutlineCreation
+		modelConfig = llmConfig.Models.OutlineCreation
 	case "content_generation":
-		model = llmConfig.Models.ContentGeneration
+		modelConfig = llmConfig.Models.ContentGeneration
 	case "content_verification":
-		model = llmConfig.Models.ContentVerification
+		modelConfig = llmConfig.Models.ContentVerification
 	case "content_polishing":
-		model = llmConfig.Models.ContentPolishing
+		modelConfig = llmConfig.Models.ContentPolishing
 	}
 
 	// Fallback to old naming (backwards compatibility)
-	if model == "" {
+	if modelConfig.Model == "" {
 		switch task {
 		case "recording_transcription":
 			// No old equivalent, this is new
 		case "documents_ingestion":
-			model = llmConfig.Models.Ingestion
+			modelConfig = llmConfig.Models.Ingestion
 		case "documents_matching":
-			model = llmConfig.Models.Triangulation
+			modelConfig = llmConfig.Models.Triangulation
 		case "outline_creation":
-			model = llmConfig.Models.Structure
+			modelConfig = llmConfig.Models.Structure
 		case "content_generation":
-			model = llmConfig.Models.Generation
+			modelConfig = llmConfig.Models.Generation
 		case "content_verification":
-			model = llmConfig.Models.Adherence
+			modelConfig = llmConfig.Models.Adherence
 		case "content_polishing":
-			model = llmConfig.Models.Polishing
+			modelConfig = llmConfig.Models.Polishing
 		}
 	}
 
+	if modelConfig.Model != "" {
+		return modelConfig.String()
+	}
+
 	// Final fallback to deprecated fields (for old configs)
-	if model == "" && llmConfig.DefaultModel != "" {
+	if llmConfig.DefaultModel != "" {
 		return llmConfig.DefaultModel
 	}
-	if model == "" && llmConfig.Model != "" {
+	if llmConfig.Model != "" {
 		return llmConfig.Model
 	}
 
-	return model
+	return ""
 }
 
 type TranscriptionConfiguration struct {
@@ -132,7 +167,6 @@ type TranscriptionConfiguration struct {
 	Model                   string `yaml:"model,omitempty"` // Optional: defaults to llm.models.recording_transcription
 	AudioChunkLengthSeconds int    `yaml:"audio_chunk_length_seconds"`
 	RefiningBatchSize       int    `yaml:"refining_batch_size"`
-	WhisperDevice           string `yaml:"whisper_device"`
 }
 
 // GetModel returns the model to use for transcription
@@ -147,15 +181,10 @@ func (transcriptionConfig *TranscriptionConfiguration) GetModel(llmConfig *LLMCo
 
 type ProvidersConfiguration struct {
 	OpenRouter OpenRouterConfig `yaml:"openrouter"`
-	OpenAI     OpenAIConfig     `yaml:"openai"`
 	Ollama     OllamaConfig     `yaml:"ollama"`
 }
 
 type OpenRouterConfig struct {
-	APIKey string `yaml:"api_key"`
-}
-
-type OpenAIConfig struct {
 	APIKey string `yaml:"api_key"`
 }
 
@@ -194,53 +223,53 @@ type DocumentUploadConfiguration struct {
 }
 
 // Load reads the configuration from a file or creates a default one
-func Load(path string) (*Configuration, error) {
-	if path == "" {
-		dataDir := os.Getenv("STORAGE_DATA_DIRECTORY")
-		if dataDir == "" {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return nil, err
+func Load(configurationPath string) (*Configuration, error) {
+	if configurationPath == "" {
+		dataDirectory := os.Getenv("STORAGE_DATA_DIRECTORY")
+		if dataDirectory == "" {
+			homeDirectory, homeDirError := os.UserHomeDir()
+			if homeDirError != nil {
+				return nil, homeDirError
 			}
-			dataDir = filepath.Join(home, ".lectures")
+			dataDirectory = filepath.Join(homeDirectory, ".lectures")
 		}
-		path = filepath.Join(dataDir, "configuration.yaml")
+		configurationPath = filepath.Join(dataDirectory, "configuration.yaml")
 	}
 
 	// Check if file exists
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if _, statError := os.Stat(configurationPath); os.IsNotExist(statError) {
 		// Create default config
-		configuration := defaultConfiguration()
-		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-			return nil, err
+		newConfiguration := defaultConfiguration()
+		if mkdirError := os.MkdirAll(filepath.Dir(configurationPath), 0755); mkdirError != nil {
+			return nil, mkdirError
 		}
-		if err := Save(configuration, path); err != nil {
-			return nil, err
+		if saveError := Save(newConfiguration, configurationPath); saveError != nil {
+			return nil, saveError
 		}
-		return configuration, nil
+		return newConfiguration, nil
 	}
 
 	// Read existing config
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
+	configurationData, readingError := os.ReadFile(configurationPath)
+	if readingError != nil {
+		return nil, readingError
 	}
 
-	configuration := &Configuration{}
-	if err := yaml.Unmarshal(data, configuration); err != nil {
-		return nil, err
+	loadedConfiguration := &Configuration{}
+	if unmarshalingError := yaml.Unmarshal(configurationData, loadedConfiguration); unmarshalingError != nil {
+		return nil, unmarshalingError
 	}
 
-	return configuration, nil
+	return loadedConfiguration, nil
 }
 
 // Save writes the configuration to a file
-func Save(configuration *Configuration, path string) error {
-	data, err := yaml.Marshal(configuration)
-	if err != nil {
-		return err
+func Save(configuration *Configuration, configurationPath string) error {
+	marshaledData, marshalingError := yaml.Marshal(configuration)
+	if marshalingError != nil {
+		return marshalingError
 	}
-	return os.WriteFile(path, data, 0600)
+	return os.WriteFile(configurationPath, marshaledData, 0600)
 }
 
 // defaultConfiguration returns a configuration with sensible defaults
@@ -267,11 +296,10 @@ func defaultConfiguration() *Configuration {
 			Language: "en-US",
 		},
 		Transcription: TranscriptionConfiguration{
-			Provider:                "whisper-local",
-			Model:                   "base",
+			Provider:                "openrouter",
+			Model:                   "",
 			AudioChunkLengthSeconds: 300,
 			RefiningBatchSize:       3,
-			WhisperDevice:           "auto",
 		},
 		Providers: ProvidersConfiguration{
 			OpenRouter: OpenRouterConfig{

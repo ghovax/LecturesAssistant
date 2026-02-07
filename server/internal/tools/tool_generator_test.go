@@ -182,9 +182,9 @@ func TestToolGenerator_ModelFallbackLogic(tester *testing.T) {
 		LLM: configuration.LLMConfiguration{
 			Model: "global-fallback",
 			Models: configuration.ModelsConfiguration{
-				DocumentsMatching: "task-specific",
-				Structure:         "", // Empty to test global fallback
-				Polishing:         "polishing-model",
+				DocumentsMatching: configuration.ModelConfiguration{Model: "task-specific"},
+				Structure:         configuration.ModelConfiguration{Model: ""}, // Empty to test global fallback
+				Polishing:         configuration.ModelConfiguration{Model: "polishing-model"},
 			},
 		},
 	}

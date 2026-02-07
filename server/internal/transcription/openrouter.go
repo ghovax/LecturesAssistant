@@ -48,19 +48,19 @@ func (provider *OpenRouterTranscriptionProvider) Transcribe(jobContext context.C
 	var metrics models.JobMetrics
 
 	// Read audio file
-	audioData, err := os.ReadFile(audioPath)
-	if err != nil {
-		return nil, metrics, fmt.Errorf("failed to read audio file: %w", err)
+	audioData, readingError := os.ReadFile(audioPath)
+	if readingError != nil {
+		return nil, metrics, fmt.Errorf("failed to read audio file: %w", readingError)
 	}
 
 	// Encode to base64
 	base64Audio := base64.StdEncoding.EncodeToString(audioData)
 
 	// Determine audio format from file extension
-	ext := strings.ToLower(filepath.Ext(audioPath))
-	format := strings.TrimPrefix(ext, ".")
-	if format == "" {
-		format = "mp3" // default
+	fileExtension := strings.ToLower(filepath.Ext(audioPath))
+	audioFormat := strings.TrimPrefix(fileExtension, ".")
+	if audioFormat == "" {
+		audioFormat = "mp3" // default
 	}
 
 	// Build the transcription prompt
@@ -83,7 +83,7 @@ func (provider *OpenRouterTranscriptionProvider) Transcribe(jobContext context.C
 					{
 						Type:        "input_audio",
 						AudioData:   base64Audio,
-						AudioFormat: format,
+						AudioFormat: audioFormat,
 					},
 				},
 			},
@@ -92,9 +92,9 @@ func (provider *OpenRouterTranscriptionProvider) Transcribe(jobContext context.C
 	}
 
 	// Call LLM
-	responseChannel, err := provider.llmProvider.Chat(jobContext, request)
-	if err != nil {
-		return nil, metrics, fmt.Errorf("LLM chat failed: %w", err)
+	responseChannel, chatError := provider.llmProvider.Chat(jobContext, request)
+	if chatError != nil {
+		return nil, metrics, fmt.Errorf("LLM chat failed: %w", chatError)
 	}
 
 	// Collect response

@@ -19,17 +19,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 # 2. ghostscript: PDF page extraction
 # 3. libreoffice: PPTX/DOCX conversion
 # 4. pandoc: Markdown conversion
-# 5. python3/pip: For Whisper
-# 6. curl/ca-certificates: For downloading models
+# 5. curl/ca-certificates: For downloading models
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     ghostscript \
     libreoffice-writer \
     libreoffice-impress \
     pandoc \
-    python3 \
-    python3-pip \
-    python3-venv \
     curl \
     ca-certificates \
     fontconfig \
@@ -39,11 +35,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Tectonic (LaTeX engine)
 RUN curl --proto '=https' --tlsv1.2 -fsSL https://drop-sh.fullyjustified.net | sh \
     && mv tectonic /usr/local/bin/
-
-# Install OpenAI Whisper
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-RUN pip install --no-cache-dir openai-whisper
 
 # Create data directory
 RUN mkdir -p /data/files /data/models

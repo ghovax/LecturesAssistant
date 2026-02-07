@@ -76,8 +76,8 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 
 		// 1. Prepare Audio
 		audioPath := filepath.Join(temporaryDirectory, fmt.Sprintf("source_%s.mp3", media.ID))
-		if err := service.mediaProcessor.ExtractAudio(media.FilePath, audioPath); err != nil {
-			return nil, totalMetrics, fmt.Errorf("failed to extract audio from %s: %w", media.FilePath, err)
+		if extractionError := service.mediaProcessor.ExtractAudio(media.FilePath, audioPath); extractionError != nil {
+			return nil, totalMetrics, fmt.Errorf("failed to extract audio from %s: %w", media.FilePath, extractionError)
 		}
 
 		// 2. Split Audio
@@ -86,9 +86,9 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 		if segmentDurationSeconds <= 0 {
 			segmentDurationSeconds = 300
 		}
-		segmentFiles, err := service.mediaProcessor.SplitAudio(audioPath, segmentsDirectory, segmentDurationSeconds)
-		if err != nil {
-			return nil, totalMetrics, fmt.Errorf("failed to split audio: %w", err)
+		segmentFiles, splitError := service.mediaProcessor.SplitAudio(audioPath, segmentsDirectory, segmentDurationSeconds)
+		if splitError != nil {
+			return nil, totalMetrics, fmt.Errorf("failed to split audio: %w", splitError)
 		}
 		sort.Strings(segmentFiles)
 
@@ -122,9 +122,9 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 				}
 				updateProgress(currentProgress, "Transcribing audio segment...", segmentMetadata)
 
-				transcriptionResults, stepMetrics, err := service.provider.Transcribe(jobContext, segmentFile)
-				if err != nil {
-					return nil, totalMetrics, fmt.Errorf("transcription failed for segment %s: %w", segmentFile, err)
+				transcriptionResults, stepMetrics, transcriptionError := service.provider.Transcribe(jobContext, segmentFile)
+				if transcriptionError != nil {
+					return nil, totalMetrics, fmt.Errorf("transcription failed for segment %s: %w", segmentFile, transcriptionError)
 				}
 
 				totalMetrics.InputTokens += stepMetrics.InputTokens
@@ -154,12 +154,12 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 				cleanupProgress := int((float64(mediaIndex) + float64(segmentChunkEnd)/float64(totalSegments)) / float64(totalMediaFiles) * 100)
 				updateProgress(cleanupProgress, "Cleaning up and polishing transcripts...", mediaMetadata)
 
-				cleanedText, cleanupMetrics, err := service.cleanupTranscriptChunk(jobContext, chunkTextBuilder.String())
+				cleanedText, cleanupMetrics, cleanupError := service.cleanupTranscriptChunk(jobContext, chunkTextBuilder.String())
 				totalMetrics.InputTokens += cleanupMetrics.InputTokens
 				totalMetrics.OutputTokens += cleanupMetrics.OutputTokens
 				totalMetrics.EstimatedCost += cleanupMetrics.EstimatedCost
 
-				if err == nil {
+				if cleanupError == nil {
 					firstSegment := chunkSegments[0]
 					lastSegment := chunkSegments[len(chunkSegments)-1]
 
@@ -185,8 +185,8 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 
 		allSegments = append(allSegments, mediaSegments...)
 
-		durationSeconds, err := service.mediaProcessor.GetDuration(audioPath)
-		if err != nil {
+		durationSeconds, durationError := service.mediaProcessor.GetDuration(audioPath)
+		if durationError != nil {
 			durationSeconds = float64(len(segmentFiles) * segmentDurationSeconds)
 		}
 		globalTimeOffsetMilliseconds += int64(durationSeconds * 1000)
@@ -206,35 +206,35 @@ func (service *Service) cleanupTranscriptChunk(jobContext context.Context, rawTe
 
 	latexInstructions, _ := service.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 
-	cleanupPrompt, err := service.promptManager.GetPrompt(prompts.PromptCleanTranscript, map[string]string{
+	cleanupPrompt, promptError := service.promptManager.GetPrompt(prompts.PromptCleanTranscript, map[string]string{
 		"transcript":         rawText,
 		"latex_instructions": latexInstructions,
 	})
-	if err != nil {
-		return "", metrics, err
+	if promptError != nil {
+		return "", metrics, promptError
 	}
 
 	model := service.configuration.LLM.Model
 
-	responseChannel, err := service.llmProvider.Chat(jobContext, llm.ChatRequest{
+	responseChannel, chatError := service.llmProvider.Chat(jobContext, llm.ChatRequest{
 		Model: model,
 		Messages: []llm.Message{
 			{Role: "user", Content: []llm.ContentPart{{Type: "text", Text: cleanupPrompt}}},
 		},
 	})
-	if err != nil {
-		return "", metrics, err
+	if chatError != nil {
+		return "", metrics, chatError
 	}
 
 	var cleanedTextBuilder strings.Builder
-	for chunk := range responseChannel {
-		if chunk.Error != nil {
-			return "", metrics, chunk.Error
+	for responseChunk := range responseChannel {
+		if responseChunk.Error != nil {
+			return "", metrics, responseChunk.Error
 		}
-		cleanedTextBuilder.WriteString(chunk.Text)
-		metrics.InputTokens += chunk.InputTokens
-		metrics.OutputTokens += chunk.OutputTokens
-		metrics.EstimatedCost += chunk.Cost
+		cleanedTextBuilder.WriteString(responseChunk.Text)
+		metrics.InputTokens += responseChunk.InputTokens
+		metrics.OutputTokens += responseChunk.OutputTokens
+		metrics.EstimatedCost += responseChunk.Cost
 	}
 
 	return cleanedTextBuilder.String(), metrics, nil

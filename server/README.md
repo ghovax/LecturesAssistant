@@ -20,7 +20,7 @@ The server configuration is organized into task-specific operational settings an
 
 - **`llm`**: Global fallback model and granular model selection for ingestion, generation, polishing, etc.
 - **`transcription`**: Provider and model settings for audio processing.
-- **`providers`**: Centralized API keys and base URLs for OpenRouter, OpenAI, and Ollama.
+- **`providers`**: Centralized API keys and base URLs for OpenRouter and Ollama.
 - **`safety`**: Global thresholds for maximum cost per job, maximum retries for self-healing loops, and login rate limiting.
 
 ## Staged Upload Protocol (Prepare, Append, Stage)
@@ -116,7 +116,7 @@ Connect to `ws://localhost:3000/api/socket` with a valid session token.
    cd server
    cp configuration.yaml.example configuration.yaml
    ```
-   Then edit `configuration.yaml` and add your API keys for OpenRouter and/or OpenAI.
+   Then edit `configuration.yaml` and add your API key for OpenRouter.
 
 2. **Install dependencies**:
    ```bash

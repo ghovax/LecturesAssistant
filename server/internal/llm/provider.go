@@ -2,6 +2,8 @@ package llm
 
 import (
 	"context"
+	"fmt"
+	"strings"
 )
 
 // ContentPart represents a part of a message (text, image, or audio)
@@ -42,4 +44,48 @@ type Provider interface {
 
 	// Name returns the identifier of the provider
 	Name() string
+}
+
+// RoutingProvider routes requests to different providers based on a prefix or default
+type RoutingProvider struct {
+	providers       map[string]Provider
+	defaultProvider Provider
+}
+
+func NewRoutingProvider(defaultProvider Provider) *RoutingProvider {
+	return &RoutingProvider{
+		providers:       make(map[string]Provider),
+		defaultProvider: defaultProvider,
+	}
+}
+
+func (routingProvider *RoutingProvider) Register(name string, provider Provider) {
+	routingProvider.providers[name] = provider
+}
+
+func (routingProvider *RoutingProvider) Chat(jobContext context.Context, request ChatRequest) (<-chan ChatResponseChunk, error) {
+	modelName := request.Model
+	providerName := ""
+
+	if strings.Contains(modelName, ":") {
+		parts := strings.SplitN(modelName, ":", 2)
+		providerName = parts[0]
+		request.Model = parts[1]
+	}
+
+	if providerName != "" {
+		if provider, exists := routingProvider.providers[providerName]; exists {
+			return provider.Chat(jobContext, request)
+		}
+	}
+
+	if routingProvider.defaultProvider != nil {
+		return routingProvider.defaultProvider.Chat(jobContext, request)
+	}
+
+	return nil, fmt.Errorf("no LLM provider found for: %s", modelName)
+}
+
+func (routingProvider *RoutingProvider) Name() string {
+	return "routing-provider"
 }

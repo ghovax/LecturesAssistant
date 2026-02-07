@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -373,7 +374,9 @@ func RegisterHandlers(
 		}
 
 		// Parse citations and convert to standard footnotes
+		slog.Debug("Before ParseCitations", "content_length", len(toolContent), "has_triple_braces", strings.Contains(toolContent, "{{{"))
 		finalToolContent, citations := markdownReconstructor.ParseCitations(toolContent)
+		slog.Debug("After ParseCitations", "citations_found", len(citations))
 
 		// Improve footnotes using AI if it's a guide and we have citations
 		if payload.Type == "guide" && len(citations) > 0 {

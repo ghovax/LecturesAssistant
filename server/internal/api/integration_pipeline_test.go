@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -61,6 +62,12 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 	config.Storage.DataDirectory = testRunDataDir
 	os.MkdirAll(filepath.Join(testRunDataDir, "files", "lectures"), 0755)
 	os.MkdirAll(filepath.Join(testRunDataDir, "tmp", "uploads"), 0755)
+
+	// Setup detailed logging to file for debugging
+	logFile, _ := os.Create(filepath.Join(testRunDataDir, "test_debug.log"))
+	defer logFile.Close()
+	logger := slog.New(slog.NewJSONHandler(logFile, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	slog.SetDefault(logger)
 
 	// 2. Initialize Real Components
 	initializedDatabase, _ := database.Initialize(filepath.Join(testRunDataDir, "test_database.db"))

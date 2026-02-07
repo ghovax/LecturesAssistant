@@ -444,7 +444,20 @@ func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context,
 
 	var markdownBuilder strings.Builder
 	for _, citation := range batch {
-		markdownBuilder.WriteString(fmt.Sprintf("[^%d]: %s\n\n", citation.Number, citation.Description))
+		// Include file and page metadata in the footnote for LLM processing
+		footnoteText := citation.Description
+		if citation.File != "" {
+			if len(citation.Pages) > 0 {
+				pagePrefix := "p."
+				if len(citation.Pages) > 1 {
+					pagePrefix = "pp."
+				}
+				footnoteText = fmt.Sprintf("%s (`%s`, %s %s)", citation.Description, citation.File, pagePrefix, markdown.FormatPageNumbers(citation.Pages))
+			} else {
+				footnoteText = fmt.Sprintf("%s (`%s`)", citation.Description, citation.File)
+			}
+		}
+		markdownBuilder.WriteString(fmt.Sprintf("[^%d]: %s\n\n", citation.Number, footnoteText))
 	}
 
 	parsingPrompt, _ := generator.promptManager.GetPrompt(prompts.PromptParseFootnotes, map[string]string{

@@ -2,6 +2,7 @@ package markdown
 
 import (
 	"fmt"
+	"log/slog"
 	"regexp"
 	"sort"
 	"strconv"
@@ -27,6 +28,11 @@ func (reconstructor *Reconstructor) ParseCitations(text string) (string, []Parse
 
 	citationRegex := regexp.MustCompile(`\{\{\{(.*?)\s*\}\}\}`)
 	matches := citationRegex.FindAllStringSubmatch(text, -1)
+
+	slog.Debug("ParseCitations called", "text_length", len(text), "matches_found", len(matches))
+	if len(matches) > 0 {
+		slog.Debug("First citation match", "content", matches[0][1])
+	}
 
 	var citations []ParsedCitation
 	result := text

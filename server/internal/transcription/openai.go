@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"lectures/internal/models"
 )
 
 type OpenAIProvider struct {
@@ -57,10 +59,10 @@ type openAITranscriptionResponse struct {
 	} `json:"segments"`
 }
 
-func (provider *OpenAIProvider) Transcribe(jobContext context.Context, audioPath string) ([]Segment, error) {
+func (provider *OpenAIProvider) Transcribe(jobContext context.Context, audioPath string) ([]Segment, models.JobMetrics, error) {
 	file, err := os.Open(audioPath)
 	if err != nil {
-		return nil, err
+		return nil, models.JobMetrics{}, err
 	}
 	defer file.Close()
 
@@ -69,10 +71,10 @@ func (provider *OpenAIProvider) Transcribe(jobContext context.Context, audioPath
 
 	part, err := writer.CreateFormFile("file", filepath.Base(audioPath))
 	if err != nil {
-		return nil, err
+		return nil, models.JobMetrics{}, err
 	}
 	if _, err := io.Copy(part, file); err != nil {
-		return nil, err
+		return nil, models.JobMetrics{}, err
 	}
 
 	writer.WriteField("model", provider.model)
@@ -83,12 +85,12 @@ func (provider *OpenAIProvider) Transcribe(jobContext context.Context, audioPath
 	writer.WriteField("response_format", "verbose_json")
 
 	if err := writer.Close(); err != nil {
-		return nil, err
+		return nil, models.JobMetrics{}, err
 	}
 
 	request, err := http.NewRequestWithContext(jobContext, "POST", provider.baseURL+"/audio/transcriptions", body)
 	if err != nil {
-		return nil, err
+		return nil, models.JobMetrics{}, err
 	}
 
 	request.Header.Set("Content-Type", writer.FormDataContentType())
@@ -97,18 +99,18 @@ func (provider *OpenAIProvider) Transcribe(jobContext context.Context, audioPath
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, err
+		return nil, models.JobMetrics{}, err
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
 		errorBody, _ := io.ReadAll(response.Body)
-		return nil, fmt.Errorf("OpenAI API returned status %d: %s", response.StatusCode, string(errorBody))
+		return nil, models.JobMetrics{}, fmt.Errorf("OpenAI API returned status %d: %s", response.StatusCode, string(errorBody))
 	}
 
 	var openAIResp openAITranscriptionResponse
 	if err := json.NewDecoder(response.Body).Decode(&openAIResp); err != nil {
-		return nil, err
+		return nil, models.JobMetrics{}, err
 	}
 
 	var segments []Segment
@@ -129,5 +131,5 @@ func (provider *OpenAIProvider) Transcribe(jobContext context.Context, audioPath
 		})
 	}
 
-	return segments, nil
+	return segments, models.JobMetrics{}, nil
 }

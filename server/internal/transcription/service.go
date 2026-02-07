@@ -46,13 +46,14 @@ func (service *Service) CheckDependencies() error {
 }
 
 // TranscribeLecture processes a list of media files and returns a unified list of transcript segments
-func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles []models.LectureMedia, temporaryDirectory string, updateProgress func(int, string, any)) ([]models.TranscriptSegment, error) {
+func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles []models.LectureMedia, temporaryDirectory string, updateProgress func(int, string, any)) ([]models.TranscriptSegment, models.JobMetrics, error) {
 	var allSegments []models.TranscriptSegment
 	var globalTimeOffsetMilliseconds int64 = 0
+	var totalMetrics models.JobMetrics
 
 	// Validate FFmpeg
 	if err := service.mediaProcessor.CheckDependencies(); err != nil {
-		return nil, fmt.Errorf("ffmpeg dependency check failed: %w", err)
+		return nil, totalMetrics, fmt.Errorf("ffmpeg dependency check failed: %w", err)
 	}
 
 	// Load transcription instructions
@@ -76,7 +77,7 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 		// 1. Prepare Audio
 		audioPath := filepath.Join(temporaryDirectory, fmt.Sprintf("source_%s.mp3", media.ID))
 		if err := service.mediaProcessor.ExtractAudio(media.FilePath, audioPath); err != nil {
-			return nil, fmt.Errorf("failed to extract audio from %s: %w", media.FilePath, err)
+			return nil, totalMetrics, fmt.Errorf("failed to extract audio from %s: %w", media.FilePath, err)
 		}
 
 		// 2. Split Audio
@@ -87,7 +88,7 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 		}
 		segmentFiles, err := service.mediaProcessor.SplitAudio(audioPath, segmentsDirectory, segmentDurationSeconds)
 		if err != nil {
-			return nil, fmt.Errorf("failed to split audio: %w", err)
+			return nil, totalMetrics, fmt.Errorf("failed to split audio: %w", err)
 		}
 		sort.Strings(segmentFiles)
 
@@ -121,10 +122,14 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 				}
 				updateProgress(currentProgress, "Transcribing audio segment...", segmentMetadata)
 
-				transcriptionResults, err := service.provider.Transcribe(jobContext, segmentFile)
+				transcriptionResults, stepMetrics, err := service.provider.Transcribe(jobContext, segmentFile)
 				if err != nil {
-					return nil, fmt.Errorf("transcription failed for segment %s: %w", segmentFile, err)
+					return nil, totalMetrics, fmt.Errorf("transcription failed for segment %s: %w", segmentFile, err)
 				}
+
+				totalMetrics.InputTokens += stepMetrics.InputTokens
+				totalMetrics.OutputTokens += stepMetrics.OutputTokens
+				totalMetrics.EstimatedCost += stepMetrics.EstimatedCost
 
 				segmentBaseOffsetMilliseconds := int64(segmentIndex) * int64(segmentDurationSeconds) * 1000
 
@@ -149,7 +154,11 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 				cleanupProgress := int((float64(mediaIndex) + float64(segmentChunkEnd)/float64(totalSegments)) / float64(totalMediaFiles) * 100)
 				updateProgress(cleanupProgress, "Cleaning up and polishing transcripts...", mediaMetadata)
 
-				cleanedText, err := service.cleanupTranscriptChunk(jobContext, chunkTextBuilder.String())
+				cleanedText, cleanupMetrics, err := service.cleanupTranscriptChunk(jobContext, chunkTextBuilder.String())
+				totalMetrics.InputTokens += cleanupMetrics.InputTokens
+				totalMetrics.OutputTokens += cleanupMetrics.OutputTokens
+				totalMetrics.EstimatedCost += cleanupMetrics.EstimatedCost
+
 				if err == nil {
 					firstSegment := chunkSegments[0]
 					lastSegment := chunkSegments[len(chunkSegments)-1]
@@ -186,12 +195,13 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 		os.RemoveAll(segmentsDirectory)
 	}
 
-	return allSegments, nil
+	return allSegments, totalMetrics, nil
 }
 
-func (service *Service) cleanupTranscriptChunk(jobContext context.Context, rawText string) (string, error) {
+func (service *Service) cleanupTranscriptChunk(jobContext context.Context, rawText string) (string, models.JobMetrics, error) {
+	var metrics models.JobMetrics
 	if service.promptManager == nil {
-		return rawText, nil
+		return rawText, metrics, nil
 	}
 
 	latexInstructions, _ := service.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
@@ -201,7 +211,7 @@ func (service *Service) cleanupTranscriptChunk(jobContext context.Context, rawTe
 		"latex_instructions": latexInstructions,
 	})
 	if err != nil {
-		return "", err
+		return "", metrics, err
 	}
 
 	model := service.configuration.LLM.Model
@@ -213,16 +223,19 @@ func (service *Service) cleanupTranscriptChunk(jobContext context.Context, rawTe
 		},
 	})
 	if err != nil {
-		return "", err
+		return "", metrics, err
 	}
 
 	var cleanedTextBuilder strings.Builder
 	for chunk := range responseChannel {
 		if chunk.Error != nil {
-			return "", chunk.Error
+			return "", metrics, chunk.Error
 		}
 		cleanedTextBuilder.WriteString(chunk.Text)
+		metrics.InputTokens += chunk.InputTokens
+		metrics.OutputTokens += chunk.OutputTokens
+		metrics.EstimatedCost += chunk.Cost
 	}
 
-	return cleanedTextBuilder.String(), nil
+	return cleanedTextBuilder.String(), metrics, nil
 }

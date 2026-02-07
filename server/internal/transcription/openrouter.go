@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"lectures/internal/llm"
+	"lectures/internal/models"
 )
 
 type OpenRouterTranscriptionProvider struct {
@@ -43,11 +44,13 @@ func (provider *OpenRouterTranscriptionProvider) CheckDependencies() error {
 	return nil
 }
 
-func (provider *OpenRouterTranscriptionProvider) Transcribe(jobContext context.Context, audioPath string) ([]Segment, error) {
+func (provider *OpenRouterTranscriptionProvider) Transcribe(jobContext context.Context, audioPath string) ([]Segment, models.JobMetrics, error) {
+	var metrics models.JobMetrics
+
 	// Read audio file
 	audioData, err := os.ReadFile(audioPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read audio file: %w", err)
+		return nil, metrics, fmt.Errorf("failed to read audio file: %w", err)
 	}
 
 	// Encode to base64
@@ -91,30 +94,35 @@ func (provider *OpenRouterTranscriptionProvider) Transcribe(jobContext context.C
 	// Call LLM
 	responseChannel, err := provider.llmProvider.Chat(jobContext, request)
 	if err != nil {
-		return nil, fmt.Errorf("LLM chat failed: %w", err)
+		return nil, metrics, fmt.Errorf("LLM chat failed: %w", err)
 	}
 
 	// Collect response
 	var transcriptionBuilder strings.Builder
 	for chunk := range responseChannel {
 		if chunk.Error != nil {
-			return nil, fmt.Errorf("LLM streaming error: %w", chunk.Error)
+			return nil, metrics, fmt.Errorf("LLM streaming error: %w", chunk.Error)
 		}
 		transcriptionBuilder.WriteString(chunk.Text)
+		metrics.InputTokens += chunk.InputTokens
+		metrics.OutputTokens += chunk.OutputTokens
+		metrics.EstimatedCost += chunk.Cost
 	}
 
 	transcribedText := strings.TrimSpace(transcriptionBuilder.String())
 	if transcribedText == "" {
-		return nil, fmt.Errorf("no transcription received from LLM")
+		return nil, metrics, fmt.Errorf("no transcription received from LLM")
 	}
 
 	// Return as a single segment (OpenRouter doesn't provide timestamps via chat API)
 	// The TranscribeLecture service will handle chunking if needed
-	return []Segment{
+	segments := []Segment{
 		{
 			Start: 0,
 			End:   0, // Unknown duration when using chat API
 			Text:  transcribedText,
 		},
-	}, nil
+	}
+
+	return segments, metrics, nil
 }

@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -31,7 +32,11 @@ func (server *Server) handleCreateExam(responseWriter http.ResponseWriter, reque
 	}
 
 	// Clean title and description
-	title, description, _, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), createExamRequest.Title, createExamRequest.Description, "")
+	title, description, metrics, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), createExamRequest.Title, createExamRequest.Description, "")
+	slog.Info("Exam title/description polished",
+		"input_tokens", metrics.InputTokens,
+		"output_tokens", metrics.OutputTokens,
+		"estimated_cost_usd", metrics.EstimatedCost)
 
 	userID := server.getUserID(request)
 
@@ -162,7 +167,12 @@ func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, reque
 			newDescription = *updateExamRequest.Description
 		}
 
-		cleanedTitle, cleanedDescription, _, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), newTitle, newDescription, "")
+		cleanedTitle, cleanedDescription, metrics, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), newTitle, newDescription, "")
+		slog.Info("Exam title/description updated and polished",
+			"examID", updateExamRequest.ExamID,
+			"input_tokens", metrics.InputTokens,
+			"output_tokens", metrics.OutputTokens,
+			"estimated_cost_usd", metrics.EstimatedCost)
 
 		if updateExamRequest.Title != nil {
 			query += ", title = ?"

@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"lectures/internal/models"
 )
 
 type WhisperProvider struct {
@@ -49,7 +51,7 @@ type whisperSegment struct {
 	Text  string  `json:"text"`
 }
 
-func (whisper *WhisperProvider) Transcribe(context context.Context, audioPath string) ([]Segment, error) {
+func (whisper *WhisperProvider) Transcribe(context context.Context, audioPath string) ([]Segment, models.JobMetrics, error) {
 	outputDirectory := filepath.Dir(audioPath)
 
 	arguments := []string{
@@ -66,7 +68,7 @@ func (whisper *WhisperProvider) Transcribe(context context.Context, audioPath st
 	command := exec.CommandContext(context, "whisper", arguments...)
 
 	if err := command.Run(); err != nil {
-		return nil, fmt.Errorf("whisper execution failed: %w", err)
+		return nil, models.JobMetrics{}, fmt.Errorf("whisper execution failed: %w", err)
 	}
 	// Read the JSON output file
 	baseName := filepath.Base(audioPath)
@@ -78,12 +80,12 @@ func (whisper *WhisperProvider) Transcribe(context context.Context, audioPath st
 
 	whisperOutputData, err := os.ReadFile(jsonPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read whisper output: %w", err)
+		return nil, models.JobMetrics{}, fmt.Errorf("failed to read whisper output: %w", err)
 	}
 
 	var output whisperOutput
 	if err := json.Unmarshal(whisperOutputData, &output); err != nil {
-		return nil, fmt.Errorf("failed to parse whisper output: %w", err)
+		return nil, models.JobMetrics{}, fmt.Errorf("failed to parse whisper output: %w", err)
 	}
 
 	var segments []Segment
@@ -95,5 +97,6 @@ func (whisper *WhisperProvider) Transcribe(context context.Context, audioPath st
 		})
 	}
 
-	return segments, nil
+	// Whisper is local, no LLM costs
+	return segments, models.JobMetrics{}, nil
 }

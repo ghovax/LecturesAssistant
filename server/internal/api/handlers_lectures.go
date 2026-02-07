@@ -58,7 +58,11 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	description := request.FormValue("description")
 
 	// Clean title and description
-	cleanedTitle, cleanedDescription, _, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), title, description, "")
+	cleanedTitle, cleanedDescription, metrics, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), title, description, "")
+	slog.Info("Lecture title/description polished",
+		"input_tokens", metrics.InputTokens,
+		"output_tokens", metrics.OutputTokens,
+		"estimated_cost_usd", metrics.EstimatedCost)
 
 	userID := server.getUserID(request)
 
@@ -229,7 +233,7 @@ func (server *Server) handleUploadStage(responseWriter http.ResponseWriter, requ
 		return
 	}
 
-	uploadDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "tmp", "uploads", stageRequest.UploadID)
+	uploadDirectory := filepath.Join(os.TempDir(), "lectures-uploads", stageRequest.UploadID)
 
 	// Verify file exists
 	info, err := os.Stat(filepath.Join(uploadDirectory, "upload.data"))
@@ -509,7 +513,12 @@ func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, re
 			newDescription = *updateRequest.Description
 		}
 
-		cleanedTitle, cleanedDescription, _, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), newTitle, newDescription, "")
+		cleanedTitle, cleanedDescription, metrics, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), newTitle, newDescription, "")
+		slog.Info("Lecture title/description updated and polished",
+			"lectureID", updateRequest.LectureID,
+			"input_tokens", metrics.InputTokens,
+			"output_tokens", metrics.OutputTokens,
+			"estimated_cost_usd", metrics.EstimatedCost)
 
 		if updateRequest.Title != nil {
 			query += ", title = ?"

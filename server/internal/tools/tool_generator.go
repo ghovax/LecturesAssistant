@@ -1034,9 +1034,9 @@ type sectionInfo struct {
 	Coverage string
 }
 
-func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, options models.GenerationOptions, updateProgress func(int, string, any, models.JobMetrics)) (string, string, error) {
+func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, options models.GenerationOptions, updateProgress func(int, string, any, models.JobMetrics)) (string, string, models.JobMetrics, error) {
 	if generator.llmProvider == nil {
-		return "", lecture.Title, nil
+		return "", lecture.Title, models.JobMetrics{}, nil
 	}
 
 	var prompt string
@@ -1053,16 +1053,16 @@ func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, l
 		model = generator.configuration.LLM.GetModelForTask("content_generation")
 	}
 
-	response, _, err := generator.callLLMWithModel(jobContext, prompt, model)
+	response, metrics, err := generator.callLLMWithModel(jobContext, prompt, model)
 	if err != nil {
-		return "", "", err
+		return "", "", metrics, err
 	}
-	return response, lecture.Title, nil
+	return response, lecture.Title, metrics, nil
 }
 
-func (generator *ToolGenerator) GenerateQuiz(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, options models.GenerationOptions, updateProgress func(int, string, any, models.JobMetrics)) (string, string, error) {
+func (generator *ToolGenerator) GenerateQuiz(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, options models.GenerationOptions, updateProgress func(int, string, any, models.JobMetrics)) (string, string, models.JobMetrics, error) {
 	if generator.llmProvider == nil {
-		return "", lecture.Title, nil
+		return "", lecture.Title, models.JobMetrics{}, nil
 	}
 
 	var prompt string
@@ -1079,11 +1079,11 @@ func (generator *ToolGenerator) GenerateQuiz(jobContext context.Context, lecture
 		model = generator.configuration.LLM.GetModelForTask("content_generation")
 	}
 
-	response, _, err := generator.callLLMWithModel(jobContext, prompt, model)
+	response, metrics, err := generator.callLLMWithModel(jobContext, prompt, model)
 	if err != nil {
-		return "", "", err
+		return "", "", metrics, err
 	}
-	return response, lecture.Title, nil
+	return response, lecture.Title, metrics, nil
 }
 
 func (generator *ToolGenerator) unionAndMergeRanges(allRuns [][]struct {

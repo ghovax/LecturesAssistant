@@ -1,6 +1,9 @@
 package transcription
 
-import "context"
+import (
+	"context"
+	"lectures/internal/models"
+)
 
 // Segment represents a portion of the transcript
 type Segment struct {
@@ -13,8 +16,8 @@ type Segment struct {
 
 // Provider defines the interface for different transcription services
 type Provider interface {
-	// Transcribe processes an audio file and returns a list of segments
-	Transcribe(context context.Context, audioPath string) ([]Segment, error)
+	// Transcribe processes an audio file and returns a list of segments with cost metrics
+	Transcribe(context context.Context, audioPath string) ([]Segment, models.JobMetrics, error)
 
 	// SetPrompt sets the instructions for the transcription model
 	SetPrompt(prompt string)

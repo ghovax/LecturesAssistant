@@ -156,6 +156,9 @@ func createSchema(database *sql.DB) error {
 		role TEXT CHECK(role IN ('user', 'assistant', 'system')) NOT NULL,
 		content TEXT NOT NULL,
 		model_used TEXT,
+		input_tokens INTEGER DEFAULT 0,
+		output_tokens INTEGER DEFAULT 0,
+		estimated_cost REAL DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
@@ -238,6 +241,10 @@ func createSchema(database *sql.DB) error {
 	migrations := []string{
 		// Add original_filename column to lecture_media if it doesn't exist
 		`ALTER TABLE lecture_media ADD COLUMN original_filename TEXT`,
+		// Add token and cost columns to chat_messages
+		`ALTER TABLE chat_messages ADD COLUMN input_tokens INTEGER DEFAULT 0`,
+		`ALTER TABLE chat_messages ADD COLUMN output_tokens INTEGER DEFAULT 0`,
+		`ALTER TABLE chat_messages ADD COLUMN estimated_cost REAL DEFAULT 0`,
 	}
 
 	for _, migration := range migrations {

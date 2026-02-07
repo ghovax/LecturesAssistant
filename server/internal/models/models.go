@@ -113,12 +113,15 @@ type ChatSession struct {
 
 // ChatMessage represents a single message in a chat session
 type ChatMessage struct {
-	ID        string    `json:"id"`
-	SessionID string    `json:"session_id"`
-	Role      string    `json:"role"` // "user", "assistant", "system"
-	Content   string    `json:"content"`
-	ModelUsed string    `json:"model_used,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	ID            string    `json:"id"`
+	SessionID     string    `json:"session_id"`
+	Role          string    `json:"role"` // "user", "assistant", "system"
+	Content       string    `json:"content"`
+	ModelUsed     string    `json:"model_used,omitempty"`
+	InputTokens   int       `json:"input_tokens,omitempty"`
+	OutputTokens  int       `json:"output_tokens,omitempty"`
+	EstimatedCost float64   `json:"estimated_cost,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // JobMetrics contains token usage and cost information

@@ -85,8 +85,8 @@ type MockTranscriptionProvider struct {
 	Segments []transcription.Segment
 }
 
-func (mock *MockTranscriptionProvider) Transcribe(jobContext context.Context, audioPath string) ([]transcription.Segment, error) {
-	return mock.Segments, nil
+func (mock *MockTranscriptionProvider) Transcribe(jobContext context.Context, audioPath string) ([]transcription.Segment, models.JobMetrics, error) {
+	return mock.Segments, models.JobMetrics{}, nil
 }
 
 func (mock *MockTranscriptionProvider) SetPrompt(prompt string)  {}

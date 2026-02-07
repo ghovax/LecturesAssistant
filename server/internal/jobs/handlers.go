@@ -117,7 +117,7 @@ func RegisterHandlers(
 		defer os.RemoveAll(temporaryDirectory)
 
 		// 4. Run transcription
-		segments, err := transcriptionService.TranscribeLecture(jobContext, mediaFiles, temporaryDirectory, func(progress int, message string, metadata any) {
+		segments, totalMetrics, err := transcriptionService.TranscribeLecture(jobContext, mediaFiles, temporaryDirectory, func(progress int, message string, metadata any) {
 			updateProgress(progress, "Transcribing media files...", metadata, models.JobMetrics{})
 		})
 		if err != nil {
@@ -196,11 +196,12 @@ func RegisterHandlers(
 		if checkReadiness != nil {
 			checkReadiness(database, payload.LectureID)
 		}
-		updateProgress(100, "Transcription completed", nil, models.JobMetrics{})
+		updateProgress(100, "Transcription completed", nil, totalMetrics)
 		return nil
 	})
 
 	queue.RegisterHandler(models.JobTypeIngestDocuments, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, models.JobMetrics)) error {
+		var totalMetrics models.JobMetrics
 		var payload struct {
 			LectureID    string `json:"lecture_id"`
 			LanguageCode string `json:"language_code"`
@@ -240,7 +241,7 @@ func RegisterHandlers(
 				"total_documents": totalDocuments,
 				"document_title":  document.Title,
 			}
-			updateProgress(int(float64(documentIndex)/float64(totalDocuments)*100), "Ingesting reference documents...", metadata, models.JobMetrics{})
+			updateProgress(int(float64(documentIndex)/float64(totalDocuments)*100), "Ingesting reference documents...", metadata, totalMetrics)
 
 			// 2. Update status to processing
 			_, err := database.Exec("UPDATE reference_documents SET extraction_status = ?, updated_at = ? WHERE id = ?", "processing", time.Now(), document.ID)
@@ -252,9 +253,14 @@ func RegisterHandlers(
 			outputDirectory := filepath.Join(os.TempDir(), "lectures-documents", document.ID)
 
 			// 4. Run document processing
-			pages, err := documentProcessor.ProcessDocument(jobContext, document, outputDirectory, payload.LanguageCode, func(progress int, message string) {
-				updateProgress(progress, "Extracting and processing document pages...", metadata, models.JobMetrics{})
+			pages, docMetrics, err := documentProcessor.ProcessDocument(jobContext, document, outputDirectory, payload.LanguageCode, func(progress int, message string) {
+				updateProgress(progress, "Extracting and processing document pages...", metadata, totalMetrics)
 			})
+
+			totalMetrics.InputTokens += docMetrics.InputTokens
+			totalMetrics.OutputTokens += docMetrics.OutputTokens
+			totalMetrics.EstimatedCost += docMetrics.EstimatedCost
+
 			if err != nil {
 				// Clean up PNG images on failure
 				os.RemoveAll(outputDirectory)
@@ -317,7 +323,7 @@ func RegisterHandlers(
 		if checkReadiness != nil {
 			checkReadiness(database, payload.LectureID)
 		}
-		updateProgress(100, "Document ingestion completed", nil, models.JobMetrics{})
+		updateProgress(100, "Document ingestion completed", nil, totalMetrics)
 		return nil
 	})
 
@@ -426,19 +432,22 @@ func RegisterHandlers(
 		referenceFilesContent := markdownReconstructor.Reconstruct(rootNode)
 
 		var toolContent, toolTitle string
+		var totalMetrics models.JobMetrics
 		var genErr error
 
 		switch payload.Type {
 		case "flashcard":
-			toolContent, toolTitle, genErr = toolGenerator.GenerateFlashcards(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.LanguageCode, options, func(progress int, message string, metadata any, metrics models.JobMetrics) {
+			toolContent, toolTitle, totalMetrics, genErr = toolGenerator.GenerateFlashcards(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.LanguageCode, options, func(progress int, message string, metadata any, metrics models.JobMetrics) {
 				updateProgress(progress, message, metadata, metrics)
 			})
 		case "quiz":
-			toolContent, toolTitle, genErr = toolGenerator.GenerateQuiz(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.LanguageCode, options, func(progress int, message string, metadata any, metrics models.JobMetrics) {
+			toolContent, toolTitle, totalMetrics, genErr = toolGenerator.GenerateQuiz(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.LanguageCode, options, func(progress int, message string, metadata any, metrics models.JobMetrics) {
 				updateProgress(progress, message, metadata, metrics)
 			})
 		default:
 			toolContent, toolTitle, genErr = toolGenerator.GenerateStudyGuide(jobContext, lecture, transcriptBuilder.String(), referenceFilesContent, payload.Length, payload.LanguageCode, options, func(progress int, message string, metadata any, metrics models.JobMetrics) {
+				// Metrics are already aggregated inside GenerateStudyGuide and passed back via this callback
+				totalMetrics = metrics
 				updateProgress(progress, message, metadata, metrics)
 			})
 		}
@@ -454,7 +463,10 @@ func RegisterHandlers(
 
 		// Improve footnotes using AI if it's a guide and we have citations
 		if payload.Type == "guide" && len(citations) > 0 {
-			updatedCitations, _, err := toolGenerator.ProcessFootnotesAI(jobContext, citations, options)
+			updatedCitations, footnoteMetrics, err := toolGenerator.ProcessFootnotesAI(jobContext, citations, options)
+			totalMetrics.InputTokens += footnoteMetrics.InputTokens
+			totalMetrics.OutputTokens += footnoteMetrics.OutputTokens
+			totalMetrics.EstimatedCost += footnoteMetrics.EstimatedCost
 			if err == nil {
 				citations = updatedCitations
 			}
@@ -464,6 +476,8 @@ func RegisterHandlers(
 		if payload.Type == "guide" {
 			finalToolContent = markdownReconstructor.AppendCitations(finalToolContent, citations)
 		}
+
+		updateProgress(95, "Finalizing tool...", nil, totalMetrics)
 
 		toolID := uuid.New().String()
 
@@ -480,6 +494,8 @@ func RegisterHandlers(
 	})
 
 	queue.RegisterHandler(models.JobTypePublishMaterial, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, models.JobMetrics)) error {
+		var totalMetrics models.JobMetrics
+
 		var payload struct {
 			ToolID string `json:"tool_id"`
 		}
@@ -673,14 +689,21 @@ func RegisterHandlers(
 		}
 
 		// Generate abstract from transcript
-		updateProgress(40, "Generating document abstract...", nil, models.JobMetrics{})
+		updateProgress(40, "Generating document abstract...", nil, totalMetrics)
 		abstract := ""
 		if transcriptBuilder.Len() > 0 && toolGenerator != nil {
 			slog.Debug("Generating abstract from transcript")
-			generatedAbstract, _, err := toolGenerator.GenerateAbstract(jobContext, transcriptBuilder.String(), config.LLM.Language, "")
+			generatedAbstract, abstractMetrics, err := toolGenerator.GenerateAbstract(jobContext, transcriptBuilder.String(), config.LLM.Language, "")
 			if err == nil {
 				abstract = generatedAbstract
-				slog.Info("Generated abstract", "abstract", abstract)
+				totalMetrics.InputTokens += abstractMetrics.InputTokens
+				totalMetrics.OutputTokens += abstractMetrics.OutputTokens
+				totalMetrics.EstimatedCost += abstractMetrics.EstimatedCost
+				slog.Info("Generated abstract",
+					"abstract", abstract,
+					"input_tokens", abstractMetrics.InputTokens,
+					"output_tokens", abstractMetrics.OutputTokens,
+					"cost", abstractMetrics.EstimatedCost)
 			} else {
 				slog.Error("Failed to generate abstract", "error", err)
 			}
@@ -708,7 +731,13 @@ func RegisterHandlers(
 			return fmt.Errorf("failed to generate PDF: %w", err)
 		}
 
-		updateProgress(100, "Export completed", map[string]string{"pdf_path": pdfPath}, models.JobMetrics{})
+		updateProgress(100, "Export completed", map[string]string{"pdf_path": pdfPath}, totalMetrics)
+
+		slog.Info("PDF export completed with costs",
+			"pdf_path", pdfPath,
+			"input_tokens", totalMetrics.InputTokens,
+			"output_tokens", totalMetrics.OutputTokens,
+			"estimated_cost_usd", totalMetrics.EstimatedCost)
 		job.Result = fmt.Sprintf(`{"pdf_path": "%s"}`, pdfPath)
 		return nil
 	})

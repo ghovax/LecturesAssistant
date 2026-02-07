@@ -169,7 +169,7 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 
 	// Get messages
 	messageRows, databaseError := server.database.Query(`
-		SELECT id, session_id, role, content, model_used, created_at
+		SELECT id, session_id, role, content, model_used, input_tokens, output_tokens, estimated_cost, created_at
 		FROM chat_messages
 		WHERE session_id = ?
 		ORDER BY created_at ASC
@@ -183,7 +183,7 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 	var messages []models.ChatMessage
 	for messageRows.Next() {
 		var message models.ChatMessage
-		if scanError := messageRows.Scan(&message.ID, &message.SessionID, &message.Role, &message.Content, &message.ModelUsed, &message.CreatedAt); scanError != nil {
+		if scanError := messageRows.Scan(&message.ID, &message.SessionID, &message.Role, &message.Content, &message.ModelUsed, &message.InputTokens, &message.OutputTokens, &message.EstimatedCost, &message.CreatedAt); scanError != nil {
 			continue
 		}
 		messages = append(messages, message)
@@ -536,6 +536,7 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 		return
 	}
 
+	var totalMetrics models.JobMetrics
 	var completeResponseBuilder strings.Builder
 	for chunk := range responseChannel {
 		if chunk.Error != nil {
@@ -544,6 +545,9 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 		}
 
 		completeResponseBuilder.WriteString(chunk.Text)
+		totalMetrics.InputTokens += chunk.InputTokens
+		totalMetrics.OutputTokens += chunk.OutputTokens
+		totalMetrics.EstimatedCost += chunk.Cost
 
 		// Broadcast token via WebSocket
 		server.wsHub.Broadcast(WSMessage{
@@ -563,7 +567,10 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 
 	// Improve footnotes using AI if we have citations
 	if len(citations) > 0 {
-		updatedCitations, _, err := server.toolGenerator.ProcessFootnotesAI(context.Background(), citations, models.GenerationOptions{})
+		updatedCitations, footnoteMetrics, err := server.toolGenerator.ProcessFootnotesAI(context.Background(), citations, models.GenerationOptions{})
+		totalMetrics.InputTokens += footnoteMetrics.InputTokens
+		totalMetrics.OutputTokens += footnoteMetrics.OutputTokens
+		totalMetrics.EstimatedCost += footnoteMetrics.EstimatedCost
 		if err == nil {
 			citations = updatedCitations
 		}
@@ -571,20 +578,29 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 
 	finalContent = markdownReconstructor.AppendCitations(finalContent, citations)
 
+	slog.Info("Chat AI response completed",
+		"sessionID", sessionID,
+		"input_tokens", totalMetrics.InputTokens,
+		"output_tokens", totalMetrics.OutputTokens,
+		"estimated_cost_usd", totalMetrics.EstimatedCost)
+
 	// Save complete response
 	assistantMessage := models.ChatMessage{
-		ID:        uuid.New().String(),
-		SessionID: sessionID,
-		Role:      "assistant",
-		Content:   finalContent,
-		ModelUsed: model,
-		CreatedAt: time.Now(),
+		ID:            uuid.New().String(),
+		SessionID:     sessionID,
+		Role:          "assistant",
+		Content:       finalContent,
+		ModelUsed:     model,
+		InputTokens:   totalMetrics.InputTokens,
+		OutputTokens:  totalMetrics.OutputTokens,
+		EstimatedCost: totalMetrics.EstimatedCost,
+		CreatedAt:     time.Now(),
 	}
 
 	_, databaseError := server.database.Exec(`
-		INSERT INTO chat_messages (id, session_id, role, content, model_used, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, assistantMessage.ID, assistantMessage.SessionID, assistantMessage.Role, assistantMessage.Content, assistantMessage.ModelUsed, assistantMessage.CreatedAt)
+		INSERT INTO chat_messages (id, session_id, role, content, model_used, input_tokens, output_tokens, estimated_cost, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, assistantMessage.ID, assistantMessage.SessionID, assistantMessage.Role, assistantMessage.Content, assistantMessage.ModelUsed, assistantMessage.InputTokens, assistantMessage.OutputTokens, assistantMessage.EstimatedCost, assistantMessage.CreatedAt)
 
 	if databaseError != nil {
 		slog.Error("Failed to save assistant message", "error", databaseError)

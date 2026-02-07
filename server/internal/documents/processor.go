@@ -40,9 +40,10 @@ func (processor *Processor) CheckDependencies() error {
 }
 
 // ProcessDocument extracts pages as images and performs interpretation using a Vision LLM
-func (processor *Processor) ProcessDocument(jobContext context.Context, document models.ReferenceDocument, outputDirectory string, languageCode string, updateProgress func(int, string)) ([]models.ReferencePage, error) {
+func (processor *Processor) ProcessDocument(jobContext context.Context, document models.ReferenceDocument, outputDirectory string, languageCode string, updateProgress func(int, string)) ([]models.ReferencePage, models.JobMetrics, error) {
+	var metrics models.JobMetrics
 	if directoryError := os.MkdirAll(outputDirectory, 0755); directoryError != nil {
-		return nil, fmt.Errorf("failed to create output directory: %w", directoryError)
+		return nil, metrics, fmt.Errorf("failed to create output directory: %w", directoryError)
 	}
 
 	extension := strings.ToLower(filepath.Ext(document.FilePath))
@@ -55,22 +56,23 @@ func (processor *Processor) ProcessDocument(jobContext context.Context, document
 		updateProgress(5, "Converting document to PDF...")
 		temporaryPdfPath := filepath.Join(os.TempDir(), fmt.Sprintf("%s.pdf", document.ID))
 		if conversionError := processor.converter.ConvertToPDF(document.FilePath, temporaryPdfPath); conversionError != nil {
-			return nil, fmt.Errorf("failed to convert document to PDF: %w", conversionError)
+			return nil, metrics, fmt.Errorf("failed to convert document to PDF: %w", conversionError)
 		}
 		pdfPath = temporaryPdfPath
 		defer os.Remove(temporaryPdfPath)
 	default:
-		return nil, fmt.Errorf("unsupported document type: %s", extension)
+		return nil, metrics, fmt.Errorf("unsupported document type: %s", extension)
 	}
 
 	return processor.processPDF(jobContext, pdfPath, document.ID, outputDirectory, languageCode, updateProgress)
 }
 
-func (processor *Processor) processPDF(jobContext context.Context, pdfPath string, documentID string, outputDirectory string, languageCode string, updateProgress func(int, string)) ([]models.ReferencePage, error) {
+func (processor *Processor) processPDF(jobContext context.Context, pdfPath string, documentID string, outputDirectory string, languageCode string, updateProgress func(int, string)) ([]models.ReferencePage, models.JobMetrics, error) {
+	var metrics models.JobMetrics
 	updateProgress(10, "Extracting pages as images...")
 	imageFiles, extractionError := processor.converter.ExtractPagesAsImages(pdfPath, outputDirectory)
 	if extractionError != nil {
-		return nil, extractionError
+		return nil, metrics, extractionError
 	}
 
 	var extractedPages []models.ReferencePage
@@ -81,10 +83,14 @@ func (processor *Processor) processPDF(jobContext context.Context, pdfPath strin
 		progress := 10 + int(float64(imageIndex)/float64(totalImages)*90.0)
 		updateProgress(progress, fmt.Sprintf("Interpreting page content %d/%d...", pageNumber, totalImages))
 
-		extractedText, interpretationError := processor.interpretPageContent(jobContext, imagePath, languageCode)
+		extractedText, pageMetrics, interpretationError := processor.interpretPageContent(jobContext, imagePath, languageCode)
 		if interpretationError != nil {
-			return nil, fmt.Errorf("failed to interpret page %d: %w", pageNumber, interpretationError)
+			return nil, metrics, fmt.Errorf("failed to interpret page %d: %w", pageNumber, interpretationError)
 		}
+
+		metrics.InputTokens += pageMetrics.InputTokens
+		metrics.OutputTokens += pageMetrics.OutputTokens
+		metrics.EstimatedCost += pageMetrics.EstimatedCost
 
 		extractedPages = append(extractedPages, models.ReferencePage{
 			DocumentID:    documentID,
@@ -94,13 +100,14 @@ func (processor *Processor) processPDF(jobContext context.Context, pdfPath strin
 		})
 	}
 
-	return extractedPages, nil
+	return extractedPages, metrics, nil
 }
 
-func (processor *Processor) interpretPageContent(jobContext context.Context, imagePath string, languageCode string) (string, error) {
+func (processor *Processor) interpretPageContent(jobContext context.Context, imagePath string, languageCode string) (string, models.JobMetrics, error) {
+	var metrics models.JobMetrics
 	imageData, readError := os.ReadFile(imagePath)
 	if readError != nil {
-		return "", readError
+		return "", metrics, readError
 	}
 
 	base64Image := base64.StdEncoding.EncodeToString(imageData)
@@ -116,7 +123,7 @@ func (processor *Processor) interpretPageContent(jobContext context.Context, ima
 			"latex_instructions":   latexInstructions,
 		})
 		if promptError != nil {
-			return "", promptError
+			return "", metrics, promptError
 		}
 	} else {
 		// Fallback prompt when promptManager is nil (e.g., in tests)
@@ -138,16 +145,19 @@ func (processor *Processor) interpretPageContent(jobContext context.Context, ima
 
 	responseChannel, chatError := processor.llmProvider.Chat(jobContext, request)
 	if chatError != nil {
-		return "", chatError
+		return "", metrics, chatError
 	}
 
 	var extractedTextBuilder strings.Builder
 	for chunk := range responseChannel {
 		if chunk.Error != nil {
-			return "", chunk.Error
+			return "", metrics, chunk.Error
 		}
 		extractedTextBuilder.WriteString(chunk.Text)
+		metrics.InputTokens += chunk.InputTokens
+		metrics.OutputTokens += chunk.OutputTokens
+		metrics.EstimatedCost += chunk.Cost
 	}
 
-	return extractedTextBuilder.String(), nil
+	return extractedTextBuilder.String(), metrics, nil
 }

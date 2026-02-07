@@ -56,6 +56,15 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	}
 
 	description := request.FormValue("description")
+	specifiedDateStr := request.FormValue("specified_date")
+	var specifiedDate *time.Time
+	if specifiedDateStr != "" {
+		if parsedDate, err := time.Parse(time.RFC3339, specifiedDateStr); err == nil {
+			specifiedDate = &parsedDate
+		} else if parsedDate, err := time.Parse("2006-01-02", specifiedDateStr); err == nil {
+			specifiedDate = &parsedDate
+		}
+	}
 
 	// Clean title and description
 	cleanedTitle, cleanedDescription, metrics, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), title, description, "")
@@ -77,13 +86,14 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	// 1. Create the Lecture
 	lectureID := uuid.New().String()
 	lecture := models.Lecture{
-		ID:          lectureID,
-		ExamID:      examID,
-		Title:       cleanedTitle,
-		Description: cleanedDescription,
-		Status:      "processing",
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		ID:            lectureID,
+		ExamID:        examID,
+		Title:         cleanedTitle,
+		Description:   cleanedDescription,
+		SpecifiedDate: specifiedDate,
+		Status:        "processing",
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 
 	transaction, err := server.database.Begin()
@@ -94,9 +104,9 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	defer transaction.Rollback()
 
 	_, err = transaction.Exec(`
-		INSERT INTO lectures (id, exam_id, title, description, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, lecture.ID, lecture.ExamID, lecture.Title, lecture.Description, lecture.Status, lecture.CreatedAt, lecture.UpdatedAt)
+		INSERT INTO lectures (id, exam_id, title, description, specified_date, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, lecture.ID, lecture.ExamID, lecture.Title, lecture.Description, lecture.SpecifiedDate, lecture.Status, lecture.CreatedAt, lecture.UpdatedAt)
 
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to save lecture", nil)
@@ -472,10 +482,11 @@ func (server *Server) handleGetLecture(responseWriter http.ResponseWriter, reque
 // handleUpdateLecture updates a lecture
 func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, request *http.Request) {
 	var updateRequest struct {
-		LectureID   string  `json:"lecture_id"`
-		ExamID      string  `json:"exam_id"`
-		Title       *string `json:"title"`
-		Description *string `json:"description"`
+		LectureID     string  `json:"lecture_id"`
+		ExamID        string  `json:"exam_id"`
+		Title         *string `json:"title"`
+		Description   *string `json:"description"`
+		SpecifiedDate *string `json:"specified_date"`
 	}
 
 	if err := json.NewDecoder(request.Body).Decode(&updateRequest); err != nil {
@@ -538,6 +549,19 @@ func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, re
 			query += ", description = ?"
 			updates = append(updates, cleanedDescription)
 		}
+	}
+
+	if updateRequest.SpecifiedDate != nil {
+		var specifiedDate *time.Time
+		if *updateRequest.SpecifiedDate != "" {
+			if parsedDate, err := time.Parse(time.RFC3339, *updateRequest.SpecifiedDate); err == nil {
+				specifiedDate = &parsedDate
+			} else if parsedDate, err := time.Parse("2006-01-02", *updateRequest.SpecifiedDate); err == nil {
+				specifiedDate = &parsedDate
+			}
+		}
+		query += ", specified_date = ?"
+		updates = append(updates, specifiedDate)
 	}
 
 	query += " WHERE id = ? AND exam_id = ?"

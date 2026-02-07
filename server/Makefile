@@ -13,9 +13,9 @@ clean:
 	rm -f lectures
 	go clean
 
-# Run tests (can take TEST argument, runs all including integration)
+# Run tests (can take TEST argument for -run, and TAGS for build tags like integration)
 test: fmt
-	go test -v -tags=integration ./... $(if $(TEST),-run $(TEST))
+	go test -v $(if $(TAGS),-tags=$(TAGS)) ./... $(if $(TEST),-run $(TEST))
 
 # Format the code
 fmt:

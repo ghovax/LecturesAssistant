@@ -402,6 +402,7 @@ func RegisterHandlers(
 		defer documentRows.Close()
 
 		markdownReconstructor := markdown.NewReconstructor()
+		markdownReconstructor.Language = payload.LanguageCode
 		rootNode := &markdown.Node{Type: markdown.NodeDocument}
 		currentDocumentTitle := ""
 
@@ -463,7 +464,7 @@ func RegisterHandlers(
 
 		// Improve footnotes using AI if it's a guide and we have citations
 		if payload.Type == "guide" && len(citations) > 0 {
-			updatedCitations, footnoteMetrics, err := toolGenerator.ProcessFootnotesAI(jobContext, citations, options)
+			updatedCitations, footnoteMetrics, err := toolGenerator.ProcessFootnotesAI(jobContext, citations, payload.LanguageCode, options)
 			totalMetrics.InputTokens += footnoteMetrics.InputTokens
 			totalMetrics.OutputTokens += footnoteMetrics.OutputTokens
 			totalMetrics.EstimatedCost += footnoteMetrics.EstimatedCost
@@ -482,9 +483,9 @@ func RegisterHandlers(
 		toolID := uuid.New().String()
 
 		_, err = database.Exec(`
-			INSERT INTO tools (id, exam_id, type, title, content, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, toolID, payload.ExamID, payload.Type, toolTitle, finalToolContent, time.Now(), time.Now())
+			INSERT INTO tools (id, exam_id, type, title, language_code, content, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`, toolID, payload.ExamID, payload.Type, toolTitle, payload.LanguageCode, finalToolContent, time.Now(), time.Now())
 		if err != nil {
 			return fmt.Errorf("failed to store tool: %w", err)
 		}
@@ -497,7 +498,8 @@ func RegisterHandlers(
 		var totalMetrics models.JobMetrics
 
 		var payload struct {
-			ToolID string `json:"tool_id"`
+			ToolID       string `json:"tool_id"`
+			LanguageCode string `json:"language_code"`
 		}
 		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
 			return fmt.Errorf("failed to unmarshal job payload: %w", err)
@@ -505,9 +507,16 @@ func RegisterHandlers(
 
 		var tool models.Tool
 		var examID string
-		err := database.QueryRow("SELECT id, exam_id, type, title, content, created_at FROM tools WHERE id = ?", payload.ToolID).Scan(&tool.ID, &examID, &tool.Type, &tool.Title, &tool.Content, &tool.CreatedAt)
+		err := database.QueryRow("SELECT id, exam_id, type, title, language_code, content, created_at FROM tools WHERE id = ?", payload.ToolID).Scan(&tool.ID, &examID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.Content, &tool.CreatedAt)
 		if err != nil {
 			return fmt.Errorf("failed to get tool: %w", err)
+		}
+
+		if payload.LanguageCode == "" {
+			payload.LanguageCode = tool.LanguageCode
+		}
+		if payload.LanguageCode == "" {
+			payload.LanguageCode = config.LLM.Language
 		}
 
 		exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", tool.ID)
@@ -524,6 +533,7 @@ func RegisterHandlers(
 		contentToConvert := tool.Content
 		if tool.Type == "flashcard" || tool.Type == "quiz" {
 			markdownReconstructor := markdown.NewReconstructor()
+			markdownReconstructor.Language = payload.LanguageCode
 			rootNode := &markdown.Node{Type: markdown.NodeDocument}
 
 			rootNode.Children = append(rootNode.Children, &markdown.Node{
@@ -591,7 +601,7 @@ func RegisterHandlers(
 		updateProgress(30, "Gathering lecture metadata...", nil, models.JobMetrics{})
 
 		// Get lectures for this exam to collect metadata
-		lectureRows, err := database.Query("SELECT id FROM lectures WHERE exam_id = ? AND status = 'ready'", examID)
+		lectureRows, err := database.Query("SELECT id, specified_date FROM lectures WHERE exam_id = ? AND status = 'ready'", examID)
 		if err != nil {
 			return fmt.Errorf("failed to query lectures: %w", err)
 		}
@@ -600,12 +610,19 @@ func RegisterHandlers(
 		var audioFiles []markdown.AudioFileMetadata
 		var referenceFiles []markdown.ReferenceFileMetadata
 		var transcriptBuilder strings.Builder
+		var finalDate time.Time = tool.CreatedAt
 
 		for lectureRows.Next() {
 			var lectureID string
-			if err := lectureRows.Scan(&lectureID); err != nil {
+			var specifiedDate sql.NullTime
+			if err := lectureRows.Scan(&lectureID, &specifiedDate); err != nil {
 				slog.Error("Failed to scan lecture ID", "error", err)
 				continue
+			}
+
+			// If any lecture has a specified date, we use it (preferring the latest one found if multiple)
+			if specifiedDate.Valid {
+				finalDate = specifiedDate.Time
 			}
 			slog.Debug("Processing lecture for metadata", "lecture_id", lectureID)
 
@@ -688,12 +705,12 @@ func RegisterHandlers(
 			slog.Debug("Reference file metadata", "index", i, "filename", rf.Filename, "page_count", rf.PageCount)
 		}
 
-		// Generate abstract from transcript
+		// Generate abstract from the tool content itself
 		updateProgress(40, "Generating document abstract...", nil, totalMetrics)
 		abstract := ""
-		if transcriptBuilder.Len() > 0 && toolGenerator != nil {
-			slog.Debug("Generating abstract from transcript")
-			generatedAbstract, abstractMetrics, err := toolGenerator.GenerateAbstract(jobContext, transcriptBuilder.String(), config.LLM.Language, "")
+		if contentToConvert != "" && toolGenerator != nil {
+			slog.Debug("Generating abstract from tool content")
+			generatedAbstract, abstractMetrics, err := toolGenerator.GenerateAbstract(jobContext, contentToConvert, payload.LanguageCode, "")
 			if err == nil {
 				abstract = generatedAbstract
 				totalMetrics.InputTokens += abstractMetrics.InputTokens
@@ -708,14 +725,14 @@ func RegisterHandlers(
 				slog.Error("Failed to generate abstract", "error", err)
 			}
 		} else {
-			slog.Warn("Skipping abstract generation", "has_transcript", transcriptBuilder.Len() > 0, "has_generator", toolGenerator != nil)
+			slog.Warn("Skipping abstract generation", "has_content", contentToConvert != "", "has_generator", toolGenerator != nil)
 		}
 
 		updateProgress(50, "Generating PDF document...", nil, models.JobMetrics{})
 		options := markdown.ConversionOptions{
-			Language:       config.LLM.Language,
+			Language:       payload.LanguageCode,
 			Description:    abstract,
-			CreationDate:   tool.CreatedAt,
+			CreationDate:   finalDate,
 			ReferenceFiles: referenceFiles,
 			AudioFiles:     audioFiles,
 		}

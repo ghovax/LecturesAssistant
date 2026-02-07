@@ -163,6 +163,7 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 	multipartWriter := multipart.NewWriter(requestBody)
 	multipartWriter.WriteField("title", "Real World Test Lecture")
 	multipartWriter.WriteField("exam_id", examID)
+	multipartWriter.WriteField("specified_date", "2026-01-03")
 
 	audioFile, _ := os.Open(audioPath)
 	mediaPart, _ := multipartWriter.CreateFormFile("media", filepath.Base(audioPath))
@@ -211,10 +212,11 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 	// E. Trigger Study Guide Generation
 	tester.Log("Triggering study guide generation...")
 	toolPayload, _ := json.Marshal(map[string]string{
-		"exam_id":    examID,
-		"lecture_id": lectureID,
-		"type":       "guide",
-		"length":     "short",
+		"exam_id":       examID,
+		"lecture_id":    lectureID,
+		"type":          "guide",
+		"length":        "short",
+		"language_code": "de",
 	})
 	toolReq := authenticatedRequest("POST", testServer.URL+"/api/tools", bytes.NewBuffer(toolPayload))
 	toolReq.Header.Set("Content-Type", "application/json")

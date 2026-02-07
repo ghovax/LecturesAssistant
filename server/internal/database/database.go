@@ -55,6 +55,7 @@ func createSchema(database *sql.DB) error {
 		exam_id TEXT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
 		title TEXT NOT NULL,
 		description TEXT,
+		specified_date DATETIME,
 		status TEXT CHECK(status IN ('processing', 'ready', 'failed')) DEFAULT 'processing',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -128,6 +129,7 @@ func createSchema(database *sql.DB) error {
 		exam_id TEXT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
 		type TEXT CHECK(type IN ('guide', 'flashcard', 'quiz', 'custom')) NOT NULL,
 		title TEXT NOT NULL,
+		language_code TEXT,
 		content JSON NOT NULL,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -245,6 +247,10 @@ func createSchema(database *sql.DB) error {
 		`ALTER TABLE chat_messages ADD COLUMN input_tokens INTEGER DEFAULT 0`,
 		`ALTER TABLE chat_messages ADD COLUMN output_tokens INTEGER DEFAULT 0`,
 		`ALTER TABLE chat_messages ADD COLUMN estimated_cost REAL DEFAULT 0`,
+		// Add language_code to tools
+		`ALTER TABLE tools ADD COLUMN language_code TEXT`,
+		// Add specified_date to lectures
+		`ALTER TABLE lectures ADD COLUMN specified_date DATETIME`,
 	}
 
 	for _, migration := range migrations {

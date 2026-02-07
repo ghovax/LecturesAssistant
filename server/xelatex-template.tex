@@ -87,13 +87,16 @@ $if(title)$
 \maketitle
 $if(abstract)$
 \begin{abstract}
+$if(abstract-title)$
+\renewcommand{\abstractname}{$abstract-title$}
+$endif$
 $abstract$
 \end{abstract}
 $endif$
 $endif$
 
 $if(audiofile)$
-\subsection*{\textsf{Audio Files}}
+\subsection*{\textsf{$if(audio-files-title)$$audio-files-title$$else$Audio Files$endif$}}
 \begin{itemize}
 $for(audiofile)$
 \item \texttt{$audiofile.filename$}\hfill\textsf{$audiofile.metadata$}
@@ -102,7 +105,7 @@ $endfor$
 $endif$
 
 $if(referencefile)$
-\subsection*{\textsf{Reference Files}}
+\subsection*{\textsf{$if(reference-files-title)$$reference-files-title$$else$Reference Files$endif$}}
 \begin{itemize}
 $for(referencefile)$
 \item \texttt{$referencefile.filename$}\hfill\textsf{$referencefile.metadata$}

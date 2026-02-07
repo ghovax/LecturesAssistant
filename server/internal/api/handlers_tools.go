@@ -5,9 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 
 	"lectures/internal/models"
 )
+
+// BCP-47 Regex (basic validation)
+var bcp47Regex = regexp.MustCompile(`^[a-zA-Z]{2,3}(?:-[a-zA-Z]{4})?(?:-[a-zA-Z]{2}|-[0-9]{3})?$`)
 
 // handleCreateTool triggers a tool generation job
 func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, request *http.Request) {
@@ -62,6 +66,12 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 		createToolRequest.LanguageCode = server.configuration.LLM.Language
 	}
 
+	// Validate BCP-47 language code
+	if !bcp47Regex.MatchString(createToolRequest.LanguageCode) {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid language_code format (BCP-47 required)", nil)
+		return
+	}
+
 	userID := server.getUserID(request)
 
 	// Enqueue job
@@ -104,7 +114,7 @@ func (server *Server) handleListTools(responseWriter http.ResponseWriter, reques
 	toolType := request.URL.Query().Get("type")
 
 	query := `
-		SELECT tools.id, tools.exam_id, tools.type, tools.title, tools.created_at, tools.updated_at
+		SELECT tools.id, tools.exam_id, tools.type, tools.title, tools.language_code, tools.created_at, tools.updated_at
 		FROM tools
 		JOIN exams ON tools.exam_id = exams.id
 		WHERE tools.exam_id = ? AND exams.user_id = ?
@@ -128,7 +138,7 @@ func (server *Server) handleListTools(responseWriter http.ResponseWriter, reques
 	var toolsList []models.Tool
 	for toolRows.Next() {
 		var tool models.Tool
-		if err := toolRows.Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.CreatedAt, &tool.UpdatedAt); err != nil {
+		if err := toolRows.Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.CreatedAt, &tool.UpdatedAt); err != nil {
 			continue
 		}
 		toolsList = append(toolsList, tool)
@@ -151,11 +161,11 @@ func (server *Server) handleGetTool(responseWriter http.ResponseWriter, request 
 
 	var tool models.Tool
 	err := server.database.QueryRow(`
-		SELECT tools.id, tools.exam_id, tools.type, tools.title, tools.content, tools.created_at, tools.updated_at
+		SELECT tools.id, tools.exam_id, tools.type, tools.title, tools.language_code, tools.content, tools.created_at, tools.updated_at
 		FROM tools
 		JOIN exams ON tools.exam_id = exams.id
 		WHERE tools.id = ? AND tools.exam_id = ? AND exams.user_id = ?
-	`, toolID, examID, userID).Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.Content, &tool.CreatedAt, &tool.UpdatedAt)
+	`, toolID, examID, userID).Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.Content, &tool.CreatedAt, &tool.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found in this exam", nil)
@@ -227,13 +237,13 @@ func (server *Server) handleExportTool(responseWriter http.ResponseWriter, reque
 	userID := server.getUserID(request)
 
 	// Verify tool exists and belongs to the user
-	var toolID string
+	var toolID, languageCode string
 	err := server.database.QueryRow(`
-		SELECT tools.id
+		SELECT tools.id, tools.language_code
 		FROM tools
 		JOIN exams ON tools.exam_id = exams.id
 		WHERE tools.id = ? AND tools.exam_id = ? AND exams.user_id = ?
-	`, exportRequest.ToolID, exportRequest.ExamID, userID).Scan(&toolID)
+	`, exportRequest.ToolID, exportRequest.ExamID, userID).Scan(&toolID, &languageCode)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found in this exam", nil)
@@ -246,7 +256,8 @@ func (server *Server) handleExportTool(responseWriter http.ResponseWriter, reque
 
 	// Enqueue export job
 	jobIdentifier, err := server.jobQueue.Enqueue(userID, models.JobTypePublishMaterial, map[string]string{
-		"tool_id": exportRequest.ToolID,
+		"tool_id":       exportRequest.ToolID,
+		"language_code": languageCode,
 	})
 
 	if err != nil {

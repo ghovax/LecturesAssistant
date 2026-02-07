@@ -9,12 +9,14 @@ import (
 // Reconstructor handles converting an AST back into markdown text
 type Reconstructor struct {
 	indentUnit int
+	Language   string
 }
 
 // NewReconstructor creates a new markdown reconstructor
 func NewReconstructor() *Reconstructor {
 	return &Reconstructor{
 		indentUnit: 4,
+		Language:   "en",
 	}
 }
 
@@ -116,9 +118,9 @@ func (reconstructor *Reconstructor) reconstructNode(node *Node, markdownLines *[
 			if len(node.SourcePages) > 0 {
 				formattedPages := FormatPageNumbers(node.SourcePages)
 				if len(node.SourcePages) == 1 {
-					pageInfo = "p. " + formattedPages
+					pageInfo = getI18nLabel(reconstructor.Language, "page_label") + " " + formattedPages
 				} else {
-					pageInfo = "pp. " + formattedPages
+					pageInfo = getI18nLabel(reconstructor.Language, "pages_label") + " " + formattedPages
 				}
 			}
 			if pageInfo != "" {

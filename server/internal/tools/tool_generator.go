@@ -318,6 +318,7 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 
 	var successfulSections []string
 	reconstructor := markdown.NewReconstructor()
+	reconstructor.Language = language
 	rootNode := &markdown.Node{Type: markdown.NodeDocument}
 	rootNode.Children = append(rootNode.Children, &markdown.Node{Type: markdown.NodeHeading, Level: 1, Content: title})
 
@@ -511,7 +512,7 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 	return reconstructor.Reconstruct(rootNode), title, metrics, nil
 }
 
-func (generator *ToolGenerator) ProcessFootnotesAI(jobContext context.Context, citations []markdown.ParsedCitation, options models.GenerationOptions) ([]markdown.ParsedCitation, models.JobMetrics, error) {
+func (generator *ToolGenerator) ProcessFootnotesAI(jobContext context.Context, citations []markdown.ParsedCitation, languageCode string, options models.GenerationOptions) ([]markdown.ParsedCitation, models.JobMetrics, error) {
 	if len(citations) == 0 {
 		return nil, models.JobMetrics{}, nil
 	}
@@ -532,7 +533,7 @@ func (generator *ToolGenerator) ProcessFootnotesAI(jobContext context.Context, c
 		}
 		batch := citations[citationIndex:end]
 
-		batchMetrics, err := generator.processFootnoteBatch(jobContext, batch, updatedCitations, citationIndex, model, model)
+		batchMetrics, err := generator.processFootnoteBatch(jobContext, batch, updatedCitations, citationIndex, languageCode, model, model)
 		totalMetrics.InputTokens += batchMetrics.InputTokens
 		totalMetrics.OutputTokens += batchMetrics.OutputTokens
 		totalMetrics.EstimatedCost += batchMetrics.EstimatedCost
@@ -544,7 +545,7 @@ func (generator *ToolGenerator) ProcessFootnotesAI(jobContext context.Context, c
 	return updatedCitations, totalMetrics, nil
 }
 
-func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context, batch []markdown.ParsedCitation, allCitations []markdown.ParsedCitation, offset int, parsingModel, formattingModel string) (models.JobMetrics, error) {
+func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context, batch []markdown.ParsedCitation, allCitations []markdown.ParsedCitation, offset int, languageCode, parsingModel, formattingModel string) (models.JobMetrics, error) {
 	var metrics models.JobMetrics
 
 	if generator.promptManager == nil {
@@ -556,6 +557,10 @@ func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context,
 	}
 
 	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+	languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{
+		"language":         languageCode,
+		"bcp_47_lang_code": languageCode,
+	})
 
 	var markdownBuilder strings.Builder
 	for _, citation := range batch {
@@ -576,7 +581,7 @@ func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context,
 	}
 
 	parsingPrompt, _ := generator.promptManager.GetPrompt(prompts.PromptParseFootnotes, map[string]string{
-		"footnotes": markdownBuilder.String(), "latex_instructions": latexInstructions,
+		"footnotes": markdownBuilder.String(), "latex_instructions": latexInstructions, "language_requirement": languageRequirement,
 	})
 	parsingResponse, parsingMetrics, err := generator.callLLMWithModel(jobContext, parsingPrompt, parsingModel)
 	metrics.InputTokens += parsingMetrics.InputTokens
@@ -613,7 +618,7 @@ func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context,
 	}
 
 	formattingPrompt, _ := generator.promptManager.GetPrompt(prompts.PromptFormatFootnotes, map[string]string{
-		"footnotes": markdownBuilder.String(), "latex_instructions": latexInstructions,
+		"footnotes": markdownBuilder.String(), "latex_instructions": latexInstructions, "language_requirement": languageRequirement,
 	})
 	formattingResponse, formattingMetrics, _ := generator.callLLMWithModel(jobContext, formattingPrompt, formattingModel)
 	metrics.InputTokens += formattingMetrics.InputTokens
@@ -1042,8 +1047,12 @@ func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, l
 	var prompt string
 	if generator.promptManager != nil {
 		latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+		languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{
+			"language":         languageCode,
+			"bcp_47_lang_code": languageCode,
+		})
 		prompt, _ = generator.promptManager.GetPrompt(prompts.PromptGenerateFlashcards, map[string]string{
-			"language_requirement": fmt.Sprintf("Generate in code %s", languageCode),
+			"language_requirement": languageRequirement,
 			"transcript":           transcript, "reference_materials": referenceFilesContent, "latex_instructions": latexInstructions,
 		})
 	}
@@ -1057,6 +1066,8 @@ func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, l
 	if err != nil {
 		return "", "", metrics, err
 	}
+	// Reconstruct JSON to Markdown if needed (though typically LLM returns markdown directly)
+	// If we need to parse/reconstruct, we would use reconstructor.Language = languageCode
 	return response, lecture.Title, metrics, nil
 }
 
@@ -1068,8 +1079,12 @@ func (generator *ToolGenerator) GenerateQuiz(jobContext context.Context, lecture
 	var prompt string
 	if generator.promptManager != nil {
 		latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+		languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{
+			"language":         languageCode,
+			"bcp_47_lang_code": languageCode,
+		})
 		prompt, _ = generator.promptManager.GetPrompt(prompts.PromptGenerateQuiz, map[string]string{
-			"language_requirement": fmt.Sprintf("Generate in code %s", languageCode),
+			"language_requirement": languageRequirement,
 			"transcript":           transcript, "reference_materials": referenceFilesContent, "latex_instructions": latexInstructions,
 		})
 	}

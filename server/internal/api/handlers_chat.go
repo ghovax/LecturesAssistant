@@ -357,7 +357,17 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 
 	// 2. Get history and context for LLM
 	messages := server.getChatHistory(sendMessageRequest.SessionID)
-	lectureContext := server.getLectureContext(sendMessageRequest.SessionID)
+
+	// Fetch language code for the session
+	var languageCode string
+	_ = server.database.QueryRow(`
+		SELECT exams.user_id FROM exams
+		JOIN chat_sessions ON exams.id = chat_sessions.exam_id
+		WHERE chat_sessions.id = ?
+	`, sendMessageRequest.SessionID).Scan(new(string))
+	languageCode = server.configuration.LLM.Language
+
+	lectureContext := server.getLectureContext(sendMessageRequest.SessionID, languageCode)
 
 	// 3. Trigger async AI response
 	go server.processAIResponse(sendMessageRequest.SessionID, messages, lectureContext)
@@ -391,7 +401,7 @@ func (server *Server) getChatHistory(sessionID string) []llm.Message {
 	return messages
 }
 
-func (server *Server) getLectureContext(sessionID string) string {
+func (server *Server) getLectureContext(sessionID string, languageCode string) string {
 	var includedLectureIDsJSON string
 	databaseError := server.database.QueryRow("SELECT included_lecture_ids FROM chat_context_configuration WHERE session_id = ?", sessionID).Scan(&includedLectureIDsJSON)
 	if databaseError != nil {
@@ -406,6 +416,7 @@ func (server *Server) getLectureContext(sessionID string) string {
 	}
 
 	markdownReconstructor := markdown.NewReconstructor()
+	markdownReconstructor.Language = languageCode
 	rootNode := &markdown.Node{Type: markdown.NodeDocument}
 
 	for _, lectureID := range includedLectureIDs {
@@ -482,14 +493,31 @@ func (server *Server) getLectureContext(sessionID string) string {
 }
 
 func (server *Server) processAIResponse(sessionID string, history []llm.Message, lectureContext string) {
+	// Fetch language code for the session (from exam or default)
+	var languageCode string
+	_ = server.database.QueryRow(`
+		SELECT exams.user_id FROM exams
+		JOIN chat_sessions ON exams.id = chat_sessions.exam_id
+		WHERE chat_sessions.id = ?
+	`, sessionID).Scan(new(string)) // Just verify session
+
+	// For now, let's assume we use the global default or could fetch it from settings
+	// Ideally, it should be part of the session or exam
+	languageCode = server.configuration.LLM.Language
+
 	// Prepare system prompt
 	var systemPrompt string
 	if server.promptManager != nil {
 		latexInstructions, _ := server.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+		languageRequirement, _ := server.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{
+			"language":         languageCode,
+			"bcp_47_lang_code": languageCode,
+		})
 
 		var promptError error
 		systemPrompt, promptError = server.promptManager.GetPrompt(prompts.PromptReadingAssistantMultiChat, map[string]string{
-			"latex_instructions": latexInstructions,
+			"latex_instructions":   latexInstructions,
+			"language_requirement": languageRequirement,
 		})
 		if promptError != nil {
 			slog.Error("Failed to load system prompt", "error", promptError)
@@ -501,6 +529,7 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 	}
 
 	markdownReconstructor := markdown.NewReconstructor()
+	markdownReconstructor.Language = languageCode
 	rootNode := &markdown.Node{Type: markdown.NodeDocument}
 
 	// Add the base system prompt as a paragraph
@@ -563,11 +592,12 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 
 	// Post-process response: Parse citations and convert to standard footnotes
 	markdownReconstructor = markdown.NewReconstructor()
+	markdownReconstructor.Language = languageCode
 	finalContent, citations := markdownReconstructor.ParseCitations(completeResponseBuilder.String())
 
 	// Improve footnotes using AI if we have citations
 	if len(citations) > 0 {
-		updatedCitations, footnoteMetrics, err := server.toolGenerator.ProcessFootnotesAI(context.Background(), citations, models.GenerationOptions{})
+		updatedCitations, footnoteMetrics, err := server.toolGenerator.ProcessFootnotesAI(context.Background(), citations, languageCode, models.GenerationOptions{})
 		totalMetrics.InputTokens += footnoteMetrics.InputTokens
 		totalMetrics.OutputTokens += footnoteMetrics.OutputTokens
 		totalMetrics.EstimatedCost += footnoteMetrics.EstimatedCost

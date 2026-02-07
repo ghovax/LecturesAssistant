@@ -24,13 +24,14 @@ type Exam struct {
 
 // Lecture represents a single lesson or session
 type Lecture struct {
-	ID          string    `json:"id"`
-	ExamID      string    `json:"exam_id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description,omitempty"`
-	Status      string    `json:"status"` // "processing", "ready", "failed"
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID            string     `json:"id"`
+	ExamID        string     `json:"exam_id"`
+	Title         string     `json:"title"`
+	Description   string     `json:"description,omitempty"`
+	SpecifiedDate *time.Time `json:"specified_date,omitempty"`
+	Status        string     `json:"status"` // "processing", "ready", "failed"
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 // LectureMedia represents audio or video files
@@ -93,13 +94,14 @@ type ReferencePage struct {
 
 // Tool represents AI-generated study materials
 type Tool struct {
-	ID        string    `json:"id"`
-	ExamID    string    `json:"exam_id"`
-	Type      string    `json:"type"`
-	Title     string    `json:"title"`
-	Content   string    `json:"content"` // JSON string
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID           string    `json:"id"`
+	ExamID       string    `json:"exam_id"`
+	Type         string    `json:"type"`
+	Title        string    `json:"title"`
+	LanguageCode string    `json:"language_code"`
+	Content      string    `json:"content"` // JSON string
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // ChatSession represents a conversation scoped to an exam

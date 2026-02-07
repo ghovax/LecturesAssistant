@@ -168,25 +168,36 @@ func (converter *ExternalConverter) writeMetadataFile(path string, options Conve
 
 	var builder strings.Builder
 
+	// Add the language for pandoc
+	fmt.Fprintf(&builder, "lang: \"%s\"\n", options.Language)
+
+	// Add translated labels for the template
+	fmt.Fprintf(&builder, "abstract-title: \"%s\"\n", getI18nLabel(options.Language, "abstract"))
+	fmt.Fprintf(&builder, "audio-files-title: \"%s\"\n", getI18nLabel(options.Language, "audio_files"))
+	fmt.Fprintf(&builder, "reference-files-title: \"%s\"\n", getI18nLabel(options.Language, "reference_files"))
+
 	if options.Description != "" {
 		fmt.Fprintf(&builder, "abstract: \"%s\"\n", strings.ReplaceAll(options.Description, "\"", "\\\""))
 	}
 
 	if !options.CreationDate.IsZero() {
-		dateString := options.CreationDate.Format("January 2, 2006")
+		dateString := formatLocalizedDate(options.CreationDate, options.Language)
 		fmt.Fprintf(&builder, "date: \"%s\"\n", dateString)
 	}
 
 	if len(options.ReferenceFiles) > 0 {
 		builder.WriteString("referencefile:\n")
+		pageLabel := getI18nLabel(options.Language, "page_label")
+		pagesLabel := getI18nLabel(options.Language, "pages_label")
+
 		for _, file := range options.ReferenceFiles {
 			metadataStr := ""
 			if file.PageRange != "" {
-				metadataStr = "pp. " + file.PageRange
+				metadataStr = pagesLabel + " " + file.PageRange
 			} else if file.PageCount > 0 {
-				label := "pp."
+				label := pagesLabel
 				if file.PageCount == 1 {
-					label = "p."
+					label = pageLabel
 				}
 				metadataStr = fmt.Sprintf("%s 1--%d", label, file.PageCount)
 			}

@@ -167,7 +167,7 @@ func TestToolGenerator_FootnoteHealing(tester *testing.T) {
 		{Number: 2, Description: "Raw 2"},
 	}
 
-	updated, _, _ := generator.ProcessFootnotesAI(context.Background(), citations, models.GenerationOptions{})
+	updated, _, _ := generator.ProcessFootnotesAI(context.Background(), citations, "en", models.GenerationOptions{})
 
 	if updated[1].File != "f2.pdf" {
 		tester.Errorf("Healing failed: Got: %s", updated[1].File)

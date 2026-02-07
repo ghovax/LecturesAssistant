@@ -153,7 +153,7 @@ func (server *Server) handleUploadPrepare(responseWriter http.ResponseWriter, re
 	}
 
 	uploadID := uuid.New().String()
-	uploadDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "tmp", "uploads", uploadID)
+	uploadDirectory := filepath.Join(os.TempDir(), "lectures-uploads", uploadID)
 	os.MkdirAll(uploadDirectory, 0755)
 
 	metadataFile, _ := os.Create(filepath.Join(uploadDirectory, "metadata.json"))
@@ -176,7 +176,7 @@ func (server *Server) handleUploadAppend(responseWriter http.ResponseWriter, req
 		return
 	}
 
-	uploadDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "tmp", "uploads", uploadID)
+	uploadDirectory := filepath.Join(os.TempDir(), "lectures-uploads", uploadID)
 
 	// Read metadata to get total expected size for global progress tracking
 	var metadata struct {
@@ -258,7 +258,7 @@ func (server *Server) handleUploadStage(responseWriter http.ResponseWriter, requ
 
 func (server *Server) stageMultipartFile(fileHeader *multipart.FileHeader) string {
 	uploadID := uuid.New().String()
-	uploadDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "tmp", "uploads", uploadID)
+	uploadDirectory := filepath.Join(os.TempDir(), "lectures-uploads", uploadID)
 	os.MkdirAll(uploadDirectory, 0755)
 
 	metadataFile, _ := os.Create(filepath.Join(uploadDirectory, "metadata.json"))
@@ -275,7 +275,7 @@ func (server *Server) stageMultipartFile(fileHeader *multipart.FileHeader) strin
 }
 
 func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, uploadID string, targetType string, sequenceOrder int) error {
-	uploadDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "tmp", "uploads", uploadID)
+	uploadDirectory := filepath.Join(os.TempDir(), "lectures-uploads", uploadID)
 
 	metadataBytes, err := os.ReadFile(filepath.Join(uploadDirectory, "metadata.json"))
 	if err != nil {
@@ -355,9 +355,9 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 			}
 		}
 		_, err = transaction.Exec(`
-			INSERT INTO lecture_media (id, lecture_id, media_type, sequence_order, duration_milliseconds, file_path, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, fileID, lectureID, mediaType, sequenceOrder, 0, destinationPath, time.Now())
+			INSERT INTO lecture_media (id, lecture_id, media_type, sequence_order, duration_milliseconds, file_path, original_filename, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`, fileID, lectureID, mediaType, sequenceOrder, 0, destinationPath, metadata.Filename, time.Now())
 	} else {
 		documentType := cleanExtension
 		normalizedTitle := strings.ReplaceAll(metadata.Filename, " ", "_")

@@ -95,11 +95,18 @@ func (converter *ExternalConverter) HTMLToPDF(htmlContent string, outputPath str
 	}
 	defer os.Remove(metadataPath)
 
+	// Locate the custom XeLaTeX template in server root directory
+	// Server must be run from the server root directory
+	templatePath := "xelatex-template.tex"
+
+	slog.Debug("Using XeLaTeX template", "path", templatePath, "exists", fileExists(templatePath))
+
 	arguments := []string{
 		"-f", "html",
 		"-t", "pdf",
 		"--pdf-engine-opt=-Zcontinue-on-errors",
 		"--pdf-engine=tectonic",
+		"--template", templatePath,
 		"--toc",
 		"--shift-heading-level-by=-1",
 		"--metadata-file", metadataPath,
@@ -144,6 +151,11 @@ func (converter *ExternalConverter) HTMLToPDF(htmlContent string, outputPath str
 	}
 
 	return nil
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func (converter *ExternalConverter) writeMetadataFile(path string, options ConversionOptions) error {

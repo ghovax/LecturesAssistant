@@ -38,10 +38,21 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 		tester.Skip("Skipping real provider test in short mode")
 	}
 
+	// Change to server root directory for test execution
+	// This ensures relative paths like "xelatex-template.tex" work correctly
+	originalDir, _ := os.Getwd()
+	serverRoot := filepath.Join(originalDir, "..", "..")
+	os.Chdir(serverRoot)
+	defer os.Chdir(originalDir)
+
 	// 1. Setup Environment
-	inputDirectory := filepath.Join("test_input")
+	inputDirectory := filepath.Join(originalDir, "test_input")
 	audioPath := filepath.Join(inputDirectory, "test_audio.mp3")
 	documentPath := filepath.Join(inputDirectory, "test_document.pdf")
+
+	// Make paths absolute since we changed directory
+	audioPath, _ = filepath.Abs(audioPath)
+	documentPath, _ = filepath.Abs(documentPath)
 
 	if _, statError := os.Stat(audioPath); os.IsNotExist(statError) {
 		tester.Fatalf("Missing test audio at %s. Please provide a real audio file.", audioPath)
@@ -50,30 +61,33 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 		tester.Fatalf("Missing test document at %s. Please provide a real PDF file.", documentPath)
 	}
 
-	// Use real configuration
-	config, loadError := configuration.Load("../../configuration.yaml")
+	// Use real configuration (now in current directory since we changed to server root)
+	config, loadError := configuration.Load("configuration.yaml")
 	if loadError != nil {
 		tester.Fatalf("Failed to load configuration: %v", loadError)
 	}
 
 	// Override storage to a local 'test_run_data' folder for inspection
-	testRunDataDir, _ := filepath.Abs("test_integration_pipeline_results")
+	// Use absolute path based on original directory
+	testRunDataDir := filepath.Join(originalDir, "test_integration_pipeline_results")
+	testRunDataDir, _ = filepath.Abs(testRunDataDir)
 	os.RemoveAll(testRunDataDir)
 	config.Storage.DataDirectory = testRunDataDir
 	os.MkdirAll(filepath.Join(testRunDataDir, "files", "lectures"), 0755)
-	os.MkdirAll(filepath.Join(testRunDataDir, "tmp", "uploads"), 0755)
+	os.MkdirAll(filepath.Join(os.TempDir(), "lectures-uploads"), 0755)
 
 	// Setup detailed logging to file for debugging
 	logFile, _ := os.Create(filepath.Join(testRunDataDir, "test_debug.log"))
 	defer logFile.Close()
-	logger := slog.New(slog.NewJSONHandler(logFile, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	logger := slog.New(slog.NewJSONHandler(logFile, nil))
 	slog.SetDefault(logger)
 
 	// 2. Initialize Real Components
 	initializedDatabase, _ := database.Initialize(filepath.Join(testRunDataDir, "test_database.db"))
 	defer initializedDatabase.Close()
 
-	promptManager := prompts.NewManager("../../prompts")
+	promptManager := prompts.NewManager("prompts")
 	llmProvider := llm.NewOpenRouterProvider(config.Providers.OpenRouter.APIKey)
 
 	// Use OpenRouter's chat API for transcription instead of Whisper endpoint

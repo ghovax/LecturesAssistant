@@ -68,6 +68,7 @@ func createSchema(database *sql.DB) error {
 		sequence_order INTEGER NOT NULL,
 		duration_milliseconds INTEGER,
 		file_path TEXT NOT NULL,
+		original_filename TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		UNIQUE(lecture_id, sequence_order)
 	);
@@ -228,6 +229,20 @@ func createSchema(database *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS index_auth_sessions_user_id ON auth_sessions(user_id);
 	`
 
-	_, err := database.Exec(schema)
-	return err
+	if _, err := database.Exec(schema); err != nil {
+		return err
+	}
+
+	// Run migrations for schema updates
+	migrations := []string{
+		// Add original_filename column to lecture_media if it doesn't exist
+		`ALTER TABLE lecture_media ADD COLUMN original_filename TEXT`,
+	}
+
+	for _, migration := range migrations {
+		// SQLite doesn't have IF NOT EXISTS for ALTER TABLE, so we ignore errors if column already exists
+		database.Exec(migration)
+	}
+
+	return nil
 }

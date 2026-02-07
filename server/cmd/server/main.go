@@ -48,6 +48,7 @@ func main() {
 
 	// MultiWriter to log to both file and stdout
 	multiWriter := io.MultiWriter(os.Stdout, logFile)
+
 	logger := slog.New(slog.NewJSONHandler(multiWriter, nil))
 	slog.SetDefault(logger)
 

@@ -210,13 +210,24 @@ func (generator *ToolGenerator) analyzeStructureWithRetries(jobContext context.C
 		}
 	}
 
+	slog.Info("Starting structure analysis", "model", model, "maximum_retries", maximumRetries)
+
 	for attempt := 1; attempt <= maximumRetries; attempt++ {
+		slog.Debug("Structure analysis attempt", "attempt", attempt, "of", maximumRetries)
+
 		response, stepMetrics, err := generator.callLLMWithModel(jobContext, prompt, model)
 		metrics.InputTokens += stepMetrics.InputTokens
 		metrics.OutputTokens += stepMetrics.OutputTokens
 		metrics.EstimatedCost += stepMetrics.EstimatedCost
 
+		slog.Debug("LLM response received",
+			"attempt", attempt,
+			"input_tokens", stepMetrics.InputTokens,
+			"output_tokens", stepMetrics.OutputTokens,
+			"cost", stepMetrics.EstimatedCost)
+
 		if err != nil {
+			slog.Error("LLM call failed", "attempt", attempt, "error", err)
 			if attempt == maximumRetries {
 				return "", metrics, err
 			}
@@ -225,23 +236,47 @@ func (generator *ToolGenerator) analyzeStructureWithRetries(jobContext context.C
 		}
 
 		sections := generator.parseStructure(response)
+		slog.Info("Structure parsed",
+			"attempt", attempt,
+			"sections_found", len(sections),
+			"required_minimum", sectionCounts.minimum,
+			"required_maximum", sectionCounts.maximum)
+
 		if len(sections) >= sectionCounts.minimum && len(sections) <= sectionCounts.maximum {
+			slog.Info("Structure validation passed", "sections", len(sections))
+
 			// Clean the title before returning
 			title := generator.parseTitle(response)
+			slog.Debug("Cleaning document title", "original_title", title)
+
 			cleanedTitle, titleMetrics, err := generator.CleanDocumentTitle(jobContext, title, options)
 			if err == nil {
 				metrics.InputTokens += titleMetrics.InputTokens
 				metrics.OutputTokens += titleMetrics.OutputTokens
 				metrics.EstimatedCost += titleMetrics.EstimatedCost
 
+				slog.Debug("Title cleaned",
+					"original", title,
+					"cleaned", cleanedTitle,
+					"changed", cleanedTitle != title)
+
 				// Replace the title in the response if it changed
 				if cleanedTitle != title && title != "" {
 					response = strings.Replace(response, "# "+title, "# "+cleanedTitle, 1)
 				}
+			} else {
+				slog.Warn("Title cleaning failed", "error", err)
 			}
+
+			slog.Info("Structure analysis complete",
+				"final_sections", len(sections),
+				"total_cost", metrics.EstimatedCost)
 			return response, metrics, nil
 		}
-		slog.Warn("Structure validation failed, retrying...", "count", len(sections), "attempt", attempt)
+		slog.Warn("Structure validation failed, retrying...",
+			"count", len(sections),
+			"attempt", attempt,
+			"expected_range", fmt.Sprintf("%d-%d", sectionCounts.minimum, sectionCounts.maximum))
 	}
 
 	return "", metrics, fmt.Errorf("failed to generate valid structure after %d attempts", maximumRetries)
@@ -309,9 +344,21 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 		adherenceModel = generator.configuration.LLM.GetModelForTask("content_verification")
 	}
 
+	slog.Info("Starting sequential section generation",
+		"total_sections", len(sections),
+		"model", generationModel,
+		"adherence_model", adherenceModel,
+		"threshold", threshold)
+
 	for sectionIndex, section := range sections {
 		sectionNumber := sectionIndex + 1
 		progress := 20 + int(float64(sectionIndex)/float64(len(sections))*75)
+
+		slog.Info("Generating section",
+			"section_number", sectionNumber,
+			"total_sections", len(sections),
+			"title", section.Title,
+			"progress", progress)
 
 		sectionPromptTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptStudyGuideSectionGeneration, nil)
 		sectionPrompt := generator.replacePromptVariables(sectionPromptTemplate, map[string]string{
@@ -326,6 +373,10 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 
 		var acceptedContent string
 		for attempt := 1; attempt <= maximumRetries; attempt++ {
+			slog.Debug("Section generation attempt",
+				"section", sectionNumber,
+				"attempt", attempt,
+				"maximum_retries", maximumRetries)
 			history := []llm.Message{
 				{Role: "user", Content: []llm.ContentPart{{Type: "text", Text: initialContext}}},
 				{Role: "assistant", Content: []llm.ContentPart{{Type: "text", Text: "Ready."}}},
@@ -336,11 +387,29 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 			}
 
 			updateProgress(progress, fmt.Sprintf("Generating section %d/%d...", sectionNumber, len(sections)), nil, currentMetrics)
+
+			slog.Debug("Calling LLM for section generation",
+				"section", sectionNumber,
+				"attempt", attempt,
+				"history_messages", len(history))
+
 			response, generationMetrics, err := generator.callLLMWithHistoryAndModel(jobContext, sectionPrompt, history, generationModel)
 			metrics.InputTokens += generationMetrics.InputTokens
 			metrics.OutputTokens += generationMetrics.OutputTokens
 			metrics.EstimatedCost += generationMetrics.EstimatedCost
+
+			slog.Debug("Section generation response received",
+				"section", sectionNumber,
+				"attempt", attempt,
+				"input_tokens", generationMetrics.InputTokens,
+				"output_tokens", generationMetrics.OutputTokens,
+				"cost", generationMetrics.EstimatedCost)
+
 			if err != nil {
+				slog.Error("Section generation failed",
+					"section", sectionNumber,
+					"attempt", attempt,
+					"error", err)
 				continue
 			}
 
@@ -363,13 +432,27 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 
 			if generatedTitle != "" {
 				similarity = generator.calculateSimilarity(section.Title, generatedTitle)
+				slog.Debug("Title similarity check",
+					"section", sectionNumber,
+					"expected", section.Title,
+					"generated", generatedTitle,
+					"similarity", similarity)
 			}
 
 			if similarity < 65 && attempt < maximumRetries {
+				slog.Warn("Title similarity too low, retrying",
+					"section", sectionNumber,
+					"similarity", similarity,
+					"threshold", 65,
+					"attempt", attempt)
 				continue
 			}
 
 			updateProgress(progress, "Verifying adherence...", nil, currentMetrics)
+			slog.Debug("Starting adherence verification",
+				"section", sectionNumber,
+				"attempt", attempt)
+
 			verificationTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptVerifySectionAdherence, nil)
 			verificationPrompt := generator.replacePromptVariables(verificationTemplate, map[string]string{
 				"section_title": section.Title, "expected_coverage": section.Coverage, "generated_section": response,
@@ -379,19 +462,51 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 			metrics.OutputTokens += verificationMetrics.OutputTokens
 			metrics.EstimatedCost += verificationMetrics.EstimatedCost
 
-			if generator.parseScore(verificationResponse) >= threshold || attempt == maximumRetries {
+			adherenceScore := generator.parseScore(verificationResponse)
+			slog.Info("Adherence verification complete",
+				"section", sectionNumber,
+				"attempt", attempt,
+				"score", adherenceScore,
+				"threshold", threshold,
+				"passed", adherenceScore >= threshold)
+
+			if adherenceScore >= threshold || attempt == maximumRetries {
+				slog.Info("Section accepted",
+					"section", sectionNumber,
+					"attempt", attempt,
+					"adherence_score", adherenceScore,
+					"forced_accept", attempt == maximumRetries && adherenceScore < threshold)
+
 				acceptedContent = response
 				rootNode.Children = append(rootNode.Children, sectionAST.Children...)
 				successfulSections = append(successfulSections, response)
 				break
 			}
+
+			slog.Warn("Section rejected, retrying",
+				"section", sectionNumber,
+				"attempt", attempt,
+				"score", adherenceScore,
+				"threshold", threshold)
+
 			updateProgress(progress, "Rebuilding history for retry...", nil, currentMetrics)
 		}
 
 		if acceptedContent == "" {
+			slog.Error("Section generation failed after all retries",
+				"section", sectionNumber,
+				"title", section.Title,
+				"attempts", maximumRetries)
 			return "", "", metrics, fmt.Errorf("failed to generate section %d", sectionNumber)
 		}
 	}
+
+	slog.Info("Sequential generation complete",
+		"total_sections", len(sections),
+		"successful_sections", len(successfulSections),
+		"total_input_tokens", metrics.InputTokens,
+		"total_output_tokens", metrics.OutputTokens,
+		"total_cost", metrics.EstimatedCost)
 
 	return reconstructor.Reconstruct(rootNode), title, metrics, nil
 }
@@ -676,9 +791,15 @@ func (generator *ToolGenerator) parseTitle(structure string) string {
 	ast := parser.Parse(structure)
 	for _, child := range ast.Children {
 		if child.Type == markdown.NodeSection && child.Level == 1 {
+			slog.Debug("Found title from NodeSection", "title", child.Title)
 			return child.Title
 		}
+		if child.Type == markdown.NodeHeading && child.Level == 1 {
+			slog.Debug("Found title from NodeHeading", "content", child.Content)
+			return child.Content
+		}
 	}
+	slog.Warn("No title found in structure", "children_count", len(ast.Children))
 	return ""
 }
 
@@ -880,9 +1001,9 @@ func (generator *ToolGenerator) GenerateAbstract(jobContext context.Context, doc
 			"bcp_47_lang_code": languageCode,
 		})
 		prompt, _ = generator.promptManager.GetPrompt(prompts.PromptGenerateDocumentDescription, map[string]string{
-			"document_content":      documentMarkdown,
-			"latex_instructions":    latexInstructions,
-			"language_requirement":  languageRequirement,
+			"document_content":     documentMarkdown,
+			"latex_instructions":   latexInstructions,
+			"language_requirement": languageRequirement,
 		})
 	}
 

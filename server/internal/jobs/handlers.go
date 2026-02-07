@@ -89,7 +89,7 @@ func RegisterHandlers(
 		}
 
 		// 3. Create temporary directory for transcription
-		temporaryDirectory := filepath.Join(config.Storage.DataDirectory, "tmp", job.ID)
+		temporaryDirectory := filepath.Join(os.TempDir(), "lectures-jobs", job.ID)
 		if err := os.MkdirAll(temporaryDirectory, 0755); err != nil {
 			return fmt.Errorf("failed to create temporary directory: %w", err)
 		}
@@ -128,7 +128,32 @@ func RegisterHandlers(
 			}
 		}
 
-		// 6. Finalize transcript
+		// 6. Update media file durations based on segment end times
+		for _, media := range mediaFiles {
+			// Find the last segment for this media file
+			var lastEndTime int64
+			err := databaseTransaction.QueryRow(`
+				SELECT MAX(end_millisecond)
+				FROM transcript_segments
+				WHERE media_id = ?
+			`, media.ID).Scan(&lastEndTime)
+
+			if err == nil && lastEndTime > 0 {
+				_, err = databaseTransaction.Exec(`
+					UPDATE lecture_media
+					SET duration_milliseconds = ?
+					WHERE id = ?
+				`, lastEndTime, media.ID)
+
+				if err != nil {
+					slog.Warn("Failed to update media duration", "media_id", media.ID, "error", err)
+				} else {
+					slog.Debug("Updated media duration", "media_id", media.ID, "duration_milliseconds", lastEndTime, "duration_seconds", lastEndTime/1000)
+				}
+			}
+		}
+
+		// 7. Finalize transcript
 		_, err = databaseTransaction.Exec("UPDATE transcripts SET status = ?, updated_at = ? WHERE id = ?", "completed", time.Now(), transcriptID)
 		if err != nil {
 			return fmt.Errorf("failed to finalize transcript status: %w", err)
@@ -515,15 +540,21 @@ func RegisterHandlers(
 			}
 			slog.Debug("Processing lecture for metadata", "lecture_id", lectureID)
 
-			// Get media files (audio/video) - extract filename from file_path
-			mediaRows, err := database.Query("SELECT file_path, duration_milliseconds FROM lecture_media WHERE lecture_id = ? ORDER BY sequence_order", lectureID)
+			// Get media files (audio/video)
+			mediaRows, err := database.Query("SELECT original_filename, file_path, duration_milliseconds FROM lecture_media WHERE lecture_id = ? ORDER BY sequence_order", lectureID)
 			if err == nil {
 				defer mediaRows.Close()
 				for mediaRows.Next() {
+					var originalFilename sql.NullString
 					var filePath string
 					var durationMs int64
-					if err := mediaRows.Scan(&filePath, &durationMs); err == nil {
+					if err := mediaRows.Scan(&originalFilename, &filePath, &durationMs); err == nil {
+						// Use original filename if available, otherwise extract from file_path
 						filename := filepath.Base(filePath)
+						if originalFilename.Valid && originalFilename.String != "" {
+							filename = originalFilename.String
+						}
+
 						durationSeconds := durationMs / 1000
 						slog.Debug("Found audio file", "filename", filename, "duration_seconds", durationSeconds)
 						audioFiles = append(audioFiles, markdown.AudioFileMetadata{

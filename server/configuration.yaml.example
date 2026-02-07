@@ -1,0 +1,72 @@
+# Lectures Assistant Configuration
+# Copy to 'configuration.yaml' and add your API keys
+
+server:
+  host: "0.0.0.0"
+  port: 3000
+
+storage:
+  data_directory: "./data"
+
+security:
+  session_timeout_hours: 72 # How long users stay logged in
+  require_https: false # Set true in production for secure cookies
+  maximum_login_attempts_per_hour: 10
+
+# API credentials for external providers
+providers:
+  openrouter:
+    api_key: "sk-or-v1-YOUR_KEY_HERE" # Get from https://openrouter.ai/keys
+  openai:
+    api_key: "sk-YOUR_KEY_HERE" # Get from https://platform.openai.com/api-keys
+  ollama:
+    base_url: "http://localhost:11434"
+
+# Language model configuration
+llm:
+  provider: "openrouter" # Which provider to use: openrouter, openai, ollama
+  language: "en-US" # BCP-47 language code for generated content
+
+  # Models for each pipeline task
+  models:
+    recording_transcription: "google/gemini-2.5-flash-lite" # Convert audio/video to text
+    documents_ingestion: "google/gemini-2.5-flash-lite" # Vision-LLM OCR for PDF/slide pages
+    documents_matching: "google/gemini-2.5-flash-lite" # Match document pages to transcript sections
+    outline_creation: "google/gemini-3-flash" # Analyze lecture flow and create structure
+    content_generation: "google/gemini-3-flash" # Main content writing (section by section)
+    content_verification: "google/gemini-3-flash" # Verify generated content matches outline
+    content_polishing: "google/gemini-2.5-flash-lite" # Title cleaning, footnote formatting
+
+# Transcription settings
+transcription:
+  provider: "openrouter" # whisper-local, openai, or openrouter
+  model: "" # Optional override (defaults to llm.models.recording_transcription, or "base" for whisper-local)
+  audio_chunk_length_seconds: 300 # Split long recordings into chunks of this size
+  refining_batch_size: 3 # Number of transcript segments to batch for LLM polishing
+  whisper_device: "auto" # For whisper-local: cpu, cuda, mps, auto
+
+# Document processing
+documents:
+  render_dots_per_inch: 150 # Resolution for page images (higher = more detail but more tokens)
+  maximum_pages: 1000 # Safety limit for document length
+  supported_formats: ["pdf", "pptx", "docx"]
+
+# Upload limits
+uploads:
+  media:
+    maximum_file_size_megabytes: 5120 # 5GB limit for video/audio
+    maximum_files_per_lecture: 10
+    chunked_upload_threshold_megabytes: 100 # Files above this use staged upload protocol
+    supported_formats:
+      video: ["mp4", "mkv", "mov", "webm"]
+      audio: ["mp3", "wav", "m4a", "flac"]
+  documents:
+    maximum_file_size_megabytes: 500
+    maximum_files_per_lecture: 50
+    maximum_pages_per_document: 500
+    supported_formats: ["pdf", "pptx", "docx"]
+
+# Safety and cost controls
+safety:
+  maximum_cost_per_job: 15.0 # Max estimated USD per generation job
+  maximum_retries: 3 # Attempts for self-healing loops

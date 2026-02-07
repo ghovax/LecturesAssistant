@@ -47,26 +47,102 @@ type AuthConfiguration struct {
 
 type LLMConfiguration struct {
 	Provider string              `yaml:"provider"`
-	Model    string              `yaml:"model"` // Global fallback
 	Language string              `yaml:"language"`
 	Models   ModelsConfiguration `yaml:"models"`
+
+	// Backwards compatibility (deprecated)
+	Model        string `yaml:"model,omitempty"`
+	DefaultModel string `yaml:"default_model,omitempty"`
 }
 
 type ModelsConfiguration struct {
-	Ingestion     string `yaml:"ingestion"`
-	Triangulation string `yaml:"triangulation"`
-	Structure     string `yaml:"structure"`
-	Generation    string `yaml:"generation"`
-	Adherence     string `yaml:"adherence"`
-	Polishing     string `yaml:"polishing"`
+	// New naming convention
+	RecordingTranscription string `yaml:"recording_transcription,omitempty"`
+	DocumentsIngestion     string `yaml:"documents_ingestion,omitempty"`
+	DocumentsMatching      string `yaml:"documents_matching,omitempty"`
+	OutlineCreation        string `yaml:"outline_creation,omitempty"`
+	ContentGeneration      string `yaml:"content_generation,omitempty"`
+	ContentVerification    string `yaml:"content_verification,omitempty"`
+	ContentPolishing       string `yaml:"content_polishing,omitempty"`
+
+	// Backwards compatibility (deprecated)
+	Ingestion     string `yaml:"ingestion,omitempty"`
+	Triangulation string `yaml:"triangulation,omitempty"`
+	Structure     string `yaml:"structure,omitempty"`
+	Generation    string `yaml:"generation,omitempty"`
+	Adherence     string `yaml:"adherence,omitempty"`
+	Polishing     string `yaml:"polishing,omitempty"`
+}
+
+// GetModelForTask returns the model to use for a specific task
+func (llmConfig *LLMConfiguration) GetModelForTask(task string) string {
+	var model string
+
+	// Try new naming convention first
+	switch task {
+	case "recording_transcription":
+		model = llmConfig.Models.RecordingTranscription
+	case "documents_ingestion":
+		model = llmConfig.Models.DocumentsIngestion
+	case "documents_matching":
+		model = llmConfig.Models.DocumentsMatching
+	case "outline_creation":
+		model = llmConfig.Models.OutlineCreation
+	case "content_generation":
+		model = llmConfig.Models.ContentGeneration
+	case "content_verification":
+		model = llmConfig.Models.ContentVerification
+	case "content_polishing":
+		model = llmConfig.Models.ContentPolishing
+	}
+
+	// Fallback to old naming (backwards compatibility)
+	if model == "" {
+		switch task {
+		case "recording_transcription":
+			// No old equivalent, this is new
+		case "documents_ingestion":
+			model = llmConfig.Models.Ingestion
+		case "documents_matching":
+			model = llmConfig.Models.Triangulation
+		case "outline_creation":
+			model = llmConfig.Models.Structure
+		case "content_generation":
+			model = llmConfig.Models.Generation
+		case "content_verification":
+			model = llmConfig.Models.Adherence
+		case "content_polishing":
+			model = llmConfig.Models.Polishing
+		}
+	}
+
+	// Final fallback to deprecated fields (for old configs)
+	if model == "" && llmConfig.DefaultModel != "" {
+		return llmConfig.DefaultModel
+	}
+	if model == "" && llmConfig.Model != "" {
+		return llmConfig.Model
+	}
+
+	return model
 }
 
 type TranscriptionConfiguration struct {
 	Provider                string `yaml:"provider"`
-	Model                   string `yaml:"model"`
+	Model                   string `yaml:"model,omitempty"` // Optional: defaults to llm.models.recording_transcription
 	AudioChunkLengthSeconds int    `yaml:"audio_chunk_length_seconds"`
 	RefiningBatchSize       int    `yaml:"refining_batch_size"`
 	WhisperDevice           string `yaml:"whisper_device"`
+}
+
+// GetModel returns the model to use for transcription
+// Falls back to LLM configuration if not explicitly set
+func (transcriptionConfig *TranscriptionConfiguration) GetModel(llmConfig *LLMConfiguration) string {
+	if transcriptionConfig.Model != "" {
+		return transcriptionConfig.Model
+	}
+	// Use recording_transcription model from LLM config
+	return llmConfig.GetModelForTask("recording_transcription")
 }
 
 type ProvidersConfiguration struct {

@@ -27,10 +27,10 @@ import (
 )
 
 // To run this test:
-// 1. Place 'test_audio.mp3' and 'test_doc.pdf' in server/internal/api/test_input/
-// 2. Ensure OpenRouter API key is set in server/configuration.yaml
-// 3. Run: go test -v -tags=integration ./internal/api/integration_pipeline_test.go [other api files...]
-//    OR more simply: go test -v -tags=integration ./internal/api/...
+// 1. Copy server/configuration.yaml.example to server/configuration.yaml and add your API keys
+// 2. Place 'test_audio.mp3' and 'test_document.pdf' in server/internal/api/test_input/
+// 3. Run: make test-integration
+//    OR: go test -v -tags=integration ./internal/api/...
 
 func TestFullPipeline_RealProviders(tester *testing.T) {
 	if testing.Short() {
@@ -178,7 +178,7 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 			JobID string `json:"job_id"`
 		}
 	}
-	json.NewDecoder(toolJobRes.Body).Decode(&toolJobRes)
+	json.NewDecoder(toolResp.Body).Decode(&toolJobRes)
 	jobID := toolJobRes.Data.JobID
 
 	// Wait for Generation
@@ -203,9 +203,20 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 
 	// F. Export to PDF
 	tester.Log("Exporting to PDF...")
-	// Actually, the API doesn't have a direct 'export' endpoint yet, but the handler is in internal/jobs.
-	// Let's trigger it via the queue directly for the test.
-	publishJobID, _ := jobQueue.Enqueue("tester", models.JobTypePublishMaterial, map[string]string{"tool_id": toolID})
+	exportPayload, _ := json.Marshal(map[string]string{
+		"tool_id": toolID,
+		"exam_id": examID,
+	})
+	exportReq := authenticatedRequest("POST", testServer.URL+"/api/tools/export", bytes.NewBuffer(exportPayload))
+	exportReq.Header.Set("Content-Type", "application/json")
+	exportResp, _ := httpClient.Do(exportReq)
+	var exportJobRes struct {
+		Data struct {
+			JobID string `json:"job_id"`
+		}
+	}
+	json.NewDecoder(exportResp.Body).Decode(&exportJobRes)
+	publishJobID := exportJobRes.Data.JobID
 
 	var pdfPath string
 	for time.Now().Before(deadline) {
@@ -226,10 +237,5 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 		tester.Errorf("Final PDF not found at %s", pdfPath)
 	} else {
 		tester.Logf("Success! Final PDF generated at: %s", pdfPath)
-		// Copy result to project root for easy access
-		finalPDF := "test_output_result.pdf"
-		inputData, _ := os.ReadFile(pdfPath)
-		os.WriteFile(finalPDF, inputData, 0644)
-		tester.Logf("Final PDF copied to project root as %s", finalPDF)
 	}
 }

@@ -113,6 +113,7 @@ func (server *Server) setupRoutes() {
 	apiRouter.HandleFunc("/tools", server.handleListTools).Methods("GET")
 	apiRouter.HandleFunc("/tools/details", server.handleGetTool).Methods("GET")
 	apiRouter.HandleFunc("/tools", server.handleDeleteTool).Methods("DELETE")
+	apiRouter.HandleFunc("/tools/export", server.handleExportTool).Methods("POST")
 
 	// Chat
 	apiRouter.HandleFunc("/chat/sessions", server.handleCreateChatSession).Methods("POST")

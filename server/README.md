@@ -109,19 +109,59 @@ Connect to `ws://localhost:3000/api/socket` with a valid session token.
 
 ## Development & Testing
 
+### Initial Setup
+
+1. **Configure the server**:
+   ```bash
+   cd server
+   cp configuration.yaml.example configuration.yaml
+   ```
+   Then edit `configuration.yaml` and add your API keys for OpenRouter and/or OpenAI.
+
+2. **Install dependencies**:
+   ```bash
+   make deps
+   ```
+
 ### Building
 
 ```bash
-cd server
-go mod download
+make build
+```
+
+Or manually:
+```bash
 go build -o lectures ./cmd/server
+```
+
+### Running
+
+```bash
+make run
+```
+
+Or with auto-reload during development:
+```bash
+make dev
 ```
 
 ### Testing
 
-All changes are verified via a comprehensive integration suite that tests multi-user isolation, safety thresholds, and the AI pipeline.
-
+**Unit and integration tests**:
 ```bash
-cd server
-go test -v ./...
+make test
 ```
+
+**Full pipeline integration test** (requires real API keys and test files):
+
+1. Ensure `configuration.yaml` has valid API keys
+2. Place test files in `internal/api/test_input/`:
+   - `test_audio.mp3` (any audio file)
+   - `test_document.pdf` (any PDF)
+3. Run:
+   ```bash
+   make test-integration
+   ```
+4. Check results in `internal/api/test_integration_pipeline_results/`
+
+The integration suite tests multi-user isolation, safety thresholds, and the complete AI pipeline from upload to PDF export.

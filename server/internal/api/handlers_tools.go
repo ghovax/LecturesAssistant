@@ -188,7 +188,7 @@ func (server *Server) handleDeleteTool(responseWriter http.ResponseWriter, reque
 	userID := server.getUserID(request)
 
 	result, err := server.database.Exec(`
-		DELETE FROM tools 
+		DELETE FROM tools
 		WHERE id = ? AND exam_id = ? AND EXISTS (
 			SELECT 1 FROM exams WHERE id = ? AND user_id = ?
 		)
@@ -205,4 +205,57 @@ func (server *Server) handleDeleteTool(responseWriter http.ResponseWriter, reque
 	}
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Tool deleted successfully"})
+}
+
+// handleExportTool triggers a PDF export job for a specific tool
+func (server *Server) handleExportTool(responseWriter http.ResponseWriter, request *http.Request) {
+	var exportRequest struct {
+		ToolID string `json:"tool_id"`
+		ExamID string `json:"exam_id"`
+	}
+
+	if err := json.NewDecoder(request.Body).Decode(&exportRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
+		return
+	}
+
+	if exportRequest.ToolID == "" || exportRequest.ExamID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "tool_id and exam_id are required", nil)
+		return
+	}
+
+	userID := server.getUserID(request)
+
+	// Verify tool exists and belongs to the user
+	var toolID string
+	err := server.database.QueryRow(`
+		SELECT tools.id
+		FROM tools
+		JOIN exams ON tools.exam_id = exams.id
+		WHERE tools.id = ? AND tools.exam_id = ? AND exams.user_id = ?
+	`, exportRequest.ToolID, exportRequest.ExamID, userID).Scan(&toolID)
+
+	if err == sql.ErrNoRows {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found in this exam", nil)
+		return
+	}
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to verify tool", nil)
+		return
+	}
+
+	// Enqueue export job
+	jobIdentifier, err := server.jobQueue.Enqueue(userID, models.JobTypePublishMaterial, map[string]string{
+		"tool_id": exportRequest.ToolID,
+	})
+
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "JOB_ERROR", "Failed to create export job", nil)
+		return
+	}
+
+	server.writeJSON(responseWriter, http.StatusAccepted, map[string]string{
+		"job_id":  jobIdentifier,
+		"message": "Export job created",
+	})
 }

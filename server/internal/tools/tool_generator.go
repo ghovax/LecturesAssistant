@@ -102,7 +102,7 @@ func (generator *ToolGenerator) triangulateRelevantMaterials(jobContext context.
 
 	model := options.ModelTriangulation
 	if model == "" {
-		model = generator.configuration.LLM.Models.Triangulation
+		model = generator.configuration.LLM.GetModelForTask("documents_matching")
 	}
 
 	maximumRetries := options.MaximumRetries
@@ -199,7 +199,7 @@ func (generator *ToolGenerator) analyzeStructureWithRetries(jobContext context.C
 
 	model := options.ModelStructure
 	if model == "" {
-		model = generator.configuration.LLM.Models.Structure
+		model = generator.configuration.LLM.GetModelForTask("outline_creation")
 	}
 
 	maximumRetries := options.MaximumRetries
@@ -301,12 +301,12 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 
 	generationModel := options.ModelGeneration
 	if generationModel == "" {
-		generationModel = generator.configuration.LLM.Models.Generation
+		generationModel = generator.configuration.LLM.GetModelForTask("content_generation")
 	}
 
 	adherenceModel := options.ModelAdherence
 	if adherenceModel == "" {
-		adherenceModel = generator.configuration.LLM.Models.Adherence
+		adherenceModel = generator.configuration.LLM.GetModelForTask("content_verification")
 	}
 
 	for sectionIndex, section := range sections {
@@ -407,7 +407,7 @@ func (generator *ToolGenerator) ProcessFootnotesAI(jobContext context.Context, c
 
 	model := options.ModelPolishing
 	if model == "" {
-		model = generator.configuration.LLM.Models.Polishing
+		model = generator.configuration.LLM.GetModelForTask("content_polishing")
 	}
 
 	for citationIndex := 0; citationIndex < len(citations); citationIndex += 10 {
@@ -757,7 +757,7 @@ func (generator *ToolGenerator) CleanDocumentTitle(jobContext context.Context, t
 
 	model := options.ModelPolishing
 	if model == "" {
-		model = generator.configuration.LLM.Models.Polishing
+		model = generator.configuration.LLM.GetModelForTask("content_polishing")
 	}
 
 	response, metrics, err := generator.callLLMWithModel(jobContext, prompt, model)
@@ -784,7 +784,7 @@ func (generator *ToolGenerator) CorrectProjectTitleDescription(jobContext contex
 	}
 
 	if model == "" {
-		model = generator.configuration.LLM.Models.Polishing
+		model = generator.configuration.LLM.GetModelForTask("content_polishing")
 		if model == "" {
 			model = generator.configuration.LLM.Model
 		}
@@ -833,7 +833,7 @@ func (generator *ToolGenerator) GenerateSuggestedQuestions(jobContext context.Co
 	}
 
 	if model == "" {
-		model = generator.configuration.LLM.Models.Polishing
+		model = generator.configuration.LLM.GetModelForTask("content_polishing")
 		if model == "" {
 			model = generator.configuration.LLM.Model
 		}
@@ -875,7 +875,7 @@ func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, l
 
 	model := options.ModelGeneration
 	if model == "" {
-		model = generator.configuration.LLM.Models.Generation
+		model = generator.configuration.LLM.GetModelForTask("content_generation")
 	}
 
 	response, _, err := generator.callLLMWithModel(jobContext, prompt, model)
@@ -901,7 +901,7 @@ func (generator *ToolGenerator) GenerateQuiz(jobContext context.Context, lecture
 
 	model := options.ModelGeneration
 	if model == "" {
-		model = generator.configuration.LLM.Models.Generation
+		model = generator.configuration.LLM.GetModelForTask("content_generation")
 	}
 
 	response, _, err := generator.callLLMWithModel(jobContext, prompt, model)

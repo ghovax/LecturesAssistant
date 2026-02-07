@@ -1,4 +1,4 @@
-.PHONY: build run clean test deps fmt
+.PHONY: build run clean test test-integration deps fmt
 
 # Build the application
 build: fmt
@@ -16,6 +16,10 @@ clean:
 # Run tests
 test:
 	go test -v ./...
+
+# Run integration tests (requires test files in internal/api/test_input/)
+test-integration:
+	go test -v -tags=integration ./internal/api/...
 
 # Format the code
 fmt:

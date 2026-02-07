@@ -78,17 +78,24 @@ func main() {
 
 	// Initialize transcription provider and service
 	var transcriptionProvider transcription.Provider
+	transcriptionModel := loadedConfiguration.Transcription.GetModel(&loadedConfiguration.LLM)
+
 	switch loadedConfiguration.Transcription.Provider {
 	case "whisper-local":
+		// For whisper-local, use explicit model or default to "base"
+		whisperModel := loadedConfiguration.Transcription.Model
+		if whisperModel == "" {
+			whisperModel = "base"
+		}
 		transcriptionProvider = transcription.NewWhisperProvider(
-			loadedConfiguration.Transcription.Model,
+			whisperModel,
 			loadedConfiguration.Transcription.WhisperDevice,
 		)
 	case "openai":
 		transcriptionProvider = transcription.NewOpenAIProvider(
 			loadedConfiguration.Providers.OpenAI.APIKey,
 			"https://api.openai.com/v1",
-			loadedConfiguration.Transcription.Model,
+			transcriptionModel,
 		)
 	case "openrouter":
 		apiKey := loadedConfiguration.Providers.OpenRouter.APIKey
@@ -98,7 +105,7 @@ func main() {
 		transcriptionProvider = transcription.NewOpenAIProvider(
 			apiKey,
 			"https://openrouter.ai/api/v1",
-			loadedConfiguration.Transcription.Model,
+			transcriptionModel,
 		)
 	default:
 		slog.Warn("Unknown transcription provider, falling back to whisper-local", "provider", loadedConfiguration.Transcription.Provider)
@@ -108,10 +115,7 @@ func main() {
 	transcriptionService := transcription.NewService(loadedConfiguration, transcriptionProvider, llmProvider, promptManager)
 
 	// Initialize document processor
-	ingestionModel := loadedConfiguration.LLM.Models.Ingestion
-	if ingestionModel == "" {
-		ingestionModel = loadedConfiguration.LLM.Model
-	}
+	ingestionModel := loadedConfiguration.LLM.GetModelForTask("documents_ingestion")
 	documentProcessor := documents.NewProcessor(llmProvider, ingestionModel, promptManager)
 
 	// Initialize markdown converter

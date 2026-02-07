@@ -81,6 +81,7 @@ func (server *Server) setupRoutes() {
 	apiRouter.HandleFunc("/uploads/prepare", server.handleUploadPrepare).Methods("POST")
 	apiRouter.HandleFunc("/uploads/append", server.handleUploadAppend).Methods("POST")
 	apiRouter.HandleFunc("/uploads/stage", server.handleUploadStage).Methods("POST")
+	apiRouter.HandleFunc("/uploads/import", server.handleImport).Methods("POST")
 
 	// Exams
 	apiRouter.HandleFunc("/exams", server.handleCreateExam).Methods("POST")

@@ -181,16 +181,22 @@ func (transcriptionConfig *TranscriptionConfiguration) GetModel(llmConfig *LLMCo
 }
 
 type ProvidersConfiguration struct {
-	OpenRouter OpenRouterConfig `yaml:"openrouter"`
-	Ollama     OllamaConfig     `yaml:"ollama"`
+	OpenRouter OpenRouterConfiguration `yaml:"openrouter"`
+	Ollama     OllamaConfiguration     `yaml:"ollama"`
+	Google     GoogleConfiguration     `yaml:"google"`
 }
 
-type OpenRouterConfig struct {
+type OpenRouterConfiguration struct {
 	APIKey string `yaml:"api_key"`
 }
 
-type OllamaConfig struct {
+type OllamaConfiguration struct {
 	BaseURL string `yaml:"base_url"`
+}
+
+type GoogleConfiguration struct {
+	ClientID     string `yaml:"client_id"`
+	ClientSecret string `yaml:"client_secret"`
 }
 
 type DocumentsConfiguration struct {
@@ -304,11 +310,15 @@ func defaultConfiguration() *Configuration {
 			RefiningBatchSize:       3,
 		},
 		Providers: ProvidersConfiguration{
-			OpenRouter: OpenRouterConfig{
+			OpenRouter: OpenRouterConfiguration{
 				APIKey: "",
 			},
-			Ollama: OllamaConfig{
+			Ollama: OllamaConfiguration{
 				BaseURL: "http://localhost:11434",
+			},
+			Google: GoogleConfiguration{
+				ClientID:     "",
+				ClientSecret: "",
 			},
 		},
 		Documents: DocumentsConfiguration{

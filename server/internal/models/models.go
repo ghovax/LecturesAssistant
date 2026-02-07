@@ -155,10 +155,11 @@ type Job struct {
 
 // JobType constants
 const (
-	JobTypeTranscribeMedia = "TRANSCRIBE_MEDIA"
-	JobTypeIngestDocuments = "INGEST_DOCUMENTS"
-	JobTypeBuildMaterial   = "BUILD_MATERIAL"
-	JobTypePublishMaterial = "PUBLISH_MATERIAL"
+	JobTypeTranscribeMedia     = "TRANSCRIBE_MEDIA"
+	JobTypeIngestDocuments     = "INGEST_DOCUMENTS"
+	JobTypeBuildMaterial       = "BUILD_MATERIAL"
+	JobTypePublishMaterial     = "PUBLISH_MATERIAL"
+	JobTypeDownloadGoogleDrive = "DOWNLOAD_GOOGLE_DRIVE"
 )
 
 // JobStatus constants

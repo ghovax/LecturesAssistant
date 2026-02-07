@@ -1276,7 +1276,7 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 			Model:    "gpt-4",
 		},
 		Providers: configuration.ProvidersConfiguration{
-			OpenRouter: configuration.OpenRouterConfig{APIKey: "dummy"},
+			OpenRouter: configuration.OpenRouterConfiguration{APIKey: "dummy"},
 		},
 		Safety: configuration.SafetyConfiguration{MaximumLoginAttempts: 100, MaximumCostPerJob: 10.0},
 		Uploads: configuration.UploadsConfiguration{

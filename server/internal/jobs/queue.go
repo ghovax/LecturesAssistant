@@ -84,18 +84,18 @@ func (queue *Queue) Stop() {
 func (queue *Queue) Enqueue(userID string, jobType string, payload interface{}) (string, error) {
 	jobID := uuid.New().String()
 
-	payloadJSON, err := json.Marshal(payload)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal payload: %w", err)
+	payloadJSON, marshalingError := json.Marshal(payload)
+	if marshalingError != nil {
+		return "", fmt.Errorf("failed to marshal payload: %w", marshalingError)
 	}
 
-	_, err = queue.database.Exec(`
+	_, executionError := queue.database.Exec(`
 		INSERT INTO jobs (id, user_id, type, status, progress, payload, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, jobID, userID, jobType, models.JobStatusPending, 0, string(payloadJSON), time.Now())
 
-	if err != nil {
-		return "", fmt.Errorf("failed to insert job: %w", err)
+	if executionError != nil {
+		return "", fmt.Errorf("failed to insert job: %w", executionError)
 	}
 
 	slog.Info("Enqueued job", "jobID", jobID, "type", jobType, "userID", userID)
@@ -168,9 +168,9 @@ func (queue *Queue) worker(workerID int) {
 
 // processNextJob picks up and processes the next pending job
 func (queue *Queue) processNextJob(workerID int) {
-	transaction, err := queue.database.Begin()
-	if err != nil {
-		slog.Error("Worker failed to begin transaction", "workerID", workerID, "error", err)
+	transaction, transactionError := queue.database.Begin()
+	if transactionError != nil {
+		slog.Error("Worker failed to begin transaction", "workerID", workerID, "error", transactionError)
 		return
 	}
 	defer transaction.Rollback()
@@ -178,7 +178,7 @@ func (queue *Queue) processNextJob(workerID int) {
 	// Find and lock a pending job
 	var job models.Job
 	var metadataJSON, progressMessageText sql.NullString
-	err = transaction.QueryRow(`
+	queryError := transaction.QueryRow(`
 		SELECT id, user_id, type, status, progress, progress_message_text, payload, metadata, created_at
 		FROM jobs
 		WHERE status = ?
@@ -189,11 +189,11 @@ func (queue *Queue) processNextJob(workerID int) {
 		&progressMessageText, &job.Payload, &metadataJSON, &job.CreatedAt,
 	)
 
-	if err == sql.ErrNoRows {
+	if queryError == sql.ErrNoRows {
 		return // No pending jobs
 	}
-	if err != nil {
-		slog.Error("Worker failed to query job", "workerID", workerID, "error", err)
+	if queryError != nil {
+		slog.Error("Worker failed to query job", "workerID", workerID, "error", queryError)
 		return
 	}
 
@@ -206,19 +206,19 @@ func (queue *Queue) processNextJob(workerID int) {
 
 	// Mark job as running
 	now := time.Now()
-	_, err = transaction.Exec(`
+	_, executionError := transaction.Exec(`
 		UPDATE jobs
 		SET status = ?, started_at = ?
 		WHERE id = ?
 	`, models.JobStatusRunning, now, job.ID)
 
-	if err != nil {
-		slog.Error("Worker failed to update job status", "workerID", workerID, "error", err)
+	if executionError != nil {
+		slog.Error("Worker failed to update job status", "workerID", workerID, "error", executionError)
 		return
 	}
 
-	if err := transaction.Commit(); err != nil {
-		slog.Error("Worker failed to commit transaction", "workerID", workerID, "error", err)
+	if commitError := transaction.Commit(); commitError != nil {
+		slog.Error("Worker failed to commit transaction", "workerID", workerID, "error", commitError)
 		return
 	}
 
@@ -264,14 +264,14 @@ func (queue *Queue) executeJob(job *models.Job) {
 			metadataJSON, _ = json.Marshal(metadata)
 		}
 
-		_, err := queue.database.Exec(`
+		_, executionError := queue.database.Exec(`
 			UPDATE jobs
 			SET progress = ?, progress_message_text = ?, metadata = ?, input_tokens = ?, output_tokens = ?, estimated_cost = ?
 			WHERE id = ?
 		`, progress, message, string(metadataJSON), metrics.InputTokens, metrics.OutputTokens, metrics.EstimatedCost, job.ID)
 
-		if err != nil {
-			slog.Error("Failed to update job progress", "error", err)
+		if executionError != nil {
+			slog.Error("Failed to update job progress", "error", executionError)
 		}
 
 		queue.publishUpdate(JobUpdate{
@@ -290,10 +290,10 @@ func (queue *Queue) executeJob(job *models.Job) {
 	jobContext, cancelFunc := context.WithCancel(queue.context)
 	defer cancelFunc()
 
-	err := handler(jobContext, job, updateProgress)
+	executionError := handler(jobContext, job, updateProgress)
 
-	if err != nil {
-		queue.failJob(job.ID, err.Error())
+	if executionError != nil {
+		queue.failJob(job.ID, executionError.Error())
 		return
 	}
 
@@ -303,14 +303,14 @@ func (queue *Queue) executeJob(job *models.Job) {
 // completeJob marks a job as completed
 func (queue *Queue) completeJob(jobID, result string) {
 	now := time.Now()
-	_, err := queue.database.Exec(`
+	_, executionError := queue.database.Exec(`
 		UPDATE jobs
 		SET status = ?, progress = 100, completed_at = ?, result = ?
 		WHERE id = ?
 	`, models.JobStatusCompleted, now, result, jobID)
 
-	if err != nil {
-		slog.Error("Failed to mark job as completed", "error", err)
+	if executionError != nil {
+		slog.Error("Failed to mark job as completed", "error", executionError)
 		return
 	}
 
@@ -340,14 +340,14 @@ func (queue *Queue) completeJob(jobID, result string) {
 // failJob marks a job as failed
 func (queue *Queue) failJob(jobID, errorMsg string) {
 	now := time.Now()
-	_, err := queue.database.Exec(`
+	_, executionError := queue.database.Exec(`
 		UPDATE jobs
 		SET status = ?, completed_at = ?, error = ?
 		WHERE id = ?
 	`, models.JobStatusFailed, now, errorMsg, jobID)
 
-	if err != nil {
-		slog.Error("Failed to mark job as failed", "error", err)
+	if executionError != nil {
+		slog.Error("Failed to mark job as failed", "error", executionError)
 		return
 	}
 
@@ -364,25 +364,34 @@ func (queue *Queue) failJob(jobID, errorMsg string) {
 func (queue *Queue) GetJob(jobID string) (*models.Job, error) {
 	var job models.Job
 	var startedAtTime, completedAtTime sql.NullTime
-	var metadataJSON sql.NullString
+	var metadataJSON, progressMessageText, result, errorMsg sql.NullString
 
-	err := queue.database.QueryRow(`
+	queryError := queue.database.QueryRow(`
 		SELECT id, type, status, progress, progress_message_text, payload, result, error, metadata,
 		       input_tokens, output_tokens, estimated_cost, created_at, started_at, completed_at
 		FROM jobs
 		WHERE id = ?
 	`, jobID).Scan(
-		&job.ID, &job.Type, &job.Status, &job.Progress, &job.ProgressMessageText,
-		&job.Payload, &job.Result, &job.Error, &metadataJSON, &job.InputTokens, &job.OutputTokens, &job.EstimatedCost,
+		&job.ID, &job.Type, &job.Status, &job.Progress, &progressMessageText,
+		&job.Payload, &result, &errorMsg, &metadataJSON, &job.InputTokens, &job.OutputTokens, &job.EstimatedCost,
 		&job.CreatedAt, &startedAtTime, &completedAtTime,
 	)
 
-	if err != nil {
-		return nil, err
+	if queryError != nil {
+		return nil, queryError
 	}
 
 	if metadataJSON.Valid {
 		_ = json.Unmarshal([]byte(metadataJSON.String), &job.Metadata)
+	}
+	if progressMessageText.Valid {
+		job.ProgressMessageText = progressMessageText.String
+	}
+	if result.Valid {
+		job.Result = result.String
+	}
+	if errorMsg.Valid {
+		job.Error = errorMsg.String
 	}
 
 	if startedAtTime.Valid {
@@ -397,14 +406,14 @@ func (queue *Queue) GetJob(jobID string) (*models.Job, error) {
 
 // CancelJob cancels a running or pending job
 func (queue *Queue) CancelJob(jobID string) error {
-	_, err := queue.database.Exec(`
+	_, executionError := queue.database.Exec(`
 		UPDATE jobs
 		SET status = ?, completed_at = ?
 		WHERE id = ? AND status IN (?, ?)
 	`, models.JobStatusCancelled, time.Now(), jobID, models.JobStatusPending, models.JobStatusRunning)
 
-	if err != nil {
-		return err
+	if executionError != nil {
+		return executionError
 	}
 
 	queue.publishUpdate(JobUpdate{

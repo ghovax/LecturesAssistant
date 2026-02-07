@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -20,6 +21,9 @@ import (
 	"lectures/internal/transcription"
 
 	"github.com/google/uuid"
+	"golang.org/x/oauth2"
+	"google.golang.org/api/drive/v3"
+	"google.golang.org/api/option"
 )
 
 // sanitizeFilename replaces unsafe characters with underscores while keeping spaces
@@ -58,8 +62,8 @@ func RegisterHandlers(
 		var payload struct {
 			LectureID string `json:"lecture_id"`
 		}
-		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
-			return fmt.Errorf("failed to unmarshal job payload: %w", err)
+		if unmarshalingError := json.Unmarshal([]byte(job.Payload), &payload); unmarshalingError != nil {
+			return fmt.Errorf("failed to unmarshal job payload: %w", unmarshalingError)
 		}
 
 		// 1. Get lecture media files in order
@@ -206,8 +210,8 @@ func RegisterHandlers(
 			LectureID    string `json:"lecture_id"`
 			LanguageCode string `json:"language_code"`
 		}
-		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
-			return fmt.Errorf("failed to unmarshal job payload: %w", err)
+		if unmarshalingError := json.Unmarshal([]byte(job.Payload), &payload); unmarshalingError != nil {
+			return fmt.Errorf("failed to unmarshal job payload: %w", unmarshalingError)
 		}
 
 		if payload.LanguageCode == "" {
@@ -344,8 +348,8 @@ func RegisterHandlers(
 			ModelAdherence         string `json:"model_adherence"`
 			ModelPolishing         string `json:"model_polishing"`
 		}
-		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
-			return fmt.Errorf("failed to unmarshal job payload: %w", err)
+		if unmarshalingError := json.Unmarshal([]byte(job.Payload), &payload); unmarshalingError != nil {
+			return fmt.Errorf("failed to unmarshal job payload: %w", unmarshalingError)
 		}
 
 		threshold, _ := strconv.Atoi(payload.AdherenceThreshold)
@@ -494,6 +498,106 @@ func RegisterHandlers(
 		return nil
 	})
 
+	queue.RegisterHandler(models.JobTypeDownloadGoogleDrive, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, models.JobMetrics)) error {
+		var payload struct {
+			FileID     string `json:"file_id"`
+			OAuthToken string `json:"oauth_token"`
+			Filename   string `json:"filename"`
+		}
+		if unmarshalingError := json.Unmarshal([]byte(job.Payload), &payload); unmarshalingError != nil {
+			return fmt.Errorf("failed to unmarshal job payload: %w", unmarshalingError)
+		}
+
+		// 1. Initialize Google Drive Service
+		tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: payload.OAuthToken})
+		driveService, serviceError := drive.NewService(jobContext, option.WithTokenSource(tokenSource))
+		if serviceError != nil {
+			return fmt.Errorf("failed to create drive service: %w", serviceError)
+		}
+
+		// 2. Fetch File Metadata (to get size)
+		fileMetadata, metadataError := driveService.Files.Get(payload.FileID).Fields("size, name").Context(jobContext).Do()
+		if metadataError != nil {
+			return fmt.Errorf("failed to get file metadata: %w", metadataError)
+		}
+
+		if payload.Filename == "" {
+			payload.Filename = fileMetadata.Name
+		}
+
+		// 3. Prepare Staging Area
+		uploadID := job.ID // Use job ID as upload ID for simplicity
+		uploadDirectory := filepath.Join(os.TempDir(), "lectures-uploads", uploadID)
+		if mkdirError := os.MkdirAll(uploadDirectory, 0755); mkdirError != nil {
+			return fmt.Errorf("failed to create staging directory: %w", mkdirError)
+		}
+
+		metadataFilePath := filepath.Join(uploadDirectory, "metadata.json")
+		metadataFile, createFileError := os.Create(metadataFilePath)
+		if createFileError != nil {
+			return fmt.Errorf("failed to create metadata file: %w", createFileError)
+		}
+		json.NewEncoder(metadataFile).Encode(map[string]any{
+			"filename":        payload.Filename,
+			"file_size_bytes": fileMetadata.Size,
+		})
+		metadataFile.Close()
+
+		dataFilePath := filepath.Join(uploadDirectory, "upload.data")
+		dataFile, openFileError := os.Create(dataFilePath)
+		if openFileError != nil {
+			return fmt.Errorf("failed to create data file: %w", openFileError)
+		}
+		defer dataFile.Close()
+
+		// 4. Start Download
+		driveResponse, downloadError := driveService.Files.Get(payload.FileID).Download()
+		if downloadError != nil {
+			return fmt.Errorf("failed to start download: %w", downloadError)
+		}
+		defer driveResponse.Body.Close()
+
+		// 5. Stream with Progress
+		streamingBuffer := make([]byte, 1024*1024) // 1MB buffer
+		var totalDownloadedBytes int64
+		lastUpdateTimestamp := time.Now()
+
+		for {
+			bytesReadCount, readingError := driveResponse.Body.Read(streamingBuffer)
+			if bytesReadCount > 0 {
+				_, writingError := dataFile.Write(streamingBuffer[:bytesReadCount])
+				if writingError != nil {
+					return fmt.Errorf("failed to write to data file: %w", writingError)
+				}
+				totalDownloadedBytes += int64(bytesReadCount)
+
+				// Throttled progress updates
+				if time.Since(lastUpdateTimestamp) > 500*time.Millisecond || totalDownloadedBytes == fileMetadata.Size {
+					downloadProgress := 0
+					if fileMetadata.Size > 0 {
+						downloadProgress = int(float64(totalDownloadedBytes) / float64(fileMetadata.Size) * 100)
+					}
+					updateProgress(downloadProgress, fmt.Sprintf("Downloading from Google Drive: %d/%d bytes", totalDownloadedBytes, fileMetadata.Size), map[string]any{
+						"bytes_downloaded": totalDownloadedBytes,
+						"total_bytes":      fileMetadata.Size,
+						"upload_id":        uploadID,
+					}, models.JobMetrics{})
+					lastUpdateTimestamp = time.Now()
+				}
+			}
+
+			if readingError != nil {
+				if readingError == io.EOF {
+					break
+				}
+				return fmt.Errorf("reading error during download: %w", readingError)
+			}
+		}
+
+		job.Result = fmt.Sprintf(`{"upload_id": "%s", "filename": "%s"}`, uploadID, payload.Filename)
+		return nil
+	})
+
 	queue.RegisterHandler(models.JobTypePublishMaterial, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, models.JobMetrics)) error {
 		var totalMetrics models.JobMetrics
 
@@ -501,8 +605,8 @@ func RegisterHandlers(
 			ToolID       string `json:"tool_id"`
 			LanguageCode string `json:"language_code"`
 		}
-		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
-			return fmt.Errorf("failed to unmarshal job payload: %w", err)
+		if unmarshalingError := json.Unmarshal([]byte(job.Payload), &payload); unmarshalingError != nil {
+			return fmt.Errorf("failed to unmarshal job payload: %w", unmarshalingError)
 		}
 
 		var tool models.Tool

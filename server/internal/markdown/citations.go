@@ -26,7 +26,8 @@ func (reconstructor *Reconstructor) ParseCitations(text string) (string, []Parse
 	// Actually, a simpler way to handle "description-file-p1" where description has dashes
 	// is to match the whole content and then split it from the end.
 
-	citationRegex := regexp.MustCompile(`\{\{\{(.*?)\s*\}\}\}`)
+	// Match leading whitespace + the marker
+	citationRegex := regexp.MustCompile(`\s*\{\{\{(.*?)\s*\}\}\}`)
 	matches := citationRegex.FindAllStringSubmatch(text, -1)
 
 	slog.Debug("ParseCitations called", "text_length", len(text), "matches_found", len(matches))
@@ -88,13 +89,9 @@ func (reconstructor *Reconstructor) ParseCitations(text string) (string, []Parse
 			Pages:       pages,
 		})
 
-		// Replace marker with [^N], removing any leading space if the marker itself had one
-		// or if we just want to ensure it's tight against the preceding text.
+		// Replace marker (including its leading whitespace) with [^N]
 		result = strings.Replace(result, fullMatch, fmt.Sprintf("[^%d]", citationNumber), 1)
 	}
-
-	// Post-process to fix " [^N]" -> "[^N]"
-	result = strings.ReplaceAll(result, " [^", "[^")
 
 	return result, citations
 }

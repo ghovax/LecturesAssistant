@@ -139,7 +139,7 @@ func createSchema(database *sql.DB) error {
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
-	CREATE TABLE IF NOT EXISTS tool_source_refs (
+	CREATE TABLE IF NOT EXISTS tool_source_references (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		tool_id TEXT NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
 		source_type TEXT CHECK(source_type IN ('transcript', 'document')) NOT NULL,

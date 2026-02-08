@@ -27,8 +27,9 @@ func (reconstructor *Reconstructor) Reconstruct(node *Node) string {
 
 	result := strings.Join(markdownLines, "\n")
 
-	// Remove spaces before footnote references: "text [^1]" -> "text[^1]"
-	result = strings.ReplaceAll(result, " [^", "[^")
+	// Remove ONLY horizontal whitespace before footnote references: "text [^1]" -> "text[^1]"
+	// Using [ \t] ensures we don't accidentally remove newlines (\n) before footnote definitions.
+	result = regexp.MustCompile(`[ \t]+\[\^`).ReplaceAllString(result, "[^")
 
 	return strings.TrimSpace(result) + "\n"
 }
@@ -113,7 +114,9 @@ func (reconstructor *Reconstructor) reconstructNode(node *Node, markdownLines *[
 		reconstructor.ensureBlankLine(markdownLines)
 
 		footnoteText := node.Content
-		if node.SourceFile != "" {
+		// Only append structured metadata if it's NOT already in the text
+		// This prevents "Description (file.pdf, p. 1) (file.pdf, p. 1)"
+		if node.SourceFile != "" && !strings.Contains(footnoteText, node.SourceFile) {
 			pageInfo := ""
 			if len(node.SourcePages) > 0 {
 				formattedPages := FormatPageNumbers(node.SourcePages)

@@ -106,7 +106,7 @@ func EnrichWithCitedImages(root *Node, resolver ImageResolver) {
 						if imagePath != "" {
 							imagesToInsert = append(imagesToInsert, &Node{
 								Type:    NodeImage,
-								Title:   fmt.Sprintf("Reference: %s, Page %d", f, p),
+								Title:   fmt.Sprintf("%s", f),
 								Content: imagePath,
 							})
 							insertedPages[key] = true

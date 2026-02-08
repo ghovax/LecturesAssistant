@@ -503,12 +503,38 @@ func RegisterHandlers(
 
 		toolID := uuid.New().String()
 
-		_, executionError := database.Exec(`
+		transaction, err := database.Begin()
+		if err != nil {
+			return fmt.Errorf("failed to begin transaction for tool storage: %w", err)
+		}
+		defer transaction.Rollback()
+
+		_, executionError := transaction.Exec(`
 			INSERT INTO tools (id, exam_id, type, title, language_code, content, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		`, toolID, payload.ExamID, payload.Type, toolTitle, payload.LanguageCode, finalToolContent, time.Now(), time.Now())
 		if executionError != nil {
 			return fmt.Errorf("failed to store tool: %w", executionError)
+		}
+
+		// Store citation metadata in structured table
+		for _, citation := range citations {
+			metadataJSON, _ := json.Marshal(map[string]any{
+				"footnote_number": citation.Number,
+				"description":     citation.Description,
+				"pages":           citation.Pages,
+			})
+			_, executionError = transaction.Exec(`
+				INSERT INTO tool_source_references (tool_id, source_type, source_id, metadata)
+				VALUES (?, ?, ?, ?)
+			`, toolID, "document", citation.File, string(metadataJSON))
+			if executionError != nil {
+				slog.Error("Failed to store tool source reference", "toolID", toolID, "error", executionError)
+			}
+		}
+
+		if commitError := transaction.Commit(); commitError != nil {
+			return fmt.Errorf("failed to commit tool storage: %w", commitError)
 		}
 
 		if broadcast != nil {
@@ -724,12 +750,54 @@ func RegisterHandlers(
 		}
 
 		if tool.Type == "guide" {
+			slog.Info("Starting tool content parsing and enrichment", "toolID", tool.ID)
 			markdownParser := markdown.NewParser()
 			ast := markdownParser.Parse(contentToConvert)
 
-			// Pre-fetch all page paths for this exam to avoid tight-loop DB queries
-			// which can cause starvation/deadlocks with MaxOpenConns=1
+			// 1. Get structured citation metadata from DB (The Source of Truth)
+			citationMetadata := make(map[int]struct {
+				File  string
+				Pages []int
+			})
+			refRows, err := database.Query("SELECT source_id, metadata FROM tool_source_references WHERE tool_id = ?", tool.ID)
+			if err == nil {
+				for refRows.Next() {
+					var sourceID, metadataStr string
+					if err := refRows.Scan(&sourceID, &metadataStr); err == nil {
+						var meta struct {
+							FootnoteNumber int   `json:"footnote_number"`
+							Pages          []int `json:"pages"`
+						}
+						if json.Unmarshal([]byte(metadataStr), &meta) == nil {
+							citationMetadata[meta.FootnoteNumber] = struct {
+								File  string
+								Pages []int
+							}{File: sourceID, Pages: meta.Pages}
+						}
+					}
+				}
+				refRows.Close()
+			}
+
+			// 2. Manually enrich AST nodes with the reliable metadata
+			// This overrides any (possibly failed) regex attempts during parsing
+			var enrichNodeMetadata func(*markdown.Node)
+			enrichNodeMetadata = func(n *markdown.Node) {
+				if n.Type == markdown.NodeFootnote {
+					if info, ok := citationMetadata[n.FootnoteNumber]; ok {
+						n.SourceFile = info.File
+						n.SourcePages = info.Pages
+					}
+				}
+				for _, child := range n.Children {
+					enrichNodeMetadata(child)
+				}
+			}
+			enrichNodeMetadata(ast)
+
+			// 3. Pre-fetch all page paths for this exam
 			pageMap := make(map[string]string) // Key: "filename:page"
+			slog.Info("Pre-fetching page image paths from database", "examID", examID)
 			rows, err := database.Query(`
 				SELECT rd.original_filename, rd.title, rp.page_number, rp.image_path
 				FROM reference_pages rp
@@ -752,17 +820,21 @@ func RegisterHandlers(
 				}
 				rows.Close()
 			}
+			slog.Info("Pre-fetched pages for enrichment", "count", len(pageMap))
 
 			imageResolver := func(filename string, pageNumber int) string {
 				key := fmt.Sprintf("%s:%d", filename, pageNumber)
 				return pageMap[key]
 			}
 
+			slog.Info("Starting AST enrichment with cited images")
 			markdown.EnrichWithCitedImages(ast, imageResolver)
+			slog.Info("Finished AST enrichment with cited images")
 
 			markdownReconstructor := markdown.NewReconstructor()
 			markdownReconstructor.Language = payload.LanguageCode
 			contentToConvert = markdownReconstructor.Reconstruct(ast)
+			slog.Info("Finished tool content reconstruction", "contentLength", len(contentToConvert))
 		}
 
 		updateProgress(30, "Gathering lecture metadata...", nil, models.JobMetrics{})

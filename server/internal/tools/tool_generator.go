@@ -576,20 +576,9 @@ func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context,
 
 	var markdownBuilder strings.Builder
 	for _, citation := range batch {
-		// Include file and page metadata in the footnote for LLM processing
-		footnoteText := citation.Description
-		if citation.File != "" {
-			if len(citation.Pages) > 0 {
-				pagePrefix := "p."
-				if len(citation.Pages) > 1 {
-					pagePrefix = "pp."
-				}
-				footnoteText = fmt.Sprintf("%s (`%s`, %s %s)", citation.Description, citation.File, pagePrefix, markdown.FormatPageNumbers(citation.Pages))
-			} else {
-				footnoteText = fmt.Sprintf("%s (`%s`)", citation.Description, citation.File)
-			}
-		}
-		markdownBuilder.WriteString(fmt.Sprintf("[^%d]: %s\n\n", citation.Number, footnoteText))
+		// ONLY send the description to the LLM.
+		// Metadata (file/pages) is kept strictly separate to prevent duplication.
+		markdownBuilder.WriteString(fmt.Sprintf("[^%d]: %s\n\n", citation.Number, citation.Description))
 	}
 
 	parsingPrompt, _ := generator.promptManager.GetPrompt(prompts.PromptParseFootnotes, map[string]string{
@@ -603,6 +592,8 @@ func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context,
 		return metrics, err
 	}
 
+	// We still try to extract structured info if the LLM provided it,
+	// but we prioritize our own source of truth for file/pages.
 	var result struct {
 		Footnotes []struct {
 			Number      int    `json:"number"`
@@ -613,18 +604,15 @@ func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context,
 	}
 	if unmarshalErr := generator.unmarshalJSONWithFallback(parsingResponse, &result); unmarshalErr == nil {
 		for batchCitationIndex, citation := range batch {
-			found := false
 			for _, aiFootnote := range result.Footnotes {
 				if aiFootnote.Number == citation.Number {
-					allCitations[offset+batchCitationIndex].File = aiFootnote.File
-					allCitations[offset+batchCitationIndex].Pages = aiFootnote.Pages
-					found = true
+					// We only take the file/pages from the LLM if we don't already have them
+					if allCitations[offset+batchCitationIndex].File == "" || allCitations[offset+batchCitationIndex].File == "unknown" {
+						allCitations[offset+batchCitationIndex].File = aiFootnote.File
+						allCitations[offset+batchCitationIndex].Pages = aiFootnote.Pages
+					}
 					break
 				}
-			}
-			if !found && batchCitationIndex < len(result.Footnotes) {
-				allCitations[offset+batchCitationIndex].File = result.Footnotes[batchCitationIndex].File
-				allCitations[offset+batchCitationIndex].Pages = result.Footnotes[batchCitationIndex].Pages
 			}
 		}
 	}
@@ -653,6 +641,7 @@ func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context,
 		// Try matching by number first
 		for _, node := range aiFootnotes {
 			if node.FootnoteNumber == citation.Number {
+				// Take ONLY the polished description
 				allCitations[offset+batchCitationIndex].Description = node.Content
 				found = true
 				break

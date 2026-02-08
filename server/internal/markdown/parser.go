@@ -510,12 +510,20 @@ func (parser *Parser) parseFootnote(lines []string, startIndex int) (*Node, int)
 		number, _ := strconv.Atoi(match[1])
 		fullContent := strings.TrimSpace(match[2])
 
-		// Try to extract metadata if present: Content (`file.pdf` , pp. 1–2)
-		// We'll use a more flexible regex that handles optional commas and spaces,
-		// and supports different page prefixes like 'p.', 'pp.', or 'S.' (German).
-		metadataRegex := regexp.MustCompile(`^(.*?)\s*\(\s*\x60(.*?)\x60\s*(?:,\s*)?([a-zA-Z]{1,2}\.\s*([\d–\-, ]+))?\s*\)$`)
+		// Robust metadata extraction:
+		// Expects: "Description (`file.pdf`, p. 1)" or "Description (file.pdf p. 1)"
+		// or even just "Description (file.pdf)"
+		// 1. (.*?) - The description
+		// 2. \(\s* - Opening parenthesis
+		// 3. [\x60]? - Optional backtick
+		// 4. ([^\x60,\s)]+) - The filename (anything not a backtick, comma, space, or closing paren)
+		// 5. [\x60]? - Optional backtick
+		// 6. (?:(?:\s*,\s*)|\s+)? - Optional separator (comma or space)
+		// 7. (?:([a-zA-Z]{1,2}\.?\s*([\d–\-, ]+)))? - Optional page info (e.g., p. 1, S. 5)
+		// 8. \s*\)$ - Closing parenthesis
+		metadataRegex := regexp.MustCompile(`^(.*?)\s*\(\s*[\x60]?([^\x60,\s)]+)[\x60]?(?:(?:\s*,\s*)|\s+)?(?:([a-zA-Z]{1,2}\.?\s*([\d–\-, ]+)))?\s*\)$`)
 		metaMatch := metadataRegex.FindStringSubmatch(fullContent)
-		slog.Debug("Footnote metadata match", "content", fullContent, "match", metaMatch)
+		slog.Debug("Footnote metadata match", "content", fullContent, "matched", metaMatch != nil)
 
 		if metaMatch != nil {
 			content := strings.TrimSpace(metaMatch[1])

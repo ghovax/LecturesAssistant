@@ -42,6 +42,7 @@ type LectureMedia struct {
 	SequenceOrder        int       `json:"sequence_order"`
 	DurationMilliseconds int64     `json:"duration_milliseconds,omitempty"`
 	FilePath             string    `json:"file_path"`
+	OriginalFilename     string    `json:"original_filename,omitempty"`
 	CreatedAt            time.Time `json:"created_at"`
 }
 
@@ -137,6 +138,8 @@ type JobMetrics struct {
 type Job struct {
 	ID                  string     `json:"id"`
 	UserID              string     `json:"user_id"`
+	CourseID            string     `json:"course_id,omitempty"`
+	LectureID           string     `json:"lecture_id,omitempty"`
 	Type                string     `json:"type"`
 	Status              string     `json:"status"`
 	Progress            int        `json:"progress"`

@@ -65,6 +65,7 @@ func (queue *Queue) RegisterHandler(jobType string, handler JobHandler) {
 
 // Start begins processing jobs
 func (queue *Queue) Start() {
+	queue.recoverJobs()
 	for index := 0; index < queue.workers; index++ {
 		queue.waitGroup.Add(1)
 		go queue.worker(index)
@@ -80,8 +81,24 @@ func (queue *Queue) Stop() {
 	slog.Info("Job queue stopped")
 }
 
+// recoverJobs marks jobs that were left in RUNNING state (e.g. server crash) as FAILED
+func (queue *Queue) recoverJobs() {
+	result, err := queue.database.Exec(`
+		UPDATE jobs 
+		SET status = ?, error = 'Server restarted while task was running', completed_at = ?
+		WHERE status = ?
+	`, models.JobStatusFailed, time.Now(), models.JobStatusRunning)
+
+	if err == nil {
+		rows, _ := result.RowsAffected()
+		if rows > 0 {
+			slog.Info("Recovered stuck jobs", "count", rows)
+		}
+	}
+}
+
 // Enqueue creates a new job and adds it to the queue
-func (queue *Queue) Enqueue(userID string, jobType string, payload interface{}) (string, error) {
+func (queue *Queue) Enqueue(userID string, jobType string, payload interface{}, courseID, lectureID string) (string, error) {
 	jobID := uuid.New().String()
 
 	payloadJSON, marshalingError := json.Marshal(payload)
@@ -90,15 +107,15 @@ func (queue *Queue) Enqueue(userID string, jobType string, payload interface{}) 
 	}
 
 	_, executionError := queue.database.Exec(`
-		INSERT INTO jobs (id, user_id, type, status, progress, payload, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, jobID, userID, jobType, models.JobStatusPending, 0, string(payloadJSON), time.Now())
+		INSERT INTO jobs (id, user_id, course_id, lecture_id, type, status, progress, payload, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, jobID, userID, courseID, lectureID, jobType, models.JobStatusPending, 0, string(payloadJSON), time.Now())
 
 	if executionError != nil {
 		return "", fmt.Errorf("failed to insert job: %w", executionError)
 	}
 
-	slog.Info("Enqueued job", "jobID", jobID, "type", jobType, "userID", userID)
+	slog.Info("Enqueued job", "jobID", jobID, "type", jobType, "userID", userID, "courseID", courseID, "lectureID", lectureID)
 	return jobID, nil
 }
 
@@ -177,15 +194,15 @@ func (queue *Queue) processNextJob(workerID int) {
 
 	// Find and lock a pending job
 	var job models.Job
-	var metadataJSON, progressMessageText sql.NullString
+	var metadataJSON, progressMessageText, courseID, lectureID sql.NullString
 	queryError := transaction.QueryRow(`
-		SELECT id, user_id, type, status, progress, progress_message_text, payload, metadata, created_at
+		SELECT id, user_id, course_id, lecture_id, type, status, progress, progress_message_text, payload, metadata, created_at
 		FROM jobs
 		WHERE status = ?
 		ORDER BY created_at ASC
 		LIMIT 1
 	`, models.JobStatusPending).Scan(
-		&job.ID, &job.UserID, &job.Type, &job.Status, &job.Progress,
+		&job.ID, &job.UserID, &courseID, &lectureID, &job.Type, &job.Status, &job.Progress,
 		&progressMessageText, &job.Payload, &metadataJSON, &job.CreatedAt,
 	)
 
@@ -195,6 +212,13 @@ func (queue *Queue) processNextJob(workerID int) {
 	if queryError != nil {
 		slog.Error("Worker failed to query job", "workerID", workerID, "error", queryError)
 		return
+	}
+
+	if courseID.Valid {
+		job.CourseID = courseID.String
+	}
+	if lectureID.Valid {
+		job.LectureID = lectureID.String
 	}
 
 	if metadataJSON.Valid {
@@ -364,21 +388,28 @@ func (queue *Queue) failJob(jobID, errorMsg string) {
 func (queue *Queue) GetJob(jobID string) (*models.Job, error) {
 	var job models.Job
 	var startedAtTime, completedAtTime sql.NullTime
-	var metadataJSON, progressMessageText, result, errorMsg sql.NullString
+	var metadataJSON, progressMessageText, result, errorMsg, courseID, lectureID sql.NullString
 
 	queryError := queue.database.QueryRow(`
-		SELECT id, type, status, progress, progress_message_text, payload, result, error, metadata,
+		SELECT id, user_id, course_id, lecture_id, type, status, progress, progress_message_text, payload, result, error, metadata,
 		       input_tokens, output_tokens, estimated_cost, created_at, started_at, completed_at
 		FROM jobs
 		WHERE id = ?
 	`, jobID).Scan(
-		&job.ID, &job.Type, &job.Status, &job.Progress, &progressMessageText,
+		&job.ID, &job.UserID, &courseID, &lectureID, &job.Type, &job.Status, &job.Progress, &progressMessageText,
 		&job.Payload, &result, &errorMsg, &metadataJSON, &job.InputTokens, &job.OutputTokens, &job.EstimatedCost,
 		&job.CreatedAt, &startedAtTime, &completedAtTime,
 	)
 
 	if queryError != nil {
 		return nil, queryError
+	}
+
+	if courseID.Valid {
+		job.CourseID = courseID.String
+	}
+	if lectureID.Valid {
+		job.LectureID = lectureID.String
 	}
 
 	if metadataJSON.Valid {

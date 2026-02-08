@@ -96,7 +96,7 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 		"model_generation":          createToolRequest.ModelGeneration,
 		"model_adherence":           createToolRequest.ModelAdherence,
 		"model_polishing":           createToolRequest.ModelPolishing,
-	})
+	}, createToolRequest.ExamID, createToolRequest.LectureID)
 
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "JOB_ERROR", "Failed to create generation job", nil)
@@ -271,7 +271,7 @@ func (server *Server) handleExportTool(responseWriter http.ResponseWriter, reque
 		"tool_id":       exportRequest.ToolID,
 		"language_code": languageCode,
 		"format":        exportRequest.Format,
-	})
+	}, exportRequest.ExamID, "")
 
 	if enqueuingError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "JOB_ERROR", "Failed to create export job", nil)

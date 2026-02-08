@@ -69,44 +69,6 @@
 	<a href="/exams/{examID}" class="button" style="min-width: 140px;">Back to Course</a>
 </div>
 
-<div style="margin-top: var(--space-lg); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border-color);">
-	<h3>Generate New Tool</h3>
-	<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-md); align-items: end;">
-		<label>
-			Lecture
-			<select bind:value={selectedLecture}>
-				<option value="">Select a lecture...</option>
-				{#each lectures as l}
-					<option value={l.id}>{l.title}</option>
-				{/each}
-			</select>
-		</label>
-		<label>
-			Type
-			<select bind:value={type}>
-				<option value="guide">Study Guide</option>
-				<option value="flashcard">Flashcards</option>
-				<option value="quiz">Quiz</option>
-			</select>
-		</label>
-		{#if type === 'guide'}
-			<label>
-				Length
-				<select bind:value={length}>
-					<option value="short">Short</option>
-					<option value="medium">Medium</option>
-					<option value="long">Long</option>
-				</select>
-			</label>
-		{:else}
-			<div style="height: 36px;"></div>
-		{/if}
-		<button onclick={createTool} disabled={creating || !selectedLecture}>
-			{creating ? 'Starting...' : 'Generate'}
-		</button>
-	</div>
-</div>
-
 {#if loading}
 	<p>Loading tools...</p>
 {:else if error}

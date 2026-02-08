@@ -30,7 +30,7 @@
 	<p>Loading document pages...</p>
 {:else if error}
 	<div class="error">{error}</div>
-	<a href="/exams/{examID}/lectures/{lectureID}">Back to Lecture</a>
+	<a href="/exams/{examID}/lectures/{lectureID}" class="button">Back to Lecture</a>
 {:else if document}
 	<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-lg); margin-bottom: var(--space-lg); flex-wrap: wrap;">
 		<h1>{document.title}</h1>
@@ -42,9 +42,9 @@
 			<div class="card document-page-card" style="display: grid; grid-template-columns: 300px 1fr; gap: var(--space-lg);">
 				<div>
 					<img 
-						src="/api/documents/pages/image?document_id=${docID}&lecture_id=${lectureID}&page_number=${p.page_number}" 
+						src="/api/documents/pages/image?document_id={docID}&lecture_id={lectureID}&page_number={p.page_number}" 
 						alt="Page {p.page_number}"
-						style="width: 100%; border: 1px solid var(--border-color);"
+						style="width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius);"
 					/>
 					<p style="text-align: center; margin-top: 8px;"><strong>Page {p.page_number}</strong></p>
 				</div>

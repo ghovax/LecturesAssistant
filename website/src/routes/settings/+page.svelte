@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { apiFetch } from '$lib/api';
 
 	let settings = $state(null);
 	let loading = $state(true);
@@ -8,14 +9,7 @@
 
 	async function fetchSettings() {
 		try {
-			const res = await fetch('/api/settings', {
-				headers: {
-					'X-Requested-With': 'XMLHttpRequest'
-				}
-			});
-			if (!res.ok) throw new Error('Failed to fetch settings');
-			const json = await res.json();
-			settings = json.data;
+			settings = await apiFetch('/api/settings');
 		} catch (e) {
 			error = e.message;
 		} finally {
@@ -26,15 +20,10 @@
 	async function saveSettings() {
 		saving = true;
 		try {
-			const res = await fetch('/api/settings', {
+			await apiFetch('/api/settings', {
 				method: 'PATCH',
-				headers: {
-					'Content-Type': 'application/json',
-					'X-Requested-With': 'XMLHttpRequest'
-				},
-				body: JSON.stringify(settings)
+				body: settings
 			});
-			if (!res.ok) throw new Error('Failed to save settings');
 			alert('Settings saved successfully');
 		} catch (e) {
 			alert('Error saving settings: ' + e.message);

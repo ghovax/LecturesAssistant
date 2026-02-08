@@ -9,7 +9,7 @@ import (
 
 // Initialize creates and initializes the SQLite database
 func Initialize(path string) (*sql.DB, error) {
-	database, err := sql.Open("sqlite3", path+"?_foreign_keys=on")
+	database, err := sql.Open("sqlite3", path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -186,6 +186,8 @@ func createSchema(database *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS jobs (
 		id TEXT PRIMARY KEY,
 		user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		course_id TEXT REFERENCES exams(id) ON DELETE CASCADE,
+		lecture_id TEXT REFERENCES lectures(id) ON DELETE CASCADE,
 		type TEXT CHECK(type IN ('TRANSCRIBE_MEDIA', 'INGEST_DOCUMENTS', 'BUILD_MATERIAL', 'PUBLISH_MATERIAL', 'DOWNLOAD_GOOGLE_DRIVE')) NOT NULL,
 		status TEXT CHECK(status IN ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED')) DEFAULT 'PENDING',
 		progress INTEGER DEFAULT 0,
@@ -226,8 +228,9 @@ func createSchema(database *sql.DB) error {
 	// Run migrations for schema updates
 	migrations := []string{
 		// Add user_id column to tables if they were created in older versions without it
-		`ALTER TABLE exams ADD COLUMN user_id TEXT`,
 		`ALTER TABLE jobs ADD COLUMN user_id TEXT`,
+		`ALTER TABLE jobs ADD COLUMN course_id TEXT`,
+		`ALTER TABLE jobs ADD COLUMN lecture_id TEXT`,
 		`ALTER TABLE auth_sessions ADD COLUMN user_id TEXT`,
 
 		// Add original_filename column to lecture_media if it doesn't exist
@@ -254,6 +257,8 @@ func createSchema(database *sql.DB) error {
 		`CREATE INDEX index_chat_sessions_exam_id ON chat_sessions(exam_id)`,
 		`CREATE INDEX index_chat_messages_session_id ON chat_messages(session_id)`,
 		`CREATE INDEX index_jobs_user_id ON jobs(user_id)`,
+		`CREATE INDEX index_jobs_course_id ON jobs(course_id)`,
+		`CREATE INDEX index_jobs_lecture_id ON jobs(lecture_id)`,
 		`CREATE INDEX index_jobs_status ON jobs(status)`,
 		`CREATE INDEX index_auth_sessions_user_id ON auth_sessions(user_id)`,
 	}

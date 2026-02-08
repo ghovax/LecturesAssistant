@@ -151,8 +151,8 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	}
 
 	// 5. Trigger Async Jobs
-	server.jobQueue.Enqueue(userID, models.JobTypeTranscribeMedia, map[string]string{"lecture_id": lectureID})
-	server.jobQueue.Enqueue(userID, models.JobTypeIngestDocuments, map[string]string{"lecture_id": lectureID, "language_code": server.configuration.LLM.Language})
+	server.jobQueue.Enqueue(userID, models.JobTypeTranscribeMedia, map[string]string{"lecture_id": lectureID}, examID, lectureID)
+	server.jobQueue.Enqueue(userID, models.JobTypeIngestDocuments, map[string]string{"lecture_id": lectureID, "language_code": server.configuration.LLM.Language}, examID, lectureID)
 
 	server.writeJSON(responseWriter, http.StatusCreated, lecture)
 }
@@ -620,12 +620,24 @@ func (server *Server) handleDeleteLecture(responseWriter http.ResponseWriter, re
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found in this exam", nil)
 		return
 	}
-	if status == "processing" {
-		server.writeError(responseWriter, http.StatusConflict, "LECTURE_BUSY", "Cannot delete lecture while it is being processed.", nil)
-		return
+
+	// 1. Find and cancel any active jobs for this lecture
+	jobRows, err := server.database.Query(`
+		SELECT id FROM jobs 
+		WHERE (status = 'PENDING' OR status = 'RUNNING') 
+		AND payload LIKE '%' || ? || '%'
+	`, deleteRequest.LectureID)
+	if err == nil {
+		for jobRows.Next() {
+			var jobID string
+			if scanErr := jobRows.Scan(&jobID); scanErr == nil {
+				server.jobQueue.CancelJob(jobID)
+			}
+		}
+		jobRows.Close()
 	}
 
-	// Delete from database (cascades to lecture_media, transcripts, reference_documents)
+	// 2. Delete from database (cascades to lecture_media, transcripts, reference_documents)
 	result, err := server.database.Exec("DELETE FROM lectures WHERE id = ? AND exam_id = ?", deleteRequest.LectureID, deleteRequest.ExamID)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete lecture", nil)

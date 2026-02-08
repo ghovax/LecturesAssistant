@@ -142,6 +142,9 @@ func main() {
 	// Initialize job queue
 	backgroundJobQueue := jobs.NewQueue(initializedDatabase, 4) // 4 concurrent workers
 
+	// Create API server
+	apiServer := api.NewServer(loadedConfiguration, initializedDatabase, backgroundJobQueue, llmProvider, promptManager, toolGenerator)
+
 	// Register job handlers
 	jobs.RegisterHandlers(
 		backgroundJobQueue,
@@ -152,13 +155,12 @@ func main() {
 		toolGenerator,
 		markdownConverter,
 		database.CheckLectureReadiness,
+		func(channel string, msgType string, payload any) {
+			apiServer.Broadcast(channel, msgType, payload)
+		},
 	)
 
 	backgroundJobQueue.Start()
-	defer backgroundJobQueue.Stop()
-
-	// Create API server
-	apiServer := api.NewServer(loadedConfiguration, initializedDatabase, backgroundJobQueue, llmProvider, promptManager, toolGenerator)
 
 	// Start HTTP server
 	serverAddress := fmt.Sprintf("%s:%d", loadedConfiguration.Server.Host, loadedConfiguration.Server.Port)

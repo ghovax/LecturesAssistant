@@ -51,7 +51,7 @@ func (server *Server) handleImport(responseWriter http.ResponseWriter, request *
 			"file_id":     driveData.FileID,
 			"oauth_token": driveData.OAuthToken,
 			"filename":    importRequest.Filename,
-		})
+		}, "", "")
 
 	// Future providers can be added here
 	// case "dropbox":

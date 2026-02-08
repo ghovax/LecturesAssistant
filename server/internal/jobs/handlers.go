@@ -57,6 +57,7 @@ func RegisterHandlers(
 	toolGenerator *tools.ToolGenerator,
 	markdownConverter markdown.MarkdownConverter,
 	checkReadiness func(*sql.DB, string),
+	broadcast func(string, string, any),
 ) {
 	queue.RegisterHandler(models.JobTypeTranscribeMedia, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, models.JobMetrics)) error {
 		var payload struct {
@@ -64,6 +65,10 @@ func RegisterHandlers(
 		}
 		if unmarshalingError := json.Unmarshal([]byte(job.Payload), &payload); unmarshalingError != nil {
 			return fmt.Errorf("failed to unmarshal job payload: %w", unmarshalingError)
+		}
+
+		if broadcast != nil {
+			broadcast("lecture:"+payload.LectureID, "lecture:processing", map[string]string{"lecture_id": payload.LectureID})
 		}
 
 		// 1. Get lecture media files in order
@@ -200,6 +205,11 @@ func RegisterHandlers(
 		if checkReadiness != nil {
 			checkReadiness(database, payload.LectureID)
 		}
+
+		if broadcast != nil {
+			broadcast("lecture:"+payload.LectureID, "lecture:updated", map[string]string{"lecture_id": payload.LectureID, "reason": "transcription_complete"})
+		}
+
 		updateProgress(100, "Transcription completed", nil, totalMetrics)
 		return nil
 	})
@@ -327,6 +337,11 @@ func RegisterHandlers(
 		if checkReadiness != nil {
 			checkReadiness(database, payload.LectureID)
 		}
+
+		if broadcast != nil {
+			broadcast("lecture:"+payload.LectureID, "lecture:updated", map[string]string{"lecture_id": payload.LectureID, "reason": "documents_complete"})
+		}
+
 		updateProgress(100, "Document ingestion completed", nil, totalMetrics)
 		return nil
 	})
@@ -492,6 +507,10 @@ func RegisterHandlers(
 		`, toolID, payload.ExamID, payload.Type, toolTitle, payload.LanguageCode, finalToolContent, time.Now(), time.Now())
 		if executionError != nil {
 			return fmt.Errorf("failed to store tool: %w", executionError)
+		}
+
+		if broadcast != nil {
+			broadcast("course:"+payload.ExamID, "tool:created", map[string]string{"course_id": payload.ExamID, "tool_id": toolID})
 		}
 
 		job.Result = fmt.Sprintf(`{"tool_id": "%s"}`, toolID)

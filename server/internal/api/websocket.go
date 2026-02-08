@@ -228,6 +228,14 @@ func (client *WSClient) handleSubscribe(channel string) {
 		go client.monitorJob(jobID, stopChannel)
 	}
 
+	if len(channel) > 8 && channel[:8] == "lecture:" {
+		// Generic lecture channel, just used for broadcast
+	}
+
+	if len(channel) > 7 && channel[:7] == "course:" {
+		// Generic course channel, just used for broadcast
+	}
+
 	client.send <- map[string]any{
 		"type":      "subscribed",
 		"channel":   channel,

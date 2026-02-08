@@ -60,6 +60,16 @@ func (server *Server) Handler() http.Handler {
 	return server.router
 }
 
+// Broadcast sends a message to a specific WebSocket channel
+func (server *Server) Broadcast(channel string, msgType string, payload any) {
+	server.wsHub.Broadcast(WSMessage{
+		Type:      msgType,
+		Channel:   channel,
+		Payload:   payload,
+		Timestamp: time.Now().Format(time.RFC3339),
+	})
+}
+
 // setupRoutes configures all API routes
 func (server *Server) setupRoutes() {
 	// Add global CORS middleware - must be first

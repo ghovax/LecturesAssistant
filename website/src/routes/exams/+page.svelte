@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { apiFetch } from '$lib/api';
 
 	let exams = $state([]);
 	let loading = $state(true);
@@ -7,14 +8,7 @@
 
 	async function fetchExams() {
 		try {
-			const res = await fetch('/api/exams', {
-				headers: {
-					'X-Requested-With': 'XMLHttpRequest'
-				}
-			});
-			if (!res.ok) throw new Error('Failed to fetch exams');
-			const json = await res.json();
-			exams = json.data || [];
+			exams = await apiFetch('/api/exams');
 		} catch (e) {
 			error = e.message;
 		} finally {

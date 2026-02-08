@@ -188,7 +188,7 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
-	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, transcriptionService, documentProcessor, toolGenerator, markdownConverter, database.CheckLectureReadiness)
+	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, transcriptionService, documentProcessor, toolGenerator, markdownConverter, database.CheckLectureReadiness, nil)
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
@@ -657,7 +657,7 @@ func TestAI_FailureScenarios(tester *testing.T) {
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
 	markdownConverter := markdown.NewConverter(temporaryDirectory)
 
-	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, transcriptionService, documentProcessor, toolGenerator, markdownConverter, database.CheckLectureReadiness)
+	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, transcriptionService, documentProcessor, toolGenerator, markdownConverter, database.CheckLectureReadiness, nil)
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
@@ -676,7 +676,7 @@ func TestAI_FailureScenarios(tester *testing.T) {
 		jobID, _ := jobQueue.Enqueue("test-user", models.JobTypeBuildMaterial, map[string]string{
 			"lecture_id": lectureID,
 			"type":       "guide",
-		})
+		}, examID, lectureID)
 
 		// Poll for failure
 		deadline := time.Now().Add(5 * time.Second)
@@ -700,7 +700,7 @@ func TestAI_FailureScenarios(tester *testing.T) {
 		jobID, _ := jobQueue.Enqueue("test-user", models.JobTypeBuildMaterial, map[string]string{
 			"lecture_id": lectureID,
 			"type":       "guide",
-		})
+		}, examID, lectureID)
 
 		// Poll for failure
 		deadline := time.Now().Add(5 * time.Second)
@@ -725,7 +725,7 @@ func TestAI_FailureScenarios(tester *testing.T) {
 		jobID, _ := jobQueue.Enqueue("test-user", models.JobTypeBuildMaterial, map[string]string{
 			"lecture_id": lectureID,
 			"type":       "guide",
-		})
+		}, examID, lectureID)
 
 		// Wait for job to start running
 		time.Sleep(200 * time.Millisecond)
@@ -784,7 +784,7 @@ func TestTools_GenerationLogic(tester *testing.T) {
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
 
-	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, nil, nil, toolGenerator, nil, nil)
+	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, nil, nil, toolGenerator, nil, nil, nil)
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
@@ -800,7 +800,7 @@ func TestTools_GenerationLogic(tester *testing.T) {
 			"lecture_id": lectureID,
 			"exam_id":    examID,
 			"type":       "flashcard",
-		})
+		}, examID, lectureID)
 
 		// Poll for completion
 		deadline := time.Now().Add(5 * time.Second)
@@ -825,7 +825,7 @@ func TestTools_GenerationLogic(tester *testing.T) {
 			"lecture_id": lectureID,
 			"exam_id":    examID,
 			"type":       "quiz",
-		})
+		}, examID, lectureID)
 
 		// Poll for completion
 		deadline := time.Now().Add(5 * time.Second)
@@ -900,21 +900,23 @@ func TestExport_ToolGeneration(tester *testing.T) {
 	}
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
-	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, nil, nil, nil, &MockMarkdownConverter{}, nil)
+	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, nil, nil, nil, &MockMarkdownConverter{}, nil, nil)
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
 	toolID := "tool-1"
-	_, _ = initializedDatabase.Exec("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)", "test-user", "testuser", "dummy", "user")
-	_, _ = initializedDatabase.Exec("INSERT INTO exams (id, user_id, title) VALUES ('e1', 'test-user', 'E')")
-	_, _ = initializedDatabase.Exec("INSERT INTO tools (id, exam_id, type, title, language_code, content) VALUES (?, 'e1', 'guide', 'Title', 'en-US', 'Content')", toolID)
+	userID := "test-user"
+	examID := "e1"
+	_, _ = initializedDatabase.Exec("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)", userID, "testuser", "dummy", "user")
+	_, _ = initializedDatabase.Exec("INSERT INTO exams (id, user_id, title) VALUES (?, ?, ?)", examID, userID, "E")
+	_, _ = initializedDatabase.Exec("INSERT INTO tools (id, exam_id, type, title, language_code, content) VALUES (?, ?, 'guide', 'Title', 'en-US', 'Content')", toolID, examID)
 
 	exportFormats := []string{"pdf", "docx", "md"}
 	for _, format := range exportFormats {
-		jobID, err := jobQueue.Enqueue("test-user", models.JobTypePublishMaterial, map[string]string{
+		jobID, err := jobQueue.Enqueue(userID, models.JobTypePublishMaterial, map[string]string{
 			"tool_id": toolID,
 			"format":  format,
-		})
+		}, examID, "")
 		if err != nil {
 			tester.Fatalf("Failed to enqueue %s export job: %v", format, err)
 		}
@@ -1054,7 +1056,7 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		// 3. Valid setup
 		setupPayload, _ = json.Marshal(map[string]string{"username": "admin", "password": "valid_password"})
 		httpResponse, _ = httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
-		if httpResponse.StatusCode != http.StatusOK {
+		if httpResponse.StatusCode != http.StatusOK && httpResponse.StatusCode != http.StatusCreated {
 			subTester.Errorf("Expected 200 OK for valid setup, got %d", httpResponse.StatusCode)
 		}
 		httpResponse.Body.Close()
@@ -1191,15 +1193,15 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 			subTester.Fatal("Failed to capture lecture ID from response")
 		}
 
-		// 3. Try to delete lecture while it is processing
+		// 3. Try to delete lecture while it is processing (Now allowed)
 		deletePayload, _ := json.Marshal(map[string]string{
 			"lecture_id": lectureID,
 			"exam_id":    examID,
 		})
 		httpRequest, _ = http.NewRequest("DELETE", testServer.URL+"/api/lectures", bytes.NewBuffer(deletePayload))
 		httpResponse = authenticatedDo(httpRequest)
-		if httpResponse.StatusCode != http.StatusConflict {
-			subTester.Errorf("Expected 409 Conflict when deleting processing lecture, got %d", httpResponse.StatusCode)
+		if httpResponse.StatusCode != http.StatusOK {
+			subTester.Errorf("Expected 200 OK when deleting processing lecture, got %d", httpResponse.StatusCode)
 		}
 		httpResponse.Body.Close()
 

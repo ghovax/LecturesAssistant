@@ -4,6 +4,7 @@
 	import { onMount } from 'svelte';
 	import { auth } from '$lib/api';
 	import { goto } from '$app/navigation';
+	import { Menu, X } from 'lucide-svelte';
 
 	let { children } = $props();
 	let user = $state(null);
@@ -53,8 +54,12 @@
 			{#if user}
 				<div class="mobile-header">
 					<div style="flex: 1;"></div>
-					<button onclick={toggleMenu} style="min-width: auto; padding: 4px 8px;">
-						{mobileMenuOpen ? 'CLOSE' : 'MENU'}
+					<button onclick={toggleMenu} style="min-width: auto; padding: 4px 8px; background: transparent; border: none;">
+						{#if mobileMenuOpen}
+							<X size={24} />
+						{:else}
+							<Menu size={24} />
+						{/if}
 					</button>
 				</div>
 

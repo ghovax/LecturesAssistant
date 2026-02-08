@@ -161,7 +161,35 @@ func (reconstructor *Reconstructor) reconstructNode(node *Node, markdownLines *[
 
 	case NodeImage:
 		reconstructor.ensureBlankLine(markdownLines)
-		*markdownLines = append(*markdownLines, fmt.Sprintf("![%s](%s)", node.Title, node.Content))
+
+		// 1. Build the structured metadata part (Source File + Pages)
+		metadataCaption := ""
+		if node.SourceFile != "" {
+			pageInfo := ""
+			if len(node.SourcePages) > 0 {
+				formattedPages := FormatPageNumbers(node.SourcePages)
+				if len(node.SourcePages) == 1 {
+					pageInfo = getI18nLabel(reconstructor.Language, "page_label") + " " + formattedPages
+				} else {
+					pageInfo = getI18nLabel(reconstructor.Language, "pages_label") + " " + formattedPages
+				}
+			}
+
+			if pageInfo != "" {
+				// Use <code> tags for figcaption (HTML block)
+				metadataCaption = fmt.Sprintf("<code>%s</code>, %s", node.SourceFile, pageInfo)
+			} else {
+				metadataCaption = fmt.Sprintf("<code>%s</code>", node.SourceFile)
+			}
+		}
+
+		// 2. Output as HTML figure
+		*markdownLines = append(*markdownLines, "<figure>")
+		*markdownLines = append(*markdownLines, fmt.Sprintf("  <img src=\"%s\" alt=\"\" />", node.Content))
+		if metadataCaption != "" {
+			*markdownLines = append(*markdownLines, fmt.Sprintf("  <figcaption>%s</figcaption>", strings.TrimSpace(metadataCaption)))
+		}
+		*markdownLines = append(*markdownLines, "</figure>")
 	}
 }
 

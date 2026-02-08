@@ -2,6 +2,7 @@ package markdown
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"os"
@@ -65,6 +66,7 @@ type ConversionOptions struct {
 	CreationDate   time.Time
 	ReferenceFiles []ReferenceFileMetadata
 	AudioFiles     []AudioFileMetadata
+	QRCodePath     string
 }
 
 // MarkdownToHTML converts markdown text to HTML string
@@ -168,6 +170,14 @@ func (converter *ExternalConverter) HTMLToDocx(htmlContent string, outputPath st
 		"-o", outputPath,
 	}
 
+	if options.QRCodePath != "" {
+		arguments = append(arguments, "--metadata", "qrcode-path="+strings.ReplaceAll(options.QRCodePath, "\\", "/"))
+	}
+	if options.CourseTitle != "" {
+		arguments = append(arguments, "--metadata", "course-title="+options.CourseTitle)
+		arguments = append(arguments, "--metadata", "course-title-label="+getI18nLabel(options.Language, "course_label"))
+	}
+
 	command := exec.Command("pandoc", arguments...)
 	command.Stdin = strings.NewReader(htmlContent)
 	var stderr bytes.Buffer
@@ -208,9 +218,28 @@ func (converter *ExternalConverter) FormatDuration(durationSeconds int64, langua
 	}
 }
 
+// imageToBase64 reads an image file and returns a data URI
+func imageToBase64(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	base64Data := base64.StdEncoding.EncodeToString(data)
+	return fmt.Sprintf("data:image/png;base64,%s", base64Data)
+}
+
 // GenerateMetadataHeader generates a localized Markdown header containing the document metadata
 func (converter *ExternalConverter) GenerateMetadataHeader(options ConversionOptions) string {
 	var builder strings.Builder
+
+	// QR Code (Top right-ish if possible, but in MD it's just top)
+	if options.QRCodePath != "" {
+		dataURI := imageToBase64(options.QRCodePath)
+		if dataURI != "" {
+			// We use a small image for the QR code
+			fmt.Fprintf(&builder, "![](%s){ width=80px }\n\n", dataURI)
+		}
+	}
 
 	// 0. Course
 	if options.CourseTitle != "" {
@@ -305,6 +334,10 @@ func (converter *ExternalConverter) writeMetadataFile(path string, options Conve
 
 	if options.CourseTitle != "" {
 		fmt.Fprintf(&builder, "course-title: \"%s\"\n", strings.ReplaceAll(options.CourseTitle, "\"", "\\\""))
+	}
+
+	if options.QRCodePath != "" {
+		fmt.Fprintf(&builder, "qrcode-path: \"%s\"\n", strings.ReplaceAll(options.QRCodePath, "\\", "/"))
 	}
 
 	if options.Description != "" {

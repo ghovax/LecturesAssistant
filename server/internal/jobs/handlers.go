@@ -1,12 +1,15 @@
 package jobs
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
+	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -21,6 +24,7 @@ import (
 	"lectures/internal/transcription"
 
 	"github.com/google/uuid"
+	"github.com/skip2/go-qrcode"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
@@ -653,6 +657,7 @@ func RegisterHandlers(
 			LanguageCode  string          `json:"language_code"`
 			Format        string          `json:"format"` // "pdf", "docx", "md"
 			IncludeImages json.RawMessage `json:"include_images"`
+			IncludeQRCode json.RawMessage `json:"include_qr_code"`
 		}
 		if unmarshalingError := json.Unmarshal([]byte(job.Payload), &payload); unmarshalingError != nil {
 			return fmt.Errorf("failed to unmarshal job payload: %w", unmarshalingError)
@@ -664,6 +669,15 @@ func RegisterHandlers(
 			rawStr := string(payload.IncludeImages)
 			if rawStr == "false" || rawStr == `"false"` {
 				includeImages = false
+			}
+		}
+
+		// Parse include_qr_code boolean
+		includeQRCode := false
+		if len(payload.IncludeQRCode) > 0 {
+			rawStr := string(payload.IncludeQRCode)
+			if rawStr == "true" || rawStr == `"true"` {
+				includeQRCode = true
 			}
 		}
 
@@ -950,39 +964,59 @@ func RegisterHandlers(
 			AudioFiles:     audioFiles,
 		}
 
-		// Prepend metadata header for md and docx
-		if payload.Format == "md" || payload.Format == "docx" {
-			metadataHeader := markdownConverter.GenerateMetadataHeader(options)
-			contentToConvert = metadataHeader + contentToConvert
+		originalContent := contentToConvert
+		generateFile := func(currentContent string, currentOptions markdown.ConversionOptions) error {
+			contentWithHeader := currentContent
+			if payload.Format == "md" || payload.Format == "docx" {
+				metadataHeader := markdownConverter.GenerateMetadataHeader(currentOptions)
+				contentWithHeader = metadataHeader + currentContent
+			}
+
+			if payload.Format == "md" {
+				return markdownConverter.SaveMarkdown(contentWithHeader, outputPath)
+			}
+
+			updateProgress(60, fmt.Sprintf("Converting %s document...", payload.Format), nil, models.JobMetrics{})
+			htmlContent, err := markdownConverter.MarkdownToHTML(contentWithHeader)
+			if err != nil {
+				return fmt.Errorf("failed to convert to HTML: %w", err)
+			}
+
+			if payload.Format == "docx" {
+				return markdownConverter.HTMLToDocx(htmlContent, outputPath, currentOptions)
+			}
+			return markdownConverter.HTMLToPDF(htmlContent, outputPath, currentOptions)
 		}
 
-		if payload.Format == "md" {
-			if saveError := markdownConverter.SaveMarkdown(contentToConvert, outputPath); saveError != nil {
-				return fmt.Errorf("failed to save markdown: %w", saveError)
-			}
-		} else {
-			updateProgress(20, "Converting markdown to HTML...", nil, models.JobMetrics{})
-			htmlContent, conversionError := markdownConverter.MarkdownToHTML(contentToConvert)
-			if conversionError != nil {
-				return fmt.Errorf("failed to convert to HTML: %w", conversionError)
-			}
+		// 1. Initial generation
+		if err := generateFile(originalContent, options); err != nil {
+			return fmt.Errorf("initial generation failed: %w", err)
+		}
 
-			slog.Info("Document conversion options",
-				"format", payload.Format,
-				"language", options.Language,
-				"has_abstract", options.Description != "",
-				"audio_files_count", len(options.AudioFiles),
-				"reference_files_count", len(options.ReferenceFiles))
+		// 2. Optional second pass for QR Code
+		if includeQRCode {
+			slog.Info("QR Code generation requested", "toolID", tool.ID)
+			updateProgress(70, "Uploading document for QR code generation...", nil, models.JobMetrics{})
 
-			var exportError error
-			if payload.Format == "docx" {
-				exportError = markdownConverter.HTMLToDocx(htmlContent, outputPath, options)
+			downloadURL, uploadError := uploadToFileIO(outputPath)
+			if uploadError != nil {
+				slog.Error("Failed to upload for QR code", "error", uploadError)
 			} else {
-				exportError = markdownConverter.HTMLToPDF(htmlContent, outputPath, options)
-			}
+				slog.Info("Document uploaded for QR code", "url", downloadURL)
 
-			if exportError != nil {
-				return fmt.Errorf("failed to generate %s: %w", payload.Format, exportError)
+				qrCodePath := filepath.Join(os.TempDir(), fmt.Sprintf("qrcode-%s.png", uuid.New().String()))
+				if qrErr := qrcode.WriteFile(downloadURL, qrcode.Medium, 256, qrCodePath); qrErr != nil {
+					slog.Error("Failed to generate QR code image", "error", qrErr)
+				} else {
+					updateProgress(85, "Re-generating document with QR code...", nil, models.JobMetrics{})
+					options.QRCodePath = qrCodePath
+					slog.Info("Re-generating document with QR code included", "format", payload.Format)
+
+					if err := generateFile(originalContent, options); err != nil {
+						slog.Error("Failed to re-generate with QR code", "error", err)
+					}
+					os.Remove(qrCodePath)
+				}
 			}
 		}
 
@@ -997,4 +1031,62 @@ func RegisterHandlers(
 		job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
 		return nil
 	})
+}
+
+func uploadToFileIO(filePath string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", filepath.Base(filePath))
+	if err != nil {
+		return "", err
+	}
+	_, err = io.Copy(part, file)
+	if err != nil {
+		return "", err
+	}
+	writer.Close()
+
+	req, err := http.NewRequest("POST", "https://file.io/?expires=1w", body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("upload failed with status %s: %s", resp.Status, string(respBody))
+	}
+
+	var result struct {
+		Success bool   `json:"success"`
+		Link    string `json:"link"`
+		Error   string `json:"error"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return "", fmt.Errorf("failed to decode file.io response: %w. Body: %s", err, string(respBody))
+	}
+
+	if !result.Success {
+		return "", fmt.Errorf("file.io upload failed: %s", result.Error)
+	}
+
+	return result.Link, nil
 }

@@ -40,3 +40,4 @@ data/
 # Test artifacts
 internal/api/test_input/
 internal/api/test_integration_pipeline/
+internal/api/publish_material_test

@@ -280,10 +280,11 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 	exportFormats := []string{"pdf", "docx", "md"}
 	for _, format := range exportFormats {
 		tester.Logf("Exporting to .%s...", format)
-		exportPayload, _ := json.Marshal(map[string]string{
-			"tool_id": toolID,
-			"exam_id": examID,
-			"format":  format,
+		exportPayload, _ := json.Marshal(map[string]any{
+			"tool_id":         toolID,
+			"exam_id":         examID,
+			"format":          format,
+			"include_qr_code": true,
 		})
 		exportReq := authenticatedRequest("POST", testServer.URL+"/api/tools/export", bytes.NewBuffer(exportPayload))
 		exportReq.Header.Set("Content-Type", "application/json")

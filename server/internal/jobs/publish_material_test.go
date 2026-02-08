@@ -115,7 +115,7 @@ Content with citation[^1].
 			VALUES (?, 'document', 'source.pdf', ?)`,
 			toolID, `{"footnote_number": 1, "pages": [5], "description": "Detail"}`)
 
-		jobPayload := map[string]any{"tool_id": toolID, "format": "pdf"}
+		jobPayload := map[string]any{"tool_id": toolID, "format": "pdf", "include_qr_code": true}
 		payloadBytes, _ := json.Marshal(jobPayload)
 		job := &models.Job{ID: uuid.New().String(), Type: models.JobTypePublishMaterial, Payload: string(payloadBytes)}
 
@@ -150,7 +150,7 @@ Some markdown content.`
 			VALUES (?, ?, 'guide', 'Puppet Guide MD', 'en-US', ?, ?)`,
 			toolID, examID, puppetContent, time.Now())
 
-		jobPayload := map[string]any{"tool_id": toolID, "format": "md"}
+		jobPayload := map[string]any{"tool_id": toolID, "format": "md", "include_qr_code": true}
 		payloadBytes, _ := json.Marshal(jobPayload)
 		job := &models.Job{ID: uuid.New().String(), Type: models.JobTypePublishMaterial, Payload: string(payloadBytes)}
 

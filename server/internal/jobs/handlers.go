@@ -998,7 +998,7 @@ func RegisterHandlers(
 			slog.Info("QR Code generation requested", "toolID", tool.ID)
 			updateProgress(70, "Uploading document for QR code generation...", nil, models.JobMetrics{})
 
-			downloadURL, uploadError := uploadToFileIO(outputPath)
+			downloadURL, uploadError := uploadToTmpFiles(outputPath)
 			if uploadError != nil {
 				slog.Error("Failed to upload for QR code", "error", uploadError)
 			} else {
@@ -1033,7 +1033,7 @@ func RegisterHandlers(
 	})
 }
 
-func uploadToFileIO(filePath string) (string, error) {
+func uploadToTmpFiles(filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return "", err
@@ -1042,7 +1042,13 @@ func uploadToFileIO(filePath string) (string, error) {
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("file", filepath.Base(filePath))
+
+	fileName := filepath.Base(filePath)
+	if strings.ToLower(filepath.Ext(fileName)) == ".md" {
+		fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName)) + ".txt"
+	}
+
+	part, err := writer.CreateFormFile("file", fileName)
 	if err != nil {
 		return "", err
 	}
@@ -1052,12 +1058,11 @@ func uploadToFileIO(filePath string) (string, error) {
 	}
 	writer.Close()
 
-	req, err := http.NewRequest("POST", "https://file.io/?expires=1w", body)
+	req, err := http.NewRequest("POST", "https://tmpfiles.org/api/v1/upload", body)
 	if err != nil {
 		return "", err
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
@@ -1072,21 +1077,36 @@ func uploadToFileIO(filePath string) (string, error) {
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("upload failed with status %s: %s", resp.Status, string(respBody))
+		bodyPreview := string(respBody)
+		if len(bodyPreview) > 200 {
+			bodyPreview = bodyPreview[:200] + "..."
+		}
+		return "", fmt.Errorf("upload failed with status %s: %s", resp.Status, bodyPreview)
 	}
 
 	var result struct {
-		Success bool   `json:"success"`
-		Link    string `json:"link"`
-		Error   string `json:"error"`
+		Status string `json:"status"`
+		Data   struct {
+			URL string `json:"url"`
+		} `json:"data"`
+		Message string `json:"message"`
 	}
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return "", fmt.Errorf("failed to decode file.io response: %w. Body: %s", err, string(respBody))
+		bodyPreview := string(respBody)
+		if len(bodyPreview) > 200 {
+			bodyPreview = bodyPreview[:200] + "..."
+		}
+		return "", fmt.Errorf("failed to decode tmpfiles response: %w. Body preview: %s", err, bodyPreview)
 	}
 
-	if !result.Success {
-		return "", fmt.Errorf("file.io upload failed: %s", result.Error)
+	if result.Status != "success" {
+		return "", fmt.Errorf("tmpfiles upload failed: %s", result.Message)
 	}
 
-	return result.Link, nil
+	// Transform to direct download link: https://tmpfiles.org/12345/file -> https://tmpfiles.org/dl/12345/file
+	directLink := strings.Replace(result.Data.URL, "https://tmpfiles.org/", "https://tmpfiles.org/dl/", 1)
+	// Also handle http if returned
+	directLink = strings.Replace(directLink, "http://tmpfiles.org/", "https://tmpfiles.org/dl/", 1)
+
+	return directLink, nil
 }

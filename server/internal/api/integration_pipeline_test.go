@@ -61,8 +61,8 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 		tester.Fatalf("Missing test document at %s. Please provide a real PDF file.", documentPath)
 	}
 
-	// Use real configuration (now in current directory since we changed to server root)
-	config, loadError := configuration.Load("configuration.yaml")
+	// Load configuration from default location (~/.lectures/configuration.yaml)
+	config, loadError := configuration.Load("")
 	if loadError != nil {
 		tester.Fatalf("Failed to load configuration: %v", loadError)
 	}
@@ -72,6 +72,10 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 	testRunDataDir := filepath.Join(originalDir, "test_integration_pipeline")
 	testRunDataDir, _ = filepath.Abs(testRunDataDir)
 	os.RemoveAll(testRunDataDir)
+
+	// Isolate configuration from global one to avoid overwriting the user's real config
+	config.ConfigurationPath = filepath.Join(testRunDataDir, "configuration.yaml")
+
 	config.Storage.DataDirectory = testRunDataDir
 	os.MkdirAll(filepath.Join(testRunDataDir, "files", "lectures"), 0755)
 	os.MkdirAll(filepath.Join(os.TempDir(), "lectures-uploads"), 0755)
@@ -117,12 +121,12 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 	)
 	transcriptionService := transcription.NewService(config, transcriptionProvider, llmProvider, promptManager)
 
-	documentProcessor := documents.NewProcessor(llmProvider, config.LLM.GetModelForTask("documents_ingestion"), promptManager)
+	documentProcessor := documents.NewProcessor(llmProvider, config.LLM.GetModelForTask("documents_ingestion"), promptManager, config.Documents.RenderDPI)
 	markdownConverter := markdown.NewConverter(testRunDataDir)
 	toolGenerator := tools.NewToolGenerator(config, llmProvider, promptManager)
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
-	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, transcriptionService, documentProcessor, toolGenerator, markdownConverter, database.CheckLectureReadiness)
+	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, transcriptionService, documentProcessor, toolGenerator, markdownConverter, database.CheckLectureReadiness, nil)
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
@@ -136,7 +140,11 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 
 	// A. Auth Setup & Login
 	tester.Log("Setting up user...")
-	setupPayload, _ := json.Marshal(map[string]string{"username": "tester", "password": "password123"})
+	setupPayload, _ := json.Marshal(map[string]string{
+		"username":           "tester",
+		"password":           "password123",
+		"openrouter_api_key": config.Providers.OpenRouter.APIKey,
+	})
 	setupResp, _ := httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
 	if setupResp.StatusCode != http.StatusOK && setupResp.StatusCode != http.StatusCreated {
 		bodyBytes, _ := io.ReadAll(setupResp.Body)
@@ -271,7 +279,7 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 	// F. Export to PDF, Docx and MD
 	exportFormats := []string{"pdf", "docx", "md"}
 	for _, format := range exportFormats {
-		tester.Logf("Exporting to %s...", format)
+		tester.Logf("Exporting to .%s...", format)
 		exportPayload, _ := json.Marshal(map[string]string{
 			"tool_id": toolID,
 			"exam_id": examID,

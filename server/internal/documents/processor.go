@@ -18,14 +18,16 @@ type Processor struct {
 	llmModel      string
 	promptManager *prompts.Manager
 	converter     DocumentConverter
+	dpi           int
 }
 
-func NewProcessor(llmProvider llm.Provider, llmModel string, promptManager *prompts.Manager) *Processor {
+func NewProcessor(llmProvider llm.Provider, llmModel string, promptManager *prompts.Manager, dpi int) *Processor {
 	return &Processor{
 		llmProvider:   llmProvider,
 		llmModel:      llmModel,
 		promptManager: promptManager,
 		converter:     &ExternalDocumentConverter{},
+		dpi:           dpi,
 	}
 }
 
@@ -70,7 +72,7 @@ func (processor *Processor) ProcessDocument(jobContext context.Context, document
 func (processor *Processor) processPDF(jobContext context.Context, pdfPath string, documentID string, outputDirectory string, languageCode string, updateProgress func(int, string)) ([]models.ReferencePage, models.JobMetrics, error) {
 	var metrics models.JobMetrics
 	updateProgress(10, "Extracting pages as images...")
-	imageFiles, extractionError := processor.converter.ExtractPagesAsImages(pdfPath, outputDirectory)
+	imageFiles, extractionError := processor.converter.ExtractPagesAsImages(pdfPath, outputDirectory, processor.dpi)
 	if extractionError != nil {
 		return nil, metrics, extractionError
 	}

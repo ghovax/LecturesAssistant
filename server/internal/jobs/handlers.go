@@ -81,16 +81,17 @@ func RegisterHandlers(
 		if databaseError != nil {
 			return fmt.Errorf("failed to query media files: %w", databaseError)
 		}
-		defer mediaRows.Close()
 
 		var mediaFiles []models.LectureMedia
 		for mediaRows.Next() {
 			var media models.LectureMedia
 			if scanningError := mediaRows.Scan(&media.ID, &media.LectureID, &media.MediaType, &media.SequenceOrder, &media.FilePath, &media.CreatedAt); scanningError != nil {
+				mediaRows.Close()
 				return fmt.Errorf("failed to scan media file: %w", scanningError)
 			}
 			mediaFiles = append(mediaFiles, media)
 		}
+		mediaRows.Close()
 
 		if len(mediaFiles) == 0 {
 			return fmt.Errorf("no media files found for lecture: %s", payload.LectureID)
@@ -237,16 +238,17 @@ func RegisterHandlers(
 		if databaseError != nil {
 			return fmt.Errorf("failed to query documents: %w", databaseError)
 		}
-		defer documentRows.Close()
 
 		var documentsList []models.ReferenceDocument
 		for documentRows.Next() {
 			var document models.ReferenceDocument
 			if scanningError := documentRows.Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt); scanningError != nil {
+				documentRows.Close()
 				return fmt.Errorf("failed to scan document: %w", scanningError)
 			}
 			documentsList = append(documentsList, document)
 		}
+		documentRows.Close()
 
 		totalDocuments := len(documentsList)
 		for documentIndex, document := range documentsList {
@@ -263,8 +265,8 @@ func RegisterHandlers(
 				return fmt.Errorf("failed to update document status: %w", executionError)
 			}
 
-			// 3. Create output directory for pages in system tmp
-			outputDirectory := filepath.Join(os.TempDir(), "lectures-documents", document.ID)
+			// 3. Create output directory for pages in system temporary directory
+			outputDirectory := filepath.Join(os.TempDir(), "lectures-assistant", "pages", document.ID)
 
 			// 4. Run document processing
 			pages, docMetrics, processingError := documentProcessor.ProcessDocument(jobContext, document, outputDirectory, payload.LanguageCode, func(progress int, message string) {
@@ -398,7 +400,6 @@ func RegisterHandlers(
 		if databaseError != nil {
 			return fmt.Errorf("failed to query transcript: %w", databaseError)
 		}
-		defer transcriptRows.Close()
 
 		var transcriptBuilder strings.Builder
 		for transcriptRows.Next() {
@@ -407,6 +408,7 @@ func RegisterHandlers(
 				transcriptBuilder.WriteString(text + " ")
 			}
 		}
+		transcriptRows.Close()
 
 		documentRows, databaseError := database.Query(`
 			SELECT reference_documents.title, reference_pages.page_number, reference_pages.extracted_text
@@ -418,7 +420,6 @@ func RegisterHandlers(
 		if databaseError != nil {
 			return fmt.Errorf("failed to query reference pages: %w", databaseError)
 		}
-		defer documentRows.Close()
 
 		markdownReconstructor := markdown.NewReconstructor()
 		markdownReconstructor.Language = payload.LanguageCode
@@ -448,6 +449,7 @@ func RegisterHandlers(
 				})
 			}
 		}
+		documentRows.Close()
 
 		referenceFilesContent := markdownReconstructor.Reconstruct(rootNode)
 
@@ -721,6 +723,48 @@ func RegisterHandlers(
 			contentToConvert = markdownReconstructor.Reconstruct(rootNode)
 		}
 
+		if tool.Type == "guide" {
+			markdownParser := markdown.NewParser()
+			ast := markdownParser.Parse(contentToConvert)
+
+			// Pre-fetch all page paths for this exam to avoid tight-loop DB queries
+			// which can cause starvation/deadlocks with MaxOpenConns=1
+			pageMap := make(map[string]string) // Key: "filename:page"
+			rows, err := database.Query(`
+				SELECT rd.original_filename, rd.title, rp.page_number, rp.image_path
+				FROM reference_pages rp
+				JOIN reference_documents rd ON rp.document_id = rd.id
+				JOIN lectures l ON rd.lecture_id = l.id
+				WHERE l.exam_id = ?
+			`, examID)
+			if err == nil {
+				for rows.Next() {
+					var origFile, title, path string
+					var pageNum int
+					if err := rows.Scan(&origFile, &title, &pageNum, &path); err == nil {
+						if origFile != "" {
+							pageMap[fmt.Sprintf("%s:%d", origFile, pageNum)] = path
+						}
+						if title != "" {
+							pageMap[fmt.Sprintf("%s:%d", title, pageNum)] = path
+						}
+					}
+				}
+				rows.Close()
+			}
+
+			imageResolver := func(filename string, pageNumber int) string {
+				key := fmt.Sprintf("%s:%d", filename, pageNumber)
+				return pageMap[key]
+			}
+
+			markdown.EnrichWithCitedImages(ast, imageResolver)
+
+			markdownReconstructor := markdown.NewReconstructor()
+			markdownReconstructor.Language = payload.LanguageCode
+			contentToConvert = markdownReconstructor.Reconstruct(ast)
+		}
+
 		updateProgress(30, "Gathering lecture metadata...", nil, models.JobMetrics{})
 
 		// Get lectures for this exam to collect metadata
@@ -728,26 +772,31 @@ func RegisterHandlers(
 		if databaseError != nil {
 			return fmt.Errorf("failed to query lectures: %w", databaseError)
 		}
-		defer lectureRows.Close()
+
+		type lectureMeta struct {
+			id            string
+			specifiedDate sql.NullTime
+		}
+		var lectures []lectureMeta
+		for lectureRows.Next() {
+			var l lectureMeta
+			if err := lectureRows.Scan(&l.id, &l.specifiedDate); err == nil {
+				lectures = append(lectures, l)
+			}
+		}
+		lectureRows.Close()
 
 		var audioFiles []markdown.AudioFileMetadata
 		var referenceFiles []markdown.ReferenceFileMetadata
 		var finalDate time.Time = tool.CreatedAt
 
-		for lectureRows.Next() {
-			var lectureID string
-			var specifiedDate sql.NullTime
-			if scanningError := lectureRows.Scan(&lectureID, &specifiedDate); scanningError != nil {
-				slog.Error("Failed to scan lecture ID", "error", scanningError)
-				continue
-			}
-
-			if specifiedDate.Valid {
-				finalDate = specifiedDate.Time
+		for _, lecture := range lectures {
+			if lecture.specifiedDate.Valid {
+				finalDate = lecture.specifiedDate.Time
 			}
 
 			// Get media files
-			mediaRows, mediaQueryError := database.Query("SELECT original_filename, file_path, duration_milliseconds FROM lecture_media WHERE lecture_id = ? ORDER BY sequence_order", lectureID)
+			mediaRows, mediaQueryError := database.Query("SELECT original_filename, file_path, duration_milliseconds FROM lecture_media WHERE lecture_id = ? ORDER BY sequence_order", lecture.id)
 			if mediaQueryError == nil {
 				for mediaRows.Next() {
 					var originalFilename sql.NullString
@@ -768,7 +817,7 @@ func RegisterHandlers(
 			}
 
 			// Get documents
-			docRows, docQueryError := database.Query("SELECT title, original_filename, page_count FROM reference_documents WHERE lecture_id = ?", lectureID)
+			docRows, docQueryError := database.Query("SELECT title, original_filename, page_count FROM reference_documents WHERE lecture_id = ?", lecture.id)
 			if docQueryError == nil {
 				for docRows.Next() {
 					var title string

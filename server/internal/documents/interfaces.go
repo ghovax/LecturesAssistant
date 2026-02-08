@@ -12,7 +12,7 @@ import (
 type DocumentConverter interface {
 	CheckDependencies() error
 	ConvertToPDF(inputPath string, outputPath string) error
-	ExtractPagesAsImages(pdfPath string, outputDirectory string) ([]string, error)
+	ExtractPagesAsImages(pdfPath string, outputDirectory string, dpi int) ([]string, error)
 }
 
 // ExternalDocumentConverter implementation that uses Ghostscript and LibreOffice
@@ -74,9 +74,12 @@ func (c *ExternalDocumentConverter) ConvertToPDF(inputPath string, outputPath st
 	return nil
 }
 
-func (c *ExternalDocumentConverter) ExtractPagesAsImages(pdfPath string, outputDirectory string) ([]string, error) {
+func (c *ExternalDocumentConverter) ExtractPagesAsImages(pdfPath string, outputDirectory string, dpi int) ([]string, error) {
+	if dpi <= 0 {
+		dpi = 150 // Fallback
+	}
 	outputPattern := filepath.Join(outputDirectory, "page_%03d.png")
-	command := exec.Command("gs", "-dSAFER", "-dBATCH", "-dNOPAUSE", "-sDEVICE=png16m", "-r150", fmt.Sprintf("-sOutputFile=%s", outputPattern), pdfPath)
+	command := exec.Command("gs", "-dSAFER", "-dBATCH", "-dNOPAUSE", "-sDEVICE=png16m", fmt.Sprintf("-r%d", dpi), fmt.Sprintf("-sOutputFile=%s", outputPattern), pdfPath)
 
 	var stderr strings.Builder
 	command.Stderr = &stderr

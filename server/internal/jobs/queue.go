@@ -106,10 +106,19 @@ func (queue *Queue) Enqueue(userID string, jobType string, payload interface{}, 
 		return "", fmt.Errorf("failed to marshal payload: %w", marshalingError)
 	}
 
+	var courseIDValue interface{} = courseID
+	if courseID == "" {
+		courseIDValue = nil
+	}
+	var lectureIDValue interface{} = lectureID
+	if lectureID == "" {
+		lectureIDValue = nil
+	}
+
 	_, executionError := queue.database.Exec(`
 		INSERT INTO jobs (id, user_id, course_id, lecture_id, type, status, progress, payload, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, jobID, userID, courseID, lectureID, jobType, models.JobStatusPending, 0, string(payloadJSON), time.Now())
+	`, jobID, userID, courseIDValue, lectureIDValue, jobType, models.JobStatusPending, 0, string(payloadJSON), time.Now())
 
 	if executionError != nil {
 		return "", fmt.Errorf("failed to insert job: %w", executionError)

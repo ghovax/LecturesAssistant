@@ -126,7 +126,7 @@ func (documentConverter *MockDocumentConverter) ConvertToPDF(inputPath, outputPa
 	return os.WriteFile(outputPath, []byte("fake pdf"), 0644)
 }
 
-func (documentConverter *MockDocumentConverter) ExtractPagesAsImages(pdfPath, outputDirectory string) ([]string, error) {
+func (documentConverter *MockDocumentConverter) ExtractPagesAsImages(pdfPath, outputDirectory string, dpi int) ([]string, error) {
 	if err := os.MkdirAll(outputDirectory, 0755); err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 	}, mockLLM, nil)
 	transcriptionService.SetMediaProcessor(&MockMediaProcessor{})
 
-	documentProcessor := documents.NewProcessor(mockLLM, "mock-model", nil)
+	documentProcessor := documents.NewProcessor(mockLLM, "mock-model", nil, config.Documents.RenderDPI)
 	documentProcessor.SetConverter(&MockDocumentConverter{})
 
 	markdownConverter := markdown.NewConverter(temporaryDirectory)
@@ -200,8 +200,9 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 
 	// Setup initial admin user
 	setupPayload, err := json.Marshal(map[string]string{
-		"username": "admin",
-		"password": "password123",
+		"username":           "admin",
+		"password":           "password123",
+		"openrouter_api_key": "sk-test",
 	})
 	if err != nil {
 		tester.Fatalf("Failed to marshal setup payload: %v", err)
@@ -653,7 +654,7 @@ func TestAI_FailureScenarios(tester *testing.T) {
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
 	transcriptionService := transcription.NewService(config, &MockTranscriptionProvider{}, mockLLM, nil)
-	documentProcessor := documents.NewProcessor(mockLLM, "mock-model", nil)
+	documentProcessor := documents.NewProcessor(mockLLM, "mock-model", nil, config.Documents.RenderDPI)
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
 	markdownConverter := markdown.NewConverter(temporaryDirectory)
 
@@ -1046,7 +1047,7 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		httpResponse.Body.Close()
 
 		// 2. Setup with too short password
-		setupPayload, _ := json.Marshal(map[string]string{"username": "admin", "password": "short"})
+		setupPayload, _ := json.Marshal(map[string]string{"username": "admin", "password": "short", "openrouter_api_key": "sk-test"})
 		httpResponse, _ = httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
 		if httpResponse.StatusCode != http.StatusBadRequest {
 			subTester.Errorf("Expected 400 Bad Request for short password, got %d", httpResponse.StatusCode)
@@ -1054,7 +1055,7 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		httpResponse.Body.Close()
 
 		// 3. Valid setup
-		setupPayload, _ = json.Marshal(map[string]string{"username": "admin", "password": "valid_password"})
+		setupPayload, _ = json.Marshal(map[string]string{"username": "admin", "password": "valid_password", "openrouter_api_key": "sk-test"})
 		httpResponse, _ = httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
 		if httpResponse.StatusCode != http.StatusOK && httpResponse.StatusCode != http.StatusCreated {
 			subTester.Errorf("Expected 200 OK for valid setup, got %d", httpResponse.StatusCode)
@@ -1328,7 +1329,7 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 	httpClient := testServer.Client()
 
 	// Auth setup
-	setupPayload, _ := json.Marshal(map[string]string{"username": "admin", "password": "password123"})
+	setupPayload, _ := json.Marshal(map[string]string{"username": "admin", "password": "password123", "openrouter_api_key": "sk-test"})
 	_, _ = httpClient.Post(testServer.URL+"/api/auth/setup", "application/json", bytes.NewBuffer(setupPayload))
 	loginPayload, _ := json.Marshal(map[string]string{"username": "admin", "password": "password123"})
 	loginResponse, _ := httpClient.Post(testServer.URL+"/api/auth/login", "application/json", bytes.NewBuffer(loginPayload))

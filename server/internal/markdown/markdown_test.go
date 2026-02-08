@@ -990,8 +990,8 @@ func TestCleanTitle(tester *testing.T) {
 		},
 		{
 			name:           "Title with number but no prefix pattern",
-			input:          "Chapter 1 Overview",
-			expectedOutput: "Chapter 1 Overview",
+			input:          "Lecture 10 Summary",
+			expectedOutput: "Lecture 10 Summary",
 		},
 		{
 			name:           "Prefix with multiple spaces",
@@ -1623,5 +1623,170 @@ Paragraph 2 with multiple empty lines above`
 
 	if !strings.Contains(reconstructed, "Paragraph 2") {
 		tester.Errorf("Paragraph 2 missing from reconstruction")
+	}
+}
+
+func TestMixedMathDelimiters(tester *testing.T) {
+	parser := NewParser()
+	reconstructor := NewReconstructor()
+
+	// AI often mixes \( and $
+	input := "The value is \\(x\\) and the other is $y$. Also \\[E=mc^2\\] and $$a^2+b^2=c^2$$."
+	ast := parser.Parse(input)
+	reconstructed := reconstructor.Reconstruct(ast)
+
+	// After our conversion logic, all should be $ or $$
+	if strings.Contains(reconstructed, "\\(") || strings.Contains(reconstructed, "\\[") {
+		tester.Errorf("Reconstruction still contains LaTeX delimiters: %s", reconstructed)
+	}
+
+	if strings.Count(reconstructed, "$") < 4 {
+		tester.Errorf("Expected at least 4 dollar signs, got %d", strings.Count(reconstructed, "$"))
+	}
+}
+
+func TestComplexCitations(tester *testing.T) {
+	reconstructor := NewReconstructor()
+
+	testCases := []struct {
+		name              string
+		input             string
+		expectedCitations int
+	}{
+		{
+			name:              "Multiple citations one line",
+			input:             "Fact A {{{Desc A-file1.pdf-p1}}} and Fact B {{{Desc B-file2.pdf-p5}}}.",
+			expectedCitations: 2,
+		},
+		{
+			name:              "Filename with spaces and dots",
+			input:             "Fact {{{Desc-My Lecture.Slides.v2.pdf-p10}}}.",
+			expectedCitations: 1,
+		},
+		{
+			name:              "Citation with Bold Content",
+			input:             "Fact {{{**Bold** Desc-file.pdf-p1}}}.",
+			expectedCitations: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		tester.Run(tc.name, func(subTester *testing.T) {
+			_, citations := reconstructor.ParseCitations(tc.input)
+			if len(citations) != tc.expectedCitations {
+				subTester.Errorf("Expected %d citations, got %d", tc.expectedCitations, len(citations))
+			}
+		})
+	}
+}
+
+func TestHeadingCleaningRobustness(tester *testing.T) {
+	parser := NewParser()
+
+	testCases := []struct {
+		input    string
+		expected string
+	}{
+		{"# Chapter 1. Introduction", "Introduction"},
+		{"## Section II: Background", "Background"},
+		{"### 5. Detailed Analysis", "Detailed Analysis"},
+		{"# Lecture 10 - Summary", "Lecture 10 - Summary"}, // Should NOT clean this as it's not a standard numeric prefix
+	}
+
+	for _, tc := range testCases {
+		ast := parser.Parse(tc.input)
+		var title string
+		if len(ast.Children) > 0 && ast.Children[0].Type == NodeSection {
+			title = ast.Children[0].Title
+		}
+		if title != tc.expected {
+			tester.Errorf("Input %q: expected title %q, got %q", tc.input, tc.expected, title)
+		}
+	}
+}
+
+func TestListWithBlankLines(tester *testing.T) {
+	parser := NewParser()
+	input := `- Item 1
+
+- Item 2
+  - Sub 2.1
+
+  - Sub 2.2`
+
+	ast := parser.Parse(input)
+
+	// Count total list items in AST
+	count := 0
+	var countItems func(*Node)
+	countItems = func(n *Node) {
+		if n.Type == NodeListItem {
+			count++
+		}
+		for _, child := range n.Children {
+			countItems(child)
+		}
+	}
+	countItems(ast)
+
+	if count != 4 {
+		tester.Errorf("Expected 4 list items, got %d", count)
+	}
+}
+
+func TestMathInTablesRobustness(tester *testing.T) {
+	parser := NewParser()
+	reconstructor := NewReconstructor()
+
+	input := `| Formula | Result |
+| --- | --- |
+| \(x + y\) | $z$ |
+| \[\sum x\] | $$X$$ |`
+
+	ast := parser.Parse(input)
+	reconstructed := reconstructor.Reconstruct(ast)
+
+	// All math should be normalized to $ or $$ AND escaped in tables
+	if !strings.Contains(reconstructed, `\$x + y\$`) {
+		tester.Errorf("Table inline math not preserved/normalized: %s", reconstructed)
+	}
+	if !strings.Contains(reconstructed, `\$\$X\$\$`) {
+		tester.Errorf("Table display math not preserved/normalized: %s", reconstructed)
+	}
+}
+
+func TestAIConversationalFiller(tester *testing.T) {
+	parser := NewParser()
+	input := `Sure, I'll help you with that. Here is the content:
+
+# Main Topic
+Detailed explanation.`
+
+	ast := parser.Parse(input)
+
+	if len(ast.Children) < 2 {
+		tester.Fatalf("Expected at least 2 children, got %d", len(ast.Children))
+	}
+
+	// First node should be the conversational filler paragraph
+	if ast.Children[0].Type != NodeParagraph || !strings.Contains(ast.Children[0].Content, "Sure") {
+		tester.Errorf("First node should be the conversational filler paragraph, got %s: %q", ast.Children[0].Type, ast.Children[0].Content)
+	}
+
+	// Find the section node (it might be wrapped or at a different index depending on hierarchy)
+	var sectionNode *Node
+	for _, child := range ast.Children {
+		if child.Type == NodeSection {
+			sectionNode = child
+			break
+		}
+	}
+
+	if sectionNode == nil || sectionNode.Title != "Main Topic" {
+		title := "nil"
+		if sectionNode != nil {
+			title = sectionNode.Title
+		}
+		tester.Errorf("Should find section header 'Main Topic', got %q", title)
 	}
 }

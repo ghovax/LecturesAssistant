@@ -334,7 +334,7 @@ func defaultConfiguration() *Configuration {
 			},
 		},
 		Documents: DocumentsConfiguration{
-			RenderDPI:        150,
+			RenderDPI:        200,
 			MaximumPages:     1000,
 			SupportedFormats: []string{"pdf", "pptx", "docx"},
 		},

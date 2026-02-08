@@ -113,7 +113,7 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("Document processor initialized", "model", ingestionModel)
-	documentProcessor := documents.NewProcessor(llmProvider, ingestionModel, promptManager)
+	documentProcessor := documents.NewProcessor(llmProvider, ingestionModel, promptManager, loadedConfiguration.Documents.RenderDPI)
 
 	// Initialize markdown converter
 	markdownConverter := markdown.NewConverter(loadedConfiguration.Storage.DataDirectory)

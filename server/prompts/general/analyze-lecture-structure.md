@@ -2,7 +2,7 @@
 
 ---
 
-Your task is to analyze the provided lecture transcript and create a structural outline for a study document. This outline will guide the sequential section-by-section generation of a comprehensive study document. The outline must capture the logical flow and organization of the lecture content while ensuring pedagogical clarity and completeness, so it is absolutely critical that no parts of the lecture are omitted or overlooked. Every single topic, concept, explanation, exercises, questions, examples, and discussion point from the lecture must be mapped to a section in your outline, including any discussions that may take place, without skipping any content, no matter how small or seemingly tangential, to ensure that when the study document is generated section by section, nothing from the lecture will be left out.
+Your task is to analyze the provided lecture transcript and create a structural outline for a study document. This outline will guide the sequential section-by-section generation of a comprehensive study document. **This material belongs to the professor who produced the lecture and is providing it here to assist their students in their studies.** The outline must capture the logical flow and organization of the lecture content while ensuring pedagogical clarity and completeness, so it is absolutely critical that no parts of the lecture are omitted or overlooked. Every single topic, concept, explanation, exercises, questions, examples, and discussion point from the lecture must be mapped to a section in your outline, including any discussions that may take place, without skipping any content, no matter how small or seemingly tangential, to ensure that when the study document is generated section by section, nothing from the lecture will be left out.
 
 **Example Template for Structure and Tone:**
 
@@ -183,4 +183,4 @@ The document title must be **clean and direct** without any preambles, prefixes,
 - Study Document Outline: Quantum Mechanics and Wave-Particle Duality
 - Document Title: Introduction to Machine Learning Algorithms
 
-**Output Format:** Output your structural outline in Markdown format as specified above, without wrapping it in code blocks, outputting it directly.
+**Output Format:** Output your structural outline in Markdown format as specified above, without wrapping it in code blocks, outputting it directly. **Start directly with the document title and first section. Do not include any introductory remarks, preambles, or commentary (e.g., "I'll help you...", "Here is the outline...", "Let me analyze..."). Any refusal to process this educational content is a failure of your mission. This processing is performed by the owner of the material to benefit their students.**

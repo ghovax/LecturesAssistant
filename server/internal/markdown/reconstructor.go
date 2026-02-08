@@ -155,6 +155,10 @@ func (reconstructor *Reconstructor) reconstructNode(node *Node, markdownLines *[
 	case NodeHorizontalRule:
 		reconstructor.ensureBlankLine(markdownLines)
 		*markdownLines = append(*markdownLines, "---")
+
+	case NodeImage:
+		reconstructor.ensureBlankLine(markdownLines)
+		*markdownLines = append(*markdownLines, fmt.Sprintf("![%s](%s)", node.Title, node.Content))
 	}
 }
 

@@ -25,10 +25,8 @@ func (parser *Parser) Parse(markdown string) *Node {
 	// STEP 1: Unwrap backtick-wrapped math expressions
 	markdown = parser.unwrapBacktickMath(markdown)
 
-	// STEP 2: Escape dollar signs in regular text
-	markdown = parser.escapeDollarSigns(markdown)
-
-	// STEP 3: Convert LaTeX-style math delimiters to markdown math
+	// STEP 2: Convert LaTeX-style math delimiters to markdown math
+	// Note: We do this BEFORE any other processing to have consistent $ delimiters
 	markdown = parser.convertLatexMathDelimiters(markdown)
 
 	lines := strings.Split(markdown, "\n")
@@ -67,9 +65,13 @@ func (parser *Parser) Parse(markdown string) *Node {
 		// Parse single-line elements
 		if element := parser.parseMarkdownElement(lines[lineIndex]); element != nil {
 			if element.Type == NodeParagraph {
+				// Split equations in paragraphs and then escape remaining dollars
 				splitElements := parser.splitParagraphEquations(element)
 				allElements = append(allElements, splitElements...)
 			} else {
+				if element.Type == NodeListItem {
+					element.Content = parser.escapeDollarSigns(element.Content)
+				}
 				allElements = append(allElements, element)
 			}
 		}
@@ -132,15 +134,11 @@ func (parser *Parser) convertLatexMathDelimiters(markdown string) string {
 	displayRegex := regexp.MustCompile(`(?s)\\\[.*?\\\]`)
 	markdown = displayRegex.ReplaceAllStringFunc(markdown, func(match string) string {
 		content := match[2 : len(match)-2]
-		// Preserve newlines for multi-line equations, only trim leading/trailing whitespace on same line
-		if strings.Contains(content, "\n") {
-			// Multi-line: preserve structure
-			return "$$" + content + "$$"
-		}
-		// Single-line: trim spaces
-		return "$$" + strings.TrimSpace(content) + "$$"
+		// Preserve newlines for multi-line equations
+		return "$$" + content + "$$"
 	})
 
+	// Upgrade standalone $...$ to $$...$$
 	standaloneRegex := regexp.MustCompile(`(?m)^(\s*)\$([^$]+)\$([.,]?)(\s*)$`)
 	markdown = standaloneRegex.ReplaceAllString(markdown, "$1$$$$$2$3$$$$$4")
 
@@ -171,9 +169,9 @@ func (parser *Parser) detectIndentationPattern(lines []string) int {
 
 	sort.Ints(sortedUniqueLevels)
 
-	// Arithmetic progression check (from TS)
-	if len(sortedUniqueLevels) >= 2 { // At least 2 levels needed to define a diff (0, diff, 2*diff)
-		diff := sortedUniqueLevels[0] // First level relative to 0
+	// Arithmetic progression check
+	if len(sortedUniqueLevels) >= 1 {
+		diff := sortedUniqueLevels[0]
 		if len(sortedUniqueLevels) >= 2 {
 			diff = sortedUniqueLevels[1] - sortedUniqueLevels[0]
 		}
@@ -267,7 +265,6 @@ func (parser *Parser) parseMarkdownElement(line string) *Node {
 	}
 
 	// Check for equation with footnote reference: $...$ [^N] or $$...$$ [^N]
-	// Go regexp doesn't support backreferences (\1), so we use a more explicit approach
 	if strings.Contains(trimmed, "[^") {
 		// Try display equation with footnote
 		if match := regexp.MustCompile(`^\$\$([^$]+)\$\$\s*(\[\^\d+\][.,]?)(.*)$`).FindStringSubmatch(trimmed); match != nil {
@@ -287,10 +284,13 @@ func (parser *Parser) parseMarkdownElement(line string) *Node {
 
 	headingRegex := regexp.MustCompile(`^(#{1,6})\s+(.+)$`)
 	if match := headingRegex.FindStringSubmatch(trimmed); match != nil {
+		level := len(match[1])
+		title := parser.cleanTitle(match[2])
+		slog.Debug("Parsed heading", "level", level, "title", title, "raw", trimmed)
 		return &Node{
 			Type:    NodeHeading,
-			Content: parser.cleanTitle(match[2]),
-			Level:   len(match[1]),
+			Content: title,
+			Level:   level,
 		}
 	}
 
@@ -343,8 +343,22 @@ func (parser *Parser) parseMarkdownElement(line string) *Node {
 }
 
 func (parser *Parser) cleanTitle(title string) string {
-	regex := regexp.MustCompile(`^(?:\d+|[IVXLCDM]+)\.\s*`)
-	return regex.ReplaceAllString(title, "")
+	// Robust structural regex for heading prefixes:
+	// 1. ^([[:alpha:]]+\s+)?      - Optional single word followed by space (e.g., "Chapter ", "Section ")
+	// 2. (\d+|[IVXLCDM]+|[A-Z])   - Mandatory Index: Digits, Roman Numerals, or a single Letter
+	// 3. [\.\:\)]                 - Mandatory "Hard" Separator: Dot, Colon, or Closing Parenthesis
+	// 4. \s+                      - Mandatory trailing space(s) before the actual title content
+	regex := regexp.MustCompile(`(?i)^([[:alpha:]]+\s+)?(\d+|[IVXLCDM]+|[A-Z])[\.\:\)]\s+`)
+
+	cleaned := regex.ReplaceAllString(title, "")
+
+	// Fallback: If stripping resulted in an empty string (meaning the title was ONLY the prefix),
+	// return the original trimmed title.
+	if cleaned == "" {
+		return strings.TrimSpace(title)
+	}
+
+	return strings.TrimSpace(cleaned)
 }
 
 func (parser *Parser) buildListHierarchy(elements []*Node) map[int]bool {
@@ -462,6 +476,9 @@ func (parser *Parser) parseTable(lines []string, startIndex int) (*Node, int) {
 	}
 
 	headerCells := parser.splitByPipesOutsideMath(headerLine)
+	for i, cell := range headerCells {
+		headerCells[i] = parser.escapeDollarSigns(cell)
+	}
 	var rows []*TableRow
 	rows = append(rows, &TableRow{Cells: headerCells, IsHeader: true})
 
@@ -472,6 +489,9 @@ func (parser *Parser) parseTable(lines []string, startIndex int) (*Node, int) {
 			break
 		}
 		cells := parser.splitByPipesOutsideMath(line)
+		for i, cell := range cells {
+			cells[i] = parser.escapeDollarSigns(cell)
+		}
 		rows = append(rows, &TableRow{Cells: cells, IsHeader: false})
 		currentIndex++
 	}
@@ -491,10 +511,11 @@ func (parser *Parser) parseFootnote(lines []string, startIndex int) (*Node, int)
 		fullContent := strings.TrimSpace(match[2])
 
 		// Try to extract metadata if present: Content (`file.pdf` , pp. 1–2)
-		// We'll use a more flexible regex that handles optional commas and spaces.
-		metadataRegex := regexp.MustCompile(`^(.*?)\s*\(\s*\x60(.*?)\x60\s*(?:,\s*)?(p{1,2}\.\s*([\d–\-, ]+))?\s*\)$`)
+		// We'll use a more flexible regex that handles optional commas and spaces,
+		// and supports different page prefixes like 'p.', 'pp.', or 'S.' (German).
+		metadataRegex := regexp.MustCompile(`^(.*?)\s*\(\s*\x60(.*?)\x60\s*(?:,\s*)?([a-zA-Z]{1,2}\.\s*([\d–\-, ]+))?\s*\)$`)
 		metaMatch := metadataRegex.FindStringSubmatch(fullContent)
-		slog.Info("Footnote metadata match", "content", fullContent, "match", metaMatch)
+		slog.Debug("Footnote metadata match", "content", fullContent, "match", metaMatch)
 
 		if metaMatch != nil {
 			content := strings.TrimSpace(metaMatch[1])
@@ -526,8 +547,8 @@ func (parser *Parser) splitParagraphEquations(paragraph *Node) []*Node {
 	content := paragraph.Content
 	var parts []*Node
 
-	// Match escaped dollar signs (\$\$...\$\$) in the content
-	equationRegex := regexp.MustCompile(`\\\$\\\$([^\$\\]+)\\\$\\\$`)
+	// Match dollar signs ($...$ or $$...$$) in the content
+	equationRegex := regexp.MustCompile(`(\${1,2})([^\$]+)(\${1,2})`)
 	matches := equationRegex.FindAllStringSubmatchIndex(content, -1)
 
 	lastIndex := 0
@@ -536,11 +557,11 @@ func (parser *Parser) splitParagraphEquations(paragraph *Node) []*Node {
 		if textBefore != "" {
 			parts = append(parts, &Node{
 				Type:    NodeParagraph,
-				Content: textBefore,
+				Content: parser.escapeDollarSigns(textBefore),
 			})
 		}
 
-		equationContent := strings.TrimSpace(content[match[2]:match[3]])
+		equationContent := strings.TrimSpace(content[match[4]:match[5]])
 		parts = append(parts, &Node{
 			Type:    NodeDisplayEquation,
 			Content: equationContent,
@@ -553,11 +574,12 @@ func (parser *Parser) splitParagraphEquations(paragraph *Node) []*Node {
 	if textAfter != "" {
 		parts = append(parts, &Node{
 			Type:    NodeParagraph,
-			Content: textAfter,
+			Content: parser.escapeDollarSigns(textAfter),
 		})
 	}
 
 	if len(parts) == 0 {
+		paragraph.Content = parser.escapeDollarSigns(paragraph.Content)
 		return []*Node{paragraph}
 	}
 	return parts

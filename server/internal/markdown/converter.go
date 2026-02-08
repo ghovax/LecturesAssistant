@@ -107,6 +107,7 @@ func (converter *ExternalConverter) HTMLToPDF(htmlContent string, outputPath str
 	arguments := []string{
 		"-f", "html",
 		"-t", "pdf",
+		"--resource-path", converter.dataDirectory,
 		"--pdf-engine-opt=-Zcontinue-on-errors",
 		"--pdf-engine=tectonic",
 		"--template", templatePath,
@@ -161,6 +162,7 @@ func (converter *ExternalConverter) HTMLToDocx(htmlContent string, outputPath st
 	arguments := []string{
 		"-f", "html",
 		"-t", "docx",
+		"--resource-path", converter.dataDirectory,
 		"--toc",
 		"-o", outputPath,
 	}

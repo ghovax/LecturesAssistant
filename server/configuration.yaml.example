@@ -51,7 +51,7 @@ transcription:
 
 # Document processing
 documents:
-  render_dots_per_inch: 150 # Resolution for page images (higher = more detail but more tokens)
+  render_dots_per_inch: 200 # Resolution for page images (higher = more detail but more tokens)
   maximum_pages: 1000 # Safety limit for document length
   supported_formats: ["pdf", "pptx", "docx"]
 

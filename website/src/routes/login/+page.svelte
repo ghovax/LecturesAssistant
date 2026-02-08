@@ -2,9 +2,11 @@
 	import { onMount } from 'svelte';
 	import { auth } from '$lib/api';
 	import { goto } from '$app/navigation';
+	import { notifications } from '$lib/notifications';
 
 	let username = $state('');
 	let password = $state('');
+	let openrouter_api_key = $state('');
 	let isSetup = $state(false);
 	let error = $state(null);
 	let loading = $state(false);
@@ -14,9 +16,9 @@
 		error = null;
 		try {
 			if (isSetup) {
-				await auth.setup({ username, password });
+				await auth.setup({ username, password, openrouter_api_key });
 				isSetup = false;
-				alert('Setup successful. Please login.');
+				notifications.success('Account created successfully. You can now sign in.');
 			} else {
 				await auth.login({ username, password });
 				window.location.href = '/';
@@ -61,6 +63,13 @@
 				Password
 				<input type="password" bind:value={password} required placeholder="Enter your password" />
 			</label>
+			{#if isSetup}
+				<label>
+					OpenRouter API Key
+					<input type="text" bind:value={openrouter_api_key} required placeholder="sk-or-v1-..." />
+					<p style="font-size: 11px; color: #666; margin-top: 4px;">Get one at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" style="color: var(--accent-color);">openrouter.ai</a></p>
+				</label>
+			{/if}
 			<button type="submit" disabled={loading} style="width: 100%; margin-top: var(--space-sm);">
 				{loading ? 'Please wait...' : (isSetup ? 'Get Started' : 'Sign In')}
 			</button>

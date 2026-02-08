@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { apiFetch } from '$lib/api';
+	import { notifications } from '$lib/notifications';
 	import { goto } from '$app/navigation';
 	import { Circle, X, Check } from 'lucide-svelte';
 
@@ -26,7 +27,7 @@
 			]);
 			exam = examData;
 			lectures = lecturesData;
-			activeTasks = jobsData.filter(task => task.status === 'RUNNING' || task.status === 'PENDING');
+			activeTasks = (jobsData || []).filter(task => task.status === 'RUNNING' || task.status === 'PENDING');
 			editTitle = exam.title;
 			editDescription = exam.description || '';
 		} catch (e) {
@@ -50,7 +51,7 @@
 			exam = updated;
 			isEditing = false;
 		} catch (e) {
-			alert('Failed to save: ' + e.message);
+			notifications.error('Failed to save: ' + e.message);
 		} finally {
 			saving = false;
 		}
@@ -65,7 +66,7 @@
 			});
 			goto('/exams');
 		} catch (e) {
-			alert('Delete failed: ' + e.message);
+			notifications.error('Delete failed: ' + e.message);
 		}
 	}
 
@@ -192,13 +193,13 @@
 	{/if}
 
 	<div style="margin-top: var(--space-xl);">
-		<h2>Study Tools & Chat</h2>
+		<h2>Study Tools and Chat</h2>
 		<div style="display: flex; gap: var(--space-md); margin-top: var(--space-md);">
 			<a href="/exams/{id}/chat" class="button" style="flex: 1;">
 				Chat Assistant
 			</a>
 			<a href="/exams/{id}/tools" class="button" style="flex: 1;">
-				Study Guides & Quizzes
+				Study Guides and Quizzes
 			</a>
 		</div>
 	</div>

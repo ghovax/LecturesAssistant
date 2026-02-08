@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { apiFetch } from '$lib/api';
+	import { notifications } from '$lib/notifications';
 
 	const examID = $derived(page.params.id);
 
@@ -29,9 +30,10 @@
 				body: { exam_id: examID, title: newTitle || 'New Chat' }
 			});
 			window.location.href = `/exams/${examID}/chat/${session.id}`;
-		} catch (e) {
-			alert('Failed: ' + e.message);
-		} finally {
+				} catch (e) {
+					notifications.error('Failed: ' + e.message);
+				}
+		 finally {
 			creating = false;
 		}
 	}

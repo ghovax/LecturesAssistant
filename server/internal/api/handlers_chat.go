@@ -70,7 +70,7 @@ func (server *Server) handleCreateChatSession(responseWriter http.ResponseWriter
 		return
 	}
 
-	// Initialize empty context config
+	// Initialize empty context configuration
 	_, databaseError = databaseTransaction.Exec(`
 		INSERT INTO chat_context_configuration (session_id, included_lecture_ids, included_tool_ids)
 		VALUES (?, ?, ?)
@@ -153,7 +153,7 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 		return
 	}
 
-	// Get context config
+	// Get context configuration
 	var includedLectureIDsJSON, includedToolIDsJSON string
 	databaseError = server.database.QueryRow(`
 		SELECT included_lecture_ids, included_tool_ids 

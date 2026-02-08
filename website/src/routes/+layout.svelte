@@ -5,6 +5,7 @@
 	import { auth } from '$lib/api';
 	import { goto } from '$app/navigation';
 	import { Menu, X } from 'lucide-svelte';
+	import NotificationCenter from '$lib/NotificationCenter.svelte';
 
 	let { children } = $props();
 	let user = $state(null);
@@ -84,3 +85,5 @@
 		{/if}
 	</div>
 {/if}
+
+<NotificationCenter />

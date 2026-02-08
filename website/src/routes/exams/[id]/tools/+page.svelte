@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { apiFetch } from '$lib/api';
+	import { notifications } from '$lib/notifications';
 
 	const examID = $derived(page.params.id);
 
@@ -39,10 +40,10 @@
 					length
 				}
 			});
-			alert('Generation job created: ' + res.job_id);
+			notifications.success('Generation job created. You can track progress in the Activity page.');
 			window.location.href = '/jobs';
 		} catch (e) {
-			alert('Failed: ' + e.message);
+			notifications.error('Failed: ' + e.message);
 		} finally {
 			creating = false;
 		}
@@ -57,7 +58,7 @@
 			});
 			tools = tools.filter(t => t.id !== toolID);
 		} catch (e) {
-			alert('Failed: ' + e.message);
+			notifications.error('Failed: ' + e.message);
 		}
 	}
 

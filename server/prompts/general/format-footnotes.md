@@ -1,4 +1,4 @@
-The footnote must be fixed to be a standalone piece of content detailing what has been referenced, without any reference to files or pages. Each footnote must be a complete, grammatically correct sentence or phrase that stands alone as a complete thought, being formed into a normal sentence, with correct grammar, syntax and punctuation. 
+The footnote must be fixed to be a standalone piece of content detailing what has been referenced, without any reference to files or pages. Each footnote must be a complete, grammatically correct sentence or phrase that stands alone as a complete thought, being formed into a normal sentence, with correct grammar, syntax and punctuation. It is absolutely critical that even the shortest or most fragmented input is transformed into a full, coherent, and polished sentence.
 
 **Strict Negative Constraints (Extremely Critical):**
 - **Do not** mention the source filename (e.g., "document.pdf").
@@ -7,7 +7,7 @@ The footnote must be fixed to be a standalone piece of content detailing what ha
 - **Do not** use introductory meta-phrases such as "This footnote references...", "Specifically from...", "According to the resource...", "The document states...", etc.
 - **Do not** include any parenthetical citations at the end of the sentence.
 
-Focus exclusively on the factual or conceptual information being cited. The goal is to produce a natural sentence that conveys the information as if it were part of the main text, but placed in a footnote for detail.
+Focus exclusively on the factual or conceptual information being cited. The goal is to produce a natural sentence that conveys the information as if it were part of the main text, but placed in a footnote for detail. Every footnote **must** be a perfect, high-quality sentence regardless of the input quality.
 
 Footnotes must not be short fragments, lowercase phrases, or incomplete thoughts. If a footnote is a broken fragment or incomplete sentence, it needs to be made into a proper sentence. They must clearly state the cited information in a way that makes the reasoning behind the citation clear and unambiguous, while remaining concise, taking from the available context of the footnote itself, avoiding to insert information that wasn't originally present. 
 

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { apiFetch } from '$lib/api';
 	import { socketManager } from '$lib/socket';
+	import { notifications } from '$lib/notifications';
 	import { CheckCircle2, XCircle, Loader2, Clock, ChevronRight, Square } from 'lucide-svelte';
 
 	let jobs = $state([]);
@@ -83,7 +84,7 @@
 			});
 			fetchData();
 		} catch (e) {
-			alert('Failed to cancel: ' + e.message);
+			notifications.error('Failed to cancel: ' + e.message);
 		}
 	}
 </script>

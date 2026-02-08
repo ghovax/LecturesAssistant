@@ -116,7 +116,7 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	// 2. Bind Staged Media
 	for uploadIndex, uploadID := range request.Form["media_upload_ids"] {
 		if err := server.commitStagedUpload(transaction, lectureID, uploadID, "media", uploadIndex); err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "UPLOAD_ERROR", "Failed to bind media: "+uploadID, nil)
+			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_UPLOAD_ERROR", "Failed to bind media: "+uploadID, nil)
 			return
 		}
 	}
@@ -124,7 +124,7 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	// 3. Bind Staged Documents
 	for _, uploadID := range request.Form["document_upload_ids"] {
 		if err := server.commitStagedUpload(transaction, lectureID, uploadID, "document", 0); err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "UPLOAD_ERROR", "Failed to bind document: "+uploadID, nil)
+			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_UPLOAD_ERROR", "Failed to bind document: "+uploadID, nil)
 			return
 		}
 	}
@@ -133,14 +133,14 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	for uploadIndex, fileHeader := range request.MultipartForm.File["media"] {
 		uploadID := server.stageMultipartFile(fileHeader)
 		if err := server.commitStagedUpload(transaction, lectureID, uploadID, "media", len(request.Form["media_upload_ids"])+uploadIndex); err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "UPLOAD_ERROR", "Failed to process direct media", nil)
+			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_UPLOAD_ERROR", "Failed to process direct media", nil)
 			return
 		}
 	}
 	for _, fileHeader := range request.MultipartForm.File["documents"] {
 		uploadID := server.stageMultipartFile(fileHeader)
 		if err := server.commitStagedUpload(transaction, lectureID, uploadID, "document", 0); err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "UPLOAD_ERROR", "Failed to process direct document", nil)
+			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_UPLOAD_ERROR", "Failed to process direct document", nil)
 			return
 		}
 	}

@@ -4,20 +4,30 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+
+	"lectures/internal/llm"
 )
 
 // handleGetSettings retrieves current application settings
 func (server *Server) handleGetSettings(responseWriter http.ResponseWriter, request *http.Request) {
+	// Prepare resolved models for display
+	resolved := map[string]string{
+		"recording_transcription": server.configuration.LLM.GetModelForTask("recording_transcription"),
+		"documents_ingestion":     server.configuration.LLM.GetModelForTask("documents_ingestion"),
+		"documents_matching":      server.configuration.LLM.GetModelForTask("documents_matching"),
+		"outline_creation":        server.configuration.LLM.GetModelForTask("outline_creation"),
+		"content_generation":      server.configuration.LLM.GetModelForTask("content_generation"),
+		"content_verification":    server.configuration.LLM.GetModelForTask("content_verification"),
+		"content_polishing":       server.configuration.LLM.GetModelForTask("content_polishing"),
+	}
+
 	server.writeJSON(responseWriter, http.StatusOK, map[string]any{
-		"llm": map[string]string{
-			"provider": server.configuration.LLM.Provider,
-			"model":    server.configuration.LLM.Model,
-			"language": server.configuration.LLM.Language,
-		},
-		"transcription": map[string]string{
-			"provider": server.configuration.Transcription.Provider,
-			"model":    server.configuration.Transcription.Model,
-		},
+		"llm":             server.configuration.LLM,
+		"transcription":   server.configuration.Transcription,
+		"documents":       server.configuration.Documents,
+		"safety":          server.configuration.Safety,
+		"providers":       server.configuration.Providers,
+		"resolved_models": resolved,
 	})
 }
 
@@ -34,6 +44,7 @@ func (server *Server) handleUpdateSettings(responseWriter http.ResponseWriter, r
 		"llm":           true,
 		"transcription": true,
 		"documents":     true,
+		"safety":        true,
 		"theme":         true,
 	}
 
@@ -61,26 +72,34 @@ func (server *Server) handleUpdateSettings(responseWriter http.ResponseWriter, r
 	}
 
 	// Update server.configuration in-memory to ensure immediate effect
-	if settingValue, exists := updateSettingsRequest["llm"]; exists {
-		if llmConfigurationMap, isMap := settingValue.(map[string]any); isMap {
-			if llmProvider, isString := llmConfigurationMap["provider"].(string); isString {
-				server.configuration.LLM.Provider = llmProvider
-			}
-			if llmModel, isString := llmConfigurationMap["model"].(string); isString {
-				server.configuration.LLM.Model = llmModel
-			}
-			if languageCode, isString := llmConfigurationMap["language"].(string); isString {
-				server.configuration.LLM.Language = languageCode
-			}
+	for key, value := range updateSettingsRequest {
+		valueBytes, err := json.Marshal(value)
+		if err != nil {
+			continue
+		}
+
+		switch key {
+		case "llm":
+			json.Unmarshal(valueBytes, &server.configuration.LLM)
+		case "transcription":
+			json.Unmarshal(valueBytes, &server.configuration.Transcription)
+		case "documents":
+			json.Unmarshal(valueBytes, &server.configuration.Documents)
+		case "safety":
+			json.Unmarshal(valueBytes, &server.configuration.Safety)
 		}
 	}
-	if settingValue, exists := updateSettingsRequest["transcription"]; exists {
-		if transcriptionConfigurationMap, isMap := settingValue.(map[string]any); isMap {
-			if transcriptionProvider, isString := transcriptionConfigurationMap["provider"].(string); isString {
-				server.configuration.Transcription.Provider = transcriptionProvider
-			}
-			if transcriptionModel, isString := transcriptionConfigurationMap["model"].(string); isString {
-				server.configuration.Transcription.Model = transcriptionModel
+
+	// If providers configuration was updated, reflect it in the running providers
+	if providersValue, exists := updateSettingsRequest["providers"]; exists {
+		if providersBytes, err := json.Marshal(providersValue); err == nil {
+			json.Unmarshal(providersBytes, &server.configuration.Providers)
+
+			// Update OpenRouter API Key if it was changed
+			if routingProvider, ok := server.llmProvider.(*llm.RoutingProvider); ok {
+				if openRouterProvider, ok := routingProvider.GetProvider("openrouter").(*llm.OpenRouterProvider); ok {
+					openRouterProvider.SetAPIKey(server.configuration.Providers.OpenRouter.APIKey)
+				}
 			}
 		}
 	}

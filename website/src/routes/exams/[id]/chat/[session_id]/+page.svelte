@@ -2,12 +2,13 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
 	import { apiFetch } from '$lib/api';
+	import { notifications } from '$lib/notifications';
 
 	const examID = $derived(page.params.id);
 	const sessionID = $derived(page.params.session_id);
 
 	let messages = $state([]);
-	let contextConfig = $state({ included_lecture_ids: [], included_tool_ids: [] });
+	let contextConfiguration = $state({ included_lecture_ids: [], included_tool_ids: [] });
 	let lectures = $state([]);
 	let loading = $state(true);
 	let newMessage = $state('');
@@ -19,7 +20,7 @@
 		try {
 			const res = await apiFetch(`/api/chat/sessions/details?session_id=${sessionID}&exam_id=${examID}`);
 			messages = res.messages || [];
-			contextConfig = res.context;
+			contextConfiguration = res.context;
 			lectures = await apiFetch(`/api/lectures?exam_id=${examID}`);
 		} catch (e) {
 			console.error(e);
@@ -32,10 +33,10 @@
 		try {
 			await apiFetch('/api/chat/sessions/context', {
 				method: 'PATCH',
-				body: { session_id: sessionID, ...contextConfig }
+				body: { session_id: sessionID, ...contextConfiguration }
 			});
 		} catch (e) {
-			alert('Context update failed: ' + e.message);
+			notifications.error('Context update failed: ' + e.message);
 		}
 	}
 
@@ -54,7 +55,7 @@
 			});
 			// The actual response will come via WebSocket
 		} catch (e) {
-			alert('Failed to send message: ' + e.message);
+			notifications.error('Failed to send message: ' + e.message);
 			sending = false;
 		}
 	}
@@ -125,12 +126,12 @@
 					<input 
 						type="checkbox" 
 						value={l.id} 
-						checked={contextConfig.included_lecture_ids.includes(l.id)}
+						checked={contextConfiguration.included_lecture_ids.includes(l.id)}
 						onchange={(e) => {
 							if (e.target.checked) {
-								contextConfig.included_lecture_ids = [...contextConfig.included_lecture_ids, l.id];
+								contextConfiguration.included_lecture_ids = [...contextConfiguration.included_lecture_ids, l.id];
 							} else {
-								contextConfig.included_lecture_ids = contextConfig.included_lecture_ids.filter(id => id !== l.id);
+								contextConfiguration.included_lecture_ids = contextConfiguration.included_lecture_ids.filter(id => id !== l.id);
 							}
 							updateContext();
 						}}

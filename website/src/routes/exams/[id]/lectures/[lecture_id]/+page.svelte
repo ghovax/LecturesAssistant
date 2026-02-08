@@ -4,6 +4,7 @@
 	import { apiFetch } from '$lib/api';
 	import { socketManager } from '$lib/socket';
 	import { goto } from '$app/navigation';
+	import { notifications } from '$lib/notifications';
 	import { Circle, X, Check } from 'lucide-svelte';
 
 	const examID = $derived(page.params.id);
@@ -67,7 +68,7 @@
 			});
 			window.location.href = '/jobs';
 		} catch (e) {
-			alert('Failed to start generation: ' + e.message);
+			notifications.error('Failed to start generation: ' + e.message);
 		} finally {
 			generating = false;
 		}
@@ -210,6 +211,8 @@
 								<option value="short">Summary</option>
 								<option value="medium">Standard</option>
 								<option value="long">Detailed</option>
+								<option value="extra">Extra Detailed</option>
+								<option value="maximum">Maximum Depth</option>
 							</select>
 						</label>
 					{/if}
@@ -223,7 +226,7 @@
 					</button>
 					
 					{#if lecture.status !== 'ready'}
-						<p style="font-size: 11px; color: #888; text-align: center; margin-top: var(--space-xs);">You can generate materials once the lecture is fully processed.</p>
+						<p style="font-size: 11px; color: #888; text-align: left; margin-top: var(--space-xs);">You can generate materials once the lecture is fully processed.</p>
 					{/if}
 				</div>
 			</div>

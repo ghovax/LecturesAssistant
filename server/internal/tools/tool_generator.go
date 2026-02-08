@@ -172,6 +172,10 @@ func (generator *ToolGenerator) analyzeStructureWithRetries(jobContext context.C
 		sectionCounts.minimum, sectionCounts.maximum, sectionCounts.preferred = 1, 4, "2-3"
 	case "long":
 		sectionCounts.minimum, sectionCounts.maximum, sectionCounts.preferred = 4, 7, "5-6"
+	case "extra":
+		sectionCounts.minimum, sectionCounts.maximum, sectionCounts.preferred = 7, 12, "8-10"
+	case "maximum":
+		sectionCounts.minimum, sectionCounts.maximum, sectionCounts.preferred = 12, 20, "14-16"
 	default:
 		sectionCounts.minimum, sectionCounts.maximum, sectionCounts.preferred = 2, 5, "3-4"
 	}
@@ -965,7 +969,12 @@ func (generator *ToolGenerator) CleanDocumentTitle(jobContext context.Context, t
 }
 
 func (generator *ToolGenerator) CorrectProjectTitleDescription(jobContext context.Context, title, description string, model string) (string, string, models.JobMetrics, error) {
-	if title == "" || generator.llmProvider == nil {
+	if title == "" {
+		return title, description, models.JobMetrics{}, nil
+	}
+
+	if generator.llmProvider == nil {
+		slog.Warn("LLM provider is nil in ToolGenerator, skipping title polishing")
 		return title, description, models.JobMetrics{}, nil
 	}
 
@@ -976,6 +985,8 @@ func (generator *ToolGenerator) CorrectProjectTitleDescription(jobContext contex
 		}
 	}
 
+	slog.Info("Polishing title and description", "title", title, "model", model)
+
 	var prompt string
 	var err error
 	if generator.promptManager != nil {
@@ -984,24 +995,26 @@ func (generator *ToolGenerator) CorrectProjectTitleDescription(jobContext contex
 			"description": description,
 		})
 		if err != nil {
-			return title, description, models.JobMetrics{}, err
+			return title, description, models.JobMetrics{}, fmt.Errorf("failed to load prompt: %w", err)
 		}
 	}
 
 	response, metrics, err := generator.callLLMWithModel(jobContext, prompt, model)
 	if err != nil {
-		return title, description, metrics, err
+		return title, description, metrics, fmt.Errorf("LLM call failed: %w", err)
 	}
 
 	var result struct {
 		Title       string `json:"title"`
 		Description string `json:"description"`
 	}
-	if err := generator.unmarshalJSONWithFallback(response, &result); err == nil {
-		return result.Title, result.Description, metrics, nil
+	if err := generator.unmarshalJSONWithFallback(response, &result); err != nil {
+		slog.Warn("Failed to parse polished title JSON", "response", response, "error", err)
+		return title, description, metrics, nil
 	}
 
-	return title, description, metrics, nil
+	slog.Info("Successfully polished title and description", "original", title, "polished", result.Title)
+	return result.Title, result.Description, metrics, nil
 }
 
 func (generator *ToolGenerator) GenerateSuggestedQuestions(jobContext context.Context, documentMarkdown string, model string) ([]string, models.JobMetrics, error) {

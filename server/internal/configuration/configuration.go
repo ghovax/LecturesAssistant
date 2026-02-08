@@ -8,57 +8,58 @@ import (
 )
 
 type Configuration struct {
-	Server        ServerConfiguration        `yaml:"server"`
-	Storage       StorageConfiguration       `yaml:"storage"`
-	Security      SecurityConfiguration      `yaml:"security"`
-	LLM           LLMConfiguration           `yaml:"llm"`
-	Transcription TranscriptionConfiguration `yaml:"transcription"`
-	Providers     ProvidersConfiguration     `yaml:"providers"`
-	Documents     DocumentsConfiguration     `yaml:"documents"`
-	Uploads       UploadsConfiguration       `yaml:"uploads"`
-	Safety        SafetyConfiguration        `yaml:"safety"`
+	Server            ServerConfiguration        `yaml:"server" json:"server"`
+	Storage           StorageConfiguration       `yaml:"storage" json:"storage"`
+	Security          SecurityConfiguration      `yaml:"security" json:"security"`
+	LLM               LLMConfiguration           `yaml:"llm" json:"llm"`
+	Transcription     TranscriptionConfiguration `yaml:"transcription" json:"transcription"`
+	Providers         ProvidersConfiguration     `yaml:"providers" json:"providers"`
+	Documents         DocumentsConfiguration     `yaml:"documents" json:"documents"`
+	Uploads           UploadsConfiguration       `yaml:"uploads" json:"uploads"`
+	Safety            SafetyConfiguration        `yaml:"safety" json:"safety"`
+	ConfigurationPath string                     `yaml:"-" json:"-"`
 }
 
 type SafetyConfiguration struct {
-	MaximumCostPerJob    float64 `yaml:"maximum_cost_per_job"`
-	MaximumLoginAttempts int     `yaml:"maximum_login_attempts_per_hour"`
-	MaximumRetries       int     `yaml:"maximum_retries"`
+	MaximumCostPerJob    float64 `yaml:"maximum_cost_per_job" json:"maximum_cost_per_job"`
+	MaximumLoginAttempts int     `yaml:"maximum_login_attempts_per_hour" json:"maximum_login_attempts_per_hour"`
+	MaximumRetries       int     `yaml:"maximum_retries" json:"maximum_retries"`
 }
 
 type ServerConfiguration struct {
-	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
+	Host string `yaml:"host" json:"host"`
+	Port int    `yaml:"port" json:"port"`
 }
 
 type StorageConfiguration struct {
-	DataDirectory string `yaml:"data_directory"`
+	DataDirectory string `yaml:"data_directory" json:"data_directory"`
 }
 
 type SecurityConfiguration struct {
-	Auth AuthConfiguration `yaml:"auth"`
+	Auth AuthConfiguration `yaml:"auth" json:"auth"`
 }
 
 type AuthConfiguration struct {
-	Type                string `yaml:"type"`
-	SessionTimeoutHours int    `yaml:"session_timeout_hours"`
-	PasswordHash        string `yaml:"password_hash"`
-	RequireHTTPS        bool   `yaml:"require_https"`
+	Type                string `yaml:"type" json:"type"`
+	SessionTimeoutHours int    `yaml:"session_timeout_hours" json:"session_timeout_hours"`
+	PasswordHash        string `yaml:"password_hash" json:"-"`
+	RequireHTTPS        bool   `yaml:"require_https" json:"require_https"`
 }
 
 type LLMConfiguration struct {
-	Provider                string              `yaml:"provider"`
-	Language                string              `yaml:"language"`
-	EnableDocumentsMatching bool                `yaml:"enable_documents_matching"`
-	Models                  ModelsConfiguration `yaml:"models"`
+	Provider                string              `yaml:"provider" json:"provider"`
+	Language                string              `yaml:"language" json:"language"`
+	EnableDocumentsMatching bool                `yaml:"enable_documents_matching" json:"enable_documents_matching"`
+	Models                  ModelsConfiguration `yaml:"models" json:"models"`
 
 	// Backwards compatibility (deprecated)
-	Model        string `yaml:"model,omitempty"`
-	DefaultModel string `yaml:"default_model,omitempty"`
+	Model        string `yaml:"model,omitempty" json:"model,omitempty"`
+	DefaultModel string `yaml:"default_model,omitempty" json:"default_model,omitempty"`
 }
 
 type ModelConfiguration struct {
-	Model    string `yaml:"model"`
-	Provider string `yaml:"provider,omitempty"`
+	Model    string `yaml:"model" json:"model"`
+	Provider string `yaml:"provider,omitempty" json:"provider,omitempty"`
 }
 
 func (modelConfig *ModelConfiguration) UnmarshalYAML(value *yaml.Node) error {
@@ -89,21 +90,21 @@ func (modelConfig ModelConfiguration) String() string {
 
 type ModelsConfiguration struct {
 	// New naming convention
-	RecordingTranscription ModelConfiguration `yaml:"recording_transcription,omitempty"`
-	DocumentsIngestion     ModelConfiguration `yaml:"documents_ingestion,omitempty"`
-	DocumentsMatching      ModelConfiguration `yaml:"documents_matching,omitempty"`
-	OutlineCreation        ModelConfiguration `yaml:"outline_creation,omitempty"`
-	ContentGeneration      ModelConfiguration `yaml:"content_generation,omitempty"`
-	ContentVerification    ModelConfiguration `yaml:"content_verification,omitempty"`
-	ContentPolishing       ModelConfiguration `yaml:"content_polishing,omitempty"`
+	RecordingTranscription ModelConfiguration `yaml:"recording_transcription,omitempty" json:"recording_transcription,omitempty"`
+	DocumentsIngestion     ModelConfiguration `yaml:"documents_ingestion,omitempty" json:"documents_ingestion,omitempty"`
+	DocumentsMatching      ModelConfiguration `yaml:"documents_matching,omitempty" json:"documents_matching,omitempty"`
+	OutlineCreation        ModelConfiguration `yaml:"outline_creation,omitempty" json:"outline_creation,omitempty"`
+	ContentGeneration      ModelConfiguration `yaml:"content_generation,omitempty" json:"content_generation,omitempty"`
+	ContentVerification    ModelConfiguration `yaml:"content_verification,omitempty" json:"content_verification,omitempty"`
+	ContentPolishing       ModelConfiguration `yaml:"content_polishing,omitempty" json:"content_polishing,omitempty"`
 
 	// Backwards compatibility (deprecated)
-	Ingestion     ModelConfiguration `yaml:"ingestion,omitempty"`
-	Triangulation ModelConfiguration `yaml:"triangulation,omitempty"`
-	Structure     ModelConfiguration `yaml:"structure,omitempty"`
-	Generation    ModelConfiguration `yaml:"generation,omitempty"`
-	Adherence     ModelConfiguration `yaml:"adherence,omitempty"`
-	Polishing     ModelConfiguration `yaml:"polishing,omitempty"`
+	Ingestion     ModelConfiguration `yaml:"ingestion,omitempty" json:"ingestion,omitempty"`
+	Triangulation ModelConfiguration `yaml:"triangulation,omitempty" json:"triangulation,omitempty"`
+	Structure     ModelConfiguration `yaml:"structure,omitempty" json:"structure,omitempty"`
+	Generation    ModelConfiguration `yaml:"generation,omitempty" json:"generation,omitempty"`
+	Adherence     ModelConfiguration `yaml:"adherence,omitempty" json:"adherence,omitempty"`
+	Polishing     ModelConfiguration `yaml:"polishing,omitempty" json:"polishing,omitempty"`
 }
 
 // GetModelForTask returns the model to use for a specific task
@@ -164,10 +165,10 @@ func (llmConfig *LLMConfiguration) GetModelForTask(task string) string {
 }
 
 type TranscriptionConfiguration struct {
-	Provider                string `yaml:"provider"`
-	Model                   string `yaml:"model,omitempty"` // Optional: defaults to llm.models.recording_transcription
-	AudioChunkLengthSeconds int    `yaml:"audio_chunk_length_seconds"`
-	RefiningBatchSize       int    `yaml:"refining_batch_size"`
+	Provider                string `yaml:"provider" json:"provider"`
+	Model                   string `yaml:"model,omitempty" json:"model,omitempty"` // Optional: defaults to llm.models.recording_transcription
+	AudioChunkLengthSeconds int    `yaml:"audio_chunk_length_seconds" json:"audio_chunk_length_seconds"`
+	RefiningBatchSize       int    `yaml:"refining_batch_size" json:"refining_batch_size"`
 }
 
 // GetModel returns the model to use for transcription
@@ -181,52 +182,52 @@ func (transcriptionConfig *TranscriptionConfiguration) GetModel(llmConfig *LLMCo
 }
 
 type ProvidersConfiguration struct {
-	OpenRouter OpenRouterConfiguration `yaml:"openrouter"`
-	Ollama     OllamaConfiguration     `yaml:"ollama"`
-	Google     GoogleConfiguration     `yaml:"google"`
+	OpenRouter OpenRouterConfiguration `yaml:"openrouter" json:"openrouter"`
+	Ollama     OllamaConfiguration     `yaml:"ollama" json:"ollama"`
+	Google     GoogleConfiguration     `yaml:"google" json:"google"`
 }
 
 type OpenRouterConfiguration struct {
-	APIKey string `yaml:"api_key"`
+	APIKey string `yaml:"api_key" json:"api_key"`
 }
 
 type OllamaConfiguration struct {
-	BaseURL string `yaml:"base_url"`
+	BaseURL string `yaml:"base_url" json:"base_url"`
 }
 
 type GoogleConfiguration struct {
-	ClientID     string `yaml:"client_id"`
-	ClientSecret string `yaml:"client_secret"`
+	ClientID     string `yaml:"client_id" json:"client_id"`
+	ClientSecret string `yaml:"client_secret" json:"client_secret"`
 }
 
 type DocumentsConfiguration struct {
-	RenderDPI        int      `yaml:"render_dots_per_inch"`
-	MaximumPages     int      `yaml:"maximum_pages"`
-	SupportedFormats []string `yaml:"supported_formats"`
+	RenderDPI        int      `yaml:"render_dots_per_inch" json:"render_dots_per_inch"`
+	MaximumPages     int      `yaml:"maximum_pages" json:"maximum_pages"`
+	SupportedFormats []string `yaml:"supported_formats" json:"supported_formats"`
 }
 
 type UploadsConfiguration struct {
-	Media     MediaUploadConfiguration    `yaml:"media"`
-	Documents DocumentUploadConfiguration `yaml:"documents"`
+	Media     MediaUploadConfiguration    `yaml:"media" json:"media"`
+	Documents DocumentUploadConfiguration `yaml:"documents" json:"documents"`
 }
 
 type MediaUploadConfiguration struct {
-	MaximumFileSizeMB        int          `yaml:"maximum_file_size_megabytes"`
-	MaximumFilesPerLecture   int          `yaml:"maximum_files_per_lecture"`
-	SupportedFormats         MediaFormats `yaml:"supported_formats"`
-	ChunkedUploadThresholdMB int          `yaml:"chunked_upload_threshold_megabytes"`
+	MaximumFileSizeMB        int          `yaml:"maximum_file_size_megabytes" json:"maximum_file_size_megabytes"`
+	MaximumFilesPerLecture   int          `yaml:"maximum_files_per_lecture" json:"maximum_files_per_lecture"`
+	SupportedFormats         MediaFormats `yaml:"supported_formats" json:"supported_formats"`
+	ChunkedUploadThresholdMB int          `yaml:"chunked_upload_threshold_megabytes" json:"chunked_upload_threshold_megabytes"`
 }
 
 type MediaFormats struct {
-	Video []string `yaml:"video"`
-	Audio []string `yaml:"audio"`
+	Video []string `yaml:"video" json:"video"`
+	Audio []string `yaml:"audio" json:"audio"`
 }
 
 type DocumentUploadConfiguration struct {
-	MaximumFileSizeMB       int      `yaml:"maximum_file_size_megabytes"`
-	MaximumFilesPerLecture  int      `yaml:"maximum_files_per_lecture"`
-	MaximumPagesPerDocument int      `yaml:"maximum_pages_per_document"`
-	SupportedFormats        []string `yaml:"supported_formats"`
+	MaximumFileSizeMB       int      `yaml:"maximum_file_size_megabytes" json:"maximum_file_size_megabytes"`
+	MaximumFilesPerLecture  int      `yaml:"maximum_files_per_lecture" json:"maximum_files_per_lecture"`
+	MaximumPagesPerDocument int      `yaml:"maximum_pages_per_document" json:"maximum_pages_per_document"`
+	SupportedFormats        []string `yaml:"supported_formats" json:"supported_formats"`
 }
 
 // Load reads the configuration from a file or creates a default one
@@ -247,6 +248,7 @@ func Load(configurationPath string) (*Configuration, error) {
 	if _, statError := os.Stat(configurationPath); os.IsNotExist(statError) {
 		// Create default config
 		newConfiguration := defaultConfiguration()
+		newConfiguration.ConfigurationPath = configurationPath
 		if mkdirError := os.MkdirAll(filepath.Dir(configurationPath), 0755); mkdirError != nil {
 			return nil, mkdirError
 		}
@@ -267,6 +269,7 @@ func Load(configurationPath string) (*Configuration, error) {
 		return nil, unmarshalingError
 	}
 
+	loadedConfiguration.ConfigurationPath = configurationPath
 	return loadedConfiguration, nil
 }
 
@@ -284,16 +287,16 @@ func defaultConfiguration() *Configuration {
 	home, _ := os.UserHomeDir()
 	return &Configuration{
 		Server: ServerConfiguration{
-			Host: "127.0.0.1",
+			Host: "0.0.0.0",
 			Port: 3000,
 		},
 		Storage: StorageConfiguration{
-			DataDirectory: filepath.Join(home, ".lectures"),
+			DataDirectory: filepath.Join(home, ".lectures", "data"),
 		},
 		Security: SecurityConfiguration{
 			Auth: AuthConfiguration{
 				Type:                "session",
-				SessionTimeoutHours: 24,
+				SessionTimeoutHours: 72,
 				RequireHTTPS:        false,
 			},
 		},
@@ -301,7 +304,7 @@ func defaultConfiguration() *Configuration {
 			Provider:                "openrouter",
 			Model:                   "anthropic/claude-3.5-sonnet",
 			Language:                "en-US",
-			EnableDocumentsMatching: true,
+			EnableDocumentsMatching: false,
 			Models: ModelsConfiguration{
 				RecordingTranscription: ModelConfiguration{Model: "google/gemini-2.5-flash-lite"},
 				DocumentsIngestion:     ModelConfiguration{Model: "google/gemini-2.5-flash-lite"},
@@ -332,29 +335,29 @@ func defaultConfiguration() *Configuration {
 		},
 		Documents: DocumentsConfiguration{
 			RenderDPI:        150,
-			MaximumPages:     500,
+			MaximumPages:     1000,
 			SupportedFormats: []string{"pdf", "pptx", "docx"},
 		},
 		Uploads: UploadsConfiguration{
 			Media: MediaUploadConfiguration{
-				MaximumFileSizeMB:      2048,
-				MaximumFilesPerLecture: 50,
+				MaximumFileSizeMB:      5120,
+				MaximumFilesPerLecture: 10,
 				SupportedFormats: MediaFormats{
-					Video: []string{"mp4", "webm", "mov", "mkv"},
-					Audio: []string{"mp3", "wav", "m4a", "ogg", "flac"},
+					Video: []string{"mp4", "mkv", "mov", "webm"},
+					Audio: []string{"mp3", "wav", "m4a", "flac"},
 				},
 				ChunkedUploadThresholdMB: 100,
 			},
 			Documents: DocumentUploadConfiguration{
 				MaximumFileSizeMB:       500,
-				MaximumFilesPerLecture:  100,
+				MaximumFilesPerLecture:  50,
 				MaximumPagesPerDocument: 500,
 				SupportedFormats:        []string{"pdf", "pptx", "docx"},
 			},
 		},
 		Safety: SafetyConfiguration{
-			MaximumCostPerJob:    10.0, // $10 safety threshold
-			MaximumLoginAttempts: 100,  // High limit as requested
+			MaximumCostPerJob:    15.0,
+			MaximumLoginAttempts: 10,
 			MaximumRetries:       3,
 		},
 	}

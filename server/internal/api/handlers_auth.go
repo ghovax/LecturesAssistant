@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"lectures/internal/configuration"
+	"lectures/internal/llm"
 	"lectures/internal/models"
 
 	"github.com/google/uuid"
@@ -15,8 +17,9 @@ import (
 // handleAuthSetup allows creating the first user (admin) if no users exist
 func (server *Server) handleAuthSetup(responseWriter http.ResponseWriter, request *http.Request) {
 	var setupRequest struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
+		Username         string `json:"username"`
+		Password         string `json:"password"`
+		OpenRouterAPIKey string `json:"openrouter_api_key"`
 	}
 
 	if decodeError := json.NewDecoder(request.Body).Decode(&setupRequest); decodeError != nil {
@@ -34,6 +37,11 @@ func (server *Server) handleAuthSetup(responseWriter http.ResponseWriter, reques
 		return
 	}
 
+	if setupRequest.OpenRouterAPIKey == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "OpenRouter API Key is required", nil)
+		return
+	}
+
 	// Check if any users already exist
 	var userCount int
 	databaseError := server.database.QueryRow("SELECT COUNT(*) FROM users").Scan(&userCount)
@@ -43,13 +51,27 @@ func (server *Server) handleAuthSetup(responseWriter http.ResponseWriter, reques
 	}
 
 	if userCount > 0 {
-		server.writeError(responseWriter, http.StatusForbidden, "ALREADY_CONFIGURED", "Initial setup has already been completed", nil)
+		server.writeError(responseWriter, http.StatusForbidden, "ALREADY_INITIALIZED", "Initial setup has already been completed", nil)
 		return
+	}
+
+	// Update configuration with the provided API key
+	server.configuration.Providers.OpenRouter.APIKey = setupRequest.OpenRouterAPIKey
+	if err := configuration.Save(server.configuration, server.configuration.ConfigurationPath); err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "CONFIGURATION_ERROR", "Failed to save configuration", nil)
+		return
+	}
+
+	// Update the running LLM provider with the new API key
+	if routingProvider, ok := server.llmProvider.(*llm.RoutingProvider); ok {
+		if openRouterProvider, ok := routingProvider.GetProvider("openrouter").(*llm.OpenRouterProvider); ok {
+			openRouterProvider.SetAPIKey(setupRequest.OpenRouterAPIKey)
+		}
 	}
 
 	passwordHash, passwordHashingError := bcrypt.GenerateFromPassword([]byte(setupRequest.Password), bcrypt.DefaultCost)
 	if passwordHashingError != nil {
-		server.writeError(responseWriter, http.StatusInternalServerError, "AUTH_ERROR", "Failed to hash password", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "AUTHENTICATION_ERROR", "Failed to hash password", nil)
 		return
 	}
 
@@ -110,12 +132,12 @@ func (server *Server) handleAuthLogin(responseWriter http.ResponseWriter, reques
 	var user models.User
 	databaseError := server.database.QueryRow("SELECT id, username, password_hash, role FROM users WHERE username = ?", loginRequest.Username).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.Role)
 	if databaseError == sql.ErrNoRows {
-		server.writeError(responseWriter, http.StatusUnauthorized, "AUTH_ERROR", "Invalid username or password", nil)
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid username or password", nil)
 		return
 	}
 
 	if passwordMatchError := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(loginRequest.Password)); passwordMatchError != nil {
-		server.writeError(responseWriter, http.StatusUnauthorized, "AUTH_ERROR", "Invalid username or password", nil)
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid username or password", nil)
 		return
 	}
 

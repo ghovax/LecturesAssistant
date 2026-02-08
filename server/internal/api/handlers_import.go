@@ -63,7 +63,7 @@ func (server *Server) handleImport(responseWriter http.ResponseWriter, request *
 	}
 
 	if enqueuingError != nil {
-		server.writeError(responseWriter, http.StatusInternalServerError, "JOB_ERROR", "Failed to enqueue download job", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "BACKGROUND_JOB_ERROR", "Failed to enqueue download job", nil)
 		return
 	}
 

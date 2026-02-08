@@ -5,12 +5,14 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"sync"
 
 	openrouter "github.com/revrost/go-openrouter"
 )
 
 type OpenRouterProvider struct {
-	client *openrouter.Client
+	client      *openrouter.Client
+	clientMutex sync.RWMutex
 }
 
 func NewOpenRouterProvider(apiKey string) *OpenRouterProvider {
@@ -19,11 +21,21 @@ func NewOpenRouterProvider(apiKey string) *OpenRouterProvider {
 	}
 }
 
+func (provider *OpenRouterProvider) SetAPIKey(apiKey string) {
+	provider.clientMutex.Lock()
+	defer provider.clientMutex.Unlock()
+	provider.client = openrouter.NewClient(apiKey)
+}
+
 func (provider *OpenRouterProvider) Name() string {
 	return "openrouter"
 }
 
 func (provider *OpenRouterProvider) Chat(jobContext context.Context, request *ChatRequest) (<-chan ChatResponseChunk, error) {
+	provider.clientMutex.RLock()
+	client := provider.client
+	provider.clientMutex.RUnlock()
+
 	// Safety check: ensure "openrouter:" prefix is stripped
 	modelName := strings.TrimPrefix(request.Model, "openrouter:")
 	request.Model = modelName
@@ -69,7 +81,7 @@ func (provider *OpenRouterProvider) Chat(jobContext context.Context, request *Ch
 		defer close(responseChannel)
 
 		if request.Stream {
-			completionStream, streamError := provider.client.CreateChatCompletionStream(jobContext, openrouter.ChatCompletionRequest{
+			completionStream, streamError := client.CreateChatCompletionStream(jobContext, openrouter.ChatCompletionRequest{
 				Model:    request.Model,
 				Messages: chatMessages,
 				Stream:   true,
@@ -103,7 +115,7 @@ func (provider *OpenRouterProvider) Chat(jobContext context.Context, request *Ch
 				}
 			}
 		} else {
-			chatResponse, chatError := provider.client.CreateChatCompletion(jobContext, openrouter.ChatCompletionRequest{
+			chatResponse, chatError := client.CreateChatCompletion(jobContext, openrouter.ChatCompletionRequest{
 				Model:    request.Model,
 				Messages: chatMessages,
 			})

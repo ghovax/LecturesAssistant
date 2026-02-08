@@ -32,11 +32,15 @@ func (server *Server) handleCreateExam(responseWriter http.ResponseWriter, reque
 	}
 
 	// Clean title and description
-	title, description, metrics, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), createExamRequest.Title, createExamRequest.Description, "")
-	slog.Info("Exam title/description polished",
-		"input_tokens", metrics.InputTokens,
-		"output_tokens", metrics.OutputTokens,
-		"estimated_cost_usd", metrics.EstimatedCost)
+	title, description, metrics, err := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), createExamRequest.Title, createExamRequest.Description, "")
+	if err != nil {
+		slog.Error("Failed to polish exam title/description", "error", err)
+	} else {
+		slog.Info("Exam title/description polished",
+			"input_tokens", metrics.InputTokens,
+			"output_tokens", metrics.OutputTokens,
+			"estimated_cost_usd", metrics.EstimatedCost)
+	}
 
 	userID := server.getUserID(request)
 
@@ -49,7 +53,7 @@ func (server *Server) handleCreateExam(responseWriter http.ResponseWriter, reque
 		UpdatedAt:   time.Now(),
 	}
 
-	_, err := server.database.Exec(`
+	_, err = server.database.Exec(`
 		INSERT INTO exams (id, user_id, title, description, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, exam.ID, exam.UserID, exam.Title, exam.Description, exam.CreatedAt, exam.UpdatedAt)
@@ -167,12 +171,18 @@ func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, reque
 			newDescription = *updateExamRequest.Description
 		}
 
-		cleanedTitle, cleanedDescription, metrics, _ := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), newTitle, newDescription, "")
-		slog.Info("Exam title/description updated and polished",
-			"examID", updateExamRequest.ExamID,
-			"input_tokens", metrics.InputTokens,
-			"output_tokens", metrics.OutputTokens,
-			"estimated_cost_usd", metrics.EstimatedCost)
+		cleanedTitle, cleanedDescription, metrics, err := server.toolGenerator.CorrectProjectTitleDescription(request.Context(), newTitle, newDescription, "")
+		if err != nil {
+			slog.Error("Failed to polish updated exam title/description", "examID", updateExamRequest.ExamID, "error", err)
+			cleanedTitle = newTitle
+			cleanedDescription = newDescription
+		} else {
+			slog.Info("Exam title/description updated and polished",
+				"examID", updateExamRequest.ExamID,
+				"input_tokens", metrics.InputTokens,
+				"output_tokens", metrics.OutputTokens,
+				"estimated_cost_usd", metrics.EstimatedCost)
+		}
 
 		if updateExamRequest.Title != nil {
 			query += ", title = ?"

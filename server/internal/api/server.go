@@ -229,7 +229,7 @@ func (server *Server) authMiddleware(next http.Handler) http.Handler {
 
 		sessionToken := server.getSessionToken(request)
 		if sessionToken == "" {
-			server.writeError(responseWriter, http.StatusUnauthorized, "AUTH_ERROR", "Authentication required", nil)
+			server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Authentication required", nil)
 			return
 		}
 
@@ -237,12 +237,12 @@ func (server *Server) authMiddleware(next http.Handler) http.Handler {
 		var expiresAt time.Time
 		databaseError := server.database.QueryRow("SELECT user_id, expires_at FROM auth_sessions WHERE id = ?", sessionToken).Scan(&userID, &expiresAt)
 		if databaseError != nil {
-			server.writeError(responseWriter, http.StatusUnauthorized, "AUTH_ERROR", "Invalid session", nil)
+			server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid session", nil)
 			return
 		}
 
 		if time.Now().After(expiresAt) {
-			server.writeError(responseWriter, http.StatusUnauthorized, "AUTH_ERROR", "Session expired", nil)
+			server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Session expired", nil)
 			return
 		}
 

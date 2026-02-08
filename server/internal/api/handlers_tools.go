@@ -99,7 +99,7 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 	}, createToolRequest.ExamID, createToolRequest.LectureID)
 
 	if err != nil {
-		server.writeError(responseWriter, http.StatusInternalServerError, "JOB_ERROR", "Failed to create generation job", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "BACKGROUND_JOB_ERROR", "Failed to create generation job", nil)
 		return
 	}
 
@@ -274,7 +274,7 @@ func (server *Server) handleExportTool(responseWriter http.ResponseWriter, reque
 	}, exportRequest.ExamID, "")
 
 	if enqueuingError != nil {
-		server.writeError(responseWriter, http.StatusInternalServerError, "JOB_ERROR", "Failed to create export job", nil)
+		server.writeError(responseWriter, http.StatusInternalServerError, "BACKGROUND_JOB_ERROR", "Failed to create export job", nil)
 		return
 	}
 

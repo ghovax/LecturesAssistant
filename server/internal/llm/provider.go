@@ -68,6 +68,12 @@ func (routingProvider *RoutingProvider) Register(name string, provider Provider)
 	routingProvider.providers[name] = provider
 }
 
+func (routingProvider *RoutingProvider) GetProvider(name string) Provider {
+	routingProvider.providersMutex.RLock()
+	defer routingProvider.providersMutex.RUnlock()
+	return routingProvider.providers[name]
+}
+
 func (routingProvider *RoutingProvider) Chat(jobContext context.Context, request *ChatRequest) (<-chan ChatResponseChunk, error) {
 	originalModelName := request.Model
 	providerName := ""

@@ -109,7 +109,7 @@ func (client *WSClient) isSubscribed(channel string) bool {
 func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, request *http.Request) {
 	sessionToken := server.getSessionToken(request)
 	if sessionToken == "" {
-		server.writeError(responseWriter, http.StatusUnauthorized, "AUTH_ERROR", "Authentication required", nil)
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Authentication required", nil)
 		return
 	}
 
@@ -118,7 +118,7 @@ func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, reques
 	var expiresAt time.Time
 	databaseError := server.database.QueryRow("SELECT user_id, expires_at FROM auth_sessions WHERE id = ?", sessionToken).Scan(&userID, &expiresAt)
 	if databaseError != nil || time.Now().After(expiresAt) {
-		server.writeError(responseWriter, http.StatusUnauthorized, "AUTH_ERROR", "Invalid or expired session", nil)
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid or expired session", nil)
 		return
 	}
 

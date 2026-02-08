@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { apiFetch } from '$lib/api';
+	import { notifications } from '$lib/notifications';
 
 	const examID = $derived(page.params.id);
 	const toolID = $derived(page.params.tool_id);
@@ -28,9 +29,9 @@
 				method: 'POST',
 				body: { tool_id: toolID, exam_id: examID, format }
 			});
-			alert('Export job created: ' + res.job_id + '. Check the Jobs page for the download link.');
+			notifications.success('Export job created. Check the Activity page for the download link.');
 		} catch (e) {
-			alert('Export failed: ' + e.message);
+			notifications.error('Export failed: ' + e.message);
 		} finally {
 			exporting = false;
 		}

@@ -649,12 +649,22 @@ func RegisterHandlers(
 		var totalMetrics models.JobMetrics
 
 		var payload struct {
-			ToolID       string `json:"tool_id"`
-			LanguageCode string `json:"language_code"`
-			Format       string `json:"format"` // "pdf", "docx", "md"
+			ToolID        string          `json:"tool_id"`
+			LanguageCode  string          `json:"language_code"`
+			Format        string          `json:"format"` // "pdf", "docx", "md"
+			IncludeImages json.RawMessage `json:"include_images"`
 		}
 		if unmarshalingError := json.Unmarshal([]byte(job.Payload), &payload); unmarshalingError != nil {
 			return fmt.Errorf("failed to unmarshal job payload: %w", unmarshalingError)
+		}
+
+		// Parse include_images boolean (it might be a string "true" or a boolean true)
+		includeImages := true
+		if len(payload.IncludeImages) > 0 {
+			rawStr := string(payload.IncludeImages)
+			if rawStr == "false" || rawStr == `"false"` {
+				includeImages = false
+			}
 		}
 
 		if payload.Format == "" {
@@ -666,6 +676,12 @@ func RegisterHandlers(
 		queryError := database.QueryRow("SELECT id, exam_id, type, title, language_code, content, created_at FROM tools WHERE id = ?", payload.ToolID).Scan(&tool.ID, &examID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.Content, &tool.CreatedAt)
 		if queryError != nil {
 			return fmt.Errorf("failed to get tool: %w", queryError)
+		}
+
+		// Fetch Exam Title
+		var examTitle string
+		if err := database.QueryRow("SELECT title FROM exams WHERE id = ?", examID).Scan(&examTitle); err != nil {
+			slog.Warn("Failed to fetch exam title for metadata", "examID", examID, "error", err)
 		}
 
 		if payload.LanguageCode == "" {
@@ -754,82 +770,83 @@ func RegisterHandlers(
 			markdownParser := markdown.NewParser()
 			ast := markdownParser.Parse(contentToConvert)
 
-			// 1. Get structured citation metadata from DB (The Source of Truth)
-			citationMetadata := make(map[int]struct {
-				File  string
-				Pages []int
-			})
-			refRows, err := database.Query("SELECT source_id, metadata FROM tool_source_references WHERE tool_id = ?", tool.ID)
-			if err == nil {
-				for refRows.Next() {
-					var sourceID, metadataStr string
-					if err := refRows.Scan(&sourceID, &metadataStr); err == nil {
-						var meta struct {
-							FootnoteNumber int   `json:"footnote_number"`
-							Pages          []int `json:"pages"`
-						}
-						if json.Unmarshal([]byte(metadataStr), &meta) == nil {
-							citationMetadata[meta.FootnoteNumber] = struct {
-								File  string
-								Pages []int
-							}{File: sourceID, Pages: meta.Pages}
-						}
-					}
-				}
-				refRows.Close()
-			}
-
-			// 2. Manually enrich AST nodes with the reliable metadata
-			// This overrides any (possibly failed) regex attempts during parsing
-			var enrichNodeMetadata func(*markdown.Node)
-			enrichNodeMetadata = func(n *markdown.Node) {
-				if n.Type == markdown.NodeFootnote {
-					if info, ok := citationMetadata[n.FootnoteNumber]; ok {
-						n.SourceFile = info.File
-						n.SourcePages = info.Pages
-					}
-				}
-				for _, child := range n.Children {
-					enrichNodeMetadata(child)
-				}
-			}
-			enrichNodeMetadata(ast)
-
-			// 3. Pre-fetch all page paths for this exam
-			pageMap := make(map[string]string) // Key: "filename:page"
-			slog.Info("Pre-fetching page image paths from database", "examID", examID)
-			rows, err := database.Query(`
-				SELECT rd.original_filename, rd.title, rp.page_number, rp.image_path
-				FROM reference_pages rp
-				JOIN reference_documents rd ON rp.document_id = rd.id
-				JOIN lectures l ON rd.lecture_id = l.id
-				WHERE l.exam_id = ?
-			`, examID)
-			if err == nil {
-				for rows.Next() {
-					var origFile, title, path string
-					var pageNum int
-					if err := rows.Scan(&origFile, &title, &pageNum, &path); err == nil {
-						if origFile != "" {
-							pageMap[fmt.Sprintf("%s:%d", origFile, pageNum)] = path
-						}
-						if title != "" {
-							pageMap[fmt.Sprintf("%s:%d", title, pageNum)] = path
+			if includeImages {
+				// 1. Get structured citation metadata from DB (The Source of Truth)
+				citationMetadata := make(map[int]struct {
+					File  string
+					Pages []int
+				})
+				refRows, err := database.Query("SELECT source_id, metadata FROM tool_source_references WHERE tool_id = ?", tool.ID)
+				if err == nil {
+					for refRows.Next() {
+						var sourceID, metadataStr string
+						if err := refRows.Scan(&sourceID, &metadataStr); err == nil {
+							var meta struct {
+								FootnoteNumber int   `json:"footnote_number"`
+								Pages          []int `json:"pages"`
+							}
+							if json.Unmarshal([]byte(metadataStr), &meta) == nil {
+								citationMetadata[meta.FootnoteNumber] = struct {
+									File  string
+									Pages []int
+								}{File: sourceID, Pages: meta.Pages}
+							}
 						}
 					}
+					refRows.Close()
 				}
-				rows.Close()
-			}
-			slog.Info("Pre-fetched pages for enrichment", "count", len(pageMap))
 
-			imageResolver := func(filename string, pageNumber int) string {
-				key := fmt.Sprintf("%s:%d", filename, pageNumber)
-				return pageMap[key]
-			}
+				// 2. Manually enrich AST nodes with the reliable metadata
+				var enrichNodeMetadata func(*markdown.Node)
+				enrichNodeMetadata = func(node *markdown.Node) {
+					if node.Type == markdown.NodeFootnote {
+						if info, ok := citationMetadata[node.FootnoteNumber]; ok {
+							node.SourceFile = info.File
+							node.SourcePages = info.Pages
+						}
+					}
+					for _, child := range node.Children {
+						enrichNodeMetadata(child)
+					}
+				}
+				enrichNodeMetadata(ast)
 
-			slog.Info("Starting AST enrichment with cited images")
-			markdown.EnrichWithCitedImages(ast, imageResolver)
-			slog.Info("Finished AST enrichment with cited images")
+				// 3. Pre-fetch all page paths for this exam
+				pageMap := make(map[string]string) // Key: "filename:page"
+				slog.Info("Pre-fetching page image paths from database", "examID", examID)
+				rows, err := database.Query(`
+					SELECT reference_documents.original_filename, reference_documents.title, reference_pages.page_number, reference_pages.image_path
+					FROM reference_pages
+					JOIN reference_documents ON reference_pages.document_id = reference_documents.id
+					JOIN lectures ON reference_documents.lecture_id = lectures.id
+					WHERE lectures.exam_id = ?
+				`, examID)
+				if err == nil {
+					for rows.Next() {
+						var originalFilename, title, imagePath string
+						var pageNumber int
+						if err := rows.Scan(&originalFilename, &title, &pageNumber, &imagePath); err == nil {
+							if originalFilename != "" {
+								pageMap[fmt.Sprintf("%s:%d", originalFilename, pageNumber)] = imagePath
+							}
+							if title != "" {
+								pageMap[fmt.Sprintf("%s:%d", title, pageNumber)] = imagePath
+							}
+						}
+					}
+					rows.Close()
+				}
+				slog.Info("Pre-fetched pages for enrichment", "count", len(pageMap))
+
+				imageResolver := func(filename string, pageNumber int) string {
+					key := fmt.Sprintf("%s:%d", filename, pageNumber)
+					return pageMap[key]
+				}
+
+				slog.Info("Starting AST enrichment with cited images")
+				markdown.EnrichWithCitedImages(ast, imageResolver)
+				slog.Info("Finished AST enrichment with cited images")
+			}
 
 			markdownReconstructor := markdown.NewReconstructor()
 			markdownReconstructor.Language = payload.LanguageCode
@@ -851,9 +868,9 @@ func RegisterHandlers(
 		}
 		var lectures []lectureMeta
 		for lectureRows.Next() {
-			var l lectureMeta
-			if err := lectureRows.Scan(&l.id, &l.specifiedDate); err == nil {
-				lectures = append(lectures, l)
+			var lecture lectureMeta
+			if err := lectureRows.Scan(&lecture.id, &lecture.specifiedDate); err == nil {
+				lectures = append(lectures, lecture)
 			}
 		}
 		lectureRows.Close()
@@ -927,6 +944,7 @@ func RegisterHandlers(
 		options := markdown.ConversionOptions{
 			Language:       payload.LanguageCode,
 			Description:    abstract,
+			CourseTitle:    examTitle,
 			CreationDate:   finalDate,
 			ReferenceFiles: referenceFiles,
 			AudioFiles:     audioFiles,

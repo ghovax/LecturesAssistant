@@ -1,3 +1,5 @@
+{{language_requirement}}
+
 The footnote must be fixed to be a standalone piece of content detailing what has been referenced, without any reference to files or pages. Each footnote must be a complete, grammatically correct sentence or phrase that stands alone as a complete thought, being formed into a normal sentence, with correct grammar, syntax and punctuation. It is absolutely critical that even the shortest or most fragmented input is transformed into a full, coherent, and polished sentence.
 
 **Strict Negative Constraints (Extremely Critical):**

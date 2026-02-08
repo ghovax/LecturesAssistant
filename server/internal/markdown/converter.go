@@ -61,6 +61,7 @@ type AudioFileMetadata struct {
 type ConversionOptions struct {
 	Language       string
 	Description    string
+	CourseTitle    string
 	CreationDate   time.Time
 	ReferenceFiles []ReferenceFileMetadata
 	AudioFiles     []AudioFileMetadata
@@ -211,6 +212,12 @@ func (converter *ExternalConverter) FormatDuration(durationSeconds int64, langua
 func (converter *ExternalConverter) GenerateMetadataHeader(options ConversionOptions) string {
 	var builder strings.Builder
 
+	// 0. Course
+	if options.CourseTitle != "" {
+		courseLabel := getI18nLabel(options.Language, "course_label")
+		fmt.Fprintf(&builder, "**%s**: %s\n\n", courseLabel, options.CourseTitle)
+	}
+
 	// 1. Date
 	if !options.CreationDate.IsZero() {
 		dateLabel := getI18nLabel(options.Language, "date_label")
@@ -291,9 +298,14 @@ func (converter *ExternalConverter) writeMetadataFile(path string, options Conve
 	fmt.Fprintf(&builder, "lang: \"%s\"\n", options.Language)
 
 	// Add translated labels for the template
+	fmt.Fprintf(&builder, "course-title-label: \"%s\"\n", getI18nLabel(options.Language, "course_label"))
 	fmt.Fprintf(&builder, "abstract-title: \"%s\"\n", getI18nLabel(options.Language, "abstract"))
 	fmt.Fprintf(&builder, "audio-files-title: \"%s\"\n", getI18nLabel(options.Language, "audio_files"))
 	fmt.Fprintf(&builder, "reference-files-title: \"%s\"\n", getI18nLabel(options.Language, "reference_files"))
+
+	if options.CourseTitle != "" {
+		fmt.Fprintf(&builder, "course-title: \"%s\"\n", strings.ReplaceAll(options.CourseTitle, "\"", "\\\""))
+	}
 
 	if options.Description != "" {
 		fmt.Fprintf(&builder, "abstract: \"%s\"\n", strings.ReplaceAll(options.Description, "\"", "\\\""))

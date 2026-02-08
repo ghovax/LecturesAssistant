@@ -253,7 +253,7 @@ func (generator *ToolGenerator) analyzeStructureWithRetries(jobContext context.C
 			title := generator.parseTitle(response)
 			slog.Debug("Cleaning document title", "original_title", title)
 
-			cleanedTitle, titleMetrics, err := generator.CleanDocumentTitle(jobContext, title, options)
+			cleanedTitle, titleMetrics, err := generator.CleanDocumentTitle(jobContext, title, language, options)
 			if err == nil {
 				metrics.InputTokens += titleMetrics.InputTokens
 				metrics.OutputTokens += titleMetrics.OutputTokens
@@ -310,7 +310,7 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 	sections := generator.parseStructure(structure)
 
 	initialContextTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptStudyGuideInitialContext, nil)
-	languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{"language": language, "bcp_47_lang_code": language})
+	languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{"language": language, "language_code": language})
 	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 
 	citationInstructions := ""
@@ -570,8 +570,8 @@ func (generator *ToolGenerator) processFootnoteBatch(jobContext context.Context,
 
 	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 	languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{
-		"language":         languageCode,
-		"bcp_47_lang_code": languageCode,
+		"language":      languageCode,
+		"language_code": languageCode,
 	})
 
 	var markdownBuilder strings.Builder
@@ -918,7 +918,7 @@ func (generator *ToolGenerator) minimumInt(a, b int) int {
 	return b
 }
 
-func (generator *ToolGenerator) CleanDocumentTitle(jobContext context.Context, title string, options models.GenerationOptions) (string, models.JobMetrics, error) {
+func (generator *ToolGenerator) CleanDocumentTitle(jobContext context.Context, title string, languageCode string, options models.GenerationOptions) (string, models.JobMetrics, error) {
 	if title == "" || title == "Untitled Document" || generator.llmProvider == nil {
 		return title, models.JobMetrics{}, nil
 	}
@@ -926,8 +926,14 @@ func (generator *ToolGenerator) CleanDocumentTitle(jobContext context.Context, t
 	var prompt string
 	var err error
 	if generator.promptManager != nil {
+		languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{
+			"language":      languageCode,
+			"language_code": languageCode,
+		})
+
 		prompt, err = generator.promptManager.GetPrompt(prompts.PromptCleanDocumentTitle, map[string]string{
-			"title": title,
+			"title":                title,
+			"language_requirement": languageRequirement,
 		})
 		if err != nil {
 			return title, models.JobMetrics{}, err
@@ -1051,8 +1057,8 @@ func (generator *ToolGenerator) GenerateAbstract(jobContext context.Context, doc
 	if generator.promptManager != nil {
 		latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 		languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{
-			"language":         languageCode,
-			"bcp_47_lang_code": languageCode,
+			"language":      languageCode,
+			"language_code": languageCode,
 		})
 		prompt, _ = generator.promptManager.GetPrompt(prompts.PromptGenerateDocumentDescription, map[string]string{
 			"document_content":     documentMarkdown,
@@ -1097,8 +1103,8 @@ func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, l
 	if generator.promptManager != nil {
 		latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 		languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{
-			"language":         languageCode,
-			"bcp_47_lang_code": languageCode,
+			"language":      languageCode,
+			"language_code": languageCode,
 		})
 		prompt, _ = generator.promptManager.GetPrompt(prompts.PromptGenerateFlashcards, map[string]string{
 			"language_requirement": languageRequirement,
@@ -1129,8 +1135,8 @@ func (generator *ToolGenerator) GenerateQuiz(jobContext context.Context, lecture
 	if generator.promptManager != nil {
 		latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 		languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{
-			"language":         languageCode,
-			"bcp_47_lang_code": languageCode,
+			"language":      languageCode,
+			"language_code": languageCode,
 		})
 		prompt, _ = generator.promptManager.GetPrompt(prompts.PromptGenerateQuiz, map[string]string{
 			"language_requirement": languageRequirement,

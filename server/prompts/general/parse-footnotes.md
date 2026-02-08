@@ -1,5 +1,7 @@
 # Footnote Parsing Task
 
+{{language_requirement}}
+
 You are given a set of footnotes to parse. Extract the metadata from each footnote including the file reference, page numbers, and page section (if mentioned). Return a JSON object containing an array of footnotes with their metadata.
 
 {{latex_instructions}}

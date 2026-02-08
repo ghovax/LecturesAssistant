@@ -88,6 +88,11 @@ $if(has-frontmatter)$
 $endif$
 $if(title)$
 \maketitle
+
+$if(course-title)$
+\noindent\textbf{$if(course-title-label)$$course-title-label$$else$Course$endif$:} $course-title$\\[1em]
+$endif$
+
 $if(abstract)$
 \begin{abstract}
 $if(abstract-title)$

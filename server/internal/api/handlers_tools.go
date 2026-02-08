@@ -227,9 +227,10 @@ func (server *Server) handleDeleteTool(responseWriter http.ResponseWriter, reque
 // handleExportTool triggers an export job for a specific tool (PDF, Docx, MD)
 func (server *Server) handleExportTool(responseWriter http.ResponseWriter, request *http.Request) {
 	var exportRequest struct {
-		ToolID string `json:"tool_id"`
-		ExamID string `json:"exam_id"`
-		Format string `json:"format"` // "pdf", "docx", "md"
+		ToolID        string `json:"tool_id"`
+		ExamID        string `json:"exam_id"`
+		Format        string `json:"format"` // "pdf", "docx", "md"
+		IncludeImages *bool  `json:"include_images"`
 	}
 
 	if decodingError := json.NewDecoder(request.Body).Decode(&exportRequest); decodingError != nil {
@@ -244,6 +245,11 @@ func (server *Server) handleExportTool(responseWriter http.ResponseWriter, reque
 
 	if exportRequest.Format == "" {
 		exportRequest.Format = "pdf"
+	}
+
+	includeImages := true
+	if exportRequest.IncludeImages != nil {
+		includeImages = *exportRequest.IncludeImages
 	}
 
 	userID := server.getUserID(request)
@@ -268,9 +274,10 @@ func (server *Server) handleExportTool(responseWriter http.ResponseWriter, reque
 
 	// Enqueue export job
 	jobIdentifier, enqueuingError := server.jobQueue.Enqueue(userID, models.JobTypePublishMaterial, map[string]string{
-		"tool_id":       exportRequest.ToolID,
-		"language_code": languageCode,
-		"format":        exportRequest.Format,
+		"tool_id":        exportRequest.ToolID,
+		"language_code":  languageCode,
+		"format":         exportRequest.Format,
+		"include_images": fmt.Sprintf("%v", includeImages),
 	}, exportRequest.ExamID, "")
 
 	if enqueuingError != nil {

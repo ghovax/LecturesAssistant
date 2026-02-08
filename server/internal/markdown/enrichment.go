@@ -54,15 +54,15 @@ func EnrichWithCitedImages(root *Node, resolver ImageResolver) {
 			citedInThisSection := make(map[string][]int) // File -> Pages
 
 			var findRefs func(*Node)
-			findRefs = func(n *Node) {
-				if n.Type == NodeParagraph || n.Type == NodeListItem {
-					matches := refRegex.FindAllStringSubmatch(n.Content, -1)
+			findRefs = func(node *Node) {
+				if node.Type == NodeParagraph || node.Type == NodeListItem {
+					matches := refRegex.FindAllStringSubmatch(node.Content, -1)
 					for _, match := range matches {
 						num := 0
 						fmt.Sscanf(match[1], "%d", &num)
 						if info, ok := footnoteMap[num]; ok && info.File != "" {
-							for _, p := range info.Pages {
-								citedInThisSection[info.File] = append(citedInThisSection[info.File], p)
+							for _, pageNumber := range info.Pages {
+								citedInThisSection[info.File] = append(citedInThisSection[info.File], pageNumber)
 							}
 						}
 					}
@@ -70,7 +70,7 @@ func EnrichWithCitedImages(root *Node, resolver ImageResolver) {
 
 				// Recurse into children ONLY if they are not sections themselves
 				// This ensures citations in a Level 3 subsection are not attributed to the Level 2 parent
-				for _, child := range n.Children {
+				for _, child := range node.Children {
 					if child.Type != NodeSection {
 						findRefs(child)
 					}
@@ -82,33 +82,33 @@ func EnrichWithCitedImages(root *Node, resolver ImageResolver) {
 			var imagesToInsert []*Node
 
 			var filenames []string
-			for f := range citedInThisSection {
-				filenames = append(filenames, f)
+			for filename := range citedInThisSection {
+				filenames = append(filenames, filename)
 			}
 			sort.Strings(filenames)
 
-			for _, f := range filenames {
-				pages := citedInThisSection[f]
+			for _, filename := range filenames {
+				pages := citedInThisSection[filename]
 				uniquePages := make(map[int]bool)
-				for _, p := range pages {
-					uniquePages[p] = true
+				for _, pageNumber := range pages {
+					uniquePages[pageNumber] = true
 				}
 				var sortedPages []int
-				for p := range uniquePages {
-					sortedPages = append(sortedPages, p)
+				for pageNumber := range uniquePages {
+					sortedPages = append(sortedPages, pageNumber)
 				}
 				sort.Ints(sortedPages)
 
-				for _, p := range sortedPages {
-					key := fmt.Sprintf("%s:%d", f, p)
+				for _, pageNumber := range sortedPages {
+					key := fmt.Sprintf("%s:%d", filename, pageNumber)
 					if !insertedPages[key] {
-						imagePath := resolver(f, p)
+						imagePath := resolver(filename, pageNumber)
 						if imagePath != "" {
 							imagesToInsert = append(imagesToInsert, &Node{
 								Type:        NodeImage,
 								Content:     imagePath,
-								SourceFile:  f,
-								SourcePages: []int{p},
+								SourceFile:  filename,
+								SourcePages: []int{pageNumber},
 							})
 							insertedPages[key] = true
 						}

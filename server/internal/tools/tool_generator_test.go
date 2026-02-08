@@ -219,7 +219,7 @@ func TestToolGenerator_ModelFallbackLogic(tester *testing.T) {
 	// Case 4: Polishing fallback
 	polishingMock := &UnbreakableSequentialMock{Responses: []string{`{"title": "Clean"}`}}
 	polishingGenerator := NewToolGenerator(globalConfig, polishingMock, nil)
-	_, _, _ = polishingGenerator.CleanDocumentTitle(context.Background(), "Dirty", models.GenerationOptions{})
+	_, _, _ = polishingGenerator.CleanDocumentTitle(context.Background(), "Dirty", "en-US", models.GenerationOptions{})
 	if polishingMock.ModelsUsed[0] != "polishing-model" {
 		tester.Errorf("Case 4: Expected 'polishing-model', got %s", polishingMock.ModelsUsed[0])
 	}
@@ -242,7 +242,7 @@ func TestToolGenerator_CostLimitEnforcement(tester *testing.T) {
 
 	generator := NewToolGenerator(config, mockLLM, nil)
 
-	_, _, err := generator.CleanDocumentTitle(context.Background(), "Title", models.GenerationOptions{})
+	_, _, err := generator.CleanDocumentTitle(context.Background(), "Title", "en-US", models.GenerationOptions{})
 	if err == nil {
 		tester.Fatal("Expected error due to safety threshold, got nil")
 	}

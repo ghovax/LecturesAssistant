@@ -510,8 +510,8 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 	if server.promptManager != nil {
 		latexInstructions, _ := server.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 		languageRequirement, _ := server.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{
-			"language":         languageCode,
-			"bcp_47_lang_code": languageCode,
+			"language":      languageCode,
+			"language_code": languageCode,
 		})
 
 		var promptError error

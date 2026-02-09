@@ -47,12 +47,12 @@ func setupUniqueExtraTestEnv(t *testing.T, testName string) (*Server, string, st
 	jobQueue := jobs.NewQueue(db, 1)
 	mockLLM := &MockLLMProvider{ResponseText: `{"title": "Suggested Title", "description": "Suggested Description"}`}
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
-	
+
 	// Register handlers for Suggest test
 	jobs.RegisterHandlers(jobQueue, db, config, nil, nil, toolGenerator, &MockMarkdownConverter{}, nil, nil)
-	
+
 	jobQueue.Start()
-	
+
 	server := NewServer(config, db, jobQueue, mockLLM, nil, toolGenerator, &MockMarkdownConverter{})
 
 	cleanup := func() {
@@ -76,7 +76,7 @@ func TestHandleAuthChangePassword(t *testing.T) {
 	req := httptest.NewRequest("PATCH", "/api/auth/password", bytes.NewBuffer(body))
 	req.Header.Set("Authorization", "Bearer "+sessionID)
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	
+
 	rr := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rr, req)
 
@@ -104,7 +104,7 @@ func TestHandleUpdateTool(t *testing.T) {
 	req := httptest.NewRequest("PATCH", "/api/tools/details", bytes.NewBuffer(body))
 	req.Header.Set("Authorization", "Bearer "+sessionID)
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	
+
 	rr := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rr, req)
 
@@ -142,7 +142,7 @@ func TestHandleUpdateTranscript(t *testing.T) {
 	req := httptest.NewRequest("PATCH", "/api/transcripts", bytes.NewBuffer(body))
 	req.Header.Set("Authorization", "Bearer "+sessionID)
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	
+
 	rr := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rr, req)
 
@@ -176,7 +176,7 @@ func TestHandleDeleteMedia(t *testing.T) {
 	req := httptest.NewRequest("DELETE", "/api/media", bytes.NewBuffer(body))
 	req.Header.Set("Authorization", "Bearer "+sessionID)
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	
+
 	rr := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rr, req)
 
@@ -206,7 +206,7 @@ func TestHandleExamSearch(t *testing.T) {
 	req := httptest.NewRequest("GET", "/api/exams/search?exam_id="+examID+"&query=unique-search-keyword", nil)
 	req.Header.Set("Authorization", "Bearer "+sessionID)
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	
+
 	rr := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rr, req)
 
@@ -235,7 +235,7 @@ func TestHandleExamSuggest(t *testing.T) {
 	req := httptest.NewRequest("POST", "/api/exams/suggest", bytes.NewBuffer(body))
 	req.Header.Set("Authorization", "Bearer "+sessionID)
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	
+
 	rr := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rr, req)
 

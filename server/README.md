@@ -1,162 +1,132 @@
 # Learning Assistant Server
 
-Backend server for the learning assistant application written in Go.
+The backend server for the Learning Assistant application, built with Go. It leverages AI to transform lecture recordings and reference documents into comprehensive study materials, providing a robust REST API and real-time updates via WebSockets.
+
+## Features
+
+- **Multi-modal AI Pipeline**: Automatic transcription of audio/video and intelligent OCR/interpretation of PDF, PPTX, and DOCX files.
+- **Study Tool Generation**: Creation of high-fidelity study guides, flashcards, and quizzes with deep grounding in provided materials.
+- **Intelligent Chat**: A reading assistant that can answer questions based on the context of multiple lectures and documents.
+- **Robust Export Engine**: Export generated study tools to PDF (via XeLaTeX), Docx, and Markdown.
+- **Reliable Uploads**: A "Stage-and-Bind" protocol designed for large multi-gigabyte media files.
+- **Asynchronous Processing**: Scalable background job queue for heavy AI tasks.
+- **Cross-Provider LLM Support**: Native integration with OpenRouter (Cloud) and Ollama (Local).
 
 ## Architecture
 
-- **Multi-Tenant Security**: Full data isolation between users. Resources (Exams, Lectures, Jobs) are owned by specific users.
-- **API Layer** (`internal/api`): Clean RESTful API handlers using a Stage-and-Bind architecture with JWT-like session management.
-- **Job Queue** (`internal/jobs`): Asynchronous background job processing for heavy AI tasks.
-- **Database** (`internal/database`): SQLite database with a robust schema and resource boundary enforcement.
-- **Transcription** (`internal/transcription`): Multi-segment processing with LLM polishing and variable batch sizes.
-- **Documents** (`internal/documents`): PDF/PPTX/DOCX processing and Vision LLM OCR.
-- **LLM** (`internal/llm`): Provider-agnostic interface for OpenRouter and Ollama with granular task-specific model selection.
+- **Security**: Multi-tenant isolation with JWT-like session management and CSRF protection.
+- **Concurrency**: SQLite in WAL mode with a managed worker pool for background tasks.
+- **Observability**: Structured JSON logging using `slog` with automatic file rotation.
+- **Scalability**: Decoupled LLM provider interface allowing for granular task-specific model selection.
 
 ## Logical Configuration (`configuration.yaml`)
 
-The server configuration is organized into task-specific operational settings and global provider credentials.
+The server uses a hierarchical configuration structure. A default file is created at `~/.lectures/configuration.yaml` on the first run.
 
-### Key Sections:
+### Key Sections
 
-- **`llm`**: Global fallback model and granular model selection for ingestion, generation, polishing, etc.
-- **`transcription`**: Provider and model settings for audio processing.
-- **`providers`**: Centralized API keys and base URLs for OpenRouter and Ollama.
-- **`safety`**: Global thresholds for maximum cost per job, maximum retries for self-healing loops, and login rate limiting.
+- **`llm`**: Global provider settings and task-specific model routing (e.g., `outline_creation`, `content_generation`).
+- **`transcription`**: Chunking strategies and refining batch sizes for audio processing.
+- **`uploads`**: File size limits and supported formats for media and documents.
+- **`safety`**: Budget controls (max cost per job), retry thresholds, and rate limiting.
+- **`storage`**: Data directory paths for database and permanent file storage.
 
-## Staged Upload Protocol (Prepare, Append, Stage, Import)
+## Staged Upload Protocol
 
-The server employs a robust "Stage-and-Bind" protocol for all binary materials (Recordings, Videos, PDFs). This ensures efficiency for small files and resilience for massive multi-gigabyte uploads.
+To handle massive file uploads reliably, the server employs a 4-step "Stage-and-Bind" protocol:
 
-### Workflow: 0 to Hero
+1.  **Prepare** (`POST /api/uploads/prepare`): Initialize a session and declare the expected file size.
+2.  **Append** (`POST /api/uploads/append`): Stream binary chunks. Supports resumable uploads.
+3.  **Stage** (`POST /api/uploads/stage`): Finalize the asset in the staging area.
+4.  **Bind** (`POST /api/lectures`): Create a logical resource and move the staged assets to permanent storage.
 
-1.  **Prepare**: Initialize a staging session.
-    - `POST /api/uploads/prepare`: `{"filename": "lecture.mp4", "file_size_bytes": 1024}`
-    - Returns an `upload_id`.
-2.  **Append**: Stream binary data (supports resumable chunking).
-    - `POST /api/uploads/append?upload_id=XYZ`
-    - Body: `[Binary Octet-Stream]`
-    - Progress is broadcasted in real-time via WebSockets.
-3.  **Stage**: Finalize and lock the asset in the staging area.
-    - `POST /api/uploads/stage`: `{"upload_id": "XYZ"}`
-    - The asset is now ready for binding.
-4.  **Import**: Trigger an asynchronous import from an external provider (e.g., Google Drive).
-    - `POST /api/uploads/import`: `{"source": "google_drive", "data": {"file_id": "...", "oauth_token": "..."}}`
-    - Returns a `job_id` to track the download and staging.
-5.  **Bind**: Create the logical resource (e.g., a Lecture) and bind staged assets.
-    - `POST /api/lectures`: (Multipart Form) `exam_id`, `title`, `description`, `specified_date`, `media_upload_ids[]`, `document_upload_ids[]`.
-    - Assets are instantly moved to permanent storage and AI jobs are enqueued.
+---
 
 ## API Endpoints
 
-### Public
-
-- `GET /api/health`: Check server health and version.
-- `POST /api/auth/setup`: Create the initial admin user (only works if no users exist).
-- `POST /api/auth/login`: Authenticate and receive a session token (via cookie and JSON).
-- `GET /api/auth/status`: Check current session and user details.
-
-### Authentication (Requires Session)
-
+### Authentication
+- `POST /api/auth/setup`: Create the initial admin user (enabled only if no users exist).
+- `POST /api/auth/login`: Authenticate and receive a session token.
+- `GET /api/auth/status`: Check current session validity and user details.
 - `POST /api/auth/logout`: Invalidate the current session.
+- `PATCH /api/auth/password`: Change the authenticated user's password.
 
-### Exams
+### Exams & Management
+- `GET | POST /api/exams`: List or create exams.
+- `GET /api/exams/details`: Get metadata for a specific exam.
+- `PATCH /api/exams`: Update exam title or description.
+- `DELETE /api/exams`: Cascading delete of an exam and all associated data.
+- `GET /api/exams/search`: Global keyword search across all transcripts and documents in an exam.
+- `POST /api/exams/suggest`: Trigger an AI job to suggest improved metadata for the exam.
+- `GET /api/exams/concepts`: Retrieve a "concept map" or glossary generated from study tools.
 
-- `GET /api/exams`: List exams for the current user.
-- `POST /api/exams`: Create a new exam.
-- `GET /api/exams/details?exam_id=...`: Get exam metadata.
-- `PATCH /api/exams`: Update exam. Body: `{"exam_id": "...", "title": "...", "description": "..."}`.
-- `DELETE /api/exams`: Delete exam and all associated data. Body: `{"exam_id": "..."}`.
+### Lectures & Transcripts
+- `GET | POST /api/lectures`: List or create lectures (supports direct multipart or binding staged IDs).
+- `GET /api/lectures/details`: Get lecture status and metadata.
+- `PATCH /api/lectures`: Update lecture details.
+- `DELETE /api/lectures`: Cancel active jobs and delete lecture assets.
+- `GET /api/media`: List all audio/video files associated with a lecture.
+- `GET /api/transcripts`: Retrieve the unified, polished transcript segments.
+- `PATCH /api/transcripts`: Manually refine transcript text.
+- `GET /api/transcripts/html`: Retrieve transcript segments converted to HTML.
 
-### Lectures & Materials
-
-- `GET /api/lectures?exam_id=...`: List lectures for an exam.
-- `POST /api/lectures`: Create a lecture and bind staged uploads (Supports direct multipart file upload as well).
-- `GET /api/lectures/details?lecture_id=...&exam_id=...`: Get lecture details.
-- `PATCH /api/lectures`: Update lecture. Body: `{"lecture_id": "...", "exam_id": "...", "title": "...", "description": "...", "specified_date": "..."}`.
-- `DELETE /api/lectures`: Delete lecture. Body: `{"lecture_id": "...", "exam_id": "..."}`.
-- `GET /api/media?lecture_id=...`: List ordered media files for a lecture.
-- `GET /api/transcripts?lecture_id=...`: Retrieve the unified, cleaned transcript.
-
-### Reference Documents
-
-- `GET /api/documents?lecture_id=...`: List all reference documents for a lecture.
-- `GET /api/documents/details?document_id=...&lecture_id=...`: Get document metadata.
-- `GET /api/documents/pages?document_id=...&lecture_id=...`: List extracted pages and their AI-interpreted content.
-- `GET /api/documents/pages/image?document_id=...&lecture_id=...&page_number=...`: Serve the rendered image of a specific page.
+### Documents & OCR
+- `GET /api/documents`: List all reference documents for a lecture.
+- `GET /api/documents/details`: Get document extraction status and metadata.
+- `GET /api/documents/pages`: List all extracted pages and their AI-interpreted content.
+- `GET /api/documents/pages/image`: Serve the rendered PNG image of a specific page.
+- `GET /api/documents/pages/html`: Get the interpreted content of a page as HTML.
 
 ### Study Tools
+- `GET | POST /api/tools`: List tools or trigger the generation of a new study guide, flashcard set, or quiz.
+- `GET /api/tools/details`: Get the tool content (JSON).
+- `PATCH /api/tools/details`: Update tool title or content.
+- `GET /api/tools/html`: Get tool content converted to formatted HTML.
+- `POST /api/tools/export`: Trigger an export job (PDF, Docx, MD, Anki).
+- `GET /api/exports/download`: Download a generated export file.
 
-- `GET /api/tools?exam_id=...`: List tools (filter with `?type=guide|flashcard|quiz`).
-- `POST /api/tools`: Trigger tool generation.
-- `GET /api/tools/details?tool_id=...&exam_id=...`: Get tool content.
-- `DELETE /api/tools`: Delete tool. Body: `{"tool_id": "...", "exam_id": "..."}`.
-- `POST /api/tools/export`: Trigger an export job (PDF, Docx, MD) for a tool. Body: `{"tool_id": "...", "exam_id": "...", "format": "..."}`.
-- `GET /api/exports/download?path=...`: Download a generated export file.
+### AI Chat
+- `GET | POST /api/chat/sessions`: Manage chat sessions scoped to an exam.
+- `GET /api/chat/sessions/details`: Get message history and active context configuration.
+- `PATCH /api/chat/sessions/context`: Update which lectures are currently "in-scope" for the assistant.
+- `POST /api/chat/messages`: Send a message and trigger an asynchronous, streaming AI response.
 
-### Chat Sessions
-
-- `GET /api/chat/sessions?exam_id=...`: List sessions in an exam.
-- `POST /api/chat/sessions`: Create session.
-- `GET /api/chat/sessions/details?session_id=...&exam_id=...`: Get history and context configuration.
-- `PATCH /api/chat/sessions/context`: Update active context. Body: `{"session_id": "...", "included_lecture_ids": [...], "included_tool_ids": [...]}`.
-- `DELETE /api/chat/sessions`: Delete session. Body: `{"session_id": "...", "exam_id": "..."}`.
-- `POST /api/chat/messages`: Send user message and trigger async AI response.
-
-### Jobs & Settings
-
-- `GET /api/jobs`: List recent background jobs for the current user.
-- `GET /api/jobs/details?job_id=...`: Get specific job status and results.
-- `DELETE /api/jobs`: Request job cancellation. Body: `{"job_id": "..."}`.
-- `GET /api/settings`: Get current operational preferences.
-- `PATCH /api/settings`: Update preferences (LLM models, themes).
+---
 
 ## WebSocket Protocol
 
-Connect to `ws://localhost:3000/api/socket` with a valid session token (Cookie or Authorization header).
+Connect to `ws://[host]/api/socket` with a valid session token.
 
-### Channels
-
+### Handshake & Messaging
 - **Subscribe**: `{"type": "subscribe", "channel": "job:<id> | upload:<id> | chat:<id>"}`
-- **Job Progress**: Received on `job:<id>` channel.
-- **Upload Progress**: Received on `upload:<id>` (from staging session).
-- **Chat Token**: Streaming assistant response on `chat:<id>`.
+- **Heartbeat**: Standard Ping/Pong frames every 30 seconds.
 
-## Development & Testing
+### Event Types
+- `upload:progress`: Real-time byte-level progress for staged uploads.
+- `job:progress`: Status updates, percentages, and metrics for background tasks.
+- `chat:token`: Incremental assistant response tokens for streaming UI.
+- `chat:complete`: Final message metadata including token usage and cost.
 
-### Initial Setup
+---
 
-1. **Configure the server**:
-   ```bash
-   cd server
-   cp configuration.yaml.example configuration.yaml
-   ```
-   Then edit `configuration.yaml` and add your API key for OpenRouter.
+## Deployment & Development
 
-2. **Install dependencies**:
-   ```bash
-   make deps
-   ```
-
-### Building
+### Using Docker (Recommended)
+The server can be deployed with all its system dependencies (FFmpeg, LibreOffice, Pandoc, Tectonic) using the provided Docker configuration.
 
 ```bash
-make build
+docker-compose up --build -d
 ```
+Access the server at `http://localhost:3000`.
 
-### Running
-
-```bash
-make run
-```
+### Local Setup
+1. **Install System Dependencies**: FFmpeg, Ghostscript, LibreOffice, Pandoc, and Tectonic.
+2. **Download Dependencies**: `make deps`
+3. **Build**: `make build`
+4. **Run**: `make run` or `make dev` (for development with auto-reload)
+5. **Clean**: `make clean` to remove build artifacts.
 
 ### Testing
-
-**Unit and integration tests**:
-```bash
-make test
-```
-
-**Full pipeline integration test**:
-```bash
-make test-integration
-```
+- **Unit Tests**: `make test`
+- **Integration Tests**: `make test-integration` (Requires real AI provider keys in `configuration.yaml`)
+- **Build All Platforms**: `make build-all`

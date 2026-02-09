@@ -45,7 +45,7 @@ func setupHTMLTestEnv(t *testing.T) (*Server, string, string, func()) {
 	jobQueue := jobs.NewQueue(db, 1)
 	mockLLM := &MockLLMProvider{}
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
-	
+
 	// Real converter might need pandoc/tectonic installed, so we use the mock
 	mockConverter := &MockMarkdownConverter{}
 
@@ -68,7 +68,7 @@ func TestHandleGetTranscriptHTML(t *testing.T) {
 	lectureID := "lecture-1"
 	_, _ = server.database.Exec("INSERT INTO exams (id, user_id, title) VALUES (?, ?, ?)", examID, "user-123", "Test Exam")
 	_, _ = server.database.Exec("INSERT INTO lectures (id, exam_id, title, status) VALUES (?, ?, ?, ?)", lectureID, examID, "Test Lecture", "ready")
-	
+
 	transcriptID := "trans-1"
 	_, _ = server.database.Exec("INSERT INTO transcripts (id, lecture_id, status) VALUES (?, ?, ?)", transcriptID, lectureID, "completed")
 	_, _ = server.database.Exec("INSERT INTO transcript_segments (transcript_id, text, start_millisecond, end_millisecond) VALUES (?, ?, ?, ?)", transcriptID, "Hello world.", 0, 1000)
@@ -77,7 +77,7 @@ func TestHandleGetTranscriptHTML(t *testing.T) {
 	req := httptest.NewRequest("GET", "/api/transcripts/html?lecture_id="+lectureID, nil)
 	req.Header.Set("Authorization", "Bearer "+sessionID)
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	
+
 	rr := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rr, req)
 
@@ -85,7 +85,7 @@ func TestHandleGetTranscriptHTML(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d. Body: %s", rr.Code, rr.Body.String())
 	}
-	
+
 	var apiResponse struct {
 		Data struct {
 			TranscriptID string `json:"transcript_id"`
@@ -103,7 +103,7 @@ func TestHandleGetTranscriptHTML(t *testing.T) {
 	if apiResponse.Data.TranscriptID != transcriptID {
 		t.Errorf("Expected transcript_id %s, got %s", transcriptID, apiResponse.Data.TranscriptID)
 	}
-	
+
 	if len(apiResponse.Data.Segments) != 1 {
 		t.Fatalf("Expected 1 segment, got %d", len(apiResponse.Data.Segments))
 	}
@@ -111,7 +111,7 @@ func TestHandleGetTranscriptHTML(t *testing.T) {
 	if !strings.Contains(apiResponse.Data.Segments[0].TextHTML, "Hello world") {
 		t.Errorf("Segment TextHTML missing content: %s", apiResponse.Data.Segments[0].TextHTML)
 	}
-	
+
 	if apiResponse.Data.Segments[0].StartMillisecond != 0 {
 		t.Errorf("Expected start_millisecond 0, got %d", apiResponse.Data.Segments[0].StartMillisecond)
 	}
@@ -135,7 +135,7 @@ func TestHandleGetPageHTML(t *testing.T) {
 	req := httptest.NewRequest("GET", url, nil)
 	req.Header.Set("Authorization", "Bearer "+sessionID)
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	
+
 	rr := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rr, req)
 
@@ -143,7 +143,7 @@ func TestHandleGetPageHTML(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d. Body: %s", rr.Code, rr.Body.String())
 	}
-	
+
 	if rr.Header().Get("Content-Type") != "text/html" {
 		t.Errorf("Expected content-type text/html, got %s", rr.Header().Get("Content-Type"))
 	}
@@ -173,7 +173,7 @@ Content of section 1.`
 	req := httptest.NewRequest("GET", url, nil)
 	req.Header.Set("Authorization", "Bearer "+sessionID)
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	
+
 	rr := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rr, req)
 
@@ -181,7 +181,7 @@ Content of section 1.`
 	if rr.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", rr.Code)
 	}
-	
+
 	var apiResponse struct {
 		Data struct {
 			ToolID      string `json:"tool_id"`
@@ -199,7 +199,7 @@ Content of section 1.`
 	if strings.Contains(apiResponse.Data.ContentHTML, "Top Title") {
 		t.Errorf("ContentHTML should not contain the top-level title. Got: %s", apiResponse.Data.ContentHTML)
 	}
-	
+
 	if !strings.Contains(apiResponse.Data.ContentHTML, "Section 1") {
 		t.Errorf("ContentHTML missing section content. Got: %s", apiResponse.Data.ContentHTML)
 	}
@@ -224,7 +224,7 @@ func TestHandleGetToolHTML_Flashcards(t *testing.T) {
 	req := httptest.NewRequest("GET", url, nil)
 	req.Header.Set("Authorization", "Bearer "+sessionID)
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	
+
 	rr := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rr, req)
 
@@ -232,7 +232,7 @@ func TestHandleGetToolHTML_Flashcards(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", rr.Code)
 	}
-	
+
 	var apiResponse struct {
 		Data struct {
 			Type    string `json:"type"`
@@ -262,10 +262,10 @@ func TestHandleGetToolHTML_Quiz(t *testing.T) {
 	toolID := "tool-1"
 	quiz := []map[string]any{
 		{
-			"question": "Q1",
-			"options": []string{"O1", "O2"},
+			"question":       "Q1",
+			"options":        []string{"O1", "O2"},
 			"correct_answer": "O1",
-			"explanation": "Exp 1",
+			"explanation":    "Exp 1",
 		},
 	}
 	quizJSON, _ := json.Marshal(quiz)
@@ -277,7 +277,7 @@ func TestHandleGetToolHTML_Quiz(t *testing.T) {
 	req := httptest.NewRequest("GET", url, nil)
 	req.Header.Set("Authorization", "Bearer "+sessionID)
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	
+
 	rr := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rr, req)
 
@@ -285,7 +285,7 @@ func TestHandleGetToolHTML_Quiz(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", rr.Code)
 	}
-	
+
 	var apiResponse struct {
 		Data struct {
 			Type    string `json:"type"`
@@ -306,7 +306,7 @@ func TestHandleGetToolHTML_Quiz(t *testing.T) {
 	if !strings.Contains(apiResponse.Data.Content[0].QuestionHTML, "Q1") {
 		t.Errorf("QuestionHTML incorrect: %s", apiResponse.Data.Content[0].QuestionHTML)
 	}
-	
+
 	if len(apiResponse.Data.Content[0].OptionsHTML) != 2 {
 		t.Errorf("Expected 2 options, got %d", len(apiResponse.Data.Content[0].OptionsHTML))
 	}

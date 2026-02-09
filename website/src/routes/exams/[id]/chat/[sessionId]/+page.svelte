@@ -56,7 +56,7 @@
                 included_lecture_ids: includedLectureIds,
                 included_tool_ids: [] // Future-proofing
             });
-            notifications.success('Study context updated.');
+            notifications.success('Your study context has been updated.');
         } catch (e: any) {
             notifications.error('Failed to update study context: ' + (e.message || e));
         } finally {

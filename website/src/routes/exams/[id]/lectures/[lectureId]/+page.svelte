@@ -136,7 +136,7 @@
                 type,
                 length: 'medium'
             });
-            notifications.success('Generation job created! Check the Jobs section.');
+            notifications.success('We are building your study kit. You can see the progress in the sidebar.');
         } catch (e: any) {
             notifications.error(e.message || e);
         }
@@ -187,22 +187,34 @@
 
     <div class="container-fluid p-0">
         <div class="row">
-            <!-- Sidebar: Study Materials & Transcript Nav -->
+            <!-- Sidebar: Navigation & Materials -->
             <div class="col-lg-3 col-md-4 order-md-2">
-                {#if tools.filter(t => t.type !== 'guide').length > 0}
-                    <h3>Study Kits</h3>
-                    <div class="linkTiles tileSizeMd mb-4">
-                        {#each tools.filter(t => t.type !== 'guide') as tool}
-                            <Tile href="/exams/{examId}/tools/{tool.id}" 
-                                icon={tool.type === 'flashcard' ? '札' : '問'} 
-                                title={tool.title}>
-                                {#snippet description()}
-                                    <span>{capitalize(tool.type)}</span>
-                                {/snippet}
-                            </Tile>
-                        {/each}
-                    </div>
-                {/if}
+                <h3>Dashboard</h3>
+                <div class="linkTiles tileSizeMd mb-4">
+                    {#if guideTool}
+                        <Tile href="#study-guide" icon="案" title="Study Guide">
+                            {#snippet description()}
+                                Comprehensive summary of this lecture.
+                            {/snippet}
+                        </Tile>
+                    {/if}
+
+                    <Tile href="#lesson-notes" icon="講" title="Transcript">
+                        {#snippet description()}
+                            The complete lecture dialogue and notes.
+                        {/snippet}
+                    </Tile>
+
+                    {#each tools.filter(t => t.type !== 'guide') as tool}
+                        <Tile href="/exams/{examId}/tools/{tool.id}" 
+                            icon={tool.type === 'flashcard' ? '札' : '問'} 
+                            title={capitalize(tool.type)}>
+                            {#snippet description()}
+                                Practice your knowledge.
+                            {/snippet}
+                        </Tile>
+                    {/each}
+                </div>
 
                 {#if activeJobs.some(j => j.status === 'RUNNING' || j.status === 'PENDING')}
                     <h3>Activity Progress</h3>
@@ -236,21 +248,20 @@
                     </div>
                 {/if}
 
-                <h3>Study Materials</h3>
-                <div class="linkTiles tileSizeMd mb-4">
-                    {#each documents as doc}
-                        <Tile href="/exams/{examId}/lectures/{lectureId}/documents/{doc.id}" 
-                                icon="資" 
-                                title={doc.title}>
-                            {#snippet description()}
-                                {doc.page_count} pages • {doc.extraction_status === 'completed' ? 'Ready to study' : 'Preparing...'}
-                            {/snippet}
-                        </Tile>
-                    {/each}
-                    {#if documents.length === 0}
-                        <div class="well text-center p-3 small text-muted">No materials yet.</div>
-                    {/if}
-                </div>
+                {#if documents.length > 0}
+                    <h3>Study Materials</h3>
+                    <div class="linkTiles tileSizeMd mb-4">
+                        {#each documents as doc}
+                            <Tile href="/exams/{examId}/lectures/{lectureId}/documents/{doc.id}" 
+                                    icon="資" 
+                                    title={doc.title}>
+                                {#snippet description()}
+                                    {doc.page_count} pages • {doc.extraction_status === 'completed' ? 'Ready' : 'Reading...'}
+                                {/snippet}
+                            </Tile>
+                        {/each}
+                    </div>
+                {/if}
 
                 {#if transcript && transcript.segments}
                     <h3>Transcript Index</h3>
@@ -271,12 +282,9 @@
             <!-- Main Content: Single Segment Transcript -->
             <div class="col-lg-9 col-md-8 order-md-1">
                 {#if guideHTML}
-                    <div class="mb-5">
-                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-4">
+                    <div class="mb-5" id="study-guide">
+                        <div class="border-bottom pb-2 mb-4">
                             <h3 class="m-0 border-0">Study Guide</h3>
-                            <a href="/exams/{examId}/tools/{guideTool.id}" class="btn btn-link btn-sm text-primary p-0">
-                                <FileText size={16} class="me-1" /> View Full
-                            </a>
                         </div>
                         <div class="well bg-white p-4 shadow-sm border prose" onclick={handleCitationClick}>
                             {@html guideHTML}
@@ -284,7 +292,7 @@
                     </div>
                 {/if}
 
-                <div class="mb-3">
+                <div class="mb-3" id="lesson-notes">
                     <h3>Lesson Notes</h3>
                     <p class="text-muted mb-0">{lecture.description || 'Comprehensive learning materials from this lecture recording.'}</p>
                 </div>

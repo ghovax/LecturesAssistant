@@ -28,7 +28,7 @@
                 safety: settings.safety,
                 providers: settings.providers
             });
-            notifications.success('Settings saved successfully!');
+            notifications.success('Your preferences have been saved.');
         } catch (e: any) {
             notifications.error(e.message || e);
         } finally {

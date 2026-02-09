@@ -30,7 +30,7 @@
             newExamTitle = '';
             showCreate = false;
             await loadExams();
-            notifications.success('Subject created successfully!');
+            notifications.success('Your new subject has been added.');
         } catch (e: any) {
             notifications.error(e.message || e);
         }

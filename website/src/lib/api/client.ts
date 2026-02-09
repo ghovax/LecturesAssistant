@@ -40,6 +40,10 @@ export class APIClient {
         const data = await response.json();
 
         if (!response.ok) {
+            if (response.status === 401) {
+                this.setToken(null);
+                throw new Error('Your session has expired. Please log in again.');
+            }
             throw new Error(data.error?.message || 'Request failed');
         }
 

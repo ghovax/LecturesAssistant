@@ -56,7 +56,7 @@
             await api.createLecture(formData);
             
             status = 'Success! Redirecting...';
-            notifications.success('Lecture created successfully! AI processing has started.');
+            notifications.success('The lecture has been added. We are now preparing your materials.');
             goto(`/exams/${examId}`);
         } catch (e: any) {
             notifications.error(e.message || e);
@@ -282,9 +282,8 @@
                                 </div>
 
                 {#if uploading}
-                    <div class="well bg-light text-center p-4 shadow-sm border-success">
-                        <div class="village-spinner mx-auto mb-3"></div>
-                        <div class="fw-bold text-uppercase small text-success">{status}</div>
+                    <div class="text-center p-4">
+                        <div class="village-spinner mx-auto"></div>
                     </div>
                 {/if}
             </div>

@@ -86,6 +86,7 @@ func (server *Server) setupRoutes() {
 	// Public routes
 	server.router.HandleFunc("/api/health", server.handleHealth).Methods("GET")
 	server.router.HandleFunc("/api/auth/setup", server.handleAuthSetup).Methods("POST")
+	server.router.HandleFunc("/api/auth/register", server.handleAuthRegister).Methods("POST")
 	server.router.HandleFunc("/api/auth/login", server.handleAuthLogin).Methods("POST")
 	server.router.HandleFunc("/api/auth/status", server.handleAuthStatus).Methods("GET")
 

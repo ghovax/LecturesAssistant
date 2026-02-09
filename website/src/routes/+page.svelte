@@ -24,7 +24,11 @@
     
     <p class="text-center mt-4">
         {#if !auth.user}
-            <a href="/login" class="btn btn-success btn-lg">Begin Learning</a>
+            {#if !auth.initialized}
+                <a href="/setup" class="btn btn-success btn-lg">Begin Learning</a>
+            {:else}
+                <a href="/login" class="btn btn-success btn-lg">Begin Learning</a>
+            {/if}
         {:else}
             <a href="/exams" class="btn btn-success btn-lg">Open My Study Hub</a>
         {/if}
@@ -55,7 +59,11 @@
                         
                         <p class="text-center">
                             {#if !auth.user}
-                                <a href="/login" class="btn btn-success btn-lg">Begin Learning</a>
+                                {#if !auth.initialized}
+                                    <a href="/setup" class="btn btn-success btn-lg">Begin Learning</a>
+                                {:else}
+                                    <a href="/login" class="btn btn-success btn-lg">Begin Learning</a>
+                                {/if}
                             {:else}
                                 <a href="/exams" class="btn btn-success btn-lg">Go to My Studies</a>
                             {/if}

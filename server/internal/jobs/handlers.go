@@ -546,6 +546,8 @@ func RegisterHandlers(
 		}
 
 		job.Result = fmt.Sprintf(`{"tool_id": "%s"}`, toolID)
+
+		updateProgress(100, "Tool usage completed", nil, totalMetrics)
 		return nil
 	})
 

@@ -407,7 +407,7 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 				history = append(history, llm.Message{Role: "assistant", Content: []llm.ContentPart{{Type: "text", Text: content}}})
 			}
 
-			updateProgress(progress, fmt.Sprintf("Generating section %d/%d...", sectionNumber, len(sections)), nil, currentMetrics)
+			updateProgress(progress, fmt.Sprintf("Generating section %d out of %d...", sectionNumber, len(sections)), nil, currentMetrics)
 
 			slog.Debug("Calling LLM for section generation",
 				"section", sectionNumber,

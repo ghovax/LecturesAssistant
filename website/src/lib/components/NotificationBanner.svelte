@@ -6,21 +6,21 @@
 <div class="notification-container">
     {#each notifications.notifications as n (n.id)}
         <div class="notification-banner {n.type} shadow-lg" role="alert">
-            <div class="d-flex align-items-start gap-3">
-                <div class="icon mt-1">
+            <div class="d-flex align-items-center gap-3">
+                <div class="icon d-flex align-items-center">
                     {#if n.type === 'success'}
-                        <CheckCircle2 size={20} />
+                        <CheckCircle2 size={18} />
                     {:else if n.type === 'error'}
-                        <AlertCircle size={20} />
+                        <AlertCircle size={18} />
                     {:else}
-                        <Info size={20} />
+                        <Info size={18} />
                     {/if}
                 </div>
-                <div class="message flex-grow-1">
+                <div class="message flex-grow-1 fw-bold small">
                     {n.message}
                 </div>
-                <button class="btn-close-custom" onclick={() => notifications.remove(n.id)}>
-                    <X size={16} />
+                <button class="btn-close-custom d-flex align-items-center" onclick={() => notifications.remove(n.id)}>
+                    <X size={14} />
                 </button>
             </div>
         </div>
@@ -34,7 +34,7 @@
         right: 1.5rem;
         z-index: 9999;
         width: 100%;
-        max-width: 400px;
+        max-width: 350px;
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
@@ -43,13 +43,12 @@
 
     .notification-banner {
         pointer-events: auto;
-        padding: 1rem 1.25rem;
+        padding: 0.75rem 1rem;
         border-radius: 0; /* Kakimashou style: no rounded corners */
         border-left: 0.25rem solid transparent;
         background: #fff;
         color: #333;
-        font-size: 0.95rem;
-        line-height: 1.4;
+        line-height: 1.2;
         border: 1px solid #ddd;
         
         &.success {

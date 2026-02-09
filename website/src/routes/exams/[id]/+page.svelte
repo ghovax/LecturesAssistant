@@ -52,7 +52,7 @@
         try {
             await api.deleteLecture(id, examId);
             await loadData();
-            notifications.success('Lecture deleted successfully.');
+            notifications.success('The lecture has been removed.');
         } catch (e: any) {
             notifications.error(e.message || e);
         }

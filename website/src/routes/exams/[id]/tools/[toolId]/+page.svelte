@@ -78,7 +78,7 @@
     async function handleExport(format: string) {
         try {
             const res = await api.exportTool({ tool_id: toolId, exam_id: examId, format });
-            notifications.success(`Export job created. You can monitor progress in the Jobs section.`);
+            notifications.success(`We are preparing your export. You can see the progress in the source lecture.`);
         } catch (e: any) {
             notifications.error(e.message || e);
         }

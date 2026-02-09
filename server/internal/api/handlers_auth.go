@@ -91,6 +91,64 @@ func (server *Server) handleAuthSetup(responseWriter http.ResponseWriter, reques
 	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Initial admin user created successfully"})
 }
 
+// handleAuthRegister allows new users to create an account
+func (server *Server) handleAuthRegister(responseWriter http.ResponseWriter, request *http.Request) {
+	var registerRequest struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+
+	if decodeError := json.NewDecoder(request.Body).Decode(&registerRequest); decodeError != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
+		return
+	}
+
+	if len(registerRequest.Password) < 8 {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Password must be at least 8 characters", nil)
+		return
+	}
+
+	if registerRequest.Username == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Username is required", nil)
+		return
+	}
+
+	// Check if setup has been completed
+	var userCount int
+	databaseError := server.database.QueryRow("SELECT COUNT(*) FROM users").Scan(&userCount)
+	if databaseError != nil || userCount == 0 {
+		server.writeError(responseWriter, http.StatusForbidden, "NOT_INITIALIZED", "Initial setup must be completed first", nil)
+		return
+	}
+
+	// Check if username is taken
+	var exists bool
+	server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE username = ?)", registerRequest.Username).Scan(&exists)
+	if exists {
+		server.writeError(responseWriter, http.StatusConflict, "USERNAME_TAKEN", "Username is already registered", nil)
+		return
+	}
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(registerRequest.Password), bcrypt.DefaultCost)
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "AUTHENTICATION_ERROR", "Failed to hash password", nil)
+		return
+	}
+
+	userID := uuid.New().String()
+	_, err = server.database.Exec(`
+		INSERT INTO users (id, username, password_hash, role, created_at, updated_at)
+		VALUES (?, ?, ?, 'user', ?, ?)
+	`, userID, registerRequest.Username, string(passwordHash), time.Now(), time.Now())
+
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to create user", nil)
+		return
+	}
+
+	server.writeJSON(responseWriter, http.StatusCreated, map[string]string{"message": "Account created successfully. You can now log in."})
+}
+
 // handleAuthLogin authenticates user and creates a session
 func (server *Server) handleAuthLogin(responseWriter http.ResponseWriter, request *http.Request) {
 	// Rate Limiting

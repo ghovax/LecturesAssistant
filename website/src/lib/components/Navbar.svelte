@@ -1,8 +1,15 @@
 <script lang="ts">
     import { auth } from '$lib/auth.svelte';
-    import { Book, Activity, Settings, User } from 'lucide-svelte';
+    import { Book, Activity, Settings, User, LogIn, LogOut } from 'lucide-svelte';
+    import { goto } from '$app/navigation';
 
     let isMenuOpen = $state(false);
+
+    async function handleLogout() {
+        isMenuOpen = false;
+        await auth.logout();
+        goto('/');
+    }
 </script>
 
 <nav class="navbar navbar-expand-md navbar-dark bg-dark p-0">
@@ -46,6 +53,17 @@
                 <li class="nav-item">
                     <a class="nav-link" href="/profile" onclick={() => isMenuOpen = false}>
                         <span class="glyphicon" aria-hidden="true"><User size={16} strokeWidth={3} /></span> Profile
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link btn btn-link border-0 shadow-none" onclick={handleLogout}>
+                        <span class="glyphicon" aria-hidden="true"><LogOut size={16} strokeWidth={3} /></span> Logout
+                    </button>
+                </li>
+            {:else}
+                <li class="nav-item">
+                    <a class="nav-link" href="/login" onclick={() => isMenuOpen = false}>
+                        <span class="glyphicon" aria-hidden="true"><LogIn size={16} strokeWidth={3} /></span> Login
                     </a>
                 </li>
             {/if}

@@ -35,7 +35,7 @@ func (server *Server) handleListDocuments(responseWriter http.ResponseWriter, re
 	}
 	defer documentRows.Close()
 
-	var documentsList []models.ReferenceDocument
+	var documentsList = []models.ReferenceDocument{}
 	for documentRows.Next() {
 		var document models.ReferenceDocument
 		if err := documentRows.Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt); err != nil {

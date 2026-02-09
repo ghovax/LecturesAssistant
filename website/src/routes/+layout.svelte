@@ -1,11 +1,21 @@
 <script lang="ts">
-	import favicon from '$lib/assets/favicon.svg';
-
-	let { children } = $props();
+    import { onMount } from 'svelte';
+    import "../app.scss";
+    import Navbar from '$lib/components/Navbar.svelte';
+    
+    let { children } = $props();
 </script>
 
-<svelte:head>
-	<link rel="icon" href={favicon} />
-</svelte:head>
+<div class="container-xl main-page">
+    <Navbar />
+    <main class="content">
+        {@render children()}
+    </main>
+</div>
 
-{@render children()}
+<style>
+    :global(html, body) {
+        height: 100%;
+        margin: 0;
+    }
+</style>

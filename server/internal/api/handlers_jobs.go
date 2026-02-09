@@ -38,7 +38,7 @@ func (server *Server) handleListJobs(responseWriter http.ResponseWriter, request
 	}
 	defer jobRows.Close()
 
-	var jobsList []map[string]any
+	var jobsList = []map[string]any{}
 	for jobRows.Next() {
 		var id, jobType, status, progressMsg, payload string
 		var courseID, lectureID sql.NullString

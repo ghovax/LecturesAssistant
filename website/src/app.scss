@@ -1,0 +1,192 @@
+// Disable rounded corners globally
+$enable-rounded: false;
+
+@import "bootstrap/scss/bootstrap";
+
+/* EXACT Kakimashou Style Reconstruction from provided CSS and inspector data */
+
+:root {
+    --blue: #007bff;
+    --indigo: #6610f2;
+    --purple: #6f42c1;
+    --pink: #e83e8c;
+    --red: #dc3545;
+    --orange: #fd7e14;
+    --yellow: #ffc107;
+    --green: #28a745;
+    --teal: #20c997;
+    --cyan: #17a2b8;
+    --white: #fff;
+    --gray: #6c757d;
+    --gray-dark: #343a40;
+    --primary: #2c4529;
+    --secondary: #6c757d;
+    --success: #5cb85c;
+    --info: #31b0d5;
+    --warning: #ec971f;
+    --danger: #c9302c;
+    --light: #f8f9fa;
+    --dark: #222;
+}
+
+body {
+    background: url(/images/mapleleaves_mobile.png) repeat, linear-gradient(180deg, #b9bc77 0, #303f0a) fixed;
+    color: #000;
+    font-family: Helvetica Neue, Helvetica, Arial, sans-serif;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.42;
+    margin: 0;
+    text-align: left;
+}
+
+@media (min-width: 62rem) {
+    body {
+        background: url(/images/mapleleaves.png) fixed, linear-gradient(180deg, #b9bc77 0, #303f0a) fixed;
+        background-size: cover;
+    }
+}
+
+.main-page {
+    background: #fff;
+    min-height: 100vh;
+    padding: 0;
+}
+
+.content {
+    padding: 2rem 1.5rem;
+}
+
+/* Navbar - EXACT matching */
+.navbar-brand {
+    background: linear-gradient(180deg, #2c4529 0, #212b20);
+    line-height: 3.125rem;
+    min-height: 3.125rem;
+    text-shadow: .0625rem .0625rem #000;
+    display: inline-block;
+    font-size: 1.25rem;
+    margin-right: 1rem;
+    padding-bottom: .4475rem;
+    padding-top: .4475rem;
+    white-space: nowrap;
+    color: #fff !important;
+}
+
+.bg-dark {
+    background-color: #222 !important;
+}
+
+/* LinkTiles - EXACT literal dimensions from snippets */
+div.linkTiles a {
+    background: #fff;
+    box-shadow: .3125rem .3125rem .625rem rgba(0, 0, 0, .5);
+    color: #000;
+    display: inline-block;
+    height: 7.5rem; /* 120px */
+    margin: .625rem;
+    overflow: hidden;
+    padding: .9375rem;
+    position: relative;
+    text-decoration: none;
+    vertical-align: top;
+}
+
+div.tileSizeMd a {
+    width: 15.5rem; /* Exactly as specified */
+}
+
+.linkTiles>a, .linkTiles>a:active, .linkTiles>a:hover {
+    -webkit-appearance: none;
+    outline: 0 !important;
+    text-decoration: none;
+}
+
+/* Link color from user agent / snippets */
+a {
+    background-color: transparent;
+    color: #568f27;
+}
+
+a:hover {
+    color: #568f27;
+    text-decoration: none;
+}
+
+/* The decorative background character - EXACT literal positioning */
+div.linkTiles a > div:first-child {
+    color: #dfe1d0;
+    font-family: "ＭＳ Ｐゴシック", "MS PGothic", "メイリオ", Meiryo, sans-serif;
+    font-size: 15rem;
+    left: 6.25rem;
+    line-height: 7.5rem;
+    position: absolute;
+    top: 2.8125rem;
+    z-index: 1;
+}
+
+/* The label and description positioning - EXACT literal rule */
+div.linkTiles > a > div:not(:first-child), 
+div.linkTiles > a > p {
+    bottom: 0;
+    padding: 0;
+    position: absolute;
+    z-index: 2;
+    margin: 0;
+    left: .9375rem;
+    right: .9375rem;
+}
+
+/* To avoid overlap while keeping both at bottom: 0, 
+   we use the fact that <p> contains a <br> which gives it height. */
+div.linkTiles > a > p {
+    line-height: 1.2;
+    background: transparent;
+}
+
+/* Title positioning - Now at the absolute bottom */
+div.linkTiles > a > p {
+    bottom: .9375rem !important;
+    font-size: 1.2rem;
+}
+
+/* Description positioning - Now above the title */
+.tileContent {
+    bottom: 2.8rem !important; 
+    font-size: 0.85rem;
+    color: #000;
+    line-height: 1.2;
+    height: 2.5rem;
+    overflow: hidden;
+    display: block;
+}
+
+/* Breadcrumbs */
+.breadcrumb {
+    background-color: #f5f5f5;
+    border-radius: 0;
+    padding: .75rem 1rem;
+    margin-bottom: 1rem;
+}
+
+/* Wells */
+.well {
+    min-height: 20px;
+    padding: 19px;
+    margin-bottom: 20px;
+    background-color: #f5f5f5;
+    border: 1px solid #e3e3e3;
+}
+
+/* Utils */
+.btn, .form-control {
+    border-radius: 0 !important;
+}
+
+.glyphicon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+}

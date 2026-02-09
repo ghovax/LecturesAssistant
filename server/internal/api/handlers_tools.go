@@ -144,7 +144,7 @@ func (server *Server) handleListTools(responseWriter http.ResponseWriter, reques
 	}
 	defer toolRows.Close()
 
-	var toolsList []models.Tool
+	var toolsList = []models.Tool{}
 	for toolRows.Next() {
 		var tool models.Tool
 		if err := toolRows.Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.CreatedAt, &tool.UpdatedAt); err != nil {

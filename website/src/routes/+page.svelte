@@ -1,2 +1,98 @@
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
+<script lang="ts">
+    import { onMount } from 'svelte';
+    import { auth } from '$lib/auth.svelte';
+    import Tile from '$lib/components/Tile.svelte';
+    import { X } from 'lucide-svelte';
+
+    let showWelcomeModal = $state(false);
+
+    onMount(async () => {
+        await auth.check();
+    });
+</script>
+
+<div class="d-none d-md-block">
+    <div class="welcome-message">
+        <h1>Welcome to Learning Assistant</h1>
+        <p class="lead">Transform your lectures into high-fidelity study materials. Let's learn!</p>
+    </div>
+
+    <p>Learning complex subjects takes a lot of practice, but this website will take care of a lot of the legwork for you.
+    You can stop wasting time on manual transcriptions and just focus on learning.</p>
+    
+    <p>Why not give it a try? Get your recordings, slides, or PDFs ready and click the button below to begin.</p>
+    
+    <p class="text-center mt-4">
+        {#if !auth.user}
+            <a href="/login" class="btn btn-success btn-lg">Begin Learning</a>
+        {:else}
+            <a href="/exams" class="btn btn-success btn-lg">Open My Study Hub</a>
+        {/if}
+    </p>
+</div>
+
+<div class="d-block d-md-none">
+    <p class="text-center">
+        <button type="button" class="btn btn-primary" onclick={() => showWelcomeModal = true}>
+            About this Website
+        </button>
+    </p>
+
+    {#if showWelcomeModal}
+        <div class="modal fade show d-block" tabindex="-1" role="dialog" style="background: rgba(0,0,0,0.5)">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-body position-relative">
+                        <button type="button" class="close float-end border-0 bg-transparent" onclick={() => showWelcomeModal = false} aria-label="Close">
+                            <span aria-hidden="true" style="font-size: 2rem;">×</span>
+                        </button>
+                        <div class="welcome-message">
+                            <h1>Welcome</h1>
+                            <p class="lead">Learning Assistant transforms your lectures into study materials.</p>
+                        </div>
+
+                        <p>Generating study materials is easier than ever. Simply upload your recordings and reference files.</p>
+                        
+                        <p class="text-center">
+                            {#if !auth.user}
+                                <a href="/login" class="btn btn-success btn-lg">Begin Learning</a>
+                            {:else}
+                                <a href="/exams" class="btn btn-success btn-lg">Go to My Studies</a>
+                            {/if}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {/if}
+</div>
+
+<div class="linkTiles tileSizeMd">
+    <Tile href="/exams" icon="辞" title="My Studies">
+        Access your courses, lessons, and all generated learning materials.
+    </Tile>
+
+    <Tile href="/jobs" icon="科" title="Task Progress">
+        See how your transcriptions and study guides are coming along.
+    </Tile>
+
+    <Tile href="/settings" icon="設" title="Preferences">
+        Customize your language, AI models, and interface settings.
+    </Tile>
+
+    <Tile href="/help" icon="新" title="What's New">
+        Discover the latest features and capabilities in your assistant.
+    </Tile>
+
+    <Tile href="/feedback" icon="談" title="Send Feedback">
+        Have a suggestion or found a bug? We'd love to hear from you!
+    </Tile>
+
+    <Tile href="/support" icon="助" title="Support Us">
+        Help keep this project alive and growing with a small contribution.
+    </Tile>
+
+    <Tile href="/credits" icon="謝" title="Credits">
+        A special thanks to the people and projects that make this possible.
+    </Tile>
+</div>

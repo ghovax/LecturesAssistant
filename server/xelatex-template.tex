@@ -21,6 +21,7 @@ $endif$
 \usepackage[margin=2cm]{geometry}
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
+\usepackage{eso-pic}
 % Ensure images don't exceed page width/height
 \setkeys{Gin}{width=\textwidth,height=0.8\textheight,keepaspectratio}
 % Hyperref setup
@@ -86,15 +87,22 @@ $endif$
 $if(has-frontmatter)$
 \frontmatter
 $endif$
+
+$if(qrcode-path)$
+\AddToShipoutPictureBG*{
+  \AtPageUpperLeft{
+    \put(\LenToUnit{\paperwidth-3.8cm},\LenToUnit{-3.8cm}){
+      \includegraphics[width=2.8cm]{$qrcode-path$}
+    }
+  }
+}
+$endif$
+
 $if(title)$
 \maketitle
 
 $if(course-title)$
 \noindent\textbf{$if(course-title-label)$$course-title-label$$else$Course$endif$:} $course-title$
-$endif$
-
-$if(qrcode-path)$
-\hfill\smash{\raisebox{-1.5cm}{\includegraphics[width=3cm]{$qrcode-path$}}}
 $endif$
 
 \vspace{1em}

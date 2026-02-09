@@ -731,3 +731,116 @@ func (server *Server) handleGetTranscript(responseWriter http.ResponseWriter, re
 		"segments":      segments,
 	})
 }
+
+// handleGetTranscriptHTML retrieves the unified transcript for a lecture converted to HTML with timestamps
+func (server *Server) handleGetTranscriptHTML(responseWriter http.ResponseWriter, request *http.Request) {
+	lectureID := request.URL.Query().Get("lecture_id")
+	if lectureID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id is required", nil)
+		return
+	}
+
+	userID := server.getUserID(request)
+
+	// Verify lecture ownership and get transcript metadata
+	var transcriptID, status string
+	err := server.database.QueryRow(`
+		SELECT transcripts.id, transcripts.status 
+		FROM transcripts 
+		JOIN lectures ON transcripts.lecture_id = lectures.id
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE transcripts.lecture_id = ? AND exams.user_id = ?
+	`, lectureID, userID).Scan(&transcriptID, &status)
+
+	if err == sql.ErrNoRows {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Transcript not found", nil)
+		return
+	}
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to verify transcript", nil)
+		return
+	}
+
+	// Get transcript segments
+	transcriptRows, databaseError := server.database.Query(`
+		SELECT id, start_millisecond, end_millisecond, text, confidence, speaker
+		FROM transcript_segments
+		WHERE transcript_id = ?
+		ORDER BY start_millisecond ASC
+	`, transcriptID)
+	if databaseError != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get segments", nil)
+		return
+	}
+	defer transcriptRows.Close()
+
+	type segmentData struct {
+		ID               int     `json:"id"`
+		StartMillisecond int64   `json:"start_millisecond"`
+		EndMillisecond   int64   `json:"end_millisecond"`
+		Text             string  `json:"-"`
+		TextHTML         string  `json:"text_html"`
+		Confidence       float64 `json:"confidence,omitempty"`
+		Speaker          string  `json:"speaker,omitempty"`
+	}
+
+	var segments []segmentData
+	var markdownBuilder strings.Builder
+	separator := "---SEGMENT-BREAK---"
+
+	for transcriptRows.Next() {
+		var s segmentData
+		var text, speaker sql.NullString
+		var confidence sql.NullFloat64
+
+		if err := transcriptRows.Scan(&s.ID, &s.StartMillisecond, &s.EndMillisecond, &text, &confidence, &speaker); err != nil {
+			continue
+		}
+
+		s.Text = text.String
+		if confidence.Valid {
+			s.Confidence = confidence.Float64
+		}
+		if speaker.Valid {
+			s.Speaker = speaker.String
+		}
+
+		segments = append(segments, s)
+
+		// Add to markdown for batch conversion
+		if markdownBuilder.Len() > 0 {
+			markdownBuilder.WriteString("\n\n" + separator + "\n\n")
+		}
+		markdownBuilder.WriteString(s.Text)
+	}
+
+	if len(segments) > 0 {
+		// Batch convert markdown to HTML
+		fullHTML, err := server.markdownConverter.MarkdownToHTML(markdownBuilder.String())
+		if err != nil {
+			server.writeError(responseWriter, http.StatusInternalServerError, "CONVERSION_ERROR", "Failed to convert transcript to HTML", nil)
+			return
+		}
+
+		// Split back into segments
+		htmlParts := strings.Split(fullHTML, separator)
+
+		// Clean up HTML tags around parts
+		for i, part := range htmlParts {
+			cleanedPart := strings.TrimSpace(part)
+			cleanedPart = strings.TrimPrefix(cleanedPart, "</p>")
+			cleanedPart = strings.TrimSuffix(cleanedPart, "<p>")
+			cleanedPart = strings.TrimSpace(cleanedPart)
+
+			if i < len(segments) {
+				segments[i].TextHTML = cleanedPart
+			}
+		}
+	}
+
+	server.writeJSON(responseWriter, http.StatusOK, map[string]any{
+		"transcript_id": transcriptID,
+		"status":        status,
+		"segments":      segments,
+	})
+}

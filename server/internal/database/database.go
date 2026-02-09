@@ -14,9 +14,10 @@ func Initialize(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// For SQLite, it's often best to limit connections to 1 to avoid "database is locked" errors
-	// especially when using WAL mode and having multiple background workers.
-	database.SetMaxOpenConns(1)
+	// For SQLite in WAL mode, we can have multiple concurrent readers.
+	// We'll allow up to 10 connections to avoid deadlocks when workers and API
+	// both need database access.
+	database.SetMaxOpenConns(10)
 
 	// Test connection
 	if err := database.Ping(); err != nil {

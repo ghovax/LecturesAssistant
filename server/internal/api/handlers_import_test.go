@@ -53,7 +53,7 @@ func setupImportTestEnv(t *testing.T) (*Server, *jobs.Queue, string, func()) {
 	mockLLM := &MockLLMProvider{}
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
 
-	server := NewServer(config, db, jobQueue, mockLLM, nil, toolGenerator)
+	server := NewServer(config, db, jobQueue, mockLLM, nil, toolGenerator, &MockMarkdownConverter{})
 
 	cleanup := func() {
 		db.Close()

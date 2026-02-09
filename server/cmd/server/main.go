@@ -143,7 +143,7 @@ func main() {
 	backgroundJobQueue := jobs.NewQueue(initializedDatabase, 4) // 4 concurrent workers
 
 	// Create API server
-	apiServer := api.NewServer(loadedConfiguration, initializedDatabase, backgroundJobQueue, llmProvider, promptManager, toolGenerator)
+	apiServer := api.NewServer(loadedConfiguration, initializedDatabase, backgroundJobQueue, llmProvider, promptManager, toolGenerator, markdownConverter)
 
 	// Register job handlers
 	jobs.RegisterHandlers(

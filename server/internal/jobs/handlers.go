@@ -1014,10 +1014,35 @@ func RegisterHandlers(
 
 					if err := generateFile(originalContent, options); err != nil {
 						slog.Error("Failed to re-generate with QR code", "error", err)
+					} else {
+						// Final upload so the shared file actually contains the QR code
+						finalURL, finalUploadErr := uploadToTmpFiles(outputPath)
+						if finalUploadErr != nil {
+							slog.Error("Failed final upload for QR code", "error", finalUploadErr)
+						} else {
+							slog.Info("Final document uploaded with QR code", "url", finalURL)
+							downloadURL = finalURL // Use the final URL for the result
+						}
 					}
 					os.Remove(qrCodePath)
 				}
 			}
+
+			updateProgress(100, "Export completed", map[string]string{
+				"file_path":    outputPath,
+				"format":       payload.Format,
+				"download_url": downloadURL,
+			}, totalMetrics)
+
+			slog.Info("Export completed with costs",
+				"file_path", outputPath,
+				"format", payload.Format,
+				"download_url", downloadURL,
+				"input_tokens", totalMetrics.InputTokens,
+				"output_tokens", totalMetrics.OutputTokens,
+				"estimated_cost_usd", totalMetrics.EstimatedCost)
+			job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s", "download_url": "%s"}`, outputPath, payload.Format, downloadURL)
+			return nil
 		}
 
 		updateProgress(100, "Export completed", map[string]string{"file_path": outputPath, "format": payload.Format}, totalMetrics)

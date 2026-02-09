@@ -57,9 +57,11 @@ func (server *Server) handleAuthSetup(responseWriter http.ResponseWriter, reques
 
 	// Update configuration with the provided API key
 	server.configuration.Providers.OpenRouter.APIKey = setupRequest.OpenRouterAPIKey
-	if err := configuration.Save(server.configuration, server.configuration.ConfigurationPath); err != nil {
-		server.writeError(responseWriter, http.StatusInternalServerError, "CONFIGURATION_ERROR", "Failed to save configuration", nil)
-		return
+	if server.configuration.ConfigurationPath != "" {
+		if err := configuration.Save(server.configuration, server.configuration.ConfigurationPath); err != nil {
+			server.writeError(responseWriter, http.StatusInternalServerError, "CONFIGURATION_ERROR", "Failed to save configuration", nil)
+			return
+		}
 	}
 
 	// Update the running LLM provider with the new API key

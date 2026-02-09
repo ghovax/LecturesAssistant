@@ -130,7 +130,7 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
-	apiServer := NewServer(config, initializedDatabase, jobQueue, llmProvider, promptManager, toolGenerator)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, llmProvider, promptManager, toolGenerator, markdownConverter)
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 

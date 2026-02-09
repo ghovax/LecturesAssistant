@@ -69,6 +69,10 @@ Introduces:
 				text = `{"footnotes": [{"number": 1, "text_content": "AI improved citation content", "pages": [1], "file": "test-slides.pdf"}]}`
 			} else if strings.Contains(lastMessage, "format-footnotes") {
 				text = "[^1]: AI improved citation content"
+			} else if strings.Contains(lastMessage, "correct-project-title-description") {
+				text = `{"title": "Polished Title", "description": "Polished Description"}`
+			} else if strings.Contains(lastMessage, "clean-document-title") {
+				text = `{"title": "Cleaned Title"}`
 			}
 		}
 
@@ -192,7 +196,7 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
-	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator, markdownConverter)
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 
@@ -423,7 +427,7 @@ func TestUpload_StagedProtocol(tester *testing.T) {
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
 	mockLLM := &MockLLMProvider{}
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
-	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator, &MockMarkdownConverter{})
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 
@@ -558,7 +562,7 @@ func TestWebSocket_ProgressUpdates(tester *testing.T) {
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
 	mockLLM := &MockLLMProvider{}
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
-	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator, &MockMarkdownConverter{})
 
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
@@ -650,7 +654,7 @@ func TestAI_FailureScenarios(tester *testing.T) {
 		},
 	}
 
-	mockLLM := &MockLLMProvider{}
+	mockLLM := &MockLLMProvider{ResponseText: `{"title": "Polished", "description": "Polished"}`}
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
 	transcriptionService := transcription.NewService(config, &MockTranscriptionProvider{}, mockLLM, nil)
@@ -850,7 +854,7 @@ type MockMarkdownConverter struct{}
 func (markdownConverter *MockMarkdownConverter) CheckDependencies() error { return nil }
 
 func (markdownConverter *MockMarkdownConverter) MarkdownToHTML(markdownText string) (string, error) {
-	return "<html></html>", nil
+	return "<html>" + markdownText + "</html>", nil
 }
 
 func (markdownConverter *MockMarkdownConverter) HTMLToPDF(htmlContent, outputPath string, options markdown.ConversionOptions) error {
@@ -965,9 +969,9 @@ func TestAuth_AccessControlEnforcement(tester *testing.T) {
 	config := &configuration.Configuration{
 		LLM: configuration.LLMConfiguration{Model: "mock-model"},
 	}
-	mockLLM := &MockLLMProvider{}
+	mockLLM := &MockLLMProvider{ResponseText: `{"title": "Polished", "description": "Polished"}`}
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
-	apiServer := NewServer(config, initializedDatabase, nil, nil, nil, toolGenerator)
+	apiServer := NewServer(config, initializedDatabase, nil, nil, nil, toolGenerator, &MockMarkdownConverter{})
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 
@@ -1028,9 +1032,9 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
-	mockLLM := &MockLLMProvider{}
+	mockLLM := &MockLLMProvider{ResponseText: `{"title": "Polished Exam Title", "description": "Polished Description"}`}
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
-	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator, &MockMarkdownConverter{})
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 
@@ -1131,8 +1135,8 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		httpRequest, _ = http.NewRequest("PATCH", testServer.URL+"/api/exams", bytes.NewBuffer(updatePayload))
 		httpResponse = authenticatedDo(httpRequest)
 		json.NewDecoder(httpResponse.Body).Decode(&examResponseData)
-		if examResponseData.Data.Title != "Advanced Biology" {
-			subTester.Errorf("Expected title update, got %s", examResponseData.Data.Title)
+		if examResponseData.Data.Title != "Polished Exam Title" {
+			subTester.Errorf("Expected title update, got %q", examResponseData.Data.Title)
 		}
 		httpResponse.Body.Close()
 
@@ -1320,9 +1324,9 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 		},
 	}
 
-	mockLLM := &MockLLMProvider{}
+	mockLLM := &MockLLMProvider{ResponseText: `{"title": "Polished", "description": "Polished"}`}
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
-	apiServer := NewServer(config, initializedDatabase, nil, nil, nil, toolGenerator)
+	apiServer := NewServer(config, initializedDatabase, nil, nil, nil, toolGenerator, &MockMarkdownConverter{})
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 
@@ -1531,7 +1535,7 @@ func TestUpload_ProgressTracking(tester *testing.T) {
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
 	mockLLM := &MockLLMProvider{}
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
-	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator)
+	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator, &MockMarkdownConverter{})
 	testServer := httptest.NewServer(apiServer.Handler())
 	defer testServer.Close()
 

@@ -150,12 +150,12 @@ func TestToolGenerator_FootnoteHealing(tester *testing.T) {
 
 	mockLLM := &UnbreakableSequentialMock{
 		Responses: []string{
-			`{"footnotes": [{"number": 1, "file": "f1.pdf", "pages": [1]}, {"number": 99, "file": "f2.pdf", "pages": [5]}]}`,
-			`Body text.[^1] [^99]
+			`{"footnotes": [{"number": 1, "file": "f1.pdf", "pages": [1]}, {"number": 2, "file": "f2.pdf", "pages": [5]}]}`,
+			`Body text.[^1] [^2]
 
 [^1]: Improved 1
 
-[^99]: Improved 2
+[^2]: Improved 2
 `,
 		},
 	}

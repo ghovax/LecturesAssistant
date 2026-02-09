@@ -72,11 +72,11 @@ func TestJob_PublishMaterial_PuppetData(t *testing.T) {
 	userID := uuid.New().String()
 	examID := uuid.New().String()
 	lectureID := uuid.New().String()
-	
+
 	// Create common records
 	_, _ = db.Exec("INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)", userID, "tester", "hash")
 	_, _ = db.Exec("INSERT INTO exams (id, user_id, title) VALUES (?, ?, ?)", examID, userID, "Puppet Course")
-	_, _ = db.Exec("INSERT INTO lectures (id, exam_id, title, status, specified_date) VALUES (?, ?, ?, 'ready', ?)", 
+	_, _ = db.Exec("INSERT INTO lectures (id, exam_id, title, status, specified_date) VALUES (?, ?, ?, 'ready', ?)",
 		lectureID, examID, "Puppet Lecture", "2026-02-08T12:00:00Z")
 
 	// Mocks
@@ -84,10 +84,10 @@ func TestJob_PublishMaterial_PuppetData(t *testing.T) {
 		ResponseText: `{"description": "Puppet Abstract from Mock LLM"}`,
 	}
 	realGenerator := tools.NewToolGenerator(config, mockLLM, nil)
-	
+
 	// Use REAL converter
 	realConverter := markdown.NewConverter(dataDir)
-	
+
 	// Change working directory to server root so template is found
 	originalWd, _ := os.Getwd()
 	serverRoot, _ := filepath.Abs(filepath.Join(originalWd, "..", ".."))
@@ -110,7 +110,7 @@ Content with citation[^1].
 		_, _ = db.Exec(`INSERT INTO tools (id, exam_id, type, title, language_code, content, created_at) 
 			VALUES (?, ?, 'guide', 'Puppet Guide PDF', 'en-US', ?, ?)`,
 			toolID, examID, puppetContent, time.Now())
-		
+
 		_, _ = db.Exec(`INSERT INTO tool_source_references (tool_id, source_type, source_id, metadata) 
 			VALUES (?, 'document', 'source.pdf', ?)`,
 			toolID, `{"footnote_number": 1, "pages": [5], "description": "Detail"}`)
@@ -128,7 +128,7 @@ Content with citation[^1].
 		if _, err := os.Stat(exportFile); os.IsNotExist(err) {
 			t.Errorf("Export file not created at %s", exportFile)
 		}
-		
+
 		// Check if file is non-empty and has PDF header
 		content, err := os.ReadFile(exportFile)
 		if err != nil {
@@ -137,7 +137,7 @@ Content with citation[^1].
 		if len(content) < 10 {
 			t.Errorf("PDF file is too small")
 		}
-		// Note: We don't strictly check for %PDF- header here because the real converter 
+		// Note: We don't strictly check for %PDF- header here because the real converter
 		// might not be available in all environments, but it should at least exist.
 	})
 
@@ -164,7 +164,7 @@ Some markdown content.`
 		if err != nil {
 			t.Fatalf("Failed to read export file: %v", err)
 		}
-		
+
 		output := string(content)
 		if !strings.Contains(output, "Puppet Course") {
 			t.Errorf("Markdown missing Course title. Got: %s", output)

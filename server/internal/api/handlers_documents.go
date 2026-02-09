@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
@@ -180,4 +181,66 @@ func (server *Server) handleGetPageImage(responseWriter http.ResponseWriter, req
 	}
 
 	http.ServeFile(responseWriter, request, imagePath)
+}
+
+// handleGetPageHTML serves the extracted text of a page converted to HTML
+func (server *Server) handleGetPageHTML(responseWriter http.ResponseWriter, request *http.Request) {
+	documentID := request.URL.Query().Get("document_id")
+	lectureID := request.URL.Query().Get("lecture_id")
+	pageNumberString := request.URL.Query().Get("page_number")
+
+	if documentID == "" || lectureID == "" || pageNumberString == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id, lecture_id and page_number are required", nil)
+		return
+	}
+
+	userID := server.getUserID(request)
+
+	// Verify document ownership
+	var docTitle string
+	err := server.database.QueryRow(`
+		SELECT reference_documents.title FROM reference_documents 
+		JOIN lectures ON reference_documents.lecture_id = lectures.id
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE reference_documents.id = ? AND reference_documents.lecture_id = ? AND exams.user_id = ?
+	`, documentID, lectureID, userID).Scan(&docTitle)
+
+	if err == sql.ErrNoRows {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Document not found in this lecture", nil)
+		return
+	}
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to verify document", nil)
+		return
+	}
+
+	pageNumber, _ := strconv.Atoi(pageNumberString)
+
+	var extractedText string
+	err = server.database.QueryRow(`
+		SELECT extracted_text
+		FROM reference_pages
+		WHERE document_id = ? AND page_number = ?
+	`, documentID, pageNumber).Scan(&extractedText)
+
+	if err == sql.ErrNoRows {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Page not found", nil)
+		return
+	}
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get page content", nil)
+		return
+	}
+
+	// Convert to HTML
+	markdownText := fmt.Sprintf("# %s - Page %d\n\n%s", docTitle, pageNumber, extractedText)
+	htmlContent, err := server.markdownConverter.MarkdownToHTML(markdownText)
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "CONVERSION_ERROR", "Failed to convert page to HTML", nil)
+		return
+	}
+
+	responseWriter.Header().Set("Content-Type", "text/html")
+	responseWriter.WriteHeader(http.StatusOK)
+	responseWriter.Write([]byte(htmlContent))
 }

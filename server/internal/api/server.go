@@ -12,6 +12,7 @@ import (
 	"lectures/internal/configuration"
 	"lectures/internal/jobs"
 	"lectures/internal/llm"
+	"lectures/internal/markdown"
 	"lectures/internal/models"
 	"lectures/internal/prompts"
 	"lectures/internal/tools"
@@ -22,31 +23,33 @@ import (
 
 // Server represents the API server
 type Server struct {
-	configuration *configuration.Configuration
-	database      *sql.DB
-	jobQueue      *jobs.Queue
-	router        *mux.Router
-	wsHub         *Hub
-	llmProvider   llm.Provider
-	promptManager *prompts.Manager
-	toolGenerator *tools.ToolGenerator
+	configuration     *configuration.Configuration
+	database          *sql.DB
+	jobQueue          *jobs.Queue
+	router            *mux.Router
+	wsHub             *Hub
+	llmProvider       llm.Provider
+	promptManager     *prompts.Manager
+	toolGenerator     *tools.ToolGenerator
+	markdownConverter markdown.MarkdownConverter
 	// Security
 	loginAttempts      map[string][]time.Time
 	loginAttemptsMutex sync.Mutex
 }
 
 // NewServer creates a new API server
-func NewServer(configuration *configuration.Configuration, database *sql.DB, jobQueue *jobs.Queue, llmProvider llm.Provider, promptManager *prompts.Manager, toolGenerator *tools.ToolGenerator) *Server {
+func NewServer(configuration *configuration.Configuration, database *sql.DB, jobQueue *jobs.Queue, llmProvider llm.Provider, promptManager *prompts.Manager, toolGenerator *tools.ToolGenerator, markdownConverter markdown.MarkdownConverter) *Server {
 	server := &Server{
-		configuration: configuration,
-		database:      database,
-		jobQueue:      jobQueue,
-		router:        mux.NewRouter(),
-		wsHub:         NewHub(),
-		llmProvider:   llmProvider,
-		promptManager: promptManager,
-		toolGenerator: toolGenerator,
-		loginAttempts: make(map[string][]time.Time),
+		configuration:     configuration,
+		database:          database,
+		jobQueue:          jobQueue,
+		router:            mux.NewRouter(),
+		wsHub:             NewHub(),
+		llmProvider:       llmProvider,
+		promptManager:     promptManager,
+		toolGenerator:     toolGenerator,
+		markdownConverter: markdownConverter,
+		loginAttempts:     make(map[string][]time.Time),
 	}
 
 	go server.wsHub.Run()
@@ -120,17 +123,20 @@ func (server *Server) setupRoutes() {
 
 	// Transcripts
 	apiRouter.HandleFunc("/transcripts", server.handleGetTranscript).Methods("GET")
+	apiRouter.HandleFunc("/transcripts/html", server.handleGetTranscriptHTML).Methods("GET")
 
 	// Reference Documents (Listing/Meta)
 	apiRouter.HandleFunc("/documents", server.handleListDocuments).Methods("GET")
 	apiRouter.HandleFunc("/documents/details", server.handleGetDocument).Methods("GET")
 	apiRouter.HandleFunc("/documents/pages", server.handleGetDocumentPages).Methods("GET")
 	apiRouter.HandleFunc("/documents/pages/image", server.handleGetPageImage).Methods("GET")
+	apiRouter.HandleFunc("/documents/pages/html", server.handleGetPageHTML).Methods("GET")
 
 	// Tools
 	apiRouter.HandleFunc("/tools", server.handleCreateTool).Methods("POST")
 	apiRouter.HandleFunc("/tools", server.handleListTools).Methods("GET")
 	apiRouter.HandleFunc("/tools/details", server.handleGetTool).Methods("GET")
+	apiRouter.HandleFunc("/tools/html", server.handleGetToolHTML).Methods("GET")
 	apiRouter.HandleFunc("/tools", server.handleDeleteTool).Methods("DELETE")
 	apiRouter.HandleFunc("/tools/export", server.handleExportTool).Methods("POST")
 	apiRouter.HandleFunc("/exports/download", server.handleDownloadExport).Methods("GET")

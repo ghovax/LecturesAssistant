@@ -31,12 +31,6 @@ Thumbs.db
 # Logs
 *.log
 
-# Configuration with secrets (use configuration.yaml.example as template)
-configuration.yaml
-
-# Runtime data directory
-data/
-
 # Test artifacts
 internal/api/test_input/
 internal/api/test_integration_pipeline/

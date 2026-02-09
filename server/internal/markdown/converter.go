@@ -3,6 +3,8 @@ package markdown
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -18,6 +20,8 @@ type MarkdownConverter interface {
 	MarkdownToHTML(markdownText string) (string, error)
 	HTMLToPDF(htmlContent string, outputPath string, options ConversionOptions) error
 	HTMLToDocx(htmlContent string, outputPath string, options ConversionOptions) error
+	HTMLToAnki(toolType string, toolContent string, outputPath string) error
+	HTMLToCSV(toolType string, toolContent string, outputPath string) error
 	SaveMarkdown(markdownText string, outputPath string) error
 	GenerateMetadataHeader(options ConversionOptions) string
 }
@@ -185,6 +189,79 @@ func (converter *ExternalConverter) HTMLToDocx(htmlContent string, outputPath st
 
 	if executionError := command.Run(); executionError != nil {
 		return fmt.Errorf("pandoc docx conversion failed: %v, stderr: %s", executionError, stderr.String())
+	}
+
+	return nil
+}
+
+// HTMLToAnki converts tool content to an Anki-compatible tab-separated file
+func (converter *ExternalConverter) HTMLToAnki(toolType string, toolContent string, outputPath string) error {
+	var builder strings.Builder
+
+	if toolType == "flashcard" {
+		var flashcards []map[string]string
+		if err := json.Unmarshal([]byte(toolContent), &flashcards); err != nil {
+			return err
+		}
+		for _, fc := range flashcards {
+			// Anki format: Front \t Back
+			front := strings.ReplaceAll(fc["front"], "\n", "<br>")
+			back := strings.ReplaceAll(fc["back"], "\n", "<br>")
+			fmt.Fprintf(&builder, "%s\t%s\n", front, back)
+		}
+	} else if toolType == "quiz" {
+		var quiz []map[string]any
+		if err := json.Unmarshal([]byte(toolContent), &quiz); err != nil {
+			return err
+		}
+		for _, item := range quiz {
+			question := fmt.Sprintf("%v", item["question"])
+			options, _ := json.Marshal(item["options"])
+			correct := fmt.Sprintf("%v", item["correct_answer"])
+			explanation := fmt.Sprintf("%v", item["explanation"])
+
+			fmt.Fprintf(&builder, "%s\t%s\t%s\t%s\n", question, options, correct, explanation)
+		}
+	}
+
+	return os.WriteFile(outputPath, []byte(builder.String()), 0644)
+}
+
+// HTMLToCSV converts tool content to a standard CSV file
+func (converter *ExternalConverter) HTMLToCSV(toolType string, toolContent string, outputPath string) error {
+	file, err := os.Create(outputPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	if toolType == "flashcard" {
+		var flashcards []map[string]string
+		if err := json.Unmarshal([]byte(toolContent), &flashcards); err != nil {
+			return err
+		}
+		writer.Write([]string{"Front", "Back"})
+		for _, fc := range flashcards {
+			writer.Write([]string{fc["front"], fc["back"]})
+		}
+	} else if toolType == "quiz" {
+		var quiz []map[string]any
+		if err := json.Unmarshal([]byte(toolContent), &quiz); err != nil {
+			return err
+		}
+		writer.Write([]string{"Question", "Options", "Correct Answer", "Explanation"})
+		for _, item := range quiz {
+			optionsBytes, _ := json.Marshal(item["options"])
+			writer.Write([]string{
+				fmt.Sprintf("%v", item["question"]),
+				string(optionsBytes),
+				fmt.Sprintf("%v", item["correct_answer"]),
+				fmt.Sprintf("%v", item["explanation"]),
+			})
+		}
 	}
 
 	return nil

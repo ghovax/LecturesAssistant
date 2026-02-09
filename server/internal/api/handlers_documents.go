@@ -2,9 +2,11 @@ package api
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"lectures/internal/models"
@@ -181,6 +183,58 @@ func (server *Server) handleGetPageImage(responseWriter http.ResponseWriter, req
 	}
 
 	http.ServeFile(responseWriter, request, imagePath)
+}
+
+// handleDeleteDocument deletes a specific reference document and its files
+func (server *Server) handleDeleteDocument(responseWriter http.ResponseWriter, request *http.Request) {
+	var deleteRequest struct {
+		DocumentID string `json:"document_id"`
+		LectureID  string `json:"lecture_id"`
+	}
+	if err := json.NewDecoder(request.Body).Decode(&deleteRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
+		return
+	}
+
+	if deleteRequest.DocumentID == "" || deleteRequest.LectureID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id and lecture_id are required", nil)
+		return
+	}
+
+	userID := server.getUserID(request)
+
+	// Get file path and verify ownership
+	var filePath string
+	err := server.database.QueryRow(`
+		SELECT reference_documents.file_path FROM reference_documents 
+		JOIN lectures ON reference_documents.lecture_id = lectures.id
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE reference_documents.id = ? AND reference_documents.lecture_id = ? AND exams.user_id = ?
+	`, deleteRequest.DocumentID, deleteRequest.LectureID, userID).Scan(&filePath)
+
+	if err == sql.ErrNoRows {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Document not found", nil)
+		return
+	}
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to verify document", nil)
+		return
+	}
+
+	// Delete from database (cascades to reference_pages)
+	_, err = server.database.Exec("DELETE FROM reference_documents WHERE id = ?", deleteRequest.DocumentID)
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete document from database", nil)
+		return
+	}
+
+	// Delete files
+	_ = os.Remove(filePath)
+	// Delete page images directory
+	pagesDir := filepath.Join(os.TempDir(), "lectures-documents", deleteRequest.DocumentID)
+	_ = os.RemoveAll(pagesDir)
+
+	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Document deleted successfully"})
 }
 
 // handleGetPageHTML serves the extracted text of a page converted to HTML

@@ -732,6 +732,79 @@ func (server *Server) handleGetTranscript(responseWriter http.ResponseWriter, re
 	})
 }
 
+// handleUpdateTranscript allows manual refinement of individual transcript segments
+func (server *Server) handleUpdateTranscript(responseWriter http.ResponseWriter, request *http.Request) {
+	var updateRequest struct {
+		TranscriptID string `json:"transcript_id"`
+		LectureID    string `json:"lecture_id"`
+		Segments     []struct {
+			ID   int    `json:"id"`
+			Text string `json:"text"`
+		} `json:"segments"`
+	}
+
+	if err := json.NewDecoder(request.Body).Decode(&updateRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
+		return
+	}
+
+	if updateRequest.TranscriptID == "" || updateRequest.LectureID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "transcript_id and lecture_id are required", nil)
+		return
+	}
+
+	userID := server.getUserID(request)
+
+	// Verify ownership
+	var exists bool
+	err := server.database.QueryRow(`
+		SELECT EXISTS(
+			SELECT 1 FROM transcripts 
+			JOIN lectures ON transcripts.lecture_id = lectures.id
+			JOIN exams ON lectures.exam_id = exams.id
+			WHERE transcripts.id = ? AND transcripts.lecture_id = ? AND exams.user_id = ?
+		)
+	`, updateRequest.TranscriptID, updateRequest.LectureID, userID).Scan(&exists)
+
+	if err != nil || !exists {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Transcript not found", nil)
+		return
+	}
+
+	databaseTransaction, err := server.database.Begin()
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to start transaction", nil)
+		return
+	}
+	defer databaseTransaction.Rollback()
+
+	for _, segment := range updateRequest.Segments {
+		_, err = databaseTransaction.Exec(`
+			UPDATE transcript_segments 
+			SET text = ? 
+			WHERE id = ? AND transcript_id = ?
+		`, segment.Text, segment.ID, updateRequest.TranscriptID)
+		if err != nil {
+			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to update segment", nil)
+			return
+		}
+	}
+
+	// Update transcript timestamp
+	_, err = databaseTransaction.Exec("UPDATE transcripts SET updated_at = ? WHERE id = ?", time.Now(), updateRequest.TranscriptID)
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to update transcript timestamp", nil)
+		return
+	}
+
+	if err := databaseTransaction.Commit(); err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to commit changes", nil)
+		return
+	}
+
+	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Transcript updated successfully"})
+}
+
 // handleGetTranscriptHTML retrieves the unified transcript for a lecture converted to HTML with timestamps
 func (server *Server) handleGetTranscriptHTML(responseWriter http.ResponseWriter, request *http.Request) {
 	lectureID := request.URL.Query().Get("lecture_id")

@@ -95,8 +95,9 @@ func (server *Server) setupRoutes() {
 	apiRouter.Use(server.loggingMiddleware)
 	apiRouter.Use(server.authMiddleware)
 
-	// Auth logout (requires auth)
+	// Auth (requires auth)
 	apiRouter.HandleFunc("/auth/logout", server.handleAuthLogout).Methods("POST")
+	apiRouter.HandleFunc("/auth/password", server.handleAuthChangePassword).Methods("PATCH")
 
 	// Staged Upload Protocol
 	apiRouter.HandleFunc("/uploads/prepare", server.handleUploadPrepare).Methods("POST")
@@ -110,6 +111,9 @@ func (server *Server) setupRoutes() {
 	apiRouter.HandleFunc("/exams/details", server.handleGetExam).Methods("GET")
 	apiRouter.HandleFunc("/exams", server.handleUpdateExam).Methods("PATCH")
 	apiRouter.HandleFunc("/exams", server.handleDeleteExam).Methods("DELETE")
+	apiRouter.HandleFunc("/exams/search", server.handleExamSearch).Methods("GET")
+	apiRouter.HandleFunc("/exams/suggest", server.handleExamSuggest).Methods("POST")
+	apiRouter.HandleFunc("/exams/concepts", server.handleGetExamConcepts).Methods("GET")
 
 	// Lectures
 	apiRouter.HandleFunc("/lectures", server.handleCreateLecture).Methods("POST")
@@ -120,14 +124,17 @@ func (server *Server) setupRoutes() {
 
 	// Media (Listing/Ordering)
 	apiRouter.HandleFunc("/media", server.handleListMedia).Methods("GET")
+	apiRouter.HandleFunc("/media", server.handleDeleteMedia).Methods("DELETE")
 
 	// Transcripts
 	apiRouter.HandleFunc("/transcripts", server.handleGetTranscript).Methods("GET")
+	apiRouter.HandleFunc("/transcripts", server.handleUpdateTranscript).Methods("PATCH")
 	apiRouter.HandleFunc("/transcripts/html", server.handleGetTranscriptHTML).Methods("GET")
 
 	// Reference Documents (Listing/Meta)
 	apiRouter.HandleFunc("/documents", server.handleListDocuments).Methods("GET")
 	apiRouter.HandleFunc("/documents/details", server.handleGetDocument).Methods("GET")
+	apiRouter.HandleFunc("/documents", server.handleDeleteDocument).Methods("DELETE")
 	apiRouter.HandleFunc("/documents/pages", server.handleGetDocumentPages).Methods("GET")
 	apiRouter.HandleFunc("/documents/pages/image", server.handleGetPageImage).Methods("GET")
 	apiRouter.HandleFunc("/documents/pages/html", server.handleGetPageHTML).Methods("GET")
@@ -136,6 +143,7 @@ func (server *Server) setupRoutes() {
 	apiRouter.HandleFunc("/tools", server.handleCreateTool).Methods("POST")
 	apiRouter.HandleFunc("/tools", server.handleListTools).Methods("GET")
 	apiRouter.HandleFunc("/tools/details", server.handleGetTool).Methods("GET")
+	apiRouter.HandleFunc("/tools/details", server.handleUpdateTool).Methods("PATCH")
 	apiRouter.HandleFunc("/tools/html", server.handleGetToolHTML).Methods("GET")
 	apiRouter.HandleFunc("/tools", server.handleDeleteTool).Methods("DELETE")
 	apiRouter.HandleFunc("/tools/export", server.handleExportTool).Methods("POST")

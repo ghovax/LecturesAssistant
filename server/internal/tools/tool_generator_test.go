@@ -52,7 +52,6 @@ func (mock *UnbreakableSequentialMock) Name() string { return "unbreakable-seque
 
 func TestToolGenerator_DocumentsMatching(tester *testing.T) {
 	config := &configuration.Configuration{}
-	promptManager := prompts.NewManager("../../prompts")
 
 	mockLLM := &UnbreakableSequentialMock{
 		Responses: []string{
@@ -62,7 +61,7 @@ func TestToolGenerator_DocumentsMatching(tester *testing.T) {
 		},
 	}
 
-	generator := NewToolGenerator(config, mockLLM, promptManager)
+	generator := NewToolGenerator(config, mockLLM, prompts.NewManager(""))
 
 	fullMaterials := `# File A
 
@@ -86,7 +85,6 @@ Content 12`
 
 func TestToolGenerator_SequentialBuildingWithCleanHistory(tester *testing.T) {
 	config := &configuration.Configuration{}
-	promptManager := prompts.NewManager("../../prompts")
 
 	mockLLM := &UnbreakableSequentialMock{
 		Responses: []string{
@@ -117,7 +115,7 @@ Success 2`,
 		},
 	}
 
-	generator := NewToolGenerator(config, mockLLM, promptManager)
+	generator := NewToolGenerator(config, mockLLM, prompts.NewManager(""))
 	lecture := models.Lecture{Title: "Lecture Title"}
 
 	options := models.GenerationOptions{
@@ -146,7 +144,6 @@ Success 2`,
 
 func TestToolGenerator_FootnoteHealing(tester *testing.T) {
 	config := &configuration.Configuration{}
-	promptManager := prompts.NewManager("../../prompts")
 
 	mockLLM := &UnbreakableSequentialMock{
 		Responses: []string{
@@ -160,7 +157,7 @@ func TestToolGenerator_FootnoteHealing(tester *testing.T) {
 		},
 	}
 
-	generator := NewToolGenerator(config, mockLLM, promptManager)
+	generator := NewToolGenerator(config, mockLLM, prompts.NewManager(""))
 
 	citations := []markdown.ParsedCitation{
 		{Number: 1, Description: "Raw 1"},
@@ -240,7 +237,7 @@ func TestToolGenerator_CostLimitEnforcement(tester *testing.T) {
 		Costs:     []float64{0.75}, // Exceeds limit
 	}
 
-	generator := NewToolGenerator(config, mockLLM, nil)
+	generator := NewToolGenerator(config, mockLLM, prompts.NewManager(""))
 
 	_, _, err := generator.CleanDocumentTitle(context.Background(), "Title", "en-US", models.GenerationOptions{})
 	if err == nil {

@@ -247,3 +247,49 @@ func (server *Server) handleAuthStatus(responseWriter http.ResponseWriter, reque
 		},
 	})
 }
+
+// handleAuthChangePassword allows a user to change their password
+func (server *Server) handleAuthChangePassword(responseWriter http.ResponseWriter, request *http.Request) {
+	var passwordRequest struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+
+	if decodeError := json.NewDecoder(request.Body).Decode(&passwordRequest); decodeError != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
+		return
+	}
+
+	if len(passwordRequest.NewPassword) < 8 {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "New password must be at least 8 characters", nil)
+		return
+	}
+
+	userID := server.getUserID(request)
+
+	var passwordHash string
+	err := server.database.QueryRow("SELECT password_hash FROM users WHERE id = ?", userID).Scan(&passwordHash)
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get user details", nil)
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(passwordRequest.CurrentPassword)); err != nil {
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid current password", nil)
+		return
+	}
+
+	newHash, err := bcrypt.GenerateFromPassword([]byte(passwordRequest.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "AUTHENTICATION_ERROR", "Failed to hash new password", nil)
+		return
+	}
+
+	_, err = server.database.Exec("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?", string(newHash), time.Now(), userID)
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to update password", nil)
+		return
+	}
+
+	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Password updated successfully"})
+}

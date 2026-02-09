@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"lectures/internal/models"
 )
@@ -185,6 +186,66 @@ func (server *Server) handleGetTool(responseWriter http.ResponseWriter, request 
 	}
 
 	server.writeJSON(responseWriter, http.StatusOK, tool)
+}
+
+// handleUpdateTool allows manual refinement of tool content or title
+func (server *Server) handleUpdateTool(responseWriter http.ResponseWriter, request *http.Request) {
+	var updateRequest struct {
+		ToolID  string  `json:"tool_id"`
+		ExamID  string  `json:"exam_id"`
+		Title   *string `json:"title"`
+		Content *string `json:"content"`
+	}
+
+	if err := json.NewDecoder(request.Body).Decode(&updateRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
+		return
+	}
+
+	if updateRequest.ToolID == "" || updateRequest.ExamID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "tool_id and exam_id are required", nil)
+		return
+	}
+
+	userID := server.getUserID(request)
+
+	// Verify ownership
+	var exists bool
+	err := server.database.QueryRow(`
+		SELECT EXISTS(
+			SELECT 1 FROM tools 
+			JOIN exams ON tools.exam_id = exams.id
+			WHERE tools.id = ? AND tools.exam_id = ? AND exams.user_id = ?
+		)
+	`, updateRequest.ToolID, updateRequest.ExamID, userID).Scan(&exists)
+
+	if err != nil || !exists {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found in this exam", nil)
+		return
+	}
+
+	query := "UPDATE tools SET updated_at = ?"
+	args := []any{time.Now()}
+
+	if updateRequest.Title != nil {
+		query += ", title = ?"
+		args = append(args, *updateRequest.Title)
+	}
+	if updateRequest.Content != nil {
+		query += ", content = ?"
+		args = append(args, *updateRequest.Content)
+	}
+
+	query += " WHERE id = ?"
+	args = append(args, updateRequest.ToolID)
+
+	_, err = server.database.Exec(query, args...)
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to update tool", nil)
+		return
+	}
+
+	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Tool updated successfully"})
 }
 
 // handleGetToolHTML retrieves a specific tool and converts its content to HTML

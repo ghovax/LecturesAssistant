@@ -162,6 +162,7 @@ const (
 	JobTypeIngestDocuments     = "INGEST_DOCUMENTS"
 	JobTypeBuildMaterial       = "BUILD_MATERIAL"
 	JobTypePublishMaterial     = "PUBLISH_MATERIAL"
+	JobTypeSuggest             = "SUGGEST"
 	JobTypeDownloadGoogleDrive = "DOWNLOAD_GOOGLE_DRIVE"
 )
 

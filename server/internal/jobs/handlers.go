@@ -649,6 +649,64 @@ func RegisterHandlers(
 		return nil
 	})
 
+	queue.RegisterHandler(models.JobTypeSuggest, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, models.JobMetrics)) error {
+		var totalMetrics models.JobMetrics
+		var payload struct {
+			ExamID string `json:"exam_id"`
+		}
+		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
+			return err
+		}
+
+		// 1. Get exam details
+		var currentTitle, currentDescription string
+		err := database.QueryRow("SELECT title, description FROM exams WHERE id = ?", payload.ExamID).Scan(&currentTitle, &currentDescription)
+		if err != nil {
+			return err
+		}
+
+		// 2. Get some context from transcripts
+		rows, err := database.Query(`
+			SELECT text FROM transcript_segments
+			JOIN transcripts ON transcript_segments.transcript_id = transcripts.id
+			JOIN lectures ON transcripts.lecture_id = lectures.id
+			WHERE lectures.exam_id = ?
+			LIMIT 50
+		`, payload.ExamID)
+
+		var contextBuilder strings.Builder
+		if err == nil {
+			for rows.Next() {
+				var text string
+				if err := rows.Scan(&text); err == nil {
+					contextBuilder.WriteString(text + " ")
+				}
+			}
+			rows.Close()
+		}
+
+		// 3. Suggest better title and description
+		updateProgress(30, "Analyzing content for better metadata...", nil, totalMetrics)
+		newTitle, newDescription, polishMetrics, err := toolGenerator.CorrectProjectTitleDescription(jobContext, currentTitle, currentDescription, contextBuilder.String())
+		totalMetrics.InputTokens += polishMetrics.InputTokens
+		totalMetrics.OutputTokens += polishMetrics.OutputTokens
+		totalMetrics.EstimatedCost += polishMetrics.EstimatedCost
+
+		if err != nil {
+			return err
+		}
+
+		// 4. Update exam
+		_, err = database.Exec("UPDATE exams SET title = ?, description = ?, updated_at = ? WHERE id = ?", newTitle, newDescription, time.Now(), payload.ExamID)
+		if err != nil {
+			return err
+		}
+
+		updateProgress(100, "Metadata updated successfully", nil, totalMetrics)
+		job.Result = fmt.Sprintf(`{"title": "%s", "description": "%s"}`, newTitle, newDescription)
+		return nil
+	})
+
 	queue.RegisterHandler(models.JobTypePublishMaterial, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, models.JobMetrics)) error {
 		var totalMetrics models.JobMetrics
 
@@ -984,6 +1042,12 @@ func RegisterHandlers(
 
 			if payload.Format == "docx" {
 				return markdownConverter.HTMLToDocx(htmlContent, outputPath, currentOptions)
+			}
+			if payload.Format == "anki" {
+				return markdownConverter.HTMLToAnki(tool.Type, tool.Content, outputPath)
+			}
+			if payload.Format == "csv" {
+				return markdownConverter.HTMLToCSV(tool.Type, tool.Content, outputPath)
 			}
 			return markdownConverter.HTMLToPDF(htmlContent, outputPath, currentOptions)
 		}

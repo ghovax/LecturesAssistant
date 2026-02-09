@@ -2,7 +2,9 @@ package api
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
+	"os"
 
 	"lectures/internal/models"
 )
@@ -50,4 +52,53 @@ func (server *Server) handleListMedia(responseWriter http.ResponseWriter, reques
 	}
 
 	server.writeJSON(responseWriter, http.StatusOK, mediaList)
+}
+
+// handleDeleteMedia deletes a specific lecture media file
+func (server *Server) handleDeleteMedia(responseWriter http.ResponseWriter, request *http.Request) {
+	var deleteRequest struct {
+		MediaID   string `json:"media_id"`
+		LectureID string `json:"lecture_id"`
+	}
+	if err := json.NewDecoder(request.Body).Decode(&deleteRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
+		return
+	}
+
+	if deleteRequest.MediaID == "" || deleteRequest.LectureID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "media_id and lecture_id are required", nil)
+		return
+	}
+
+	userID := server.getUserID(request)
+
+	// Get file path and verify ownership
+	var filePath string
+	err := server.database.QueryRow(`
+		SELECT lecture_media.file_path FROM lecture_media 
+		JOIN lectures ON lecture_media.lecture_id = lectures.id
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE lecture_media.id = ? AND lecture_media.lecture_id = ? AND exams.user_id = ?
+	`, deleteRequest.MediaID, deleteRequest.LectureID, userID).Scan(&filePath)
+
+	if err == sql.ErrNoRows {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Media not found", nil)
+		return
+	}
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to verify media", nil)
+		return
+	}
+
+	// Delete from database
+	_, err = server.database.Exec("DELETE FROM lecture_media WHERE id = ?", deleteRequest.MediaID)
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete media from database", nil)
+		return
+	}
+
+	// Delete file
+	_ = os.Remove(filePath)
+
+	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Media deleted successfully"})
 }

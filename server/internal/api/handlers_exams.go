@@ -274,3 +274,175 @@ func (server *Server) handleDeleteExam(responseWriter http.ResponseWriter, reque
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Exam deleted successfully"})
 }
+
+// handleExamSearch performs a global keyword search across all materials in an exam
+func (server *Server) handleExamSearch(responseWriter http.ResponseWriter, request *http.Request) {
+	examID := request.URL.Query().Get("exam_id")
+	query := request.URL.Query().Get("query")
+
+	if examID == "" || query == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "exam_id and query are required", nil)
+		return
+	}
+
+	userID := server.getUserID(request)
+
+	// Verify exam ownership
+	var exists bool
+	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ? AND user_id = ?)", examID, userID).Scan(&exists)
+	if err != nil || !exists {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
+		return
+	}
+
+	type searchResult struct {
+		Type      string `json:"type"` // "transcript" or "document"
+		LectureID string `json:"lecture_id"`
+		Title     string `json:"title"`
+		Snippet   string `json:"snippet"`
+		Metadata  any    `json:"metadata,omitempty"`
+	}
+	var results []searchResult
+
+	// 1. Search in Transcripts
+	transcriptRows, err := server.database.Query(`
+		SELECT lectures.id, lectures.title, transcript_segments.text, transcript_segments.start_millisecond
+		FROM transcript_segments
+		JOIN transcripts ON transcript_segments.transcript_id = transcripts.id
+		JOIN lectures ON transcripts.lecture_id = lectures.id
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE lectures.exam_id = ? AND exams.user_id = ? AND transcript_segments.text LIKE ?
+		LIMIT 50
+	`, examID, userID, "%"+query+"%")
+
+	if err == nil {
+		for transcriptRows.Next() {
+			var lID, lTitle, text string
+			var startMs int64
+			if err := transcriptRows.Scan(&lID, &lTitle, &text, &startMs); err == nil {
+				results = append(results, searchResult{
+					Type:      "transcript",
+					LectureID: lID,
+					Title:     lTitle,
+					Snippet:   text,
+					Metadata:  map[string]int64{"start_millisecond": startMs},
+				})
+			}
+		}
+		transcriptRows.Close()
+	}
+
+	// 2. Search in Document Pages
+	documentRows, err := server.database.Query(`
+		SELECT lectures.id, reference_documents.title, reference_pages.extracted_text, reference_pages.page_number, reference_documents.id
+		FROM reference_pages
+		JOIN reference_documents ON reference_pages.document_id = reference_documents.id
+		JOIN lectures ON reference_documents.lecture_id = lectures.id
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE lectures.exam_id = ? AND exams.user_id = ? AND reference_pages.extracted_text LIKE ?
+		LIMIT 50
+	`, examID, userID, "%"+query+"%")
+
+	if err == nil {
+		for documentRows.Next() {
+			var lID, docTitle, text, docID string
+			var pageNum int
+			if err := documentRows.Scan(&lID, &docTitle, &text, &pageNum, &docID); err == nil {
+				results = append(results, searchResult{
+					Type:      "document",
+					LectureID: lID,
+					Title:     docTitle,
+					Snippet:   text,
+					Metadata:  map[string]any{"page_number": pageNum, "document_id": docID},
+				})
+			}
+		}
+		documentRows.Close()
+	}
+
+	server.writeJSON(responseWriter, http.StatusOK, results)
+}
+
+// handleExamSuggest triggers an AI job to suggest better metadata for an exam
+func (server *Server) handleExamSuggest(responseWriter http.ResponseWriter, request *http.Request) {
+	var suggestRequest struct {
+		ExamID string `json:"exam_id"`
+	}
+	if err := json.NewDecoder(request.Body).Decode(&suggestRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
+		return
+	}
+
+	if suggestRequest.ExamID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "exam_id is required", nil)
+		return
+	}
+
+	userID := server.getUserID(request)
+
+	// Verify exam ownership
+	var exists bool
+	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ? AND user_id = ?)", suggestRequest.ExamID, userID).Scan(&exists)
+	if err != nil || !exists {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
+		return
+	}
+
+	jobID, err := server.jobQueue.Enqueue(userID, models.JobTypeSuggest, map[string]string{
+		"exam_id": suggestRequest.ExamID,
+	}, suggestRequest.ExamID, "")
+
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "BACKGROUND_JOB_ERROR", "Failed to enqueue suggest job", nil)
+		return
+	}
+
+	server.writeJSON(responseWriter, http.StatusAccepted, map[string]string{
+		"job_id":  jobID,
+		"message": "Suggestion job created",
+	})
+}
+
+// handleGetExamConcepts retrieves a "concept map" or glossary for an exam based on processed materials
+func (server *Server) handleGetExamConcepts(responseWriter http.ResponseWriter, request *http.Request) {
+	examID := request.URL.Query().Get("exam_id")
+	if examID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "exam_id is required", nil)
+		return
+	}
+
+	userID := server.getUserID(request)
+
+	// Verify ownership
+	var exists bool
+	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ? AND user_id = ?)", examID, userID).Scan(&exists)
+	if err != nil || !exists {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
+		return
+	}
+
+	// Extract unique concepts from tool_source_references (which contains the citation metadata)
+	rows, err := server.database.Query(`
+		SELECT DISTINCT json_extract(metadata, '$.description') as concept
+		FROM tool_source_references
+		JOIN tools ON tool_source_references.tool_id = tools.id
+		WHERE tools.exam_id = ? AND concept IS NOT NULL
+		ORDER BY concept ASC
+	`, examID)
+
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to retrieve concepts", nil)
+		return
+	}
+	defer rows.Close()
+
+	var concepts []string
+	for rows.Next() {
+		var concept string
+		if err := rows.Scan(&concept); err == nil && concept != "" {
+			concepts = append(concepts, concept)
+		}
+	}
+
+	server.writeJSON(responseWriter, http.StatusOK, concepts)
+}

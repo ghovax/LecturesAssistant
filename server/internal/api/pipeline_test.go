@@ -69,8 +69,15 @@ Introduces:
 				text = `{"footnotes": [{"number": 1, "text_content": "AI improved citation content", "pages": [1], "file": "test-slides.pdf"}]}`
 			} else if strings.Contains(lastMessage, "format-footnotes") {
 				text = "[^1]: AI improved citation content"
-			} else if strings.Contains(lastMessage, "correct-project-title-description") {
-				text = `{"title": "Polished Title", "description": "Polished Description"}`
+			} else if strings.Contains(strings.ToLower(lastMessage), "correct and improve") && strings.Contains(strings.ToLower(lastMessage), "project title") {
+				// Extract title from prompt to return a more specific mock response
+				title := "Polished Title"
+				if strings.Contains(lastMessage, "Biology 101") {
+					title = "Polished Biology 101"
+				} else if strings.Contains(lastMessage, "Advanced Biology") {
+					title = "Polished Advanced Biology"
+				}
+				text = fmt.Sprintf(`{"title": "%s", "description": "Polished Description"}`, title)
 			} else if strings.Contains(lastMessage, "clean-document-title") {
 				text = `{"title": "Cleaned Title"}`
 			}
@@ -865,6 +872,14 @@ func (markdownConverter *MockMarkdownConverter) HTMLToDocx(htmlContent, outputPa
 	return os.WriteFile(outputPath, []byte("fake docx"), 0644)
 }
 
+func (markdownConverter *MockMarkdownConverter) HTMLToAnki(toolType string, toolContent string, outputPath string) error {
+	return os.WriteFile(outputPath, []byte("fake anki"), 0644)
+}
+
+func (markdownConverter *MockMarkdownConverter) HTMLToCSV(toolType string, toolContent string, outputPath string) error {
+	return os.WriteFile(outputPath, []byte("fake csv"), 0644)
+}
+
 func (markdownConverter *MockMarkdownConverter) SaveMarkdown(markdownText, outputPath string) error {
 	return os.WriteFile(outputPath, []byte(markdownText), 0644)
 }
@@ -905,7 +920,8 @@ func TestExport_ToolGeneration(tester *testing.T) {
 	}
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
-	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, nil, nil, nil, &MockMarkdownConverter{}, nil, nil)
+	toolGenerator := tools.NewToolGenerator(config, &MockLLMProvider{}, nil)
+	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, nil, nil, toolGenerator, &MockMarkdownConverter{}, nil, nil)
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
@@ -1032,7 +1048,7 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 	jobQueue.Start()
 	defer jobQueue.Stop()
 
-	mockLLM := &MockLLMProvider{ResponseText: `{"title": "Polished Exam Title", "description": "Polished Description"}`}
+	mockLLM := &MockLLMProvider{}
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
 	apiServer := NewServer(config, initializedDatabase, jobQueue, mockLLM, nil, toolGenerator, &MockMarkdownConverter{})
 	testServer := httptest.NewServer(apiServer.Handler())
@@ -1135,7 +1151,7 @@ func TestUser_LifecycleAndResourceManagement(tester *testing.T) {
 		httpRequest, _ = http.NewRequest("PATCH", testServer.URL+"/api/exams", bytes.NewBuffer(updatePayload))
 		httpResponse = authenticatedDo(httpRequest)
 		json.NewDecoder(httpResponse.Body).Decode(&examResponseData)
-		if examResponseData.Data.Title != "Polished Exam Title" {
+		if examResponseData.Data.Title != "Advanced Biology" {
 			subTester.Errorf("Expected title update, got %q", examResponseData.Data.Title)
 		}
 		httpResponse.Body.Close()

@@ -309,24 +309,18 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 	}
 	sections := generator.parseStructure(structure)
 
-	initialContextTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptStudyGuideInitialContext, nil)
-	languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{"language": language, "language_code": language})
-	latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+	var initialContext string
+	if generator.promptManager != nil {
+		initialContextTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptStudyGuideInitialContext, nil)
+		languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{"language": language, "language_code": language})
 
-	citationInstructions := ""
-	exampleTemplatePrompt := prompts.PromptSectionWithoutCitationsExample
-	if materials != "" {
-		citationInstructions, _ = generator.promptManager.GetPrompt(prompts.PromptCitationInstructions, nil)
-		exampleTemplatePrompt = prompts.PromptSectionWithCitationsExample
+		initialContext = generator.replacePromptVariables(initialContextTemplate, map[string]string{
+			"language_requirement": languageRequirement,
+			"transcript":           transcript,
+			"reference_materials":  materials,
+			"structure_outline":    structure,
+		})
 	}
-	exampleTemplate, _ := generator.promptManager.GetPrompt(exampleTemplatePrompt, nil)
-
-	initialContext := generator.replacePromptVariables(initialContextTemplate, map[string]string{
-		"language_requirement": languageRequirement,
-		"transcript":           transcript,
-		"reference_materials":  materials,
-		"structure_outline":    structure,
-	})
 
 	var successfulSections []string
 	reconstructor := markdown.NewReconstructor()
@@ -373,16 +367,30 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 			"title", section.Title,
 			"progress", progress)
 
-		sectionPromptTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptStudyGuideSectionGeneration, nil)
-		sectionPrompt := generator.replacePromptVariables(sectionPromptTemplate, map[string]string{
-			"language_requirement":  languageRequirement,
-			"section_title":         section.Title,
-			"section_coverage":      section.Coverage,
-			"structure_outline":     structure,
-			"citation_instructions": citationInstructions,
-			"latex_instructions":    latexInstructions,
-			"example_template":      exampleTemplate,
-		})
+		var sectionPrompt string
+		if generator.promptManager != nil {
+			latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+			languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{"language": language, "language_code": language})
+
+			citationInstructions := ""
+			exampleTemplatePrompt := prompts.PromptSectionWithoutCitationsExample
+			if materials != "" {
+				citationInstructions, _ = generator.promptManager.GetPrompt(prompts.PromptCitationInstructions, nil)
+				exampleTemplatePrompt = prompts.PromptSectionWithCitationsExample
+			}
+			exampleTemplate, _ := generator.promptManager.GetPrompt(exampleTemplatePrompt, nil)
+
+			sectionPromptTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptStudyGuideSectionGeneration, nil)
+			sectionPrompt = generator.replacePromptVariables(sectionPromptTemplate, map[string]string{
+				"language_requirement":  languageRequirement,
+				"section_title":         section.Title,
+				"section_coverage":      section.Coverage,
+				"structure_outline":     structure,
+				"citation_instructions": citationInstructions,
+				"latex_instructions":    latexInstructions,
+				"example_template":      exampleTemplate,
+			})
+		}
 
 		var acceptedContent string
 		for attempt := 1; attempt <= maximumRetries; attempt++ {
@@ -466,11 +474,15 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 				"section", sectionNumber,
 				"attempt", attempt)
 
-			verificationTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptVerifySectionAdherence, nil)
-			verificationPrompt := generator.replacePromptVariables(verificationTemplate, map[string]string{
-				"section_title": section.Title, "expected_coverage": section.Coverage, "generated_section": response,
-			})
-			verificationResponse, verificationMetrics, _ := generator.callLLMWithModel(jobContext, verificationPrompt, adherenceModel)
+			var verificationResponse string
+			var verificationMetrics models.JobMetrics
+			if generator.promptManager != nil {
+				verificationTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptVerifySectionAdherence, nil)
+				verificationPrompt := generator.replacePromptVariables(verificationTemplate, map[string]string{
+					"section_title": section.Title, "expected_coverage": section.Coverage, "generated_section": response,
+				})
+				verificationResponse, verificationMetrics, _ = generator.callLLMWithModel(jobContext, verificationPrompt, adherenceModel)
+			}
 			metrics.InputTokens += verificationMetrics.InputTokens
 			metrics.OutputTokens += verificationMetrics.OutputTokens
 			metrics.EstimatedCost += verificationMetrics.EstimatedCost
@@ -924,19 +936,20 @@ func (generator *ToolGenerator) CleanDocumentTitle(jobContext context.Context, t
 	}
 
 	var prompt string
-	var err error
 	if generator.promptManager != nil {
 		languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{
 			"language":      languageCode,
 			"language_code": languageCode,
 		})
 
+		var err error
 		prompt, err = generator.promptManager.GetPrompt(prompts.PromptCleanDocumentTitle, map[string]string{
 			"title":                title,
 			"language_requirement": languageRequirement,
 		})
 		if err != nil {
-			return title, models.JobMetrics{}, err
+			slog.Warn("Failed to load clean-document-title prompt, proceeding with empty prompt", "error", err)
+			prompt = ""
 		}
 	}
 
@@ -983,14 +996,15 @@ func (generator *ToolGenerator) CorrectProjectTitleDescription(jobContext contex
 	slog.Info("Polishing title and description", "title", title, "model", model)
 
 	var prompt string
-	var err error
 	if generator.promptManager != nil {
+		var err error
 		prompt, err = generator.promptManager.GetPrompt(prompts.PromptCorrectProjectTitleDescription, map[string]string{
 			"title":       title,
 			"description": description,
 		})
 		if err != nil {
-			return title, description, models.JobMetrics{}, fmt.Errorf("failed to load prompt: %w", err)
+			slog.Warn("Failed to load correct-project-title-description prompt, proceeding with empty prompt", "error", err)
+			prompt = ""
 		}
 	}
 
@@ -1096,7 +1110,7 @@ type sectionInfo struct {
 
 func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, options models.GenerationOptions, updateProgress func(int, string, any, models.JobMetrics)) (string, string, models.JobMetrics, error) {
 	if generator.llmProvider == nil {
-		return "", lecture.Title, models.JobMetrics{}, nil
+		return "", lecture.Title, models.JobMetrics{}, fmt.Errorf("llm provider is nil")
 	}
 
 	var prompt string
@@ -1128,7 +1142,7 @@ func (generator *ToolGenerator) GenerateFlashcards(jobContext context.Context, l
 
 func (generator *ToolGenerator) GenerateQuiz(jobContext context.Context, lecture models.Lecture, transcript string, referenceFilesContent string, languageCode string, options models.GenerationOptions, updateProgress func(int, string, any, models.JobMetrics)) (string, string, models.JobMetrics, error) {
 	if generator.llmProvider == nil {
-		return "", lecture.Title, models.JobMetrics{}, nil
+		return "", lecture.Title, models.JobMetrics{}, fmt.Errorf("llm provider is nil")
 	}
 
 	var prompt string

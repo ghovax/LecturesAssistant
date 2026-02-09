@@ -33,15 +33,15 @@
 
 <p class="text-muted">Keep an eye on how your transcriptions and study guides are progressing.</p>
 
-<div class="well bg-white p-0 overflow-hidden shadow-sm">
+<div class="well bg-white p-0">
     <table class="table table-hover mb-0">
-        <thead class="bg-light">
+        <thead>
             <tr>
-                <th>Type</th>
+                <th class="ps-3">Type</th>
                 <th>Status</th>
                 <th>Progress</th>
                 <th>Message</th>
-                <th>Started</th>
+                <th class="pe-3">Started</th>
             </tr>
         </thead>
         <tbody>
@@ -52,21 +52,33 @@
             {:else}
                 {#each jobs as job}
                     <tr>
-                        <td class="small fw-bold text-uppercase">{job.type.replace('_', ' ')}</td>
+                        <td class="ps-3 small fw-bold text-uppercase">{job.type.replace('_', ' ')}</td>
                         <td>
                             <span class="d-flex align-items-center gap-1">
                                 {#if job.status === 'COMPLETED'}
-                                    <CheckCircle2 size={14} class="text-success" />
+                                    <span class="glyphicon text-success"><CheckCircle2 size={14} /></span>
                                 {:else if job.status === 'RUNNING'}
-                                    <Loader2 size={14} class="text-primary spin" />
+                                    <span class="glyphicon text-primary spin"><Loader2 size={14} /></span>
                                 {:else if job.status === 'FAILED'}
-                                    <XCircle size={14} class="text-danger" />
+                                    <span class="glyphicon text-danger"><XCircle size={14} /></span>
                                 {:else if job.status === 'PENDING'}
-                                    <Play size={14} class="text-secondary" />
+                                    <span class="glyphicon text-secondary"><Play size={14} /></span>
                                 {:else}
-                                    <AlertCircle size={14} />
+                                    <span class="glyphicon"><AlertCircle size={14} /></span>
                                 {/if}
-                                <span class="small">{job.status}</span>
+                                <span class="small">
+                                    {#if job.status === 'COMPLETED'}
+                                        Completed
+                                    {:else if job.status === 'RUNNING'}
+                                        Running
+                                    {:else if job.status === 'FAILED'}
+                                        Failed
+                                    {:else if job.status === 'PENDING'}
+                                        Queued
+                                    {:else}
+                                        {job.status}
+                                    {/if}
+                                </span>
                             </span>
                         </td>
                         <td style="width: 150px;">
@@ -80,7 +92,7 @@
                         <td class="small text-muted text-truncate" style="max-width: 250px;">
                             {job.progress_message_text || '-'}
                         </td>
-                        <td class="small text-muted">
+                        <td class="pe-3 small text-muted">
                             {new Date(job.created_at).toLocaleString()}
                         </td>
                     </tr>
@@ -89,3 +101,29 @@
         </tbody>
     </table>
 </div>
+
+<style>
+    .spin {
+        animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    table thead th {
+        border-top: none;
+        font-weight: bold;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.05em;
+        color: #666;
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: #f9f9f9;
+    }
+</style>

@@ -58,6 +58,11 @@ body {
 }
 
 /* Navbar - EXACT matching */
+.navbar {
+    min-height: 3.125rem;
+    padding: 0 !important;
+}
+
 .navbar-brand {
     background: linear-gradient(180deg, #2c4529 0, #212b20);
     line-height: 3.125rem;
@@ -65,15 +70,55 @@ body {
     text-shadow: .0625rem .0625rem #000;
     display: inline-block;
     font-size: 1.25rem;
-    margin-right: 1rem;
-    padding-bottom: .4475rem;
-    padding-top: .4475rem;
+    margin-right: 0;
+    padding: 0 1rem !important;
     white-space: nowrap;
     color: #fff !important;
 }
 
+.navbar-nav .nav-link {
+    line-height: 3.125rem;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    height: 3.125rem;
+    display: flex;
+    align-items: center;
+    color: rgba(255,255,255,.5) !important;
+}
+
+.navbar-nav .nav-link:hover {
+    color: rgba(255,255,255,.75) !important;
+}
+
 .bg-dark {
     background-color: #222 !important;
+}
+
+/* Dictionary Search Style Input Group */
+.input-group.dictionary-style {
+    .form-control, .btn {
+        height: 2.875rem;
+    }
+    .form-control {
+        border-right: none;
+    }
+    .btn {
+        border-radius: 0;
+        padding-left: 1.25rem;
+        padding-right: 1.25rem;
+    }
+}
+
+.btn-primary {
+    background-color: #568f27;
+    border-color: #4a7a20;
+}
+
+.btn-primary:hover, .btn-primary:focus {
+    background-color: #4a7a20;
+    border-color: #3e621a;
 }
 
 /* LinkTiles - EXACT literal dimensions from snippets */
@@ -147,17 +192,28 @@ div.linkTiles > a > p {
 div.linkTiles > a > p {
     bottom: .9375rem !important;
     font-size: 1.2rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    
+    &.font-monospace {
+        font-family: monospace;
+        font-size: 1rem;
+    }
 }
 
 /* Description positioning - Now above the title */
 .tileContent {
-    bottom: 2.8rem !important; 
+    bottom: 2.6rem !important; 
     font-size: 0.85rem;
-    color: #000;
+    color: #444;
     line-height: 1.2;
-    height: 2.5rem;
+    height: 2.2rem;
     overflow: hidden;
-    display: block;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    text-overflow: ellipsis;
 }
 
 /* Breadcrumbs */
@@ -178,15 +234,117 @@ div.linkTiles > a > p {
 }
 
 /* Utils */
-.btn, .form-control {
+.btn, .form-control, .form-select {
     border-radius: 0 !important;
+}
+
+.btn, .nav-link {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
 }
 
 .glyphicon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    vertical-align: middle;
-    position: relative;
-    top: -1px;
+    line-height: 1;
+    margin-right: 0.25rem;
+}
+
+/* Dictionary Results Styling */
+.char-results a {
+    display: block;
+    padding: 1rem;
+    border: 1px solid #eee;
+    margin-bottom: 1rem;
+    color: inherit;
+    text-decoration: none;
+}
+
+.char-results a:hover {
+    background-color: #f9f9f9;
+}
+
+.char-results [lang="ja"] {
+    font-size: 3rem;
+    line-height: 1;
+}
+
+.wordBrief {
+    margin-bottom: 1.5rem;
+}
+
+.japaneseText {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.japaneseText a {
+    color: #000;
+    text-decoration: none;
+}
+
+table.ruby {
+    border-collapse: collapse;
+    display: inline-table;
+    margin: 0;
+    padding: 0;
+    text-align: center;
+    vertical-align: bottom;
+}
+
+table.ruby td {
+    padding: 0 0.1rem;
+}
+
+tr.furi {
+    font-size: .625rem;
+    height: .75rem;
+    line-height: 1;
+}
+
+.smallText {
+    font-size: 0.875rem;
+    color: #666;
+}
+
+/* Character Detail Styling */
+.characterHeading {
+    font-size: 4rem;
+    line-height: 1;
+    margin-bottom: 1rem;
+}
+
+h3 {
+    border-bottom: 1px solid #eee;
+    padding-bottom: 0.5rem;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+}
+
+.readingsGroup {
+    list-style: none;
+    padding: 0;
+}
+
+.readingsGroup li {
+    margin-bottom: 0.5rem;
+}
+
+.readingMeaning {
+    margin-left: 1rem;
+    color: #444;
+}
+
+/* Well adjustments */
+.well.bg-white {
+    background-color: #fff !important;
+    border: 1px solid #e3e3e3;
+}
+
+.well table, .well .table, .well .table td, .well .table th {
+    background-color: transparent !important;
+    background: transparent !important;
 }

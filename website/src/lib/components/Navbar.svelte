@@ -7,7 +7,7 @@
 
 <nav class="navbar navbar-expand-md navbar-dark bg-dark p-0">
     <!-- Brand and toggle get grouped for better mobile display -->
-    <a class="navbar-brand px-3 py-0 mr-0" href="/">
+    <a class="navbar-brand px-3 py-0 me-0" href="/">
         <span lang="ja" aria-hidden="true">書</span> Learning Assistant
     </a>
     <button 
@@ -23,7 +23,7 @@
 
     <!-- Collect the nav links, forms, and other content for toggling -->
     <div class="collapse navbar-collapse pl-3 pl-md-0 {isMenuOpen ? 'show' : ''}" id="navbarSupportedContent">
-        <ul class="navbar-nav mr-auto">
+        <ul class="navbar-nav me-auto">
             <li class="nav-item">
                 <a class="nav-link" href="/exams" onclick={() => isMenuOpen = false}>
                     <span class="glyphicon" aria-hidden="true"><Book size={16} strokeWidth={3} /></span> My Studies
@@ -36,7 +36,7 @@
             </li>
         </ul>
 
-        <ul id="rightNav" class="navbar-nav mr-3">
+        <ul id="rightNav" class="navbar-nav me-3">
             <li class="nav-item">
                 <a class="nav-link" href="/settings" onclick={() => isMenuOpen = false}>
                     <span class="glyphicon" aria-hidden="true"><Settings size={16} strokeWidth={3} /></span> Preferences

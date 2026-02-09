@@ -3,6 +3,7 @@
     import { page } from '$app/state';
     import { api } from '$lib/api/client';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+    import Tile from '$lib/components/Tile.svelte';
     import { FileText, Clock, PlayCircle, Settings2 } from 'lucide-svelte';
 
     let { id: examId, lectureId } = $derived(page.params);
@@ -11,6 +12,13 @@
     let transcript = $state<any>(null);
     let documents = $state<any[]>([]);
     let loading = $state(true);
+
+    function formatTime(ms: number) {
+        const totalSeconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
 
     async function loadLecture() {
         loading = true;
@@ -52,63 +60,100 @@
         { label: lecture.title, active: true }
     ]} />
 
-    <div class="row mb-4">
-        <div class="col-md-8">
-            <h1 class="characterHeading mb-1">{lecture.title}</h1>
-            <p class="text-muted">{lecture.description || 'Learn from this lesson below.'}</p>
-        </div>
-        <div class="col-md-4 text-end">
-            <div class="btn-group">
-                <button class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown">
-                    <Settings2 size={18} class="me-1" /> Create Study Kit
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                    <li><button class="dropdown-item" onclick={() => createTool('guide')}>Study Guide</button></li>
-                    <li><button class="dropdown-item" onclick={() => createTool('flashcard')}>Flashcards</button></li>
-                    <li><button class="dropdown-item" onclick={() => createTool('quiz')}>Practice Quiz</button></li>
-                </ul>
-            </div>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>{lecture.title}</h2>
+        <div class="btn-group">
+            <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
+                <span class="glyphicon me-1"><Settings2 size={16} /></span> Create Study Kit
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><button class="dropdown-item" onclick={() => createTool('guide')}>Study Guide</button></li>
+                <li><button class="dropdown-item" onclick={() => createTool('flashcard')}>Flashcards</button></li>
+                <li><button class="dropdown-item" onclick={() => createTool('quiz')}>Practice Quiz</button></li>
+            </ul>
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-8">
-            <h3>Lesson Notes</h3>
-            <div class="well bg-white transcript-view">
-                {#if transcript && transcript.segments}
-                    {#each transcript.segments as seg}
-                        <div class="segment mb-3 d-flex">
-                            <div class="time small text-muted me-3 mt-1">
-                                {Math.floor(seg.start_millisecond / 60000)}:{(Math.floor(seg.start_millisecond / 1000) % 60).toString().padStart(2, '0')}
-                            </div>
-                            <div class="text">{@html seg.text_html}</div>
-                        </div>
-                    {/each}
+    <div class="container-fluid p-0">
+        <div class="row">
+            <!-- Sidebar / Meta & Materials -->
+            <div class="col-lg-3 col-md-4 order-md-2">
+                <h3>Study Materials</h3>
+                {#if documents.length === 0}
+                    <div class="well text-center p-3 mb-4">
+                        <p class="small text-muted m-0">No reference files linked.</p>
+                    </div>
                 {:else}
-                    <p class="text-center p-4">Your lesson notes are being prepared...</p>
+                    <div class="linkTiles tileSizeMd mb-4">
+                        {#each documents as doc}
+                            <Tile href="/exams/{examId}/lectures/{lectureId}/documents/{doc.id}" 
+                                  icon="資" 
+                                  title={doc.title}>
+                                {#snippet description()}
+                                    {doc.page_count} pages • 
+                                    {#if doc.extraction_status === 'completed'}
+                                        Ready to study
+                                    {:else if doc.extraction_status === 'failed'}
+                                        Processing error
+                                    {:else}
+                                        Preparing...
+                                    {/if}
+                                {/snippet}
+                            </Tile>
+                        {/each}
+                    </div>
                 {/if}
-            </div>
-        </div>
 
-        <div class="col-md-4">
-            <h3>Study Materials</h3>
-            {#if documents.length === 0}
-                <div class="well small text-center">No slides or PDFs linked.</div>
-            {:else}
-                <div class="list-group shadow-sm">
-                    {#each documents as doc}
-                        <div class="list-group-item">
-                            <div class="d-flex align-items-center">
-                                <FileText size={20} class="text-primary me-2" />
-                                <div class="text-truncate flex-grow-1">
-                                    <strong>{doc.title}</strong>
-                                    <div class="small text-muted">{doc.page_count} pages • {doc.extraction_status === 'completed' ? 'Ready' : 'Preparing...'}</div>
-                                </div>
-                            </div>
-                        </div>
-                    {/each}
+                <h3>Lecture Metadata</h3>
+                <div class="well">
+                    <table class="table table-sm table-borderless m-0">
+                        <tbody>
+                            <tr>
+                                <td style="width: 40%"><strong>Status</strong></td>
+                                <td>
+                                    <span class="badge {lecture.status === 'ready' ? 'bg-success' : (lecture.status === 'failed' ? 'bg-danger' : 'bg-primary')}">
+                                        {#if lecture.status === 'ready'}
+                                            Ready to study
+                                        {:else if lecture.status === 'failed'}
+                                            Error
+                                        {:else}
+                                            Preparing...
+                                        {/if}
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Date</strong></td>
+                                <td>{new Date(lecture.created_at).toLocaleDateString()}</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-            {/if}
+            </div>
+
+            <!-- Main Content / Transcript & Notes -->
+            <div class="col-lg-9 col-md-8 order-md-1">
+                <h3>Lesson Notes</h3>
+                <p class="text-muted mb-3">{lecture.description || 'Comprehensive learning materials from this lecture recording.'}</p>
+
+                <div class="well bg-white transcript-view mb-5">
+                    {#if transcript && transcript.segments}
+                        {#each transcript.segments as seg}
+                            <div class="segment mb-3 d-flex">
+                                <div class="time small text-muted me-3 mt-1 fw-bold" style="min-width: 85px; white-space: nowrap; font-family: monospace;">
+                                    {formatTime(seg.start_millisecond)} - {formatTime(seg.end_millisecond)}
+                                </div>
+                                <div class="text">{@html seg.text_html}</div>
+                            </div>
+                        {/each}
+                    {:else}
+                        <div class="text-center p-5">
+                            <div class="village-spinner mx-auto mb-3"></div>
+                            <p>Our AI is meticulously preparing your lecture notes. This may take a few minutes...</p>
+                        </div>
+                    {/if}
+                </div>
+            </div>
         </div>
     </div>
 {:else if loading}
@@ -122,10 +167,6 @@
         max-height: 600px;
         overflow-y: auto;
         border: 1px solid #dee2e6;
-    }
-    .segment .time {
-        min-width: 45px;
-        font-family: monospace;
     }
     .segment .text {
         line-height: 1.5;

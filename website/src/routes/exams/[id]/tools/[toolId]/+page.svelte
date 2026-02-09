@@ -49,62 +49,100 @@
         { label: tool.title, active: true }
     ]} />
 
-    <div class="d-flex justify-content-between align-items-start mb-4">
-        <div>
-            <h1 class="characterHeading mb-1">{tool.title}</h1>
-            <span class="badge bg-secondary text-uppercase">{tool.type}</span>
-        </div>
-        <div class="btn-group">
-            <button class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
-                <FileDown size={18} class="me-1" /> Export
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end">
-                <li><button class="dropdown-item" onclick={() => handleExport('pdf')}>PDF Document</button></li>
-                <li><button class="dropdown-item" onclick={() => handleExport('docx')}>Word Document</button></li>
-                <li><button class="dropdown-item" onclick={() => handleExport('md')}>Markdown</button></li>
-            </ul>
-        </div>
-    </div>
+    <div class="container-fluid p-0">
+        <div class="row">
+            <div class="col-xl-8 col-lg-7 col-md-6">
+                <h1 class="characterHeading mb-1">{tool.title}</h1>
+                <div class="mb-4">
+                    <span class="badge bg-secondary text-uppercase">{tool.type}</span>
+                    <span class="ms-2 text-muted small">Generated on {new Date(tool.created_at).toLocaleDateString()}</span>
+                </div>
 
-    <div class="well bg-white">
-        {#if tool.type === 'guide'}
-            <div class="prose">
-                {@html htmlContent}
-            </div>
-        {:else if tool.type === 'flashcard'}
-            <div class="row g-4">
-                {#each htmlContent as card}
-                    <div class="col-md-6">
-                        <div class="card h-100 shadow-sm">
-                            <div class="card-header bg-light small fw-bold">FRONT</div>
-                            <div class="card-body">{@html card.front_html}</div>
-                            <div class="card-header bg-light border-top small fw-bold">BACK</div>
-                            <div class="card-body">{@html card.back_html}</div>
+                <div class="well bg-white p-4 shadow-sm">
+                    {#if tool.type === 'guide'}
+                        <div class="prose">
+                            {@html htmlContent}
                         </div>
-                    </div>
-                {/each}
-            </div>
-        {:else if tool.type === 'quiz'}
-            <div class="quiz-list">
-                {#each htmlContent as item, i}
-                    <div class="mb-5 pb-4 border-bottom">
-                        <h5>Question {i + 1}</h5>
-                        <div class="mb-3">{@html item.question_html}</div>
-                        <div class="list-group mb-3">
-                            {#each item.options_html as opt}
-                                <div class="list-group-item">{@html opt}</div>
+                    {:else if tool.type === 'flashcard'}
+                        <div class="row g-4">
+                            {#each htmlContent as card}
+                                <div class="col-md-12">
+                                    <div class="well bg-light border-start border-4 border-primary p-0 overflow-hidden">
+                                        <div class="px-3 py-2 bg-dark text-white small fw-bold text-uppercase">Front</div>
+                                        <div class="p-3 bg-white">{@html card.front_html}</div>
+                                        <div class="px-3 py-2 bg-secondary text-white small fw-bold text-uppercase border-top">Back</div>
+                                        <div class="p-3 bg-white">{@html card.back_html}</div>
+                                    </div>
+                                </div>
                             {/each}
                         </div>
-                        <div class="alert alert-success py-2">
-                            <strong>Correct:</strong> {@html item.correct_answer_html}
+                    {:else if tool.type === 'quiz'}
+                        <div class="quiz-list">
+                            {#each htmlContent as item, i}
+                                <div class="well bg-white mb-4 p-4 border shadow-sm">
+                                    <h4 class="border-bottom pb-2 mb-3">Question {i + 1}</h4>
+                                    <div class="mb-4 fs-5">{@html item.question_html}</div>
+                                    
+                                    <div class="list-group mb-4">
+                                        {#each item.options_html as opt}
+                                            <div class="list-group-item py-3">{@html opt}</div>
+                                        {/each}
+                                    </div>
+                                    
+                                    <div class="well bg-success bg-opacity-10 border-success mb-3">
+                                        <strong class="text-success text-uppercase small d-block mb-1">Correct Answer</strong>
+                                        <div class="fs-6">{@html item.correct_answer_html}</div>
+                                    </div>
+                                    
+                                    <div class="well bg-light border-0 m-0 p-3 small">
+                                        <strong class="text-muted text-uppercase d-block mb-1">Explanation</strong>
+                                        <div class="text-muted">{@html item.explanation_html}</div>
+                                    </div>
+                                </div>
+                            {/each}
                         </div>
-                        <div class="small text-muted">
-                            <strong>Explanation:</strong> {@html item.explanation_html}
-                        </div>
-                    </div>
-                {/each}
+                    {/if}
+                </div>
             </div>
-        {/if}
+
+            <div class="col-xl-4 col-lg-5 col-md-6">
+                <h3>Export Tool</h3>
+                <div class="well bg-light mb-4">
+                    <p class="small text-muted">Generate a high-quality document for offline study or printing.</p>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary" onclick={() => handleExport('pdf')}>
+                            <span class="glyphicon me-2"><FileDown size={16} /></span> Download PDF
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick={() => handleExport('docx')}>
+                            <span class="glyphicon me-2"><FileDown size={16} /></span> Word Document
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick={() => handleExport('md')}>
+                            <span class="glyphicon me-2"><FileDown size={16} /></span> Markdown Source
+                        </button>
+                    </div>
+                </div>
+
+                <h3>Study Details</h3>
+                <div class="well bg-light">
+                    <table class="table table-sm table-borderless m-0 small">
+                        <tbody>
+                            <tr>
+                                <td><strong>Subject</strong></td>
+                                <td>{exam.title}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Type</strong></td>
+                                <td class="text-uppercase">{tool.type}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Language</strong></td>
+                                <td>{tool.language_code || 'en-US'}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 {:else if loading}
     <div class="text-center p-5">

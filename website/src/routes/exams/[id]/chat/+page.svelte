@@ -3,7 +3,7 @@
     import { page } from '$app/state';
     import { api } from '$lib/api/client';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
-    import { Send, User, Bot, Sparkles } from 'lucide-svelte';
+    import { Send, User, Bot, Sparkles, Search } from 'lucide-svelte';
 
     let examId = $derived(page.params.id);
     let exam = $state<any>(null);
@@ -42,10 +42,12 @@
         socket = new WebSocket(`ws://localhost:3000/api/socket?session_token=${token}`);
         
         socket.onopen = () => {
-            socket?.send(JSON.stringify({
-                type: 'subscribe',
-                channel: `chat:${session.id}`
-            }));
+            if (session?.id) {
+                socket?.send(JSON.stringify({
+                    type: 'subscribe',
+                    channel: `chat:${session.id}`
+                }));
+            }
         };
 
         socket.onmessage = (event) => {
@@ -61,7 +63,7 @@
     }
 
     async function sendMessage() {
-        if (!input.trim() || sending) return;
+        if (!input.trim() || sending || !session?.id) return;
         
         const userMsg = { role: 'user', content: input };
         messages = [...messages, userMsg];
@@ -87,148 +89,100 @@
 {#if exam}
     <Breadcrumb items={[{ label: 'My Studies', href: '/exams' }, { label: exam.title, href: `/exams/${examId}` }, { label: 'Study Chat', active: true }]} />
 
-    <div class="chat-container">
-        <div class="chat-header">
-            <Sparkles size={20} class="text-success" />
-            <span class="ms-2 fw-bold">Study Chat</span>
+    <h2>Study Assistant: {exam.title}</h2>
+
+    <form onsubmit={(e) => { e.preventDefault(); sendMessage(); }} class="mb-4">
+        <div class="input-group dictionary-style mb-3">
+            <input 
+                type="text" 
+                class="form-control" 
+                placeholder={session ? "Ask about your lectures or reference documents..." : "Initializing session..."} 
+                bind:value={input}
+                disabled={sending || !session}
+            />
+            <button class="btn btn-primary" type="submit" disabled={sending || !input.trim() || !session}>
+                <span class="glyphicon"><Search size={18} /></span>
+            </button>
         </div>
+    </form>
 
-        <div class="messages-list" id="messageList">
-            {#each messages as msg}
-                <div class="message-wrapper {msg.role}">
-                    <div class="avatar">
-                        {#if msg.role === 'user'}<User size={16} />{:else}<Bot size={16} />{/if}
+    <div class="container-fluid p-0">
+        <div class="row">
+            <div class="col-lg-12">
+                {#if messages.length === 0 && !streamingMessage}
+                    <div class="well text-center p-5 text-muted">
+                        <Bot size={48} class="mb-3 opacity-25" />
+                        <p>I'm your dedicated study assistant. Ask a question above to begin exploring your materials!</p>
                     </div>
-                    <div class="message-bubble">
-                        {msg.content}
-                    </div>
-                </div>
-            {/each}
-            
-            {#if streamingMessage}
-                <div class="message-wrapper assistant">
-                    <div class="avatar"><Bot size={16} /></div>
-                    <div class="message-bubble">
-                        {streamingMessage}
-                    </div>
-                </div>
-            {/if}
+                {/if}
 
-            {#if sending && !streamingMessage}
-                <div class="text-muted small ms-5 ps-2">Thinking...</div>
-            {/if}
-        </div>
+                {#each messages as msg}
+                    {#if msg.role === 'assistant'}
+                        <div class="char-results mb-4">
+                            <div class="well bg-white p-4 shadow-sm border">
+                                <div class="row">
+                                    <div lang="ja" class="col-xl-1 col-md-2 text-center">
+                                        <Bot size={40} class="text-success" />
+                                    </div>
+                                    <div class="col-xl-11 col-md-10">
+                                        <h3 class="mt-0 border-0 pt-0">Assistant</h3>
+                                        <div class="message-content fs-5" style="line-height: 1.6;">
+                                            {msg.content}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {:else}
+                        <div class="wordBrief mb-4">
+                            <div class="japaneseText px-3 py-2 bg-light border-start border-4 border-primary">
+                                <table lang="ja" class="ruby">
+                                    <tbody>
+                                        <tr class="furi"><th>QUESTION</th></tr>
+                                        <tr><td>{msg.content}</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    {/if}
+                {/each}
 
-        <div class="chat-input-area">
-            <form onsubmit={(e) => { e.preventDefault(); sendMessage(); }} class="input-group">
-                <input 
-                    type="text" 
-                    class="form-control" 
-                    placeholder="Ask about the lecture..." 
-                    bind:value={input}
-                    disabled={sending}
-                />
-                <button type="submit" class="btn btn-success" disabled={sending || !input.trim()}>
-                    <Send size={18} />
-                </button>
-            </form>
+                {#if streamingMessage}
+                    <div class="char-results mb-4">
+                        <div class="well bg-white p-4 shadow-sm border">
+                            <div class="row">
+                                <div lang="ja" class="col-xl-1 col-md-2 text-center">
+                                    <Bot size={40} class="text-success" />
+                                </div>
+                                <div class="col-xl-11 col-md-10">
+                                    <h3 class="mt-0 border-0 pt-0">Assistant</h3>
+                                    <div class="message-content fs-5">
+                                        {streamingMessage}
+                                        <span class="village-spinner d-inline-block ms-2" style="width: 1rem; height: 1rem;"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {/if}
+
+                {#if sending && !streamingMessage}
+                    <div class="text-center p-4">
+                        <div class="village-spinner mx-auto"></div>
+                    </div>
+                {/if}
+            </div>
         </div>
     </div>
 {/if}
 
 <style>
-    .chat-container {
-        height: 70vh;
-        display: flex;
-        flex-direction: column;
-        background: #fff;
-        border: 1px solid #dee2e6;
-        border-radius: 0.75rem;
-        overflow: hidden;
-        box-shadow: var(--tile-shadow);
-    }
-
-    .chat-header {
-        padding: 1rem;
-        background: #f8f9fa;
-        border-bottom: 1px solid #dee2e6;
-        display: flex;
-        align-items: center;
-    }
-
-    .messages-list {
-        flex-grow: 1;
-        overflow-y: auto;
-        padding: 1.5rem;
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-    }
-
-    .message-wrapper {
-        display: flex;
-        gap: 0.75rem;
-        max-width: 85%;
-    }
-
-    .message-wrapper.user {
-        flex-direction: row-reverse;
-        align-self: flex-end;
-    }
-
-    .avatar {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        background: #e9ecef;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-
-    .user .avatar { background: var(--primary-color); color: #fff; }
-    .assistant .avatar { background: var(--success-color); color: #fff; }
-
-    .message-bubble {
-        padding: 0.75rem 1rem;
-        border-radius: 1rem;
-        font-size: 0.95rem;
-        line-height: 1.4;
+    .message-content {
         white-space: pre-wrap;
     }
-
-    .user .message-bubble {
-        background: var(--primary-color);
-        color: #fff;
-        border-bottom-right-radius: 0.25rem;
-    }
-
-    .assistant .message-bubble {
-        background: #f1f3f5;
-        color: #333;
-        border-bottom-left-radius: 0.25rem;
-    }
-
-    .chat-input-area {
-        padding: 1rem;
-        background: #fff;
-        border-top: 1px solid #dee2e6;
-    }
-
-    .chat-input-area input {
-        border-radius: 2rem;
-        padding-left: 1.25rem;
-    }
-
-    .chat-input-area button {
-        border-radius: 50%;
-        width: 40px;
-        height: 40px;
-        padding: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-left: 0.5rem;
+    
+    h3 {
+        margin-bottom: 0.5rem;
+        font-weight: bold;
     }
 </style>

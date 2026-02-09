@@ -41,25 +41,20 @@
 
 <h2>My Studies</h2>
 
-<div class="mb-4">
-    <button class="btn btn-primary" onclick={() => showCreate = !showCreate}>
-        Add New Subject
-    </button>
-</div>
-
-{#if showCreate}
-    <div class="well mb-4">
-        <h4>Create a New Subject</h4>
-        <form onsubmit={(e) => { e.preventDefault(); createExam(); }} class="row g-3">
-            <div class="col-auto flex-grow-1">
-                <input type="text" class="form-control" placeholder="Subject Title (e.g. History, Science)" bind:value={newExamTitle} required />
-            </div>
-            <div class="col-auto">
-                <button type="submit" class="btn btn-success">Create</button>
-            </div>
-        </form>
+<form onsubmit={(e) => { e.preventDefault(); createExam(); }} class="mb-4">
+    <div class="input-group dictionary-style mb-3">
+        <input 
+            type="text" 
+            class="form-control" 
+            placeholder="Add New Subject (e.g. History, Science, Mathematics)..." 
+            bind:value={newExamTitle} 
+            required 
+        />
+        <button type="submit" class="btn btn-primary">
+            <span class="glyphicon m-0"><Plus size={18} /></span>
+        </button>
     </div>
-{/if}
+</form>
 
 {#if loading}
     <div class="text-center p-5">
@@ -71,7 +66,9 @@
     <div class="linkTiles tileSizeMd">
         {#each exams as exam}
             <Tile href="/exams/{exam.id}" icon="科" title={exam.title}>
-                {exam.description || 'Access your lectures and study tools for this subject.'}
+                {#snippet description()}
+                    {exam.description || 'Access your lectures and study tools for this subject.'}
+                {/snippet}
             </Tile>
         {/each}
     </div>

@@ -2,5 +2,13 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-	plugins: [sveltekit()]
+	plugins: [sveltekit()],
+	css: {
+		preprocessorOptions: {
+			scss: {
+				quietDeps: true,
+				silenceDeprecations: ['import', 'global-builtin', 'color-functions', 'if-function', 'mixed-decls'],
+			}
+		}
+	}
 });

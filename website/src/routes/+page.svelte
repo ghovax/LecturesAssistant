@@ -69,30 +69,44 @@
 
 <div class="linkTiles tileSizeMd">
     <Tile href="/exams" icon="辞" title="My Studies">
-        Access your courses, lessons, and all generated learning materials.
+        {#snippet description()}
+            Access your courses, lessons, and all generated learning materials.
+        {/snippet}
     </Tile>
 
     <Tile href="/jobs" icon="科" title="Task Progress">
-        See how your transcriptions and study guides are coming along.
+        {#snippet description()}
+            See how your transcriptions and study guides are coming along.
+        {/snippet}
     </Tile>
 
     <Tile href="/settings" icon="設" title="Preferences">
-        Customize your language, AI models, and interface settings.
+        {#snippet description()}
+            Customize your language, AI models, and interface settings.
+        {/snippet}
     </Tile>
 
     <Tile href="/help" icon="新" title="What's New">
-        Discover the latest features and capabilities in your assistant.
+        {#snippet description()}
+            Discover the latest features and capabilities in your assistant.
+        {/snippet}
     </Tile>
 
     <Tile href="/feedback" icon="談" title="Send Feedback">
-        Have a suggestion or found a bug? We'd love to hear from you!
+        {#snippet description()}
+            Have a suggestion or found a bug? We'd love to hear from you!
+        {/snippet}
     </Tile>
 
     <Tile href="/support" icon="助" title="Support Us">
-        Help keep this project alive and growing with a small contribution.
+        {#snippet description()}
+            Help keep this project alive and growing with a small contribution.
+        {/snippet}
     </Tile>
 
     <Tile href="/credits" icon="謝" title="Credits">
-        A special thanks to the people and projects that make this possible.
+        {#snippet description()}
+            A special thanks to the people and projects that make this possible.
+        {/snippet}
     </Tile>
 </div>

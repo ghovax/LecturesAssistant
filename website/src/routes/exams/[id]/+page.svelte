@@ -3,6 +3,7 @@
     import { page } from '$app/state';
     import { api } from '$lib/api/client';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+    import Tile from '$lib/components/Tile.svelte';
     import { Plus, MessageCircle, FileText, Video, Trash2, ExternalLink } from 'lucide-svelte';
 
     let examId = $derived(page.params.id);
@@ -45,77 +46,71 @@
 {#if exam}
     <Breadcrumb items={[{ label: 'My Studies', href: '/exams' }, { label: exam.title, active: true }]} />
 
-    <div class="row mb-5">
-        <div class="col-md-8">
-            <h1 class="characterHeading">{exam.title}</h1>
-            <p class="lead">{exam.description || 'Access your learning materials for this subject.'}</p>
-        </div>
-        <div class="col-md-4 text-end">
-            <a href="/exams/{examId}/chat" class="btn btn-success btn-lg w-100 mb-2">
-                <MessageCircle size={20} class="me-2" /> Open Study Chat
-            </a>
-        </div>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>{exam.title}</h2>
+        <a href="/exams/{examId}/chat" class="btn btn-primary">
+            <span class="glyphicon me-1"><MessageCircle size={16} /></span> Study Chat
+        </a>
     </div>
 
-    <div class="row">
-        <div class="col-md-7">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h3>Lessons</h3>
-                <a href="/exams/{examId}/lectures/new" class="btn btn-outline-primary btn-sm">
-                    <Plus size={16} /> Add Lesson
-                </a>
+    <div class="container-fluid p-0">
+        <div class="row">
+            <!-- Sidebar / Tile Style for Tools -->
+            <div class="col-lg-3 col-md-4 order-md-2">
+                <h3>Study Tools</h3>
+                {#if tools.length === 0}
+                    <div class="well text-center p-3">
+                        <p class="small text-muted m-0">No tools generated yet.</p>
+                    </div>
+                {:else}
+                    <div class="linkTiles tileSizeMd">
+                        {#each tools as tool}
+                            <Tile href="/exams/{examId}/tools/{tool.id}" 
+                                  icon={tool.type === 'guide' ? '案' : (tool.type === 'flashcard' ? '札' : '問')} 
+                                  title={tool.title}>
+                                {#snippet description()}
+                                    <span class="text-uppercase">{tool.type}</span>
+                                {/snippet}
+                            </Tile>
+                        {/each}
+                    </div>
+                {/if}
             </div>
 
-            {#if lectures.length === 0}
-                <div class="well text-center p-4">
-                    <p>No lessons added yet.</p>
+            <!-- Main Content / Tile Style for Lectures -->
+            <div class="col-lg-9 col-md-8 order-md-1">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3>Lectures</h3>
+                    <a href="/exams/{examId}/lectures/new" class="btn btn-success">
+                        <span class="glyphicon me-1"><Plus size={16} /></span> Add Lecture
+                    </a>
                 </div>
-            {:else}
-                <div class="list-group">
-                    {#each lectures as lecture}
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <h5 class="mb-1">{lecture.title}</h5>
-                                <small class="text-muted">Status: 
-                                    <span class="badge {lecture.status === 'ready' ? 'bg-success' : 'bg-warning'}">
-                                        {lecture.status === 'ready' ? 'Ready' : 'Preparing...'}
-                                    </span>
-                                </small>
-                            </div>
-                            <div class="btn-group">
-                                <a href="/exams/{examId}/lectures/{lecture.id}" class="btn btn-sm btn-outline-secondary">Open</a>
-                                <button class="btn btn-sm btn-outline-danger" onclick={() => deleteLecture(lecture.id)}>
-                                    <Trash2 size={14} />
+
+                {#if lectures.length === 0}
+                    <div class="well text-center p-4">
+                        <p>No lectures added yet. Click "Add Lecture" to begin.</p>
+                    </div>
+                {:else}
+                    <div class="linkTiles tileSizeMd">
+                        {#each lectures as lecture}
+                            <Tile href="/exams/{examId}/lectures/{lecture.id}" icon={lecture.status === 'ready' ? '講' : '作'} title={lecture.title}>
+                                {#snippet description()}
+                                    {lecture.description || 'No description provided.'}
+                                {/snippet}
+                                
+                                <button 
+                                    class="btn btn-link text-danger p-0 position-absolute" 
+                                    style="top: 0.5rem; right: 0.5rem; z-index: 10;"
+                                    onclick={(e) => { e.preventDefault(); e.stopPropagation(); deleteLecture(lecture.id); }}
+                                    title="Delete Lecture"
+                                >
+                                    <span class="glyphicon m-0"><Trash2 size={14} /></span>
                                 </button>
-                            </div>
-                        </div>
-                    {/each}
-                </div>
-            {/if}
-        </div>
-
-        <div class="col-md-5">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h3>Study Kits</h3>
+                            </Tile>
+                        {/each}
+                    </div>
+                {/if}
             </div>
-
-            {#if tools.length === 0}
-                <div class="well text-center p-4">
-                    <p>No study kits generated yet. Prepare a lesson to begin.</p>
-                </div>
-            {:else}
-                <div class="linkTiles tileSizeMd" style="grid-template-columns: 1fr;">
-                    {#each tools as tool}
-                        <a href="/exams/{examId}/tools/{tool.id}">
-                            <div style="font-size: 1.5rem;">
-                                {#if tool.type === 'guide'}📝{:else if tool.type === 'flashcard'}🗂️{:else}❓{/if}
-                            </div>
-                            <p><strong>{tool.title}</strong></p>
-                            <small class="text-muted text-uppercase">{tool.type}</small>
-                        </a>
-                    {/each}
-                </div>
-            {/if}
         </div>
     </div>
 {:else if loading}

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { api } from '$lib/api/client';
+    import { notifications } from '$lib/stores/notifications.svelte';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
     import { Plus } from 'lucide-svelte';
@@ -29,8 +30,9 @@
             newExamTitle = '';
             showCreate = false;
             await loadExams();
-        } catch (e) {
-            alert(e);
+            notifications.success('Subject created successfully!');
+        } catch (e: any) {
+            notifications.error(e.message || e);
         }
     }
 
@@ -77,3 +79,7 @@
 {/if}
 
 {#if loading && exams.length === 0}
+    <div class="text-center p-5">
+        <div class="village-spinner mx-auto"></div>
+    </div>
+{/if}

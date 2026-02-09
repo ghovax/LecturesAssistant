@@ -2,6 +2,7 @@
     import { onMount, onDestroy, tick } from 'svelte';
     import { page } from '$app/state';
     import { api } from '$lib/api/client';
+    import { notifications } from '$lib/stores/notifications.svelte';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
     import { Send, User, Bot, Sparkles, Search, MessageSquare, BookOpen, Layers } from 'lucide-svelte';
@@ -55,8 +56,9 @@
                 included_lecture_ids: includedLectureIds,
                 included_tool_ids: [] // Future-proofing
             });
-        } catch (e) {
-            alert('Failed to update study context: ' + e);
+            notifications.success('Study context updated.');
+        } catch (e: any) {
+            notifications.error('Failed to update study context: ' + (e.message || e));
         } finally {
             updatingContext = false;
         }
@@ -116,8 +118,8 @@
                 session_id: sessionId,
                 content
             });
-        } catch (e) {
-            alert(e);
+        } catch (e: any) {
+            notifications.error(e.message || e);
             sending = false;
         }
     }

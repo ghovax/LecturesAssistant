@@ -2,6 +2,7 @@
     import { onMount } from 'svelte';
     import { page } from '$app/state';
     import { api } from '$lib/api/client';
+    import { notifications } from '$lib/stores/notifications.svelte';
     import { goto } from '$app/navigation';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import { Upload, File, Video, CheckCircle2, Search, Info, Trash2, X } from 'lucide-svelte';
@@ -55,9 +56,10 @@
             await api.createLecture(formData);
             
             status = 'Success! Redirecting...';
+            notifications.success('Lecture created successfully! AI processing has started.');
             goto(`/exams/${examId}`);
         } catch (e: any) {
-            alert(e.message);
+            notifications.error(e.message || e);
             uploading = false;
         }
     }

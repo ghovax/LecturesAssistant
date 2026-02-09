@@ -2,6 +2,7 @@
     import { onMount } from 'svelte';
     import { page } from '$app/state';
     import { api } from '$lib/api/client';
+    import { notifications } from '$lib/stores/notifications.svelte';
     import { goto } from '$app/navigation';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
@@ -41,8 +42,8 @@
                 title: `Study Session ${chatSessions.length + 1}` 
             });
             goto(`/exams/${examId}/chat/${session.id}`);
-        } catch (e) {
-            alert(e);
+        } catch (e: any) {
+            notifications.error(e.message || e);
         }
     }
 
@@ -51,8 +52,9 @@
         try {
             await api.deleteLecture(id, examId);
             await loadData();
-        } catch (e) {
-            alert(e);
+            notifications.success('Lecture deleted successfully.');
+        } catch (e: any) {
+            notifications.error(e.message || e);
         }
     }
 

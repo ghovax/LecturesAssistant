@@ -3,6 +3,7 @@
     import { page } from '$app/state';
     import { browser } from '$app/environment';
     import { api } from '$lib/api/client';
+    import { notifications } from '$lib/stores/notifications.svelte';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
     import { FileText, Clock, PlayCircle, Settings2, ChevronLeft, ChevronRight, List, Volume2 } from 'lucide-svelte';
@@ -73,9 +74,9 @@
                 type,
                 length: 'medium'
             });
-            alert('Generation job created! Check the Jobs section.');
-        } catch (e) {
-            alert(e);
+            notifications.success('Generation job created! Check the Jobs section.');
+        } catch (e: any) {
+            notifications.error(e.message || e);
         }
     }
 

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { api } from '$lib/api/client';
+    import { notifications } from '$lib/stores/notifications.svelte';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
     let settings = $state<any>(null);
@@ -26,9 +27,9 @@
                 safety: settings.safety,
                 providers: settings.providers
             });
-            alert('Settings saved successfully!');
-        } catch (e) {
-            alert(e);
+            notifications.success('Settings saved successfully!');
+        } catch (e: any) {
+            notifications.error(e.message || e);
         } finally {
             saving = false;
         }

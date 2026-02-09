@@ -52,7 +52,17 @@
             {:else}
                 {#each jobs as job}
                     <tr>
-                        <td class="ps-3 small fw-bold text-uppercase">{job.type.replace('_', ' ')}</td>
+                        <td class="ps-3 small fw-bold">
+                            {#if job.type === 'BUILD_MATERIAL'}
+                                Building Study Kit
+                            {:else if job.type === 'INGEST_DOCUMENTS'}
+                                Indexing Documents
+                            {:else if job.type === 'TRANSCRIBE_MEDIA'}
+                                Transcribing Audio
+                            {:else}
+                                {job.type.replace('_', ' ')}
+                            {/if}
+                        </td>
                         <td>
                             <span class="d-flex align-items-center gap-1">
                                 {#if job.status === 'COMPLETED'}

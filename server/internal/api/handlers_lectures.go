@@ -836,7 +836,7 @@ func (server *Server) handleGetTranscriptHTML(responseWriter http.ResponseWriter
 
 	// Get transcript segments
 	transcriptRows, databaseError := server.database.Query(`
-		SELECT id, start_millisecond, end_millisecond, text, confidence, speaker
+		SELECT id, media_id, start_millisecond, end_millisecond, original_start_milliseconds, original_end_milliseconds, text, confidence, speaker
 		FROM transcript_segments
 		WHERE transcript_id = ?
 		ORDER BY start_millisecond ASC
@@ -848,13 +848,16 @@ func (server *Server) handleGetTranscriptHTML(responseWriter http.ResponseWriter
 	defer transcriptRows.Close()
 
 	type segmentData struct {
-		ID               int     `json:"id"`
-		StartMillisecond int64   `json:"start_millisecond"`
-		EndMillisecond   int64   `json:"end_millisecond"`
-		Text             string  `json:"-"`
-		TextHTML         string  `json:"text_html"`
-		Confidence       float64 `json:"confidence,omitempty"`
-		Speaker          string  `json:"speaker,omitempty"`
+		ID                        int     `json:"id"`
+		MediaID                   string  `json:"media_id,omitempty"`
+		StartMillisecond          int64   `json:"start_millisecond"`
+		EndMillisecond            int64   `json:"end_millisecond"`
+		OriginalStartMilliseconds int64   `json:"original_start_milliseconds,omitempty"`
+		OriginalEndMilliseconds   int64   `json:"original_end_milliseconds,omitempty"`
+		Text                      string  `json:"-"`
+		TextHTML                  string  `json:"text_html"`
+		Confidence                float64 `json:"confidence,omitempty"`
+		Speaker                   string  `json:"speaker,omitempty"`
 	}
 
 	var segments []segmentData
@@ -863,19 +866,29 @@ func (server *Server) handleGetTranscriptHTML(responseWriter http.ResponseWriter
 
 	for transcriptRows.Next() {
 		var s segmentData
-		var text, speaker sql.NullString
+		var text, speaker, mediaID sql.NullString
 		var confidence sql.NullFloat64
+		var origStart, origEnd sql.NullInt64
 
-		if err := transcriptRows.Scan(&s.ID, &s.StartMillisecond, &s.EndMillisecond, &text, &confidence, &speaker); err != nil {
+		if err := transcriptRows.Scan(&s.ID, &mediaID, &s.StartMillisecond, &s.EndMillisecond, &origStart, &origEnd, &text, &confidence, &speaker); err != nil {
 			continue
 		}
 
 		s.Text = text.String
+		if mediaID.Valid {
+			s.MediaID = mediaID.String
+		}
 		if confidence.Valid {
 			s.Confidence = confidence.Float64
 		}
 		if speaker.Valid {
 			s.Speaker = speaker.String
+		}
+		if origStart.Valid {
+			s.OriginalStartMilliseconds = origStart.Int64
+		}
+		if origEnd.Valid {
+			s.OriginalEndMilliseconds = origEnd.Int64
 		}
 
 		segments = append(segments, s)

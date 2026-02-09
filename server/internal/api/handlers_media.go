@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"time"
 
 	"lectures/internal/models"
 )
@@ -101,4 +102,50 @@ func (server *Server) handleDeleteMedia(responseWriter http.ResponseWriter, requ
 	_ = os.Remove(filePath)
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Media deleted successfully"})
+}
+
+// handleGetMediaContent serves the actual media file
+func (server *Server) handleGetMediaContent(responseWriter http.ResponseWriter, request *http.Request) {
+	mediaID := request.URL.Query().Get("media_id")
+	if mediaID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "media_id is required", nil)
+		return
+	}
+
+	sessionToken := server.getSessionToken(request)
+	if sessionToken == "" {
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Authentication required", nil)
+		return
+	}
+
+	// Verify session and get user ID
+	var userID string
+	var expiresAt time.Time
+	databaseError := server.database.QueryRow("SELECT user_id, expires_at FROM auth_sessions WHERE id = ?", sessionToken).Scan(&userID, &expiresAt)
+	if databaseError != nil || time.Now().After(expiresAt) {
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid or expired session", nil)
+		return
+	}
+
+	// Get file path and verify ownership
+	var filePath, mediaType string
+	err := server.database.QueryRow(`
+		SELECT lecture_media.file_path, lecture_media.media_type 
+		FROM lecture_media 
+		JOIN lectures ON lecture_media.lecture_id = lectures.id
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE lecture_media.id = ? AND exams.user_id = ?
+	`, mediaID, userID).Scan(&filePath, &mediaType)
+
+	if err == sql.ErrNoRows {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Media not found", nil)
+		return
+	}
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to verify media", nil)
+		return
+	}
+
+	// Serve the file
+	http.ServeFile(responseWriter, request, filePath)
 }

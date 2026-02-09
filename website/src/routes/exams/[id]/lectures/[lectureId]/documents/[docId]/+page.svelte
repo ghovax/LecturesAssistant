@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import { page } from '$app/state';
+    import { browser } from '$app/environment';
     import { api } from '$lib/api/client';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import { FileText, ChevronLeft, ChevronRight, Search } from 'lucide-svelte';
@@ -55,11 +56,15 @@
 
     onMount(() => {
         loadData();
-        window.addEventListener('keydown', handleKeyDown);
+        if (browser) {
+            window.addEventListener('keydown', handleKeyDown);
+        }
     });
 
     onDestroy(() => {
-        window.removeEventListener('keydown', handleKeyDown);
+        if (browser) {
+            window.removeEventListener('keydown', handleKeyDown);
+        }
     });
 </script>
 
@@ -71,9 +76,11 @@
         { label: documentData.title, active: true }
     ]} />
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>{documentData.title}</h2>
-        <span class="badge bg-dark">Page {currentPageIndex + 1} of {pages.length}</span>
+    <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+            <h2 class="mb-1">{documentData.title}</h2>
+            <span class="badge bg-dark">Page {currentPageIndex + 1} of {pages.length}</span>
+        </div>
     </div>
 
     <div class="container-fluid p-0">
@@ -156,7 +163,7 @@
                             </div>
                             
                             <!-- Page Text -->
-                            <div class="transcript-text" style="font-size: 1.05rem; white-space: pre-wrap; line-height: 1.6;">
+                            <div class="transcript-text" style="font-size: 1rem; white-space: pre-wrap; line-height: 1.6;">
                                 {p.extracted_text || 'No text content extracted for this page.'}
                             </div>
                         </div>

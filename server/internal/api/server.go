@@ -125,6 +125,7 @@ func (server *Server) setupRoutes() {
 	// Media (Listing/Ordering)
 	apiRouter.HandleFunc("/media", server.handleListMedia).Methods("GET")
 	apiRouter.HandleFunc("/media", server.handleDeleteMedia).Methods("DELETE")
+	apiRouter.HandleFunc("/media/content", server.handleGetMediaContent).Methods("GET")
 
 	// Transcripts
 	apiRouter.HandleFunc("/transcripts", server.handleGetTranscript).Methods("GET")

@@ -2,6 +2,7 @@
     import { onMount } from 'svelte';
     import { api } from '$lib/api/client';
     import { notifications } from '$lib/stores/notifications.svelte';
+    import { getLanguageName } from '$lib/utils';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
 
     let settings = $state<any>(null);
@@ -55,6 +56,19 @@
                 <option value="openrouter">OpenRouter (Cloud)</option>
                 <option value="ollama">Ollama (Local)</option>
             </select>
+        </div>
+
+        <div class="mb-4">
+            <label for="language" class="form-label">Study Language</label>
+            <select id="language" class="form-select" bind:value={settings.llm.language}>
+                <option value="en-US">{getLanguageName('en-US')}</option>
+                <option value="it-IT">{getLanguageName('it-IT')}</option>
+                <option value="ja-JP">{getLanguageName('ja-JP')}</option>
+                <option value="es-ES">{getLanguageName('es-ES')}</option>
+                <option value="fr-FR">{getLanguageName('fr-FR')}</option>
+                <option value="de-DE">{getLanguageName('de-DE')}</option>
+            </select>
+            <small class="text-muted d-block mt-1">Primary language for study kits and assistant responses.</small>
         </div>
 
         <div class="mb-4">

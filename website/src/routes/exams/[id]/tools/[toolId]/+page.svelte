@@ -3,8 +3,10 @@
     import { page } from '$app/state';
     import { api } from '$lib/api/client';
     import { notifications } from '$lib/stores/notifications.svelte';
+    import { getLanguageName } from '$lib/utils';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
+    import CitationPopup from '$lib/components/CitationPopup.svelte';
     import { Download, FileDown, ExternalLink, Clock, Settings2 } from 'lucide-svelte';
 
     let { id: examId, toolId } = $derived(page.params);
@@ -13,6 +15,10 @@
     let otherTools = $state<any[]>([]);
     let htmlContent = $state<any>(null);
     let loading = $state(true);
+
+    // Citation Popup State
+    let activeCitation = $state<{ content: string, x: number, y: number } | null>(null);
+    let proseContainer: HTMLDivElement | null = $state(null);
 
     async function loadTool() {
         loading = true;
@@ -37,6 +43,32 @@
             console.error(e);
         } finally {
             loading = false;
+        }
+    }
+
+    function handleProseClick(event: MouseEvent) {
+        const target = event.target as HTMLElement;
+        const footnoteRef = target.closest('.footnote-ref');
+        
+        if (footnoteRef) {
+            event.preventDefault();
+            const href = footnoteRef.getAttribute('href');
+            if (href && href.startsWith('#')) {
+                const id = href.substring(1);
+                const footnoteElement = document.getElementById(id);
+                if (footnoteElement) {
+                    // Extract content, but skip the backlink
+                    const contentClone = footnoteElement.cloneNode(true) as HTMLElement;
+                    const backlink = contentClone.querySelector('.footnote-back');
+                    if (backlink) backlink.remove();
+                    
+                    activeCitation = {
+                        content: contentClone.innerHTML,
+                        x: event.clientX,
+                        y: event.clientY
+                    };
+                }
+            }
         }
     }
 
@@ -90,7 +122,7 @@
                             </tr>
                             <tr>
                                 <td><strong>Language</strong></td>
-                                <td>{tool.language_code || 'en-US'}</td>
+                                <td>{getLanguageName(tool.language_code || 'en-US')}</td>
                             </tr>
                             <tr>
                                 <td><strong>Generated</strong></td>
@@ -120,7 +152,13 @@
             <div class="col-lg-9 col-md-8 order-md-1">
                 <div class="well bg-white p-4 shadow-sm border mb-5">
                     {#if tool.type === 'guide'}
-                        <div class="prose">
+                        <!-- svelte-ignore a11y_click_events_have_key_events -->
+                        <!-- svelte-ignore a11y_no_static_element_interactions -->
+                        <div 
+                            class="prose" 
+                            bind:this={proseContainer}
+                            onclick={handleProseClick}
+                        >
                             {@html htmlContent}
                         </div>
                     {:else if tool.type === 'flashcard'}
@@ -169,13 +207,42 @@
 {:else if loading}
     <div class="text-center p-5">
         <div class="village-spinner mx-auto"></div>
-    </div>
-{/if}
-
-<style>
-    .prose :global(h2) { font-size: 1.5rem; margin-top: 2rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; color: #2c4529; }
-    .prose :global(h3) { font-size: 1.2rem; margin-top: 1.5rem; color: #555; }
-    .prose :global(p) { line-height: 1.6; margin-bottom: 1rem; font-size: 1rem; }
-    .prose :global(ul) { margin-bottom: 1rem; }
-    .prose :global(li) { margin-bottom: 0.5rem; }
-</style>
+        </div>
+    {/if}
+    
+    {#if activeCitation}
+        <CitationPopup 
+            content={activeCitation.content} 
+            x={activeCitation.x} 
+            y={activeCitation.y} 
+            onClose={() => activeCitation = null} 
+        />
+    {/if}
+    
+    <style>
+        .prose :global(h2) { font-size: 1.5rem; margin-top: 2rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; color: #2c4529; }
+        .prose :global(h3) { font-size: 1.2rem; margin-top: 1.5rem; color: #555; }
+        .prose :global(p) { line-height: 1.6; margin-bottom: 1rem; font-size: 1rem; }
+        .prose :global(ul) { margin-bottom: 1rem; }
+        .prose :global(li) { margin-bottom: 0.5rem; }
+    
+        /* Hide default footnotes section since we use popups */
+        .prose :global(.footnotes) {
+            display: none;
+        }
+    
+            .prose :global(.footnote-ref) {
+                text-decoration: none;
+                font-weight: bold;
+                color: #568f27;
+                padding: 0 0.125rem;
+                transition: all 0.15s ease;
+            }
+        
+            .prose :global(.footnote-ref:hover) {
+                background-color: #568f27;
+                color: #fff !important;
+                text-decoration: none;
+            }
+        </style>
+        

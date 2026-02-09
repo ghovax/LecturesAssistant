@@ -5,7 +5,7 @@
     import { notifications } from '$lib/stores/notifications.svelte';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
-    import { Send, User, Bot, Sparkles, Search, MessageSquare, BookOpen, Layers } from 'lucide-svelte';
+    import { Send, User, Bot, Sparkles, Search, MessageSquare, BookOpen, Layers, Square, CheckSquare } from 'lucide-svelte';
 
     let { id: examId, sessionId } = $derived(page.params);
     let exam = $state<any>(null);
@@ -159,22 +159,25 @@
                 
                 <div class="list-group shadow-sm small overflow-auto mb-4" style="max-height: 35vh;">
                     {#each allLectures as lecture}
-                        <label class="list-group-item list-group-item-action d-flex align-items-center gap-3 cursor-pointer {includedLectureIds.includes(lecture.id) ? 'active-context' : ''}">
-                            <input 
-                                type="checkbox" 
-                                class="form-check-input m-0 flex-shrink-0" 
-                                checked={includedLectureIds.includes(lecture.id)}
-                                onchange={() => toggleLecture(lecture.id)}
-                                disabled={updatingContext}
-                            />
+                        <button 
+                            onclick={() => toggleLecture(lecture.id)}
+                            class="list-group-item list-group-item-action d-flex align-items-center gap-3 text-start {includedLectureIds.includes(lecture.id) ? 'active-context' : ''}"
+                            disabled={updatingContext}
+                        >
+                            <div class="flex-shrink-0">
+                                {#if includedLectureIds.includes(lecture.id)}
+                                    <CheckSquare size={18} class="text-white" />
+                                {:else}
+                                    <Square size={18} class="text-muted" />
+                                {/if}
+                            </div>
                             <div class="flex-grow-1 overflow-hidden">
                                 <div class="fw-bold text-truncate" title={lecture.title}>{lecture.title}</div>
                                 <div class="{includedLectureIds.includes(lecture.id) ? 'text-white-50' : 'text-muted'} text-truncate" style="font-size: 0.75rem;">
                                     {lecture.status === 'ready' ? 'Ready to study' : 'Preparing...'}
                                 </div>
                             </div>
-                            <Layers size={14} class={includedLectureIds.includes(lecture.id) ? 'text-white' : 'text-muted'} />
-                        </label>
+                        </button>
                     {/each}
                     {#if allLectures.length === 0}
                         <div class="p-3 text-center text-muted">No lectures available.</div>

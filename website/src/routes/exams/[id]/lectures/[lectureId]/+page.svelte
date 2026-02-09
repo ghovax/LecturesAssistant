@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount, onDestroy } from 'svelte';
+    import { onMount, onDestroy, tick } from 'svelte';
     import { page } from '$app/state';
     import { browser } from '$app/environment';
     import { api } from '$lib/api/client';
@@ -8,7 +8,7 @@
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
     import CitationPopup from '$lib/components/CitationPopup.svelte';
-    import { FileText, Clock, PlayCircle, Settings2, ChevronLeft, ChevronRight, List, Volume2, Activity, Loader2, CheckCircle2, XCircle, Play, AlertCircle } from 'lucide-svelte';
+    import { FileText, Clock, ChevronLeft, ChevronRight, Volume2, Loader2, Play, Plus, X } from 'lucide-svelte';
 
     let { id: examId, lectureId } = $derived(page.params);
     let exam = $state<any>(null);
@@ -23,6 +23,11 @@
     let currentSegmentIndex = $state(0);
     let audioElement: HTMLAudioElement | null = $state(null);
     let pollInterval: any;
+
+    // View State
+    let activeView = $state<'dashboard' | 'guide' | 'transcript' | 'doc' | 'tool'>('dashboard');
+    let selectedDocId = $state<string | null>(null);
+    let selectedToolId = $state<string | null>(null);
 
     // Citation Popup State
     let activeCitation = $state<{ content: string, x: number, y: number, sourceFile?: string, sourcePages?: number[] } | null>(null);
@@ -72,6 +77,21 @@
         }
     }
 
+    async function openDocument(id: string) {
+        selectedDocId = id;
+        activeView = 'doc';
+    }
+
+    function openTool(id: string) {
+        const tool = tools.find(t => t.id === id);
+        if (tool?.type === 'guide') {
+            activeView = 'guide';
+        } else {
+            selectedToolId = id;
+            activeView = 'tool';
+        }
+    }
+
     async function handleCitationClick(event: MouseEvent) {
         const target = event.target as HTMLElement;
         const footnoteRef = target.closest('.footnote-ref');
@@ -81,12 +101,10 @@
             const href = footnoteRef.getAttribute('href');
             if (href && href.startsWith('#')) {
                 const id = href.substring(1);
-                // Extract number from id
                 const numMatch = id.match(/\d+$/);
                 const num = numMatch ? parseInt(numMatch[0]) : -1;
                 
                 try {
-                    // Fetch citations for this tool if not already loaded or just get from detail
                     const htmlRes = await api.getToolHTML(guideTool.id, examId);
                     const meta = htmlRes.citations?.find((c: any) => c.number === num);
 
@@ -143,7 +161,6 @@
     }
 
     $effect(() => {
-        // When segment changes, reload audio if needed
         if (audioElement && transcript?.segments[currentSegmentIndex]) {
             audioElement.load();
         }
@@ -168,14 +185,15 @@
 {#if lecture && exam}
     <Breadcrumb items={[
         { label: exam.title, href: `/exams/${examId}` }, 
-        { label: lecture.title, active: true }
+        { label: lecture.title, active: activeView === 'dashboard' },
+        ...(activeView !== 'dashboard' ? [{ label: activeView === 'guide' ? 'Study Guide' : (activeView === 'transcript' ? 'Transcript' : 'Material'), active: true }] : [])
     ]} />
 
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="m-0">{lecture.title}</h2>
         <div class="btn-group">
             <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
-                <span class="glyphicon me-1"><Settings2 size={16} /></span> Create Study Kit
+                <span class="glyphicon me-1"><Plus size={16} /></span> Create Study Kit
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
                 <li><button class="dropdown-item" onclick={() => createTool('guide')}>Study Guide</button></li>
@@ -187,176 +205,166 @@
 
     <div class="container-fluid p-0">
         <div class="row">
-            <!-- Sidebar: Navigation & Materials -->
-            <div class="col-lg-3 col-md-4 order-md-2">
-                <h3>Dashboard</h3>
-                <div class="linkTiles tileSizeMd mb-4">
-                    {#if guideTool}
-                        <Tile href="#study-guide" icon="案" title="Study Guide">
-                            {#snippet description()}
-                                Comprehensive summary of this lecture.
-                            {/snippet}
-                        </Tile>
-                    {/if}
+            <!-- Main Content Area (Left on Desktop) -->
+            <div class="col-lg-9 col-md-8 order-md-1">
+                {#if activeView === 'dashboard'}
+                    <div class="mb-4">
+                        <div class="wordBrief mb-4">
+                            <div class="bg-light border-start border-4 border-primary p-3 shadow-sm">
+                                <div class="small fw-bold text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.1em;">Lecture Summary</div>
+                                <div class="lead" style="font-size: 1.1rem; line-height: 1.5;">
+                                    {lecture.description || 'No summary available for this lecture.'}
+                                </div>
+                            </div>
+                        </div>
 
-                    <Tile href="#lesson-notes" icon="講" title="Transcript">
+                        <h3 class="mt-5">Lecture Core</h3>
+                        <div class="linkTiles tileSizeMd">
+                            <Tile href="javascript:void(0)" icon="講" title="Transcript" onclick={() => activeView = 'transcript'}>
+                                {#snippet description()}
+                                    Full lecture dialogue and recordings.
+                                {/snippet}
+                            </Tile>
+
+                            {#if guideTool}
+                                <Tile href="javascript:void(0)" icon="案" title="Study Guide" onclick={() => activeView = 'guide'}>
+                                    {#snippet description()}
+                                        Comprehensive AI-generated summary.
+                                    {/snippet}
+                                </Tile>
+                            {/if}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <h3>Reference Materials</h3>
+                    </div>
+                    {#if documents.length === 0}
+                        <div class="well text-center p-5 text-muted bg-white border">
+                            <FileText size={48} class="mb-3 opacity-25" />
+                            <p>No reference materials added yet.</p>
+                        </div>
+                    {:else}
+                        <div class="linkTiles tileSizeMd">
+                            {#each documents as doc}
+                                <Tile href="javascript:void(0)" icon="資" title={doc.title} onclick={() => openDocument(doc.id)}>
+                                    {#snippet description()}
+                                        {doc.page_count} pages • {doc.extraction_status === 'completed' ? 'Ready' : 'Reading...'}
+                                    {/snippet}
+                                </Tile>
+                            {/each}
+                        </div>
+                    {/if}
+                {:else if activeView === 'guide'}
+                    <div class="well bg-white p-4 shadow-sm border prose" onclick={handleCitationClick}>
+                        <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
+                            <h3 class="m-0 border-0">Study Guide</h3>
+                            <button class="btn btn-link btn-sm text-muted p-0" onclick={() => activeView = 'dashboard'}><X size={18} /></button>
+                        </div>
+                        {@html guideHTML}
+                    </div>
+                {:else if activeView === 'transcript'}
+                    <div class="well bg-white p-0 overflow-hidden mb-5 border shadow-sm">
+                        <div class="bg-light px-4 py-2 border-bottom d-flex justify-content-between align-items-center">
+                            <h3 class="m-0 border-0 fs-6 fw-bold">Transcript</h3>
+                            <button class="btn btn-link btn-sm text-muted p-0" onclick={() => activeView = 'dashboard'}><X size={18} /></button>
+                        </div>
+                        
+                        {#if transcript && transcript.segments}
+                            {@const seg = transcript.segments[currentSegmentIndex]}
+                            <div class="p-4">
+                                <div class="mb-4 d-flex justify-content-between align-items-center bg-light p-2 border">
+                                    <span class="fw-bold small">{formatTime(seg.start_millisecond)} &ndash; {formatTime(seg.end_millisecond)}</span>
+                                    <div class="btn-group">
+                                        <button class="btn btn-link btn-sm text-dark" disabled={currentSegmentIndex === 0} onclick={prevSegment}><ChevronLeft size={18} /></button>
+                                        <button class="btn btn-link btn-sm text-dark" disabled={currentSegmentIndex === transcript.segments.length - 1} onclick={nextSegment}><ChevronRight size={18} /></button>
+                                    </div>
+                                </div>
+
+                                {#if seg.media_id}
+                                    <div class="mb-4 bg-light p-3 border d-flex align-items-center gap-3">
+                                        <Volume2 size={24} class="text-primary flex-shrink-0" />
+                                        <audio controls class="w-100" style="height: 32px;" src="http://localhost:3000/api/media/content?media_id={seg.media_id}&session_token={localStorage.getItem('session_token')}#t={seg.original_start_milliseconds / 1000},{seg.original_end_milliseconds / 1000}"></audio>
+                                    </div>
+                                {/if}
+
+                                <div class="transcript-text" style="font-size: 1rem; line-height: 1.6;">{@html seg.text_html}</div>
+                            </div>
+                        {:else}
+                            <div class="p-5 text-center text-muted">Transcript is not available yet.</div>
+                        {/if}
+                    </div>
+                {:else if activeView === 'doc'}
+                    <div class="p-0 mb-5">
+                        <div class="well bg-white border shadow-sm text-center p-2 mb-3 d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">Viewing Material</span>
+                            <button class="btn btn-link btn-sm text-muted p-0" onclick={() => activeView = 'dashboard'}><X size={18} /></button>
+                        </div>
+                        <p class="text-center text-muted small">Use individual material viewer for full page-by-page analysis.</p>
+                        <div class="text-center">
+                            <a href="/exams/{examId}/lectures/{lectureId}/documents/{selectedDocId}" class="btn btn-primary">Open Full Viewer</a>
+                        </div>
+                    </div>
+                {:else if activeView === 'tool'}
+                    <div class="p-0 mb-5">
+                        <div class="well bg-white border shadow-sm text-center p-2 mb-3 d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">Viewing Study Kit</span>
+                            <button class="btn btn-link btn-sm text-muted p-0" onclick={() => activeView = 'dashboard'}><X size={18} /></button>
+                        </div>
+                        <div class="text-center">
+                            <a href="/exams/{examId}/tools/{selectedToolId}" class="btn btn-primary">Open Practice Mode</a>
+                        </div>
+                    </div>
+                {/if}
+            </div>
+
+            <!-- Sidebar: Navigation Tiles ONLY (Right Side on Desktop) -->
+            <div class="col-lg-3 col-md-4 order-md-2">
+                <div class="linkTiles tileSizeMd w-100 m-0 d-flex flex-column align-items-center">
+                    <Tile href="javascript:void(0)" 
+                          icon={activeView === 'dashboard' ? '家' : '戻'} 
+                          title={activeView === 'dashboard' ? 'Dashboard' : 'Back to Hub'} 
+                          onclick={() => activeView = 'dashboard'}>
                         {#snippet description()}
-                            The complete lecture dialogue and notes.
+                            {activeView === 'dashboard' ? 'Lecture overview and materials.' : 'Return to the lecture dashboard.'}
                         {/snippet}
                     </Tile>
 
+                    {#if activeJobs.some(j => j.status === 'RUNNING' || j.status === 'PENDING')}
+                        <div class="well bg-white border shadow-sm p-0 mb-3 w-100 overflow-hidden" style="max-width: 15.5rem;">
+                            <div class="bg-light px-3 py-2 border-bottom fw-bold small" style="font-size: 0.65rem; letter-spacing: 0.05em;">
+                                Activity Progress
+                            </div>
+                            {#each activeJobs.filter(j => j.status === 'RUNNING' || j.status === 'PENDING') as job}
+                                <div class="p-3 border-bottom last-child-border-0">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="fw-bold" style="font-size: 0.75rem;">{formatJobType(job.type)}</span>
+                                        <Loader2 size={12} class="spin text-primary" />
+                                    </div>
+                                    <div class="progress mb-2" style="height: 3px;">
+                                        <div class="progress-bar" style="width: {job.progress}%"></div>
+                                    </div>
+                                    <div class="text-muted text-truncate" style="font-size: 0.65rem;">
+                                        {#if job.metadata?.document_title}Reading: {job.metadata.document_title}
+                                        {:else if job.metadata?.media_index}Audio part {job.metadata.media_index}
+                                        {:else}{job.progress_message_text || 'Processing...'}{/if}
+                                    </div>
+                                </div>
+                            {/each}
+                        </div>
+                    {/if}
+
                     {#each tools.filter(t => t.type !== 'guide') as tool}
-                        <Tile href="/exams/{examId}/tools/{tool.id}" 
+                        <Tile href="javascript:void(0)" 
                             icon={tool.type === 'flashcard' ? '札' : '問'} 
-                            title={capitalize(tool.type)}>
+                            title={capitalize(tool.type)}
+                            onclick={() => openTool(tool.id)}>
                             {#snippet description()}
                                 Practice your knowledge.
                             {/snippet}
                         </Tile>
                     {/each}
                 </div>
-
-                {#if activeJobs.some(j => j.status === 'RUNNING' || j.status === 'PENDING')}
-                    <h3>Activity Progress</h3>
-                    <div class="well bg-white p-0 mb-4 border shadow-sm overflow-hidden">
-                        {#each activeJobs.filter(j => j.status === 'RUNNING' || j.status === 'PENDING') as job}
-                            <div class="p-3 border-bottom last-child-border-0">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="fw-bold small">
-                                        {formatJobType(job.type)}
-                                    </span>
-                                    {#if job.status === 'RUNNING'}
-                                        <Loader2 size={14} class="spin text-primary" />
-                                    {:else}
-                                        <Play size={14} class="text-muted" />
-                                    {/if}
-                                </div>
-                                <div class="progress mb-2" style="height: 4px;">
-                                    <div class="progress-bar" style="width: {job.progress}%"></div>
-                                </div>
-                                <div class="small text-muted text-truncate" style="font-size: 0.7rem;">
-                                    {#if job.metadata?.document_title}
-                                        Reading: {job.metadata.document_title}
-                                    {:else if job.metadata?.media_index}
-                                        Audio part {job.metadata.media_index} of {job.metadata.total_media}
-                                    {:else}
-                                        {job.progress_message_text || 'Waiting...'}
-                                    {/if}
-                                </div>
-                            </div>
-                        {/each}
-                    </div>
-                {/if}
-
-                {#if documents.length > 0}
-                    <h3>Study Materials</h3>
-                    <div class="linkTiles tileSizeMd mb-4">
-                        {#each documents as doc}
-                            <Tile href="/exams/{examId}/lectures/{lectureId}/documents/{doc.id}" 
-                                    icon="資" 
-                                    title={doc.title}>
-                                {#snippet description()}
-                                    {doc.page_count} pages • {doc.extraction_status === 'completed' ? 'Ready' : 'Reading...'}
-                                {/snippet}
-                            </Tile>
-                        {/each}
-                    </div>
-                {/if}
-
-                {#if transcript && transcript.segments}
-                    <h3>Transcript Index</h3>
-                    <div class="list-group shadow-sm small overflow-auto mb-4" style="max-height: 40vh;">
-                        {#each transcript.segments as seg, i}
-                            <button 
-                                onclick={() => currentSegmentIndex = i} 
-                                class="list-group-item list-group-item-action d-flex justify-content-between align-items-center text-start {currentSegmentIndex === i ? 'active' : ''}"
-                            >
-                                {formatTime(seg.start_millisecond)}
-                                <span class={currentSegmentIndex === i ? 'text-white' : 'text-muted'}><Clock size={12} /></span>
-                            </button>
-                        {/each}
-                    </div>
-                {/if}
-            </div>
-
-            <!-- Main Content: Single Segment Transcript -->
-            <div class="col-lg-9 col-md-8 order-md-1">
-                {#if guideHTML}
-                    <div class="mb-5" id="study-guide">
-                        <div class="border-bottom pb-2 mb-4">
-                            <h3 class="m-0 border-0">Study Guide</h3>
-                        </div>
-                        <div class="well bg-white p-4 shadow-sm border prose" onclick={handleCitationClick}>
-                            {@html guideHTML}
-                        </div>
-                    </div>
-                {/if}
-
-                <div class="mb-3" id="lesson-notes">
-                    <h3>Lesson Notes</h3>
-                    <p class="text-muted mb-0">{lecture.description || 'Comprehensive learning materials from this lecture recording.'}</p>
-                </div>
-
-                {#if transcript && transcript.segments}
-                    {@const seg = transcript.segments[currentSegmentIndex]}
-                    <div class="well bg-white p-0 overflow-hidden mb-5 border shadow-sm">
-                        <div class="bg-light px-4 py-2 border-bottom d-flex justify-content-between align-items-center">
-                            <span class="fw-bold small text-uppercase">
-                                {formatTime(seg.start_millisecond)} &ndash; {formatTime(seg.end_millisecond)}
-                            </span>
-                            <div class="btn-group">
-                                <button 
-                                    class="btn btn-link btn-sm text-dark p-0 me-2 shadow-none" 
-                                    disabled={currentSegmentIndex === 0}
-                                    onclick={prevSegment}
-                                    title="Previous Segment (Left Arrow)"
-                                >
-                                    <ChevronLeft size={18} />
-                                </button>
-                                <button 
-                                    class="btn btn-link btn-sm text-dark p-0 shadow-none" 
-                                    disabled={currentSegmentIndex === transcript.segments.length - 1}
-                                    onclick={nextSegment}
-                                    title="Next Segment (Right Arrow)"
-                                >
-                                    <ChevronRight size={18} />
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="p-4">
-                            {#if seg.media_id}
-                                <div class="mb-4 bg-light p-3 border d-flex align-items-center gap-3">
-                                    <Volume2 size={24} class="text-primary flex-shrink-0" />
-                                    <audio 
-                                        bind:this={audioElement}
-                                        controls 
-                                        class="w-100" 
-                                        style="height: 32px;"
-                                    >
-                                        <source 
-                                            src="http://localhost:3000/api/media/content?media_id={seg.media_id}&session_token={browser ? localStorage.getItem('session_token') : ''}#t={seg.original_start_milliseconds / 1000},{seg.original_end_milliseconds / 1000}" 
-                                            type="audio/mpeg"
-                                        />
-                                        Your browser does not support the audio element.
-                                    </audio>
-                                </div>
-                            {/if}
-
-                            <div class="transcript-text" style="font-size: 1rem; line-height: 1.6;">
-                                {@html seg.text_html}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="text-center text-muted small mt-n4 mb-5">
-                        <kbd>←</kbd> <kbd>→</kbd> Use arrow keys to navigate segments
-                    </div>
-                {:else}
-                    <div class="well bg-white text-center p-5 mb-5 border shadow-sm">
-                        <div class="village-spinner mx-auto mb-3"></div>
-                        <p>Our AI is meticulously preparing your lecture notes. This may take a few minutes...</p>
-                    </div>
-                {/if}
             </div>
         </div>
     </div>
@@ -380,30 +388,6 @@
 <style>
     .transcript-text {
         color: #333;
-    }
-
-    .list-group-item.active {
-        background-color: #568f27;
-        border-color: #568f27;
-    }
-
-    kbd {
-        background-color: #eee;
-        border-radius: 3px;
-        border: 1px solid #b4b4b4;
-        box-shadow: 0 1px 1px rgba(0,0,0,.2),0 2px 0 0 rgba(255,255,255,.7) inset;
-        color: #333;
-        display: inline-block;
-        font-size: .85em;
-        font-weight: 700;
-        line-height: 1;
-        padding: 2px 4px;
-        white-space: nowrap;
-    }
-
-    audio::-webkit-media-controls-enclosure {
-        border-radius: 0;
-        background-color: #f8f9fa;
     }
 
     .spin {
@@ -442,5 +426,10 @@
         background-color: #568f27;
         color: #fff !important;
         text-decoration: none;
+    }
+
+    audio::-webkit-media-controls-enclosure {
+        border-radius: 0;
+        background-color: #f8f9fa;
     }
 </style>

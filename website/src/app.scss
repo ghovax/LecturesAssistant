@@ -363,6 +363,16 @@ h3 {
     border: 1px solid #e3e3e3;
 }
 
+.active-context {
+    background-color: #568f27 !important;
+    border-color: #568f27 !important;
+    color: #fff !important;
+}
+
+.active-context .text-white-50 {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
 .well table, .well .table, .well .table td, .well .table th {
     background-color: transparent !important;
     background: transparent !important;

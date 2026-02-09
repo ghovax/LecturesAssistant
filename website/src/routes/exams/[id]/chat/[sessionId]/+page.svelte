@@ -157,32 +157,28 @@
                     {/if}
                 </div>
                 
-                <div class="well bg-white p-0 overflow-hidden border mb-4">
-                    <div class="bg-light px-3 py-2 border-bottom small fw-bold text-uppercase text-muted">
-                        <Layers size={12} class="me-1" /> Active Lectures
-                    </div>
-                    <div class="list-group list-group-flush small" style="max-height: 30vh; overflow-y: auto;">
-                        {#each allLectures as lecture}
-                            <label class="list-group-item d-flex align-items-start gap-2 cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    class="form-check-input mt-1 flex-shrink-0" 
-                                    checked={includedLectureIds.includes(lecture.id)}
-                                    onchange={() => toggleLecture(lecture.id)}
-                                    disabled={updatingContext}
-                                />
-                                <div class="text-truncate">
-                                    <div class="fw-bold">{lecture.title}</div>
-                                    <div class="text-muted" style="font-size: 0.65rem;">
-                                        {lecture.status === 'ready' ? 'Ready to study' : 'Preparing...'}
-                                    </div>
+                <div class="list-group shadow-sm small overflow-auto mb-4" style="max-height: 35vh;">
+                    {#each allLectures as lecture}
+                        <label class="list-group-item list-group-item-action d-flex align-items-center gap-3 cursor-pointer {includedLectureIds.includes(lecture.id) ? 'active-context' : ''}">
+                            <input 
+                                type="checkbox" 
+                                class="form-check-input m-0 flex-shrink-0" 
+                                checked={includedLectureIds.includes(lecture.id)}
+                                onchange={() => toggleLecture(lecture.id)}
+                                disabled={updatingContext}
+                            />
+                            <div class="flex-grow-1 overflow-hidden">
+                                <div class="fw-bold text-truncate" title={lecture.title}>{lecture.title}</div>
+                                <div class="{includedLectureIds.includes(lecture.id) ? 'text-white-50' : 'text-muted'} text-truncate" style="font-size: 0.75rem;">
+                                    {lecture.status === 'ready' ? 'Ready to study' : 'Preparing...'}
                                 </div>
-                            </label>
-                        {/each}
-                        {#if allLectures.length === 0}
-                            <div class="p-3 text-center text-muted">No lectures available.</div>
-                        {/if}
-                    </div>
+                            </div>
+                            <Layers size={14} class={includedLectureIds.includes(lecture.id) ? 'text-white' : 'text-muted'} />
+                        </label>
+                    {/each}
+                    {#if allLectures.length === 0}
+                        <div class="p-3 text-center text-muted">No lectures available.</div>
+                    {/if}
                 </div>
 
                 <h3>Session Details</h3>
@@ -219,7 +215,7 @@
                 {/if}
             </div>
 
-            <!-- Main Content: Chat -->
+            <!-- Main Content: Chat History -->
             <div class="col-lg-9 col-md-8 order-md-1">
                 <form onsubmit={(e) => { e.preventDefault(); sendMessage(); }} class="mb-4">
                     <div class="input-group dictionary-style mb-3 shadow-sm">
@@ -238,55 +234,39 @@
 
                 <div class="chat-viewport mb-5" bind:this={messageContainer} style="height: 65vh; overflow-y: auto;">
                     {#if (!messages || messages.length === 0) && !streamingMessage}
-                        <div class="well bg-white text-center p-5 text-muted">
+                        <div class="well bg-white text-center p-5 text-muted border shadow-sm">
                             <Bot size={48} class="mb-3 opacity-25" />
                             <p>I'm your dedicated study assistant. Select the lectures you want me to use from the sidebar, and ask a question above!</p>
                         </div>
                     {/if}
 
                     {#each messages ?? [] as msg}
-                        {#if msg.role === 'assistant'}
-                            <div class="char-results mb-4">
-                                <div class="well bg-white p-4 shadow-sm border-start border-4 border-success">
-                                    <div class="row">
-                                        <div lang="ja" class="col-xl-1 col-md-2 text-center d-none d-md-block">
-                                            <Bot size={32} class="text-success" />
-                                        </div>
-                                        <div class="col-xl-11 col-md-10">
-                                            <div class="small fw-bold text-uppercase text-success mb-2">Assistant</div>
-                                            <div class="message-content wordBriefContent">
-                                                {msg.content}
-                                            </div>
-                                        </div>
-                                    </div>
+                        <div class="well bg-white p-0 overflow-hidden mb-4 border shadow-sm {msg.role === 'user' ? 'ms-md-5 border-primary border-opacity-25' : 'me-md-5 border-success border-opacity-25'}">
+                            <div class="bg-light px-4 py-2 border-bottom d-flex justify-content-between align-items-center">
+                                <span class="fw-bold small text-uppercase {msg.role === 'user' ? 'text-primary' : 'text-success'}">
+                                    {msg.role === 'user' ? 'Question' : 'Assistant'}
+                                </span>
+                                <span class="text-muted small" style="font-size: 0.7rem;">
+                                    {new Date(msg.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                            </div>
+                            <div class="p-4">
+                                <div class="message-content {msg.role === 'user' ? 'fw-bold' : ''}" style="font-size: 1rem; line-height: 1.6;">
+                                    {msg.content}
                                 </div>
                             </div>
-                        {:else}
-                            <div class="wordBrief mb-4 ms-md-5">
-                                <div class="bg-light border-start border-4 border-primary p-3 shadow-sm">
-                                    <div class="small fw-bold text-primary text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.1em;">Question</div>
-                                    <div class="message-content wordBriefTitle">
-                                        {msg.content}
-                                    </div>
-                                </div>
-                            </div>
-                        {/if}
+                        </div>
                     {/each}
 
                     {#if streamingMessage}
-                        <div class="char-results mb-4">
-                            <div class="well bg-white p-4 shadow-sm border-start border-4 border-success">
-                                <div class="row">
-                                    <div lang="ja" class="col-xl-1 col-md-2 text-center d-none d-md-block">
-                                        <Bot size={32} class="text-success" />
-                                    </div>
-                                    <div class="col-xl-11 col-md-10">
-                                        <div class="small fw-bold text-uppercase text-success mb-2">Assistant</div>
-                                        <div class="message-content wordBriefContent">
-                                            {streamingMessage}
-                                            <span class="village-spinner d-inline-block ms-2" style="width: 1rem; height: 1rem;"></span>
-                                        </div>
-                                    </div>
+                        <div class="well bg-white p-0 overflow-hidden mb-4 border border-success border-opacity-25 shadow-sm me-md-5">
+                            <div class="bg-light px-4 py-2 border-bottom d-flex justify-content-between align-items-center">
+                                <span class="fw-bold small text-uppercase text-success">Assistant</span>
+                                <span class="village-spinner" style="width: 0.8rem; height: 0.8rem;"></span>
+                            </div>
+                            <div class="p-4">
+                                <div class="message-content" style="font-size: 1rem; line-height: 1.6;">
+                                    {streamingMessage}
                                 </div>
                             </div>
                         </div>

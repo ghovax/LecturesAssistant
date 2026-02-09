@@ -109,91 +109,175 @@
                     </div>
                 </div>
 
-                <div class="row">
-                    <!-- Media Upload -->
-                    <div class="col-lg-6 mb-4">
-                        <div class="char-results">
-                            <div class="well bg-white p-4 border {mediaFiles.length > 0 ? 'border-success' : ''}">
-                                <div class="row align-items-center">
-                                    <div lang="ja" class="col-3 text-center">
-                                        <Video size={48} class={mediaFiles.length > 0 ? 'text-success' : 'text-muted'} />
-                                    </div>
-                                    <div class="col-9">
-                                        <h4 class="mt-0 border-0 pt-0">Recordings</h4>
-                                        <p class="small text-muted mb-2">Video or Audio (MP4, MP3, etc.)</p>
-                                        <input 
-                                            type="file" 
-                                            id="media" 
-                                            class="d-none" 
-                                            accept="video/*,audio/*" 
-                                            multiple
-                                            onchange={addMediaFiles} 
-                                            disabled={uploading}
-                                        />
-                                        <label for="media" class="btn btn-outline-secondary">
-                                            Add Files
-                                        </label>
-                                    </div>
-                                </div>
-                                
-                                {#if mediaFiles.length > 0}
-                                    <div class="mt-3 border-top pt-2">
-                                        {#each mediaFiles as file, i}
-                                            <div class="d-flex justify-content-between align-items-center mb-1 small bg-light p-1">
-                                                <span class="text-truncate me-2 fw-bold" title={file.name}>{file.name}</span>
-                                                <button class="btn btn-link btn-sm text-danger p-0" onclick={() => removeMedia(i)} disabled={uploading}>
-                                                    <X size={14} />
-                                                </button>
-                                            </div>
-                                        {/each}
-                                    </div>
-                                {/if}
-                            </div>
-                        </div>
-                    </div>
+                                <div class="row">
 
-                    <!-- Document Upload -->
-                    <div class="col-lg-6 mb-4">
-                        <div class="char-results">
-                            <div class="well bg-white p-4 border {documentFiles.length > 0 ? 'border-success' : ''}">
-                                <div class="row align-items-center">
-                                    <div lang="ja" class="col-3 text-center">
-                                        <File size={48} class={documentFiles.length > 0 ? 'text-success' : 'text-muted'} />
-                                    </div>
-                                    <div class="col-9">
-                                        <h4 class="mt-0 border-0 pt-0">References</h4>
-                                        <p class="small text-muted mb-2">Slides or PDFs (PDF, PPTX, etc.)</p>
-                                        <input 
-                                            type="file" 
-                                            id="docs" 
-                                            class="d-none" 
-                                            accept=".pdf,.pptx,.docx" 
-                                            multiple
-                                            onchange={addDocumentFiles} 
-                                            disabled={uploading}
-                                        />
-                                        <label for="docs" class="btn btn-outline-secondary">
-                                            Add Files
-                                        </label>
-                                    </div>
-                                </div>
+                                    <!-- Media Upload -->
 
-                                {#if documentFiles.length > 0}
-                                    <div class="mt-3 border-top pt-2">
-                                        {#each documentFiles as file, i}
-                                            <div class="d-flex justify-content-between align-items-center mb-1 small bg-light p-1">
-                                                <span class="text-truncate me-2 fw-bold" title={file.name}>{file.name}</span>
-                                                <button class="btn btn-link btn-sm text-danger p-0" onclick={() => removeDocument(i)} disabled={uploading}>
-                                                    <X size={14} />
-                                                </button>
+                                    <div class="col-lg-6 mb-4">
+
+                                        <div class="char-results">
+
+                                            <div class="well bg-white p-4 border {mediaFiles.length > 0 ? 'border-success' : ''}">
+
+                                                <div class="row align-items-center">
+
+                                                    <div lang="ja" class="col-3 text-center" style="font-size: 2.5rem; line-height: 1; color: #ccc;">
+
+                                                        新
+
+                                                    </div>
+
+                                                    <div class="col-9">
+
+                                                        <h4 class="mt-0 border-0 pt-0">Recordings</h4>
+
+                                                        <p class="small text-muted mb-2">Video or Audio (MP4, MP3, etc.)</p>
+
+                                                        <input 
+
+                                                            type="file" 
+
+                                                            id="media" 
+
+                                                            class="d-none" 
+
+                                                            accept="video/*,audio/*" 
+
+                                                            multiple
+
+                                                            onchange={addMediaFiles} 
+
+                                                            disabled={uploading}
+
+                                                        />
+
+                                                        <label for="media" class="btn btn-outline-secondary btn-sm">
+
+                                                            Select Files
+
+                                                        </label>
+
+                                                    </div>
+
+                                                </div>
+
+                                                
+
+                                                {#if mediaFiles.length > 0}
+
+                                                    <div class="mt-3 border-top pt-2">
+
+                                                        {#each mediaFiles as file, i}
+
+                                                            <div class="d-flex justify-content-between align-items-center mb-1 small bg-light p-1">
+
+                                                                <span class="text-truncate me-2 fw-bold" title={file.name}>{file.name}</span>
+
+                                                                <button class="btn btn-link btn-sm text-danger p-0" onclick={() => removeMedia(i)} disabled={uploading}>
+
+                                                                    <span class="glyphicon m-0"><X size={14} /></span>
+
+                                                                </button>
+
+                                                            </div>
+
+                                                        {/each}
+
+                                                    </div>
+
+                                                {/if}
+
                                             </div>
-                                        {/each}
+
+                                        </div>
+
                                     </div>
-                                {/if}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+
+                
+
+                                    <!-- Document Upload -->
+
+                                    <div class="col-lg-6 mb-4">
+
+                                        <div class="char-results">
+
+                                            <div class="well bg-white p-4 border {documentFiles.length > 0 ? 'border-success' : ''}">
+
+                                                <div class="row align-items-center">
+
+                                                    <div lang="ja" class="col-3 text-center" style="font-size: 2.5rem; line-height: 1; color: #ccc;">
+
+                                                        資
+
+                                                    </div>
+
+                                                    <div class="col-9">
+
+                                                        <h4 class="mt-0 border-0 pt-0">References</h4>
+
+                                                        <p class="small text-muted mb-2">Slides or PDFs (PDF, PPTX, etc.)</p>
+
+                                                        <input 
+
+                                                            type="file" 
+
+                                                            id="docs" 
+
+                                                            class="d-none" 
+
+                                                            accept=".pdf,.pptx,.docx" 
+
+                                                            multiple
+
+                                                            onchange={addDocumentFiles} 
+
+                                                            disabled={uploading}
+
+                                                        />
+
+                                                        <label for="docs" class="btn btn-outline-secondary btn-sm">
+
+                                                            Select Files
+
+                                                        </label>
+
+                                                    </div>
+
+                                                </div>
+
+                
+
+                                                {#if documentFiles.length > 0}
+
+                                                    <div class="mt-3 border-top pt-2">
+
+                                                        {#each documentFiles as file, i}
+
+                                                            <div class="d-flex justify-content-between align-items-center mb-1 small bg-light p-1">
+
+                                                                <span class="text-truncate me-2 fw-bold" title={file.name}>{file.name}</span>
+
+                                                                <button class="btn btn-link btn-sm text-danger p-0" onclick={() => removeDocument(i)} disabled={uploading}>
+
+                                                                    <span class="glyphicon m-0"><X size={14} /></span>
+
+                                                                </button>
+
+                                                            </div>
+
+                                                        {/each}
+
+                                                    </div>
+
+                                                {/if}
+
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                </div>
 
                 {#if uploading}
                     <div class="well bg-light text-center p-4 shadow-sm border-success">

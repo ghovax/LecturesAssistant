@@ -13,13 +13,12 @@ import (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(httpRequest *http.Request) bool {
-		// Strict check: only allow localhost in development
 		origin := httpRequest.Header.Get("Origin")
 		if origin == "" {
 			return true
 		}
-		// Allow localhost and 127.0.0.1
-		return strings.HasPrefix(origin, "http://localhost") || strings.HasPrefix(origin, "http://127.0.0.1")
+		// Allow any port on localhost or 127.0.0.1
+		return strings.Contains(origin, "://localhost") || strings.Contains(origin, "://127.0.0.1")
 	},
 }
 
@@ -109,6 +108,7 @@ func (client *WSClient) isSubscribed(channel string) bool {
 func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, request *http.Request) {
 	sessionToken := server.getSessionToken(request)
 	if sessionToken == "" {
+		slog.Warn("WebSocket attempt without session token")
 		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Authentication required", nil)
 		return
 	}
@@ -118,11 +118,12 @@ func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, reques
 	var expiresAt time.Time
 	databaseError := server.database.QueryRow("SELECT user_id, expires_at FROM auth_sessions WHERE id = ?", sessionToken).Scan(&userID, &expiresAt)
 	if databaseError != nil || time.Now().After(expiresAt) {
+		slog.Warn("WebSocket attempt with invalid or expired token", "error", databaseError)
 		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid or expired session", nil)
 		return
 	}
 
-	// Correctly set user ID in context before upgrade if needed (though we'll use local variable)
+	slog.Info("Upgrading WebSocket connection", "userID", userID, "origin", request.Header.Get("Origin"))
 
 	connection, upgradeError := upgrader.Upgrade(responseWriter, request, nil)
 	if upgradeError != nil {

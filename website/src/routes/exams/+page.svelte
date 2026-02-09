@@ -41,35 +41,39 @@
 
 <h2>My Studies</h2>
 
-<form onsubmit={(e) => { e.preventDefault(); createExam(); }} class="mb-4">
-    <div class="input-group dictionary-style mb-3">
-        <input 
-            type="text" 
-            class="form-control" 
-            placeholder="Add New Subject (e.g. History, Science, Mathematics)..." 
-            bind:value={newExamTitle} 
-            required 
-        />
-        <button type="submit" class="btn btn-primary">
-            <span class="glyphicon m-0"><Plus size={18} /></span>
-        </button>
-    </div>
-</form>
+<div class="linkTiles tileSizeMd mb-4">
+    <Tile href="javascript:void(0)" icon="新" title="New Subject" onclick={() => showCreate = !showCreate}>
+        {#snippet description()}
+            Add a new course or subject to your hub.
+        {/snippet}
+    </Tile>
+    {#each exams as exam}
+        <Tile href="/exams/{exam.id}" icon="科" title={exam.title}>
+            {#snippet description()}
+                {exam.description || 'Access your lectures and study tools for this subject.'}
+            {/snippet}
+        </Tile>
+    {/each}
+</div>
 
-{#if loading}
-    <div class="text-center p-5">
-        <div class="village-spinner mx-auto"></div>
-    </div>
-{:else if exams.length === 0}
-    <p class="text-center p-5">You haven't added any subjects yet. Click the button above to start your first one.</p>
-{:else}
-    <div class="linkTiles tileSizeMd">
-        {#each exams as exam}
-            <Tile href="/exams/{exam.id}" icon="科" title={exam.title}>
-                {#snippet description()}
-                    {exam.description || 'Access your lectures and study tools for this subject.'}
-                {/snippet}
-            </Tile>
-        {/each}
+{#if showCreate}
+    <div class="well mb-4 bg-white border shadow-sm p-4">
+        <h4 class="mt-0">Create a New Subject</h4>
+        <form onsubmit={(e) => { e.preventDefault(); createExam(); }}>
+            <div class="input-group dictionary-style">
+                <input 
+                    type="text" 
+                    class="form-control" 
+                    placeholder="Enter Subject Title (e.g. History, Science, Mathematics)..." 
+                    bind:value={newExamTitle} 
+                    required 
+                />
+                <button type="submit" class="btn btn-primary">
+                    <span class="glyphicon m-0"><Plus size={18} /></span>
+                </button>
+            </div>
+        </form>
     </div>
 {/if}
+
+{#if loading && exams.length === 0}

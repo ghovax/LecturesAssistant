@@ -310,6 +310,18 @@ tr.furi {
     color: #666;
 }
 
+.wordBriefTitle {
+    font-size: 1.25rem;
+    font-weight: bold;
+    display: block;
+}
+
+.wordBriefContent {
+    font-size: 1.05rem;
+    line-height: 1.5;
+    color: #333;
+}
+
 /* Character Detail Styling */
 .characterHeading {
     font-size: 4rem;
@@ -339,8 +351,15 @@ h3 {
 }
 
 /* Well adjustments */
-.well.bg-white {
-    background-color: #fff !important;
+.transcript-text {
+    line-height: 1.6;
+    font-size: 1.05rem;
+    color: #333;
+}
+
+.transcript-view-container {
+    max-height: 70vh;
+    overflow-y: auto;
     border: 1px solid #e3e3e3;
 }
 

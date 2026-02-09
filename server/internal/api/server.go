@@ -303,13 +303,18 @@ func (server *Server) writeError(responseWriter http.ResponseWriter, statusCode 
 }
 
 func (server *Server) getSessionToken(request *http.Request) string {
-	// 1. Try cookie
+	// 1. Try query parameter (common for WebSockets)
+	if token := request.URL.Query().Get("session_token"); token != "" {
+		return token
+	}
+
+	// 2. Try cookie
 	cookie, err := request.Cookie("session_token")
 	if err == nil {
 		return cookie.Value
 	}
 
-	// 2. Try Authorization header
+	// 3. Try Authorization header
 	authHeader := request.Header.Get("Authorization")
 	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
 		return authHeader[7:]

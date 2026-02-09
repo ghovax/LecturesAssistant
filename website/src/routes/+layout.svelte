@@ -4,6 +4,11 @@
     import Navbar from '$lib/components/Navbar.svelte';
     
     let { children } = $props();
+
+    onMount(async () => {
+        // @ts-ignore
+        await import('bootstrap');
+    });
 </script>
 
 <div class="container-xl main-page">

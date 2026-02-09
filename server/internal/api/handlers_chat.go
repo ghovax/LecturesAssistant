@@ -184,10 +184,13 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 	for messageRows.Next() {
 		var message models.ChatMessage
 		if scanError := messageRows.Scan(&message.ID, &message.SessionID, &message.Role, &message.Content, &message.ModelUsed, &message.InputTokens, &message.OutputTokens, &message.EstimatedCost, &message.CreatedAt); scanError != nil {
+			slog.Error("Failed to scan chat message", "sessionID", sessionID, "error", scanError)
 			continue
 		}
 		messages = append(messages, message)
 	}
+
+	slog.Info("Retrieved chat messages", "sessionID", sessionID, "count", len(messages))
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]any{
 		"session": session,

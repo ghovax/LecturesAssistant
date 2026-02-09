@@ -9,7 +9,7 @@ import (
 
 // Initialize creates and initializes the SQLite database
 func Initialize(path string) (*sql.DB, error) {
-	database, err := sql.Open("sqlite3", path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
+	database, err := sql.Open("sqlite3", path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000&_datetime_format=rfc3339")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

@@ -8,12 +8,13 @@
         monospaceTitle?: boolean;
         description?: Snippet;
         children?: Snippet;
+        onclick?: (e: MouseEvent) => void;
     }
 
-    let { href, icon, title, monospaceTitle = false, description, children }: Props = $props();
+    let { href, icon, title, monospaceTitle = false, description, children, onclick }: Props = $props();
 </script>
 
-<a {href}>
+<a {href} {onclick}>
     <div lang="ja">{icon}</div>
     <p class:font-monospace={monospaceTitle}><strong>{title}</strong><br /></p>
     

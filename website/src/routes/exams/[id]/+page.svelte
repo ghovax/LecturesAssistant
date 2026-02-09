@@ -2,6 +2,7 @@
     import { onMount } from 'svelte';
     import { page } from '$app/state';
     import { api } from '$lib/api/client';
+    import { goto } from '$app/navigation';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
     import { Plus, MessageCircle, FileText, Video, Trash2, ExternalLink } from 'lucide-svelte';
@@ -10,23 +11,38 @@
     let exam = $state<any>(null);
     let lectures = $state<any[]>([]);
     let tools = $state<any[]>([]);
+    let chatSessions = $state<any[]>([]);
     let loading = $state(true);
 
     async function loadData() {
         loading = true;
         try {
-            const [examData, lecturesData, toolsData] = await Promise.all([
+            const [examData, lecturesData, toolsData, sessionsData] = await Promise.all([
                 api.getExam(examId),
                 api.listLectures(examId),
-                api.listTools(examId)
+                api.listTools(examId),
+                api.request('GET', `/chat/sessions?exam_id=${examId}`)
             ]);
             exam = examData;
             lectures = lecturesData ?? [];
             tools = toolsData ?? [];
+            chatSessions = sessionsData ?? [];
         } catch (e) {
             console.error(e);
         } finally {
             loading = false;
+        }
+    }
+
+    async function createChat() {
+        try {
+            const session = await api.request('POST', '/chat/sessions', { 
+                exam_id: examId, 
+                title: `Study Session ${chatSessions.length + 1}` 
+            });
+            goto(`/exams/${examId}/chat/${session.id}`);
+        } catch (e) {
+            alert(e);
         }
     }
 
@@ -48,21 +64,37 @@
 
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2>{exam.title}</h2>
-        <a href="/exams/{examId}/chat" class="btn btn-primary">
-            <span class="glyphicon me-1"><MessageCircle size={16} /></span> Study Chat
-        </a>
+        <div class="d-flex gap-2">
+            <a href="/exams/{examId}/lectures/new" class="btn btn-primary">
+                <span class="glyphicon me-1"><Plus size={16} /></span> Add Lecture
+            </a>
+        </div>
     </div>
 
     <div class="container-fluid p-0">
         <div class="row">
-            <!-- Sidebar / Tile Style for Tools -->
+            <!-- Sidebar / Tile Style for Tools & Chats -->
             <div class="col-lg-3 col-md-4 order-md-2">
-                <h3>Study Tools</h3>
-                {#if tools.length === 0}
-                    <div class="well text-center p-3">
-                        <p class="small text-muted m-0">No tools generated yet.</p>
-                    </div>
-                {:else}
+                <div class="mb-2">
+                    <h3 class="m-0">Study Chats</h3>
+                </div>
+                <div class="linkTiles tileSizeMd mb-4">
+                    <Tile href="javascript:void(0)" icon="新" title="New Chat" onclick={(e) => { e.preventDefault(); createChat(); }}>
+                        {#snippet description()}
+                            Start a fresh study session.
+                        {/snippet}
+                    </Tile>
+                    {#each chatSessions as session}
+                        <Tile href="/exams/{examId}/chat/{session.id}" icon="談" title={session.title || 'Untitled Chat'}>
+                            {#snippet description()}
+                                Created {new Date(session.created_at).toLocaleDateString()}
+                            {/snippet}
+                        </Tile>
+                    {/each}
+                </div>
+
+                {#if tools.length > 0}
+                    <h3>Study Tools</h3>
                     <div class="linkTiles tileSizeMd">
                         {#each tools as tool}
                             <Tile href="/exams/{examId}/tools/{tool.id}" 
@@ -79,11 +111,8 @@
 
             <!-- Main Content / Tile Style for Lectures -->
             <div class="col-lg-9 col-md-8 order-md-1">
-                <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="mb-3">
                     <h3>Lectures</h3>
-                    <a href="/exams/{examId}/lectures/new" class="btn btn-success">
-                        <span class="glyphicon me-1"><Plus size={16} /></span> Add Lecture
-                    </a>
                 </div>
 
                 {#if lectures.length === 0}

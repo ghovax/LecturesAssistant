@@ -422,7 +422,7 @@ func (server *Server) handleListLectures(responseWriter http.ResponseWriter, req
 	userID := server.getUserID(request)
 
 	lectureRows, databaseError := server.database.Query(`
-		SELECT lectures.id, lectures.exam_id, lectures.title, lectures.description, lectures.created_at, lectures.updated_at
+		SELECT lectures.id, lectures.exam_id, lectures.title, lectures.description, lectures.status, lectures.created_at, lectures.updated_at
 		FROM lectures
 		JOIN exams ON lectures.exam_id = exams.id
 		WHERE lectures.exam_id = ? AND exams.user_id = ?
@@ -437,7 +437,7 @@ func (server *Server) handleListLectures(responseWriter http.ResponseWriter, req
 	lectures := []models.Lecture{}
 	for lectureRows.Next() {
 		var lecture models.Lecture
-		if err := lectureRows.Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.CreatedAt, &lecture.UpdatedAt); err != nil {
+		if err := lectureRows.Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt); err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to scan lecture", nil)
 			return
 		}

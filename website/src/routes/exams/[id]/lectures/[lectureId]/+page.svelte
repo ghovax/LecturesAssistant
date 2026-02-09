@@ -106,7 +106,7 @@
 
                 <h3>Lecture Metadata</h3>
                 <div class="well">
-                    <table class="table table-sm table-borderless m-0">
+                    <table class="table table-sm table-borderless m-0 small">
                         <tbody>
                             <tr>
                                 <td style="width: 40%"><strong>Status</strong></td>
@@ -136,23 +136,29 @@
                 <h3>Lesson Notes</h3>
                 <p class="text-muted mb-3">{lecture.description || 'Comprehensive learning materials from this lecture recording.'}</p>
 
-                <div class="well bg-white transcript-view mb-5">
-                    {#if transcript && transcript.segments}
-                        {#each transcript.segments as seg}
-                            <div class="segment mb-3 d-flex">
-                                <div class="time small text-muted me-3 mt-1 fw-bold" style="min-width: 85px; white-space: nowrap; font-family: monospace;">
-                                    {formatTime(seg.start_millisecond)} - {formatTime(seg.end_millisecond)}
-                                </div>
-                                <div class="text">{@html seg.text_html}</div>
-                            </div>
-                        {/each}
-                    {:else}
-                        <div class="text-center p-5">
-                            <div class="village-spinner mx-auto mb-3"></div>
-                            <p>Our AI is meticulously preparing your lecture notes. This may take a few minutes...</p>
-                        </div>
-                    {/if}
-                </div>
+                {#if transcript && transcript.segments}
+                    <div class="well bg-white p-0 overflow-hidden mb-5 transcript-view-container shadow-sm">
+                        <table class="table table-hover mb-0">
+                            <tbody>
+                                {#each transcript.segments as seg}
+                                    <tr>
+                                        <td class="ps-4 py-3 text-muted font-monospace small border-end" style="width: 140px; vertical-align: top; background: #fcfcfc;">
+                                            {formatTime(seg.start_millisecond)} &ndash; {formatTime(seg.end_millisecond)}
+                                        </td>
+                                        <td class="ps-4 py-3 align-top">
+                                            <div class="transcript-text">{@html seg.text_html}</div>
+                                        </td>
+                                    </tr>
+                                {/each}
+                            </tbody>
+                        </table>
+                    </div>
+                {:else}
+                    <div class="well bg-white text-center p-5 mb-5">
+                        <div class="village-spinner mx-auto mb-3"></div>
+                        <p>Our AI is meticulously preparing your lecture notes. This may take a few minutes...</p>
+                    </div>
+                {/if}
             </div>
         </div>
     </div>
@@ -163,12 +169,14 @@
 {/if}
 
 <style>
-    .transcript-view {
-        max-height: 600px;
+    .transcript-view-container {
+        max-height: 70vh;
         overflow-y: auto;
-        border: 1px solid #dee2e6;
+        border: 1px solid #e3e3e3;
     }
-    .segment .text {
-        line-height: 1.5;
+    .transcript-text {
+        line-height: 1.6;
+        font-size: 1.05rem;
+        color: #333;
     }
 </style>

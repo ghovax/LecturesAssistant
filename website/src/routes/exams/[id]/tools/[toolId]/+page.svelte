@@ -3,7 +3,7 @@
     import { page } from '$app/state';
     import { api } from '$lib/api/client';
     import { notifications } from '$lib/stores/notifications.svelte';
-    import { getLanguageName } from '$lib/utils';
+    import { getLanguageName, capitalize } from '$lib/utils';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
     import CitationPopup from '$lib/components/CitationPopup.svelte';
@@ -14,28 +14,30 @@
     let tool = $state<any>(null);
     let otherTools = $state<any[]>([]);
     let htmlContent = $state<any>(null);
+    let citations = $state<any[]>([]);
     let loading = $state(true);
 
     // Citation Popup State
-    let activeCitation = $state<{ content: string, x: number, y: number } | null>(null);
+    let activeCitation = $state<{ content: string, x: number, y: number, sourceFile?: string, sourcePages?: number[] } | null>(null);
     let proseContainer: HTMLDivElement | null = $state(null);
 
     async function loadTool() {
         loading = true;
         try {
-            const [examData, toolData, allTools] = await Promise.all([
+            const [examData, toolData, allTools, htmlRes] = await Promise.all([
                 api.getExam(examId),
                 api.request('GET', `/tools/details?tool_id=${toolId}&exam_id=${examId}`),
-                api.listTools(examId)
+                api.listTools(examId),
+                api.getToolHTML(toolId, examId)
             ]);
             
             exam = examData;
             tool = toolData;
             otherTools = (allTools ?? []).filter((t: any) => t.id !== toolId).slice(0, 3);
             
-            const htmlRes = await api.getToolHTML(toolId, examId);
             if (tool.type === 'guide') {
                 htmlContent = htmlRes.content_html;
+                citations = htmlRes.citations ?? [];
             } else {
                 htmlContent = htmlRes.content; // Array for flash/quiz
             }
@@ -55,17 +57,18 @@
             const href = footnoteRef.getAttribute('href');
             if (href && href.startsWith('#')) {
                 const id = href.substring(1);
-                const footnoteElement = document.getElementById(id);
-                if (footnoteElement) {
-                    // Extract content, but skip the backlink
-                    const contentClone = footnoteElement.cloneNode(true) as HTMLElement;
-                    const backlink = contentClone.querySelector('.footnote-back');
-                    if (backlink) backlink.remove();
-                    
+                // Extract number from id (usually fnN or similar)
+                const numMatch = id.match(/\d+$/);
+                const num = numMatch ? parseInt(numMatch[0]) : -1;
+                const meta = citations.find(c => c.number === num);
+
+                if (meta) {
                     activeCitation = {
-                        content: contentClone.innerHTML,
+                        content: meta.content_html,
                         x: event.clientX,
-                        y: event.clientY
+                        y: event.clientY,
+                        sourceFile: meta.source_file,
+                        sourcePages: meta.source_pages
                     };
                 }
             }
@@ -94,7 +97,7 @@
     <div class="d-flex justify-content-between align-items-start mb-3">
         <div>
             <h2 class="mb-1">{tool.title}</h2>
-            <span class="badge bg-dark text-uppercase">{tool.type} Kit</span>
+            <span class="badge bg-dark">{capitalize(tool.type)} Kit</span>
         </div>
         <div class="btn-group">
             <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
@@ -112,40 +115,15 @@
         <div class="row">
             <!-- Sidebar: Details & Navigation -->
             <div class="col-lg-3 col-md-4 order-md-2">
-                <h3>Study Details</h3>
+                <h3>Source Lecture</h3>
                 <div class="well small mb-4">
-                    <table class="table table-sm table-borderless m-0">
-                        <tbody>
-                            <tr>
-                                <td style="width: 40%"><strong>Subject</strong></td>
-                                <td>{exam.title}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Language</strong></td>
-                                <td>{getLanguageName(tool.language_code || 'en-US')}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Generated</strong></td>
-                                <td>{new Date(tool.created_at).toLocaleDateString()}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <p>This study kit was generated from your lecture materials. You can find related tools and documents in the source lecture page.</p>
+                    {#if tool.lecture_id}
+                        <a href="/exams/{examId}/lectures/{tool.lecture_id}" class="btn btn-outline-primary btn-sm w-100">
+                            Back to Lecture
+                        </a>
+                    {/if}
                 </div>
-
-                {#if otherTools.length > 0}
-                    <h3>Other Study Kits</h3>
-                    <div class="linkTiles tileSizeMd">
-                        {#each otherTools as other}
-                            <Tile href="/exams/{examId}/tools/{other.id}" 
-                                  icon={other.type === 'guide' ? '案' : (other.type === 'flashcard' ? '札' : '問')} 
-                                  title={other.title}>
-                                {#snippet description()}
-                                    <span class="text-uppercase">{other.type}</span>
-                                {/snippet}
-                            </Tile>
-                        {/each}
-                    </div>
-                {/if}
             </div>
 
             <!-- Main Content: Tool Content -->
@@ -166,9 +144,9 @@
                             {#each htmlContent as card}
                                 <div class="col-12">
                                     <div class="well bg-light border-start border-4 border-primary p-0 overflow-hidden shadow-none mb-3">
-                                        <div class="px-3 py-2 bg-dark text-white small fw-bold text-uppercase">Front</div>
+                                        <div class="px-3 py-2 bg-dark text-white small fw-bold">Front</div>
                                         <div class="p-3 bg-white wordBriefTitle" style="font-size: 1.1rem;">{@html card.front_html}</div>
-                                        <div class="px-3 py-2 bg-secondary text-white small fw-bold text-uppercase border-top">Back</div>
+                                        <div class="px-3 py-2 bg-secondary text-white small fw-bold border-top">Back</div>
                                         <div class="p-3 bg-white wordBriefContent">{@html card.back_html}</div>
                                     </div>
                                 </div>
@@ -188,12 +166,12 @@
                                     </div>
                                     
                                     <div class="well bg-success bg-opacity-10 border-success mb-3 p-3">
-                                        <strong class="text-success text-uppercase small d-block mb-1">Correct Answer</strong>
+                                        <strong class="text-success small d-block mb-1">Correct Answer</strong>
                                         <div class="fs-6 fw-bold">{@html item.correct_answer_html}</div>
                                     </div>
                                     
                                     <div class="well bg-light border-0 m-0 p-3 small">
-                                        <strong class="text-muted text-uppercase d-block mb-1">Explanation</strong>
+                                        <strong class="text-muted d-block mb-1">Explanation</strong>
                                         <div class="text-muted" style="line-height: 1.5;">{@html item.explanation_html}</div>
                                     </div>
                                 </div>
@@ -213,13 +191,14 @@
     {#if activeCitation}
         <CitationPopup 
             content={activeCitation.content} 
+            sourceFile={activeCitation.sourceFile}
+            sourcePages={activeCitation.sourcePages}
             x={activeCitation.x} 
             y={activeCitation.y} 
             onClose={() => activeCitation = null} 
         />
     {/if}
-    
-    <style>
+        <style>
         .prose :global(h2) { font-size: 1.5rem; margin-top: 2rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; color: #2c4529; }
         .prose :global(h3) { font-size: 1.2rem; margin-top: 1.5rem; color: #555; }
         .prose :global(p) { line-height: 1.6; margin-bottom: 1rem; font-size: 1rem; }

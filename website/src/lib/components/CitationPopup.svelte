@@ -1,20 +1,31 @@
 <script lang="ts">
-    import { X } from 'lucide-svelte';
+    import { X, FileText } from 'lucide-svelte';
 
     interface Props {
         content: string;
         title?: string;
+        sourceFile?: string;
+        sourcePages?: number[];
         onClose: () => void;
         x: number;
         y: number;
     }
 
-    let { content, title = 'Citation', onClose, x, y }: Props = $props();
+    let { content, title = 'Citation', sourceFile, sourcePages, onClose, x, y }: Props = $props();
 
     // Ensure the popup stays within viewport
     let popupElement: HTMLDivElement | null = $state(null);
     let adjustedX = $state(x + 10); // Offset from cursor
     let adjustedY = $state(y + 10);
+
+    let formattedPages = $derived.by(() => {
+        if (!sourcePages || sourcePages.length === 0) return '';
+        // Basic range logic if contiguous
+        if (sourcePages.length > 1 && sourcePages[sourcePages.length-1] - sourcePages[0] === sourcePages.length - 1) {
+            return `pp. ${sourcePages[0]}-${sourcePages[sourcePages.length-1]}`;
+        }
+        return (sourcePages.length === 1 ? 'p. ' : 'pp. ') + sourcePages.join(', ');
+    });
 
     $effect(() => {
         if (popupElement) {
@@ -46,14 +57,26 @@
     style="left: {adjustedX}px; top: {adjustedY}px;"
 >
     <div class="bg-light px-3 py-2 border-bottom d-flex justify-content-between align-items-center">
-        <span class="fw-bold small text-uppercase" style="letter-spacing: 0.05em; font-size: 0.75rem; color: #568f27;">{title}</span>
+        <span class="fw-bold small" style="letter-spacing: 0.05em; font-size: 0.75rem; color: #568f27;">{title}</span>
         <button class="btn btn-link btn-sm p-0 text-muted" onclick={onClose}>
             <X size={14} />
         </button>
     </div>
-    <div class="p-3 citation-content">
+    <div class="p-3 pb-2 citation-content">
         {@html content}
     </div>
+    {#if sourceFile}
+        <div class="px-3 pb-3 source-info">
+            <div class="text-muted" style="font-size: 0.8rem; line-height: 1.4; word-break: break-all;">
+                {sourceFile}
+            </div>
+            {#if formattedPages}
+                <div class="text-muted fw-bold" style="font-size: 0.8rem; margin-top: 0.125rem;">
+                    {formattedPages}
+                </div>
+            {/if}
+        </div>
+    {/if}
 </div>
 
 <style lang="scss">
@@ -92,5 +115,9 @@
         :global(.footnote-back) {
             display: none;
         }
+    }
+
+    .source-info {
+        line-height: 1.2;
     }
 </style>

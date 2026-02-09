@@ -94,21 +94,6 @@
                         </Tile>
                     {/each}
                 </div>
-
-                {#if tools.length > 0}
-                    <h3>Study Tools</h3>
-                    <div class="linkTiles tileSizeMd">
-                        {#each tools as tool}
-                            <Tile href="/exams/{examId}/tools/{tool.id}" 
-                                  icon={tool.type === 'guide' ? '案' : (tool.type === 'flashcard' ? '札' : '問')} 
-                                  title={tool.title}>
-                                {#snippet description()}
-                                    <span class="text-uppercase">{tool.type}</span>
-                                {/snippet}
-                            </Tile>
-                        {/each}
-                    </div>
-                {/if}
             </div>
 
             <!-- Main Content / Tile Style for Lectures -->

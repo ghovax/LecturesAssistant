@@ -97,6 +97,7 @@ type ReferencePage struct {
 type Tool struct {
 	ID           string    `json:"id"`
 	ExamID       string    `json:"exam_id"`
+	LectureID    string    `json:"lecture_id,omitempty"`
 	Type         string    `json:"type"`
 	Title        string    `json:"title"`
 	LanguageCode string    `json:"language_code"`

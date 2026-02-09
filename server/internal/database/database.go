@@ -128,10 +128,11 @@ func createSchema(database *sql.DB) error {
 		UNIQUE(document_id, page_number)
 	);
 
-	-- Generated tools (study guides, flashcards, etc., scoped to Exam)
+	-- Generated tools (study guides, flashcards, etc., now associated with a specific Lecture)
 	CREATE TABLE IF NOT EXISTS tools (
 		id TEXT PRIMARY KEY,
 		exam_id TEXT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+		lecture_id TEXT REFERENCES lectures(id) ON DELETE CASCADE,
 		type TEXT CHECK(type IN ('guide', 'flashcard', 'quiz', 'custom')) NOT NULL,
 		title TEXT NOT NULL,
 		language_code TEXT,
@@ -248,6 +249,8 @@ func createSchema(database *sql.DB) error {
 		`ALTER TABLE tools ADD COLUMN language_code TEXT`,
 		// Add specified_date to lectures
 		`ALTER TABLE lectures ADD COLUMN specified_date DATETIME`,
+		// Add lecture_id to tools
+		`ALTER TABLE tools ADD COLUMN lecture_id TEXT`,
 
 		// Create indexes (using individual migrations to ignore "already exists" errors)
 		`CREATE INDEX index_users_username ON users(username)`,
@@ -259,6 +262,7 @@ func createSchema(database *sql.DB) error {
 		`CREATE INDEX index_reference_documents_lecture_id ON reference_documents(lecture_id)`,
 		`CREATE INDEX index_reference_pages_document_id ON reference_pages(document_id)`,
 		`CREATE INDEX index_tools_exam_id ON tools(exam_id)`,
+		`CREATE INDEX index_tools_lecture_id ON tools(lecture_id)`,
 		`CREATE INDEX index_chat_sessions_exam_id ON chat_sessions(exam_id)`,
 		`CREATE INDEX index_chat_messages_session_id ON chat_messages(session_id)`,
 		`CREATE INDEX index_jobs_user_id ON jobs(user_id)`,

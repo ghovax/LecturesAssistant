@@ -4,18 +4,28 @@
     import { browser } from '$app/environment';
     import { api } from '$lib/api/client';
     import { notifications } from '$lib/stores/notifications.svelte';
+    import { capitalize, formatJobType } from '$lib/utils';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
-    import { FileText, Clock, PlayCircle, Settings2, ChevronLeft, ChevronRight, List, Volume2 } from 'lucide-svelte';
+    import CitationPopup from '$lib/components/CitationPopup.svelte';
+    import { FileText, Clock, PlayCircle, Settings2, ChevronLeft, ChevronRight, List, Volume2, Activity, Loader2, CheckCircle2, XCircle, Play, AlertCircle } from 'lucide-svelte';
 
     let { id: examId, lectureId } = $derived(page.params);
     let exam = $state<any>(null);
     let lecture = $state<any>(null);
     let transcript = $state<any>(null);
     let documents = $state<any[]>([]);
+    let tools = $state<any[]>([]);
+    let guideTool = $derived(tools.find(t => t.type === 'guide'));
+    let guideHTML = $state('');
+    let activeJobs = $state<any[]>([]);
     let loading = $state(true);
     let currentSegmentIndex = $state(0);
     let audioElement: HTMLAudioElement | null = $state(null);
+    let pollInterval: any;
+
+    // Citation Popup State
+    let activeCitation = $state<{ content: string, x: number, y: number, sourceFile?: string, sourcePages?: number[] } | null>(null);
 
     function formatTime(ms: number) {
         const totalSeconds = Math.floor(ms / 1000);
@@ -27,20 +37,72 @@
     async function loadLecture() {
         loading = true;
         try {
-            const [examR, lectureR, transcriptR, docsR] = await Promise.all([
+            const [examR, lectureR, transcriptR, docsR, toolsR] = await Promise.all([
                 api.getExam(examId),
                 api.getLecture(lectureId, examId),
                 api.request('GET', `/transcripts/html?lecture_id=${lectureId}`),
-                api.listDocuments(lectureId)
+                api.listDocuments(lectureId),
+                api.request('GET', `/tools?lecture_id=${lectureId}&exam_id=${examId}`)
             ]);
             exam = examR;
             lecture = lectureR;
             transcript = transcriptR;
             documents = docsR ?? [];
+            tools = toolsR ?? [];
+            
+            if (guideTool) {
+                const htmlRes = await api.getToolHTML(guideTool.id, examId);
+                guideHTML = htmlRes.content_html;
+            }
+
+            await loadJobs();
         } catch (e) {
             console.error(e);
         } finally {
             loading = false;
+        }
+    }
+
+    async function loadJobs() {
+        try {
+            const jobsData = await api.request('GET', `/jobs?lecture_id=${lectureId}`);
+            activeJobs = jobsData ?? [];
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function handleCitationClick(event: MouseEvent) {
+        const target = event.target as HTMLElement;
+        const footnoteRef = target.closest('.footnote-ref');
+        
+        if (footnoteRef && guideTool) {
+            event.preventDefault();
+            const href = footnoteRef.getAttribute('href');
+            if (href && href.startsWith('#')) {
+                const id = href.substring(1);
+                // Extract number from id
+                const numMatch = id.match(/\d+$/);
+                const num = numMatch ? parseInt(numMatch[0]) : -1;
+                
+                try {
+                    // Fetch citations for this tool if not already loaded or just get from detail
+                    const htmlRes = await api.getToolHTML(guideTool.id, examId);
+                    const meta = htmlRes.citations?.find((c: any) => c.number === num);
+
+                    if (meta) {
+                        activeCitation = {
+                            content: meta.content_html,
+                            x: event.clientX,
+                            y: event.clientY,
+                            sourceFile: meta.source_file,
+                            sourcePages: meta.source_pages
+                        };
+                    }
+                } catch (e) {
+                    console.error('Failed to load citation metadata', e);
+                }
+            }
         }
     }
 
@@ -89,12 +151,14 @@
 
     onMount(() => {
         loadLecture();
+        pollInterval = setInterval(loadJobs, 3000);
         if (browser) {
             window.addEventListener('keydown', handleKeyDown);
         }
     });
 
     onDestroy(() => {
+        clearInterval(pollInterval);
         if (browser) {
             window.removeEventListener('keydown', handleKeyDown);
         }
@@ -103,18 +167,12 @@
 
 {#if lecture && exam}
     <Breadcrumb items={[
-        { label: 'My Studies', href: '/exams' }, 
         { label: exam.title, href: `/exams/${examId}` }, 
         { label: lecture.title, active: true }
     ]} />
 
-    <div class="d-flex justify-content-between align-items-start mb-3">
-        <div>
-            <h2 class="mb-1">{lecture.title}</h2>
-            {#if transcript && transcript.segments}
-                <span class="badge bg-dark">Segment {currentSegmentIndex + 1} of {transcript.segments.length}</span>
-            {/if}
-        </div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="m-0">{lecture.title}</h2>
         <div class="btn-group">
             <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
                 <span class="glyphicon me-1"><Settings2 size={16} /></span> Create Study Kit
@@ -131,6 +189,53 @@
         <div class="row">
             <!-- Sidebar: Study Materials & Transcript Nav -->
             <div class="col-lg-3 col-md-4 order-md-2">
+                {#if tools.filter(t => t.type !== 'guide').length > 0}
+                    <h3>Study Kits</h3>
+                    <div class="linkTiles tileSizeMd mb-4">
+                        {#each tools.filter(t => t.type !== 'guide') as tool}
+                            <Tile href="/exams/{examId}/tools/{tool.id}" 
+                                icon={tool.type === 'flashcard' ? '札' : '問'} 
+                                title={tool.title}>
+                                {#snippet description()}
+                                    <span>{capitalize(tool.type)}</span>
+                                {/snippet}
+                            </Tile>
+                        {/each}
+                    </div>
+                {/if}
+
+                {#if activeJobs.some(j => j.status === 'RUNNING' || j.status === 'PENDING')}
+                    <h3>Activity Progress</h3>
+                    <div class="well bg-white p-0 mb-4 border shadow-sm overflow-hidden">
+                        {#each activeJobs.filter(j => j.status === 'RUNNING' || j.status === 'PENDING') as job}
+                            <div class="p-3 border-bottom last-child-border-0">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fw-bold small">
+                                        {formatJobType(job.type)}
+                                    </span>
+                                    {#if job.status === 'RUNNING'}
+                                        <Loader2 size={14} class="spin text-primary" />
+                                    {:else}
+                                        <Play size={14} class="text-muted" />
+                                    {/if}
+                                </div>
+                                <div class="progress mb-2" style="height: 4px;">
+                                    <div class="progress-bar" style="width: {job.progress}%"></div>
+                                </div>
+                                <div class="small text-muted text-truncate" style="font-size: 0.7rem;">
+                                    {#if job.metadata?.document_title}
+                                        Reading: {job.metadata.document_title}
+                                    {:else if job.metadata?.media_index}
+                                        Audio part {job.metadata.media_index} of {job.metadata.total_media}
+                                    {:else}
+                                        {job.progress_message_text || 'Waiting...'}
+                                    {/if}
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                {/if}
+
                 <h3>Study Materials</h3>
                 <div class="linkTiles tileSizeMd mb-4">
                     {#each documents as doc}
@@ -161,36 +266,24 @@
                         {/each}
                     </div>
                 {/if}
-
-                <h3>Lecture Metadata</h3>
-                <div class="well small">
-                    <table class="table table-sm table-borderless m-0">
-                        <tbody>
-                            <tr>
-                                <td style="width: 40%"><strong>Status</strong></td>
-                                <td>
-                                    <span class="badge {lecture.status === 'ready' ? 'bg-success' : (lecture.status === 'failed' ? 'bg-danger' : 'bg-primary')}">
-                                        {#if lecture.status === 'ready'}
-                                            Ready to study
-                                        {:else if lecture.status === 'failed'}
-                                            Error
-                                        {:else}
-                                            Preparing...
-                                        {/if}
-                                    </span>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td><strong>Date</strong></td>
-                                <td>{new Date(lecture.created_at).toLocaleDateString()}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
             </div>
 
             <!-- Main Content: Single Segment Transcript -->
             <div class="col-lg-9 col-md-8 order-md-1">
+                {#if guideHTML}
+                    <div class="mb-5">
+                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-4">
+                            <h3 class="m-0 border-0">Study Guide</h3>
+                            <a href="/exams/{examId}/tools/{guideTool.id}" class="btn btn-link btn-sm text-primary p-0">
+                                <FileText size={16} class="me-1" /> View Full
+                            </a>
+                        </div>
+                        <div class="well bg-white p-4 shadow-sm border prose" onclick={handleCitationClick}>
+                            {@html guideHTML}
+                        </div>
+                    </div>
+                {/if}
+
                 <div class="mb-3">
                     <h3>Lesson Notes</h3>
                     <p class="text-muted mb-0">{lecture.description || 'Comprehensive learning materials from this lecture recording.'}</p>
@@ -265,6 +358,17 @@
     </div>
 {/if}
 
+{#if activeCitation}
+    <CitationPopup 
+        content={activeCitation.content} 
+        sourceFile={activeCitation.sourceFile}
+        sourcePages={activeCitation.sourcePages}
+        x={activeCitation.x} 
+        y={activeCitation.y} 
+        onClose={() => activeCitation = null} 
+    />
+{/if}
+
 <style>
     .transcript-text {
         color: #333;
@@ -292,5 +396,43 @@
     audio::-webkit-media-controls-enclosure {
         border-radius: 0;
         background-color: #f8f9fa;
+    }
+
+    .spin {
+        animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
+    .last-child-border-0:last-child {
+        border-bottom: 0 !important;
+    }
+
+    .prose :global(h2) { font-size: 1.5rem; margin-top: 2rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; color: #2c4529; }
+    .prose :global(h3) { font-size: 1.2rem; margin-top: 1.5rem; color: #555; }
+    .prose :global(p) { line-height: 1.6; margin-bottom: 1rem; font-size: 1rem; }
+    .prose :global(ul) { margin-bottom: 1rem; }
+    .prose :global(li) { margin-bottom: 0.5rem; }
+
+    /* Hide default footnotes section since we use popups */
+    .prose :global(.footnotes) {
+        display: none;
+    }
+
+    .prose :global(.footnote-ref) {
+        text-decoration: none;
+        font-weight: bold;
+        color: #568f27;
+        padding: 0 0.125rem;
+        transition: all 0.15s ease;
+    }
+
+    .prose :global(.footnote-ref:hover) {
+        background-color: #568f27;
+        color: #fff !important;
+        text-decoration: none;
     }
 </style>

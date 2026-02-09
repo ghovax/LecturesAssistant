@@ -514,9 +514,9 @@ func RegisterHandlers(
 		defer transaction.Rollback()
 
 		_, executionError := transaction.Exec(`
-			INSERT INTO tools (id, exam_id, type, title, language_code, content, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		`, toolID, payload.ExamID, payload.Type, toolTitle, payload.LanguageCode, finalToolContent, time.Now(), time.Now())
+			INSERT INTO tools (id, exam_id, lecture_id, type, title, language_code, content, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, toolID, payload.ExamID, payload.LectureID, payload.Type, toolTitle, payload.LanguageCode, finalToolContent, time.Now(), time.Now())
 		if executionError != nil {
 			return fmt.Errorf("failed to store tool: %w", executionError)
 		}

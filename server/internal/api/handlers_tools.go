@@ -111,11 +111,13 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 	})
 }
 
-// handleListTools lists all tools for an exam (must belong to the user)
+// handleListTools lists all tools for an exam or lecture (must belong to the user)
 func (server *Server) handleListTools(responseWriter http.ResponseWriter, request *http.Request) {
 	examID := request.URL.Query().Get("exam_id")
-	if examID == "" {
-		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "exam_id is required", nil)
+	lectureID := request.URL.Query().Get("lecture_id")
+
+	if examID == "" && lectureID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "exam_id or lecture_id is required", nil)
 		return
 	}
 
@@ -123,12 +125,21 @@ func (server *Server) handleListTools(responseWriter http.ResponseWriter, reques
 	toolType := request.URL.Query().Get("type")
 
 	query := `
-		SELECT tools.id, tools.exam_id, tools.type, tools.title, tools.language_code, tools.created_at, tools.updated_at
+		SELECT tools.id, tools.exam_id, tools.lecture_id, tools.type, tools.title, tools.language_code, tools.created_at, tools.updated_at
 		FROM tools
 		JOIN exams ON tools.exam_id = exams.id
-		WHERE tools.exam_id = ? AND exams.user_id = ?
+		WHERE exams.user_id = ?
 	`
-	arguments := []any{examID, userID}
+	arguments := []any{userID}
+
+	if examID != "" {
+		query += " AND tools.exam_id = ?"
+		arguments = append(arguments, examID)
+	}
+	if lectureID != "" {
+		query += " AND tools.lecture_id = ?"
+		arguments = append(arguments, lectureID)
+	}
 
 	if toolType != "" {
 		query += " AND tools.type = ?"
@@ -147,8 +158,12 @@ func (server *Server) handleListTools(responseWriter http.ResponseWriter, reques
 	var toolsList = []models.Tool{}
 	for toolRows.Next() {
 		var tool models.Tool
-		if err := toolRows.Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.CreatedAt, &tool.UpdatedAt); err != nil {
+		var lID sql.NullString
+		if err := toolRows.Scan(&tool.ID, &tool.ExamID, &lID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.CreatedAt, &tool.UpdatedAt); err != nil {
 			continue
+		}
+		if lID.Valid {
+			tool.LectureID = lID.String
 		}
 		toolsList = append(toolsList, tool)
 	}
@@ -376,11 +391,49 @@ func (server *Server) handleGetToolHTML(responseWriter http.ResponseWriter, requ
 		return
 	}
 
+	// Fetch structured citations
+	type citationMeta struct {
+		Number      int    `json:"number"`
+		ContentHTML string `json:"content_html"`
+		SourceFile  string `json:"source_file"`
+		SourcePages []int  `json:"source_pages"`
+	}
+	var citations []citationMeta
+
+	rows, err := server.database.Query(`
+		SELECT source_id, metadata FROM tool_source_references WHERE tool_id = ?
+	`, tool.ID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var sourceID, metadataJSON string
+			if err := rows.Scan(&sourceID, &metadataJSON); err == nil {
+				var meta struct {
+					FootnoteNumber int    `json:"footnote_number"`
+					Description    string `json:"description"`
+					Pages          []int  `json:"pages"`
+				}
+				if json.Unmarshal([]byte(metadataJSON), &meta) == nil {
+					// Convert citation description to HTML to handle LaTeX/Markdown
+					citationHTML, _ := server.markdownConverter.MarkdownToHTML(meta.Description)
+
+					citations = append(citations, citationMeta{
+						Number:      meta.FootnoteNumber,
+						ContentHTML: citationHTML,
+						SourceFile:  sourceID,
+						SourcePages: meta.Pages,
+					})
+				}
+			}
+		}
+	}
+
 	server.writeJSON(responseWriter, http.StatusOK, map[string]any{
 		"tool_id":      tool.ID,
 		"title":        tool.Title,
 		"type":         tool.Type,
 		"content_html": htmlContent,
+		"citations":    citations,
 	})
 }
 
@@ -460,12 +513,13 @@ func (server *Server) handleExportTool(responseWriter http.ResponseWriter, reque
 
 	// Verify tool exists and belongs to the user
 	var toolID, languageCode string
+	var lectureID sql.NullString
 	queryError := server.database.QueryRow(`
-		SELECT tools.id, tools.language_code
+		SELECT tools.id, tools.language_code, tools.lecture_id
 		FROM tools
 		JOIN exams ON tools.exam_id = exams.id
 		WHERE tools.id = ? AND tools.exam_id = ? AND exams.user_id = ?
-	`, exportRequest.ToolID, exportRequest.ExamID, userID).Scan(&toolID, &languageCode)
+	`, exportRequest.ToolID, exportRequest.ExamID, userID).Scan(&toolID, &languageCode, &lectureID)
 
 	if queryError == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found in this exam", nil)
@@ -483,7 +537,7 @@ func (server *Server) handleExportTool(responseWriter http.ResponseWriter, reque
 		"format":          exportRequest.Format,
 		"include_images":  fmt.Sprintf("%v", includeImages),
 		"include_qr_code": fmt.Sprintf("%v", includeQRCode),
-	}, exportRequest.ExamID, "")
+	}, exportRequest.ExamID, lectureID.String)
 
 	if enqueuingError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "BACKGROUND_JOB_ERROR", "Failed to create export job", nil)

@@ -246,7 +246,7 @@
                     {#each messages ?? [] as msg}
                         <div class="well bg-white p-0 overflow-hidden mb-4 border shadow-sm {msg.role === 'user' ? 'ms-md-5 border-primary border-opacity-25' : 'me-md-5 border-success border-opacity-25'}">
                             <div class="bg-light px-4 py-2 border-bottom d-flex justify-content-between align-items-center">
-                                <span class="fw-bold small text-uppercase {msg.role === 'user' ? 'text-primary' : 'text-success'}">
+                                <span class="fw-bold small {msg.role === 'user' ? 'text-primary' : 'text-success'}">
                                     {msg.role === 'user' ? 'Question' : 'Assistant'}
                                 </span>
                                 <span class="text-muted small" style="font-size: 0.7rem;">
@@ -264,7 +264,7 @@
                     {#if streamingMessage}
                         <div class="well bg-white p-0 overflow-hidden mb-4 border border-success border-opacity-25 shadow-sm me-md-5">
                             <div class="bg-light px-4 py-2 border-bottom d-flex justify-content-between align-items-center">
-                                <span class="fw-bold small text-uppercase text-success">Assistant</span>
+                                <span class="fw-bold small text-success">Assistant</span>
                                 <span class="village-spinner" style="width: 0.8rem; height: 0.8rem;"></span>
                             </div>
                             <div class="p-4">

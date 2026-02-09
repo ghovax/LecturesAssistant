@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import { api } from '$lib/api/client';
+    import { formatJobType } from '$lib/utils';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import { Loader2, CheckCircle2, XCircle, Play, AlertCircle } from 'lucide-svelte';
 
@@ -53,15 +54,7 @@
                 {#each jobs as job}
                     <tr>
                         <td class="ps-3 small fw-bold">
-                            {#if job.type === 'BUILD_MATERIAL'}
-                                Building Study Kit
-                            {:else if job.type === 'INGEST_DOCUMENTS'}
-                                Indexing Documents
-                            {:else if job.type === 'TRANSCRIBE_MEDIA'}
-                                Transcribing Audio
-                            {:else}
-                                {job.type.replace('_', ' ')}
-                            {/if}
+                            {formatJobType(job.type)}
                         </td>
                         <td>
                             <span class="d-flex align-items-center gap-1">
@@ -125,7 +118,6 @@
     table thead th {
         border-top: none;
         font-weight: bold;
-        text-transform: uppercase;
         font-size: 0.75rem;
         letter-spacing: 0.05em;
         color: #666;

@@ -36,11 +36,6 @@
                     <span class="glyphicon" aria-hidden="true"><Book size={16} strokeWidth={3} /></span> My Studies
                 </a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link" href="/jobs" onclick={() => isMenuOpen = false}>
-                    <span class="glyphicon" aria-hidden="true"><Activity size={16} strokeWidth={3} /></span> Task Progress
-                </a>
-            </li>
         </ul>
 
         <ul id="rightNav" class="navbar-nav me-3">

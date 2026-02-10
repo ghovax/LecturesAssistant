@@ -295,9 +295,21 @@ func (server *Server) handleGetToolHTML(responseWriter http.ResponseWriter, requ
 	// For flashcards and quizzes, we return structured data with HTML fields
 	if tool.Type == "flashcard" {
 		var flashcards []map[string]string
-		if err := json.Unmarshal([]byte(tool.Content), &flashcards); err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "JSON_ERROR", "Failed to parse flashcards", nil)
-			return
+		content := tool.Content
+		// Attempt robust extraction if direct parse fails
+		if err := json.Unmarshal([]byte(content), &flashcards); err != nil {
+			// Try to extract from Markdown fences
+			start := strings.Index(content, "[")
+			end := strings.LastIndex(content, "]")
+			if start != -1 && end != -1 && end > start {
+				if err := json.Unmarshal([]byte(content[start:end+1]), &flashcards); err != nil {
+					server.writeError(responseWriter, http.StatusInternalServerError, "JSON_ERROR", "Failed to parse flashcards after extraction", nil)
+					return
+				}
+			} else {
+				server.writeError(responseWriter, http.StatusInternalServerError, "JSON_ERROR", "Failed to parse flashcards", nil)
+				return
+			}
 		}
 
 		type flashcardHTML struct {
@@ -326,9 +338,19 @@ func (server *Server) handleGetToolHTML(responseWriter http.ResponseWriter, requ
 
 	if tool.Type == "quiz" {
 		var quizItems []map[string]any
-		if err := json.Unmarshal([]byte(tool.Content), &quizItems); err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "JSON_ERROR", "Failed to parse quiz", nil)
-			return
+		content := tool.Content
+		if err := json.Unmarshal([]byte(content), &quizItems); err != nil {
+			start := strings.Index(content, "[")
+			end := strings.LastIndex(content, "]")
+			if start != -1 && end != -1 && end > start {
+				if err := json.Unmarshal([]byte(content[start:end+1]), &quizItems); err != nil {
+					server.writeError(responseWriter, http.StatusInternalServerError, "JSON_ERROR", "Failed to parse quiz after extraction", nil)
+					return
+				}
+			} else {
+				server.writeError(responseWriter, http.StatusInternalServerError, "JSON_ERROR", "Failed to parse quiz", nil)
+				return
+			}
 		}
 
 		type quizItemHTML struct {

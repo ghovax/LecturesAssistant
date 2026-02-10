@@ -82,12 +82,6 @@
         {/snippet}
     </Tile>
 
-    <Tile href="/jobs" icon="科" title="Task Progress">
-        {#snippet description()}
-            See how your transcriptions and study guides are coming along.
-        {/snippet}
-    </Tile>
-
     <Tile href="/settings" icon="設" title="Preferences">
         {#snippet description()}
             Customize your language, AI models, and interface settings.

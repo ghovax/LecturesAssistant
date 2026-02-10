@@ -9,15 +9,16 @@ import (
 
 // Initialize creates and initializes the SQLite database
 func Initialize(path string) (*sql.DB, error) {
-	database, err := sql.Open("sqlite3", path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000&_datetime_format=rfc3339")
+	database, err := sql.Open("sqlite3", path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=10000&_synchronous=NORMAL&_cache_size=1000000000&_locking_mode=NORMAL&_temp_store=memory&_datetime_format=rfc3339")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
 	// For SQLite in WAL mode, we can have multiple concurrent readers.
-	// We'll allow up to 10 connections to avoid deadlocks when workers and API
-	// both need database access.
-	database.SetMaxOpenConns(10)
+	// Use connection pooling optimized for concurrent access
+	database.SetMaxOpenConns(25)
+	database.SetMaxIdleConns(5)
+	database.SetConnMaxIdleTime(0) // Keep connections alive
 
 	// Test connection
 	if err := database.Ping(); err != nil {

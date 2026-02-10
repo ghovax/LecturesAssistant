@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -196,6 +197,10 @@ func (queue *Queue) worker(workerID int) {
 func (queue *Queue) processNextJob(workerID int) {
 	transaction, transactionError := queue.database.Begin()
 	if transactionError != nil {
+		// Transient lock errors are normal when multiple workers compete
+		if strings.Contains(transactionError.Error(), "database is locked") {
+			return // Silently retry next tick
+		}
 		slog.Error("Worker failed to begin transaction", "workerID", workerID, "error", transactionError)
 		return
 	}
@@ -219,6 +224,10 @@ func (queue *Queue) processNextJob(workerID int) {
 		return // No pending jobs
 	}
 	if queryError != nil {
+		// Transient lock errors are normal when multiple workers compete
+		if strings.Contains(queryError.Error(), "database is locked") {
+			return // Silently retry next tick
+		}
 		slog.Error("Worker failed to query job", "workerID", workerID, "error", queryError)
 		return
 	}
@@ -246,11 +255,19 @@ func (queue *Queue) processNextJob(workerID int) {
 	`, models.JobStatusRunning, now, job.ID)
 
 	if executionError != nil {
+		// Transient lock errors are normal when multiple workers compete
+		if strings.Contains(executionError.Error(), "database is locked") {
+			return // Silently retry next tick
+		}
 		slog.Error("Worker failed to update job status", "workerID", workerID, "error", executionError)
 		return
 	}
 
 	if commitError := transaction.Commit(); commitError != nil {
+		// Transient lock errors are normal when multiple workers compete
+		if strings.Contains(commitError.Error(), "database is locked") {
+			return // Silently retry next tick
+		}
 		slog.Error("Worker failed to commit transaction", "workerID", workerID, "error", commitError)
 		return
 	}

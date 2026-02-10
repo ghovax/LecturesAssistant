@@ -13,8 +13,9 @@
         loading = true;
         error = '';
         try {
-            await api.setup({ username, password, openrouter_api_key: apiKey });
-            goto('/');
+            const data = await api.setup({ username, password, openrouter_api_key: apiKey });
+            api.setToken(data.token);
+            goto('/exams');
         } catch (e: any) {
             error = e.message;
         } finally {

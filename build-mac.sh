@@ -1,8 +1,26 @@
 #!/bin/bash
 set -e
 
-# Build the native binary first
-./build.sh
+cd website
+npm install
+npm run build
+cd ..
+
+rm -rf server/internal/api/web/dist
+mkdir -p server/internal/api/web/dist
+cp -r website/build/* server/internal/api/web/dist/
+
+cd server
+mkdir -p dist
+ARCH=$(uname -m)
+if [ "$ARCH" = "arm64" ]; then
+    GOOS=darwin GOARCH=arm64 go build -o dist/lectures-mac-arm64 ./cmd/server
+    BINARY="dist/lectures-mac-arm64"
+else
+    GOOS=darwin GOARCH=amd64 go build -o dist/lectures-mac-amd64 ./cmd/server
+    BINARY="dist/lectures-mac-amd64"
+fi
+cd ..
 
 APP_NAME="Lectures Assistant"
 APP_DIR="$APP_NAME.app"
@@ -10,25 +28,16 @@ CONTENTS="$APP_DIR/Contents"
 MACOS="$CONTENTS/MacOS"
 RESOURCES="$CONTENTS/Resources"
 
-# Detect architecture
-ARCH=$(uname -m)
-if [ "$ARCH" = "arm64" ]; then
-    BINARY="server/dist/lectures-mac-arm64"
-else
-    BINARY="server/dist/lectures-mac-amd64"
-fi
-
-# Create app bundle structure
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS"
 mkdir -p "$RESOURCES"
 
 # Copy binary and resources
-cp "$BINARY" "$MACOS/lectures"
+cp "server/$BINARY" "$MACOS/lectures"
 cp -r server/prompts "$RESOURCES/"
 cp server/xelatex-template.tex "$RESOURCES/"
 
-# Create launcher script that uses Terminal.app
+# Create launcher script
 cat > "$MACOS/launch.sh" << 'EOF'
 #!/bin/bash
 APP_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -38,7 +47,7 @@ osascript <<APPLESCRIPT
 tell application "Terminal"
     activate
     do script "cd '$APP_DIR' && export BINARY_PATH='$APP_DIR/Contents/MacOS/lectures' && export RESOURCES_PATH='$APP_DIR/Contents/Resources' && bash -c '
-CONFIGURATION_FILE=\"configuration.yaml\"
+CONFIGURATION_FILE=\"\$PWD/configuration.yaml\"
 
 if [ ! -f \"\$CONFIGURATION_FILE\" ]; then
     cat > \"\$CONFIGURATION_FILE\" << CONFIGEOF
@@ -121,19 +130,12 @@ safety:
     maximum_login_attempts_per_hour: 10
     maximum_retries: 3
 CONFIGEOF
-    echo \"Created configuration.yaml\"
 fi
 
 mkdir -p data
 
-# Create symlinks to resources if they don't exist
 [ ! -e prompts ] && ln -s \"\$RESOURCES_PATH/prompts\" prompts
 [ ! -e xelatex-template.tex ] && ln -s \"\$RESOURCES_PATH/xelatex-template.tex\" xelatex-template.tex
-
-echo \"Starting Lectures Assistant...\"
-echo \"Server will be available at http://localhost:3000\"
-echo \"Press Ctrl+C to stop the server\"
-echo \"\"
 
 sleep 2
 open \"http://localhost:3000\"
@@ -147,7 +149,6 @@ EOF
 chmod +x "$MACOS/launch.sh"
 chmod +x "$MACOS/lectures"
 
-# Create Info.plist
 cat > "$CONTENTS/Info.plist" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -170,6 +171,3 @@ cat > "$CONTENTS/Info.plist" << 'EOF'
 </dict>
 </plist>
 EOF
-
-echo "Created $APP_DIR"
-echo "Double-click $APP_DIR to run"

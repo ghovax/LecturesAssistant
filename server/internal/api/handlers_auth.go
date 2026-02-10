@@ -88,7 +88,40 @@ func (server *Server) handleAuthSetup(responseWriter http.ResponseWriter, reques
 		return
 	}
 
-	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Initial admin user created successfully"})
+	// Create session for auto-login
+	sessionID, _ := gonanoid.New()
+	expiresAt := time.Now().Add(time.Duration(server.configuration.Security.Auth.SessionTimeoutHours) * time.Hour)
+
+	_, databaseError = server.database.Exec(`
+		INSERT INTO auth_sessions (id, user_id, created_at, last_activity, expires_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, sessionID, userID, time.Now(), time.Now(), expiresAt)
+
+	if databaseError != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to create session", nil)
+		return
+	}
+
+	// Set cookie
+	http.SetCookie(responseWriter, &http.Cookie{
+		Name:     "session_token",
+		Value:    sessionID,
+		Path:     "/",
+		Expires:  expiresAt,
+		HttpOnly: true,
+		Secure:   server.configuration.Security.Auth.RequireHTTPS,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	server.writeJSON(responseWriter, http.StatusOK, map[string]any{
+		"token":      sessionID,
+		"expires_at": expiresAt.Format(time.RFC3339),
+		"user": map[string]string{
+			"id":       userID,
+			"username": setupRequest.Username,
+			"role":     "admin",
+		},
+	})
 }
 
 // handleAuthRegister allows new users to create an account

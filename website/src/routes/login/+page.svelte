@@ -15,7 +15,7 @@
         try {
             await api.login({ username, password });
             await auth.check();
-            goto('/');
+            goto('/exams');
         } catch (e: any) {
             error = e.message;
         } finally {

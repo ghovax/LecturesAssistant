@@ -42,6 +42,9 @@ export class APIClient {
         if (!response.ok) {
             if (response.status === 401) {
                 this.setToken(null);
+                if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/setup')) {
+                    window.location.href = '/login';
+                }
                 throw new Error('Your session has expired. Please log in again.');
             }
             throw new Error(data.error?.message || 'Request failed');

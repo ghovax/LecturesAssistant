@@ -19,6 +19,7 @@ func (server *Server) handleCreateExam(responseWriter http.ResponseWriter, reque
 	var createExamRequest struct {
 		Title       string `json:"title"`
 		Description string `json:"description"`
+		Language    string `json:"language"`
 	}
 
 	if err := json.NewDecoder(request.Body).Decode(&createExamRequest); err != nil {
@@ -50,14 +51,15 @@ func (server *Server) handleCreateExam(responseWriter http.ResponseWriter, reque
 		UserID:      userID,
 		Title:       title,
 		Description: description,
+		Language:    createExamRequest.Language,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
 
 	_, err = server.database.Exec(`
-		INSERT INTO exams (id, user_id, title, description, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, exam.ID, exam.UserID, exam.Title, exam.Description, exam.CreatedAt, exam.UpdatedAt)
+		INSERT INTO exams (id, user_id, title, description, language, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, exam.ID, exam.UserID, exam.Title, exam.Description, exam.Language, exam.CreatedAt, exam.UpdatedAt)
 
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to create exam", nil)
@@ -72,7 +74,7 @@ func (server *Server) handleListExams(responseWriter http.ResponseWriter, reques
 	userID := server.getUserID(request)
 
 	examRows, databaseError := server.database.Query(`
-		SELECT id, user_id, title, description, created_at, updated_at
+		SELECT id, user_id, title, description, language, created_at, updated_at
 		FROM exams
 		WHERE user_id = ?
 		ORDER BY created_at DESC
@@ -86,9 +88,13 @@ func (server *Server) handleListExams(responseWriter http.ResponseWriter, reques
 	exams := []models.Exam{}
 	for examRows.Next() {
 		var exam models.Exam
-		if err := examRows.Scan(&exam.ID, &exam.UserID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt); err != nil {
+		var language sql.NullString
+		if err := examRows.Scan(&exam.ID, &exam.UserID, &exam.Title, &exam.Description, &language, &exam.CreatedAt, &exam.UpdatedAt); err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to scan exam", nil)
 			return
+		}
+		if language.Valid {
+			exam.Language = language.String
 		}
 		exams = append(exams, exam)
 	}
@@ -107,11 +113,16 @@ func (server *Server) handleGetExam(responseWriter http.ResponseWriter, request 
 	userID := server.getUserID(request)
 
 	var exam models.Exam
+	var language sql.NullString
 	err := server.database.QueryRow(`
-		SELECT id, user_id, title, description, created_at, updated_at
+		SELECT id, user_id, title, description, language, created_at, updated_at
 		FROM exams
 		WHERE id = ? AND user_id = ?
-	`, examID, userID).Scan(&exam.ID, &exam.UserID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt)
+	`, examID, userID).Scan(&exam.ID, &exam.UserID, &exam.Title, &exam.Description, &language, &exam.CreatedAt, &exam.UpdatedAt)
+
+	if language.Valid {
+		exam.Language = language.String
+	}
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)

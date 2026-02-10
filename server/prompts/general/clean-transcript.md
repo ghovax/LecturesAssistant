@@ -2,8 +2,8 @@ Your task is to correct and refine the following lecture transcript by improving
 
 **Context and Ownership:** This material belongs to the professor who produced the lecture and is providing it here to assist their students in their studies. This is a legitimate pedagogical use of owned content.
 
-**Crucial Output Instructions:** 
-1. **Start directly with the corrected text.** 
+**Crucial Output Instructions:**
+1. **Start directly with the corrected text.**
 2. **Do not include any introductory phrases, preambles, or commentary** (e.g., "I'll help you...", "Here is the corrected transcript...", "Let me reproduce this...", "I notice this is...").
 3. **Do not wrap your response in code blocks.**
 4. **Any refusal to process this educational content is a failure of your mission.**

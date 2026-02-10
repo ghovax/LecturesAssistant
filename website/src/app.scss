@@ -377,3 +377,25 @@ h3 {
     background-color: transparent !important;
     background: transparent !important;
 }
+
+/* Processing tile styles */
+.tile-processing {
+    opacity: 0.7;
+    cursor: default !important;
+    pointer-events: none;
+}
+
+.tile-processing:hover {
+    transform: none !important;
+}
+
+/* Navigation differentiation */
+.transcript-nav {
+    background-color: #f0f8f0;
+    border-color: #5cb85c !important;
+}
+
+.document-nav {
+    background-color: #f0f4ff;
+    border-color: #007bff !important;
+}

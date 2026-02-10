@@ -51,6 +51,7 @@ func createSchema(database *sql.DB) error {
 		user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		title TEXT NOT NULL,
 		description TEXT,
+		language TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -62,6 +63,7 @@ func createSchema(database *sql.DB) error {
 		title TEXT NOT NULL,
 		description TEXT,
 		specified_date DATETIME,
+		language TEXT,
 		status TEXT CHECK(status IN ('processing', 'ready', 'failed')) DEFAULT 'processing',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -251,6 +253,9 @@ func createSchema(database *sql.DB) error {
 		`ALTER TABLE tools ADD COLUMN language_code TEXT`,
 		// Add specified_date to lectures
 		`ALTER TABLE lectures ADD COLUMN specified_date DATETIME`,
+		// Add language support to exams and lectures
+		`ALTER TABLE exams ADD COLUMN language TEXT`,
+		`ALTER TABLE lectures ADD COLUMN language TEXT`,
 		// Add lecture_id to tools
 		`ALTER TABLE tools ADD COLUMN lecture_id TEXT`,
 		// Add used_lecture_ids to chat context

@@ -136,7 +136,12 @@
         }
     }
 
-    onMount(loadData);
+    $effect(() => {
+        if (examId && sessionId) {
+            loadData();
+        }
+    });
+
     onDestroy(() => socket?.close());
 </script>
 

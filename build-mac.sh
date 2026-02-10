@@ -134,8 +134,8 @@ fi
 
 mkdir -p data
 
-[ ! -e prompts ] && ln -s \"\$RESOURCES_PATH/prompts\" prompts
-[ ! -e xelatex-template.tex ] && ln -s \"\$RESOURCES_PATH/xelatex-template.tex\" xelatex-template.tex
+[ ! -e prompts ] && cp -r \"\$RESOURCES_PATH/prompts\" prompts
+[ ! -e xelatex-template.tex ] && cp \"\$RESOURCES_PATH/xelatex-template.tex\" xelatex-template.tex
 
 sleep 2
 open \"http://localhost:3000\"

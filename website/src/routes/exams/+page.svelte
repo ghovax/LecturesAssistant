@@ -9,6 +9,7 @@
     let exams = $state<any[]>([]);
     let loading = $state(true);
     let newExamTitle = $state('');
+    let newExamLanguage = $state('');
     let showCreate = $state(false);
 
     async function loadExams() {
@@ -26,8 +27,12 @@
     async function createExam() {
         if (!newExamTitle) return;
         try {
-            await api.createExam({ title: newExamTitle });
+            await api.createExam({
+                title: newExamTitle,
+                language: newExamLanguage || undefined
+            });
             newExamTitle = '';
+            newExamLanguage = '';
             showCreate = false;
             await loadExams();
             notifications.success('Your new subject has been added.');
@@ -63,18 +68,36 @@
     <div class="well mb-4 bg-white border shadow-sm p-4">
         <h4 class="mt-0">Create a New Subject</h4>
         <form onsubmit={(e) => { e.preventDefault(); createExam(); }}>
-            <div class="input-group dictionary-style">
-                <input 
-                    type="text" 
-                    class="form-control" 
-                    placeholder="Enter Subject (e.g. History, Science, Mathematics)..." 
-                    bind:value={newExamTitle} 
-                    required 
+            <div class="mb-3">
+                <label for="examTitle" class="form-label small fw-bold">Subject Name</label>
+                <input
+                    id="examTitle"
+                    type="text"
+                    class="form-control"
+                    placeholder="e.g. History, Science, Mathematics..."
+                    bind:value={newExamTitle}
+                    required
                 />
-                <button type="submit" class="btn btn-primary">
-                    <span class="glyphicon m-0"><Plus size={18} /></span>
-                </button>
             </div>
+            <div class="mb-3">
+                <label for="examLanguage" class="form-label small fw-bold">Language (Optional)</label>
+                <select id="examLanguage" class="form-select" bind:value={newExamLanguage}>
+                    <option value="">Default (from settings)</option>
+                    <option value="en-US">English (US)</option>
+                    <option value="it-IT">Italian</option>
+                    <option value="ja-JP">Japanese</option>
+                    <option value="es-ES">Spanish</option>
+                    <option value="fr-FR">French</option>
+                    <option value="de-DE">German</option>
+                    <option value="zh-CN">Chinese (Simplified)</option>
+                    <option value="pt-BR">Portuguese (Brazilian)</option>
+                </select>
+                <div class="form-text small">Lectures will inherit this language for transcription and document processing.</div>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <span class="glyphicon me-1"><Plus size={18} /></span>
+                Create Subject
+            </button>
         </form>
     </div>
 {/if}

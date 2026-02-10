@@ -77,7 +77,11 @@
         }
     }
 
-    onMount(loadData);
+    $effect(() => {
+        if (examId) {
+            loadData();
+        }
+    });
 </script>
 
 {#if showEditModal && exam}

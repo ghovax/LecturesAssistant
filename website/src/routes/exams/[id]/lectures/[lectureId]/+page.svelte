@@ -18,12 +18,20 @@
     let transcript = $state<any>(null);
     let documents = $state<any[]>([]);
     let tools = $state<any[]>([]);
+    let jobs = $state<any[]>([]);
     let guideTool = $derived(tools.find(t => t.type === 'guide'));
     let guideHTML = $state('');
     let guideCitations = $state<any[]>([]);
     let loading = $state(true);
     let currentSegmentIndex = $state(0);
     let audioElement: HTMLAudioElement | null = $state(null);
+    let jobPollingInterval: number | null = null;
+
+    // Derived state for job status
+    let transcriptJobRunning = $derived(jobs.some(j => j.type === 'TRANSCRIBE_MEDIA' && (j.status === 'PENDING' || j.status === 'RUNNING')));
+    let documentsJobRunning = $derived(jobs.some(j => j.type === 'INGEST_DOCUMENTS' && (j.status === 'PENDING' || j.status === 'RUNNING')));
+    let transcriptJob = $derived(jobs.find(j => j.type === 'TRANSCRIBE_MEDIA'));
+    let documentsJob = $derived(jobs.find(j => j.type === 'INGEST_DOCUMENTS'));
 
     // View State
     let activeView = $state<'dashboard' | 'guide' | 'transcript' | 'doc' | 'tool'>('dashboard');
@@ -51,32 +59,79 @@
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 
-    async function loadLecture() {
-        loading = true;
+    async function loadJobs() {
         try {
-            const [examR, lectureR, transcriptR, docsR, toolsR, settingsR] = await Promise.all([
-                api.getExam(examId),
+            const jobsR = await api.request('GET', `/jobs?lecture_id=${lectureId}`);
+            jobs = jobsR ?? [];
+
+            // If there are active jobs, start polling
+            const hasActiveJobs = jobs.some(j => j.status === 'PENDING' || j.status === 'RUNNING');
+            if (hasActiveJobs && !jobPollingInterval && browser) {
+                startJobPolling();
+            } else if (!hasActiveJobs && jobPollingInterval) {
+                stopJobPolling();
+            }
+        } catch (e) {
+            console.error('Failed to load jobs:', e);
+        }
+    }
+
+    function startJobPolling() {
+        if (jobPollingInterval) return;
+        jobPollingInterval = window.setInterval(() => {
+            loadJobs();
+            // Reload lecture data to get updated transcript/documents
+            loadLectureData();
+        }, 3000); // Poll every 3 seconds
+    }
+
+    function stopJobPolling() {
+        if (jobPollingInterval) {
+            clearInterval(jobPollingInterval);
+            jobPollingInterval = null;
+        }
+    }
+
+    async function loadLectureData() {
+        try {
+            const [lectureR, transcriptR, docsR, toolsR] = await Promise.all([
                 api.getLecture(lectureId, examId),
                 api.request('GET', `/transcripts/html?lecture_id=${lectureId}`),
                 api.listDocuments(lectureId),
-                api.request('GET', `/tools?lecture_id=${lectureId}&exam_id=${examId}`),
-                api.getSettings()
+                api.request('GET', `/tools?lecture_id=${lectureId}&exam_id=${examId}`)
             ]);
-            exam = examR;
             lecture = lectureR;
             transcript = transcriptR;
             documents = docsR ?? [];
             tools = toolsR ?? [];
-            
-            if (settingsR?.llm?.language) {
-                toolOptions.language_code = settingsR.llm.language;
-            }
-            
+
             if (guideTool) {
                 const htmlRes = await api.getToolHTML(guideTool.id, examId);
                 guideHTML = htmlRes.content_html;
                 guideCitations = htmlRes.citations ?? [];
             }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function loadLecture() {
+        loading = true;
+        try {
+            const [examR, settingsR] = await Promise.all([
+                api.getExam(examId),
+                api.getSettings()
+            ]);
+            exam = examR;
+
+            if (settingsR?.llm?.language) {
+                toolOptions.language_code = settingsR.llm.language;
+            }
+
+            await Promise.all([
+                loadLectureData(),
+                loadJobs()
+            ]);
         } catch (e) {
             console.error(e);
         } finally {
@@ -213,8 +268,14 @@
         }
     });
 
+    $effect(() => {
+        // Reload data when route parameters change
+        if (examId && lectureId) {
+            loadLecture();
+        }
+    });
+
     onMount(() => {
-        loadLecture();
         if (browser) {
             window.addEventListener('keydown', handleKeyDown);
         }
@@ -224,6 +285,7 @@
         if (browser) {
             window.removeEventListener('keydown', handleKeyDown);
         }
+        stopJobPolling();
     });
 </script>
 
@@ -285,9 +347,26 @@
                         </div>
 
                         <div class="linkTiles tileSizeMd">
-                            <Tile href="javascript:void(0)" icon="講" title="Dialogue" onclick={() => activeView = 'transcript'}>
+                            <Tile
+                                href="javascript:void(0)"
+                                icon="講"
+                                title="Dialogue"
+                                onclick={() => { if (!transcriptJobRunning) activeView = 'transcript' }}
+                                class={transcriptJobRunning ? 'tile-processing' : ''}
+                            >
                                 {#snippet description()}
-                                    Full lesson recording and text.
+                                    {#if transcriptJobRunning}
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="spinner-border spinner-border-sm text-success" role="status">
+                                                <span class="visually-hidden">Processing...</span>
+                                            </div>
+                                            <span>Transcribing audio... {transcriptJob?.progress || 0}%</span>
+                                        </div>
+                                    {:else if !transcript || !transcript.segments}
+                                        <span class="text-muted">Not yet available.</span>
+                                    {:else}
+                                        Full lesson recording and text.
+                                    {/if}
                                 {/snippet}
                             </Tile>
 
@@ -295,6 +374,19 @@
                                 <Tile href="javascript:void(0)" icon="資" title={doc.title} onclick={() => openDocument(doc.id)}>
                                 </Tile>
                             {/each}
+
+                            {#if documentsJobRunning}
+                                <Tile href="javascript:void(0)" icon="資" title="Reference Materials" class="tile-processing">
+                                    {#snippet description()}
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="spinner-border spinner-border-sm text-success" role="status">
+                                                <span class="visually-hidden">Processing...</span>
+                                            </div>
+                                            <span>Processing documents... {documentsJob?.progress || 0}%</span>
+                                        </div>
+                                    {/snippet}
+                                </Tile>
+                            {/if}
                         </div>
                     </div>
                 {:else if activeView === 'guide'}
@@ -323,16 +415,20 @@
                         {#if transcript && transcript.segments}
                             {@const seg = transcript.segments[currentSegmentIndex]}
                             <div class="p-4">
-                                <div class="mb-4 d-flex justify-content-between align-items-center bg-light p-2 border">
+                                <div class="transcript-nav mb-4 d-flex justify-content-between align-items-center p-2 border">
                                     <div class="d-flex align-items-center gap-3">
-                                        <span class="fw-bold small">{formatTime(seg.start_millisecond)} &ndash; {formatTime(seg.end_millisecond)}</span>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <Volume2 size={16} class="text-success" />
+                                            <span class="fw-bold small">Segment {currentSegmentIndex + 1} of {transcript.segments.length}</span>
+                                        </div>
+                                        <span class="small border-start ps-3">{formatTime(seg.start_millisecond)} &ndash; {formatTime(seg.end_millisecond)}</span>
                                         {#if seg.media_filename}
                                             <span class="text-muted small border-start ps-3" style="font-size: 0.75rem;">{seg.media_filename}</span>
                                         {/if}
                                     </div>
                                     <div class="btn-group">
-                                        <button class="btn btn-link btn-sm text-dark p-0 d-flex align-items-center me-2" disabled={currentSegmentIndex === 0} onclick={prevSegment}><ChevronLeft size={18} /></button>
-                                        <button class="btn btn-link btn-sm text-dark p-0 d-flex align-items-center" disabled={currentSegmentIndex === transcript.segments.length - 1} onclick={nextSegment}><ChevronRight size={18} /></button>
+                                        <button class="btn btn-outline-success btn-sm p-1 d-flex align-items-center me-2" disabled={currentSegmentIndex === 0} onclick={prevSegment} title="Previous Segment"><ChevronLeft size={18} /></button>
+                                        <button class="btn btn-outline-success btn-sm p-1 d-flex align-items-center" disabled={currentSegmentIndex === transcript.segments.length - 1} onclick={nextSegment} title="Next Segment"><ChevronRight size={18} /></button>
                                     </div>
                                 </div>
 
@@ -351,7 +447,21 @@
                                 <div class="transcript-text" style="font-size: 1rem; line-height: 1.6;">{@html seg.text_html}</div>
                             </div>
                         {:else}
-                            <div class="p-5 text-center"><p class="text-muted mb-0">Dialogue is not available yet.</p></div>
+                            <div class="p-5 text-center">
+                                {#if transcriptJobRunning}
+                                    <div class="d-flex flex-column align-items-center gap-3">
+                                        <div class="spinner-border text-success" role="status">
+                                            <span class="visually-hidden">Processing...</span>
+                                        </div>
+                                        <p class="text-muted mb-0">Transcribing audio... {transcriptJob?.progress || 0}%</p>
+                                        {#if transcriptJob?.progress_message_text}
+                                            <p class="text-muted small mb-0">{transcriptJob.progress_message_text}</p>
+                                        {/if}
+                                    </div>
+                                {:else}
+                                    <p class="text-muted mb-0">Dialogue is not available yet.</p>
+                                {/if}
+                            </div>
                         {/if}
                     </div>
                 {:else if activeView === 'doc'}
@@ -368,11 +478,14 @@
                         {#if selectedDocPages.length > 0}
                             {@const p = selectedDocPages[selectedDocPageIndex]}
                             <div class="p-4">
-                                <div class="mb-4 d-flex justify-content-between align-items-center bg-light p-2 border">
-                                    <span class="fw-bold small">Page {p.page_number} of {selectedDocPages.length}</span>
+                                <div class="document-nav mb-4 d-flex justify-content-between align-items-center p-2 border">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <FileText size={16} class="text-primary" />
+                                        <span class="fw-bold small">Page {p.page_number} of {selectedDocPages.length}</span>
+                                    </div>
                                     <div class="btn-group">
-                                        <button class="btn btn-link btn-sm text-dark p-0 d-flex align-items-center me-2" disabled={selectedDocPageIndex === 0} onclick={prevDocPage}><ChevronLeft size={18} /></button>
-                                        <button class="btn btn-link btn-sm text-dark p-0 d-flex align-items-center" disabled={selectedDocPageIndex === selectedDocPages.length - 1} onclick={nextDocPage}><ChevronRight size={18} /></button>
+                                        <button class="btn btn-outline-primary btn-sm p-1 d-flex align-items-center me-2" disabled={selectedDocPageIndex === 0} onclick={prevDocPage} title="Previous Page"><ChevronLeft size={18} /></button>
+                                        <button class="btn btn-outline-primary btn-sm p-1 d-flex align-items-center" disabled={selectedDocPageIndex === selectedDocPages.length - 1} onclick={nextDocPage} title="Next Page"><ChevronRight size={18} /></button>
                                     </div>
                                 </div>
 

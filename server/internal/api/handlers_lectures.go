@@ -56,6 +56,7 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	}
 
 	description := request.FormValue("description")
+	language := request.FormValue("language")
 	specifiedDateStr := request.FormValue("specified_date")
 	var specifiedDate *time.Time
 	if specifiedDateStr != "" {
@@ -76,11 +77,16 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	userID := server.getUserID(request)
 
 	// Verify exam exists and belongs to user
-	var examExists bool
-	err := server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ? AND user_id = ?)", examID, userID).Scan(&examExists)
-	if err != nil || !examExists {
+	var examLanguage sql.NullString
+	err := server.database.QueryRow("SELECT language FROM exams WHERE id = ? AND user_id = ?", examID, userID).Scan(&examLanguage)
+	if err != nil {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
 		return
+	}
+
+	// Language cascade: use lecture language if provided, otherwise use exam language
+	if language == "" && examLanguage.Valid {
+		language = examLanguage.String
 	}
 
 	// 1. Create the Lecture
@@ -91,6 +97,7 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 		Title:         cleanedTitle,
 		Description:   cleanedDescription,
 		SpecifiedDate: specifiedDate,
+		Language:      language,
 		Status:        "processing",
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
@@ -104,9 +111,9 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	defer transaction.Rollback()
 
 	_, err = transaction.Exec(`
-		INSERT INTO lectures (id, exam_id, title, description, specified_date, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, lecture.ID, lecture.ExamID, lecture.Title, lecture.Description, lecture.SpecifiedDate, lecture.Status, lecture.CreatedAt, lecture.UpdatedAt)
+		INSERT INTO lectures (id, exam_id, title, description, specified_date, language, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, lecture.ID, lecture.ExamID, lecture.Title, lecture.Description, lecture.SpecifiedDate, lecture.Language, lecture.Status, lecture.CreatedAt, lecture.UpdatedAt)
 
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to save lecture", nil)
@@ -422,7 +429,7 @@ func (server *Server) handleListLectures(responseWriter http.ResponseWriter, req
 	userID := server.getUserID(request)
 
 	lectureRows, databaseError := server.database.Query(`
-		SELECT lectures.id, lectures.exam_id, lectures.title, lectures.description, lectures.status, lectures.created_at, lectures.updated_at
+		SELECT lectures.id, lectures.exam_id, lectures.title, lectures.description, lectures.specified_date, lectures.language, lectures.status, lectures.created_at, lectures.updated_at
 		FROM lectures
 		JOIN exams ON lectures.exam_id = exams.id
 		WHERE lectures.exam_id = ? AND exams.user_id = ?
@@ -437,9 +444,17 @@ func (server *Server) handleListLectures(responseWriter http.ResponseWriter, req
 	lectures := []models.Lecture{}
 	for lectureRows.Next() {
 		var lecture models.Lecture
-		if err := lectureRows.Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt); err != nil {
+		var specifiedDate sql.NullTime
+		var language sql.NullString
+		if err := lectureRows.Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &specifiedDate, &language, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt); err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to scan lecture", nil)
 			return
+		}
+		if specifiedDate.Valid {
+			lecture.SpecifiedDate = &specifiedDate.Time
+		}
+		if language.Valid {
+			lecture.Language = language.String
 		}
 		lectures = append(lectures, lecture)
 	}
@@ -460,12 +475,21 @@ func (server *Server) handleGetLecture(responseWriter http.ResponseWriter, reque
 	userID := server.getUserID(request)
 
 	var lecture models.Lecture
+	var specifiedDate sql.NullTime
+	var language sql.NullString
 	err := server.database.QueryRow(`
-		SELECT lectures.id, lectures.exam_id, lectures.title, lectures.description, lectures.status, lectures.created_at, lectures.updated_at
+		SELECT lectures.id, lectures.exam_id, lectures.title, lectures.description, lectures.specified_date, lectures.language, lectures.status, lectures.created_at, lectures.updated_at
 		FROM lectures
 		JOIN exams ON lectures.exam_id = exams.id
 		WHERE lectures.id = ? AND lectures.exam_id = ? AND exams.user_id = ?
-	`, lectureID, examID, userID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt)
+	`, lectureID, examID, userID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &specifiedDate, &language, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt)
+
+	if specifiedDate.Valid {
+		lecture.SpecifiedDate = &specifiedDate.Time
+	}
+	if language.Valid {
+		lecture.Language = language.String
+	}
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found in this exam", nil)
@@ -867,8 +891,6 @@ func (server *Server) handleGetTranscriptHTML(responseWriter http.ResponseWriter
 	}
 
 	var segments []segmentData
-	var markdownBuilder strings.Builder
-	separator := "---SEGMENT-BREAK---"
 
 	for transcriptRows.Next() {
 		var s segmentData
@@ -900,37 +922,18 @@ func (server *Server) handleGetTranscriptHTML(responseWriter http.ResponseWriter
 			s.OriginalEndMilliseconds = origEnd.Int64
 		}
 
-		segments = append(segments, s)
-
-		// Add to markdown for batch conversion
-		if markdownBuilder.Len() > 0 {
-			markdownBuilder.WriteString("\n\n" + separator + "\n\n")
-		}
-		markdownBuilder.WriteString(s.Text)
-	}
-
-	if len(segments) > 0 {
-		// Batch convert markdown to HTML
-		fullHTML, err := server.markdownConverter.MarkdownToHTML(markdownBuilder.String())
-		if err != nil {
-			server.writeError(responseWriter, http.StatusInternalServerError, "CONVERSION_ERROR", "Failed to convert transcript to HTML", nil)
-			return
-		}
-
-		// Split back into segments
-		htmlParts := strings.Split(fullHTML, separator)
-
-		// Clean up HTML tags around parts
-		for i, part := range htmlParts {
-			cleanedPart := strings.TrimSpace(part)
-			cleanedPart = strings.TrimPrefix(cleanedPart, "</p>")
-			cleanedPart = strings.TrimSuffix(cleanedPart, "<p>")
-			cleanedPart = strings.TrimSpace(cleanedPart)
-
-			if i < len(segments) {
-				segments[i].TextHTML = cleanedPart
+		// Convert each segment's markdown to HTML individually
+		if s.Text != "" {
+			htmlContent, err := server.markdownConverter.MarkdownToHTML(s.Text)
+			if err == nil {
+				s.TextHTML = strings.TrimSpace(htmlContent)
+			} else {
+				// Fallback to plain text if conversion fails
+				s.TextHTML = s.Text
 			}
 		}
+
+		segments = append(segments, s)
 	}
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]any{

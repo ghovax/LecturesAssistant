@@ -11,6 +11,7 @@
     let exam = $state<any>(null);
     let title = $state('');
     let description = $state('');
+    let language = $state('');
     let mediaFiles = $state<File[]>([]);
     let documentFiles = $state<File[]>([]);
     let uploading = $state(false);
@@ -40,21 +41,24 @@
 
     async function handleUpload() {
         if (!title || (mediaFiles.length === 0 && documentFiles.length === 0)) return;
-        
+
         uploading = true;
-        
+
         try {
             const formData = new FormData();
             formData.append('exam_id', examId);
             formData.append('title', title);
             formData.append('description', description);
-            
+            if (language) {
+                formData.append('language', language);
+            }
+
             mediaFiles.forEach(file => formData.append('media', file));
             documentFiles.forEach(file => formData.append('documents', file));
 
             status = 'Processing upload...';
             await api.createLecture(formData);
-            
+
             status = 'Success! Redirecting...';
             notifications.success('The lesson has been added. We are now preparing your materials.');
             goto(`/exams/${examId}`);
@@ -65,7 +69,18 @@
     }
 
     onMount(async () => {
-        exam = await api.getExam(examId);
+        const [examData, settings] = await Promise.all([
+            api.getExam(examId),
+            api.getSettings()
+        ]);
+        exam = examData;
+
+        // Default to exam language, then settings language
+        if (exam?.language) {
+            language = exam.language;
+        } else if (settings?.llm?.language) {
+            language = settings.llm.language;
+        }
     });
 </script>
 
@@ -99,14 +114,30 @@
                 
                 <div class="bg-white p-4 border mb-4">
                     <div class="small fw-bold text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.1em;">Description</div>
-                    <textarea 
-                        class="form-control bg-transparent border-0 p-0 shadow-none" 
-                        rows="3" 
+                    <textarea
+                        class="form-control bg-transparent border-0 p-0 shadow-none"
+                        rows="3"
                         placeholder="Add an optional summary of the lesson content..."
                         bind:value={description}
                         disabled={uploading}
                         style="font-size: 1.1rem; line-height: 1.5; resize: none;"
                     ></textarea>
+                </div>
+
+                <div class="bg-white p-4 border mb-4">
+                    <div class="small fw-bold text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.1em;">Language</div>
+                    <select class="form-select" bind:value={language} disabled={uploading}>
+                        <option value="">Default ({exam?.language || 'from settings'})</option>
+                        <option value="en-US">English (US)</option>
+                        <option value="it-IT">Italian</option>
+                        <option value="ja-JP">Japanese</option>
+                        <option value="es-ES">Spanish</option>
+                        <option value="fr-FR">French</option>
+                        <option value="de-DE">German</option>
+                        <option value="zh-CN">Chinese (Simplified)</option>
+                        <option value="pt-BR">Portuguese (Brazilian)</option>
+                    </select>
+                    <div class="form-text small mt-2">Language for transcription and document processing.</div>
                 </div>
 
                 <div class="row">

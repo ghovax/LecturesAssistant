@@ -18,6 +18,7 @@ type Exam struct {
 	UserID      string    `json:"user_id"`
 	Title       string    `json:"title"`
 	Description string    `json:"description,omitempty"`
+	Language    string    `json:"language,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -29,6 +30,7 @@ type Lecture struct {
 	Title         string     `json:"title"`
 	Description   string     `json:"description,omitempty"`
 	SpecifiedDate *time.Time `json:"specified_date,omitempty"`
+	Language      string     `json:"language,omitempty"`
 	Status        string     `json:"status"` // "processing", "ready", "failed"
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`

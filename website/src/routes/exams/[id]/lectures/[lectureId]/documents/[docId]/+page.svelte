@@ -54,8 +54,13 @@
         }
     }
 
+    $effect(() => {
+        if (examId && lectureId && docId) {
+            loadData();
+        }
+    });
+
     onMount(() => {
-        loadData();
         if (browser) {
             window.addEventListener('keydown', handleKeyDown);
         }

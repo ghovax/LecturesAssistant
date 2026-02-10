@@ -243,26 +243,26 @@
                         </div>
                     </div>
                 {:else if activeView === 'guide'}
-                    <div class="well bg-white p-0 overflow-hidden mb-5 border shadow-sm" onclick={handleCitationClick}>
-                        <div class="bg-light px-4 py-2 border-bottom d-flex justify-content-between align-items-center">
+                    <div class="well bg-white p-0 overflow-hidden mb-5 border" onclick={handleCitationClick}>
+                        <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
                             <div class="d-flex align-items-center gap-2">
-                                <span class="glyphicon m-0" style="font-size: 1.1rem; color: #568f27;">案</span>
-                                <span class="fw-bold small" style="letter-spacing: 0.05em;">Study Guide</span>
+                                <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">案</span>
+                                <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem;">Study Guide</span>
                             </div>
-                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center" onclick={() => activeView = 'dashboard'}><X size={16} /></button>
+                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
                         </div>
                         <div class="p-4 prose">
                             {@html guideHTML}
                         </div>
                     </div>
                 {:else if activeView === 'transcript'}
-                    <div class="well bg-white p-0 overflow-hidden mb-5 border shadow-sm">
-                        <div class="bg-light px-4 py-2 border-bottom d-flex justify-content-between align-items-center">
+                    <div class="well bg-white p-0 overflow-hidden mb-5 border">
+                        <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
                             <div class="d-flex align-items-center gap-2">
-                                <span class="glyphicon m-0" style="font-size: 1.1rem; color: #568f27;">講</span>
-                                <span class="fw-bold small" style="letter-spacing: 0.05em;">Transcript</span>
+                                <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">講</span>
+                                <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem;">Transcript</span>
                             </div>
-                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center" onclick={() => activeView = 'dashboard'}><X size={16} /></button>
+                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
                         </div>
                         
                         {#if transcript && transcript.segments}
@@ -290,13 +290,13 @@
                         {/if}
                     </div>
                 {:else if activeView === 'doc'}
-                    <div class="well bg-white p-0 overflow-hidden mb-5 border shadow-sm">
-                        <div class="bg-light px-4 py-2 border-bottom d-flex justify-content-between align-items-center">
+                    <div class="well bg-white p-0 overflow-hidden mb-5 border">
+                        <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
                             <div class="d-flex align-items-center gap-2">
-                                <span class="glyphicon m-0" style="font-size: 1.1rem; color: #568f27;">資</span>
-                                <span class="fw-bold small" style="letter-spacing: 0.05em;">Viewing Material</span>
+                                <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">資</span>
+                                <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem;">Viewing Material</span>
                             </div>
-                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center" onclick={() => activeView = 'dashboard'}><X size={16} /></button>
+                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
                         </div>
                         
                         {#if selectedDocPages.length > 0}
@@ -332,13 +332,13 @@
                     </div>
                 {:else if activeView === 'tool'}
                     {@const tool = tools.find(t => t.id === selectedToolId)}
-                    <div class="well bg-white p-0 overflow-hidden mb-5 border shadow-sm">
-                        <div class="bg-light px-4 py-2 border-bottom d-flex justify-content-between align-items-center">
+                    <div class="well bg-white p-0 overflow-hidden mb-5 border">
+                        <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
                             <div class="d-flex align-items-center gap-2">
-                                <span class="glyphicon m-0" style="font-size: 1.1rem; color: #568f27;">{tool?.type === 'flashcard' ? '札' : '問'}</span>
-                                <span class="fw-bold small" style="letter-spacing: 0.05em;">{tool?.title || 'Practice Mode'}</span>
+                                <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">{tool?.type === 'flashcard' ? '札' : '問'}</span>
+                                <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem;">{tool?.title || 'Practice Mode'}</span>
                             </div>
-                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center" onclick={() => activeView = 'dashboard'}><X size={16} /></button>
+                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
                         </div>
                         
                         <div class="p-4">

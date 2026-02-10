@@ -1,21 +1,15 @@
+version: '3.8'
+
 services:
   lectures:
     build:
-      context: ./server
+      context: .
       dockerfile: Dockerfile
-    container_name: lectures
     ports:
       - "3000:3000"
     volumes:
-      # Map the local data directory to preserve database and files
       - ./data:/data
+      - ./configuration.yaml:/data/configuration.yaml
     environment:
-      - STORAGE_DATA_DIRECTORY=/data
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=3000
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3

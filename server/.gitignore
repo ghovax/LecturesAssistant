@@ -24,6 +24,8 @@ go.work
 *.swo
 *~
 
+/dist
+
 # OS files
 .DS_Store
 Thumbs.db
@@ -35,3 +37,4 @@ Thumbs.db
 internal/api/test_input/
 internal/api/test_integration_pipeline/
 internal/api/publish_material_test
+internal/api/web

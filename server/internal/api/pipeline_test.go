@@ -26,8 +26,8 @@ import (
 	"lectures/internal/tools"
 	"lectures/internal/transcription"
 
-	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/gorilla/websocket"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 type MockLLMProvider struct {

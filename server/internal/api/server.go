@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"database/sql"
+	"embed"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -17,9 +19,12 @@ import (
 	"lectures/internal/prompts"
 	"lectures/internal/tools"
 
-	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/gorilla/mux"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 )
+
+//go:embed web/dist/*
+var embeddedWeb embed.FS
 
 // Server represents the API server
 type Server struct {
@@ -170,6 +175,16 @@ func (server *Server) setupRoutes() {
 
 	// WebSocket
 	apiRouter.HandleFunc("/socket", server.handleWebSocket).Methods("GET")
+
+	// Static Frontend Serving (SPA)
+	// We need to serve the 'web/dist' subdirectory from the embedded filesystem
+	webFS, err := fs.Sub(embeddedWeb, "web/dist")
+	if err != nil {
+		slog.Error("Failed to subdirectory embedded web filesystem", "error", err)
+	} else {
+		// Serve static files
+		server.router.PathPrefix("/").Handler(http.FileServer(http.FS(webFS)))
+	}
 }
 
 // Middleware

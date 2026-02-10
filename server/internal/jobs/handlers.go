@@ -1064,25 +1064,22 @@ func RegisterHandlers(
 			slog.Info("QR Code generation requested", "toolID", tool.ID)
 			updateProgress(70, "Uploading document for QR code generation...", nil, models.JobMetrics{})
 
-							downloadURL, uploadError := uploadToTmpFiles(outputPath)
+			downloadURL, uploadError := uploadToTmpFiles(outputPath)
 
-							if uploadError != nil {
+			if uploadError != nil {
 
-								slog.Error("Failed to upload for QR code", "error", uploadError)
+				slog.Error("Failed to upload for QR code", "error", uploadError)
 
-							} else {
+			} else {
 
-								slog.Info("Document uploaded for QR code", "url", downloadURL)
+				slog.Info("Document uploaded for QR code", "url", downloadURL)
 
-			
+				nanoid, _ := gonanoid.New()
 
-								nanoid, _ := gonanoid.New()
+				qrCodePath := filepath.Join(os.TempDir(), fmt.Sprintf("qrcode-%s.png", nanoid))
 
-								qrCodePath := filepath.Join(os.TempDir(), fmt.Sprintf("qrcode-%s.png", nanoid))
+				if qrErr := qrcode.WriteFile(downloadURL, qrcode.Medium, 256, qrCodePath); qrErr != nil {
 
-								if qrErr := qrcode.WriteFile(downloadURL, qrcode.Medium, 256, qrCodePath); qrErr != nil {
-
-			
 					slog.Error("Failed to generate QR code image", "error", qrErr)
 				} else {
 					updateProgress(85, "Re-generating document with QR code...", nil, models.JobMetrics{})

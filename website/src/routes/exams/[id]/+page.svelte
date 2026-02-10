@@ -124,7 +124,7 @@
                         <Tile href="/exams/{examId}/chat/{session.id}" icon="談" title={session.title || 'Untitled Chat'}>
                             {#snippet description()}
                                 Opened {new Date(session.created_at).toLocaleDateString()}
-                            {#/snippet}
+                            {/snippet}
                         </Tile>
                     {/each}
                 </div>

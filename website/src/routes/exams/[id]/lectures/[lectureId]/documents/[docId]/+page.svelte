@@ -85,28 +85,8 @@
 
     <div class="container-fluid p-0">
         <div class="row">
-            <!-- Sidebar: Document Info & Navigation -->
+            <!-- Sidebar: Navigation -->
             <div class="col-lg-3 col-md-4 order-md-2">
-                <h3>Document Details</h3>
-                <div class="well small mb-4">
-                    <table class="table table-sm table-borderless m-0">
-                        <tbody>
-                            <tr>
-                                <td style="width: 40%"><strong>Type</strong></td>
-                                <td class="text-uppercase">{documentData.document_type}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Status</strong></td>
-                                <td>{documentData.extraction_status === 'completed' ? 'Fully Indexed' : 'Processing'}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Source</strong></td>
-                                <td class="text-truncate" style="max-width: 120px;" title={documentData.original_filename}>{documentData.original_filename}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
                 <h3>Navigation</h3>
                 <div class="list-group shadow-sm small overflow-auto" style="max-height: 50vh;">
                     {#each pages as p, i}
@@ -164,7 +144,7 @@
                             
                             <!-- Page Text -->
                             <div class="transcript-text" style="font-size: 1rem; white-space: pre-wrap; line-height: 1.6;">
-                                {p.extracted_text || 'No text content extracted for this page.'}
+                                {p.extracted_text || 'No text content analyzed for this page.'}
                             </div>
                         </div>
                     </div>

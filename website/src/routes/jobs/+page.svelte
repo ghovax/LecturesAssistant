@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import { api } from '$lib/api/client';
-    import { formatJobType } from '$lib/utils';
+    import { formatActivityType } from '$lib/utils';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import { Loader2, CheckCircle2, XCircle, Play, AlertCircle } from 'lucide-svelte';
 
@@ -54,7 +54,7 @@
                 {#each jobs as job}
                     <tr>
                         <td class="ps-3 small fw-bold">
-                            {formatJobType(job.type)}
+                            {formatActivityType(job.type)}
                         </td>
                         <td>
                             <span class="d-flex align-items-center gap-1">

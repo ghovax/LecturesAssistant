@@ -56,7 +56,7 @@
             await api.createLecture(formData);
             
             status = 'Success! Redirecting...';
-            notifications.success('The lecture has been added. We are now preparing your materials.');
+            notifications.success('The lesson has been added. We are now preparing your materials.');
             goto(`/exams/${examId}`);
         } catch (e: any) {
             notifications.error(e.message || e);
@@ -70,9 +70,9 @@
 </script>
 
 {#if exam}
-    <Breadcrumb items={[{ label: 'My Studies', href: '/exams' }, { label: exam.title, href: `/exams/${examId}` }, { label: 'Add Lecture', active: true }]} />
+    <Breadcrumb items={[{ label: 'My Studies', href: '/exams' }, { label: exam.title, href: `/exams/${examId}` }, { label: 'Add Lesson', active: true }]} />
 
-    <h2>Add New Lecture</h2>
+    <h2>Add New Lesson</h2>
 
     <!-- Prominent Search-style Title Input -->
     <form onsubmit={(e) => { e.preventDefault(); handleUpload(); }} class="mb-4">
@@ -80,7 +80,7 @@
             <input 
                 type="text" 
                 class="form-control" 
-                placeholder="Enter Lecture Title (e.g., Cellular Respiration)..." 
+                placeholder="Enter Lesson Title (e.g., Cellular Respiration)..." 
                 bind:value={title}
                 required
                 disabled={uploading}
@@ -103,7 +103,7 @@
                         <textarea 
                             class="form-control bg-transparent border-0 p-0 shadow-none" 
                             rows="3" 
-                            placeholder="Add an optional summary of the lecture content..."
+                            placeholder="Add an optional summary of the lesson content..."
                             bind:value={description}
                             disabled={uploading}
                             style="font-size: 1.1rem; line-height: 1.5; resize: none;"
@@ -292,7 +292,7 @@
             <div class="col-lg-3 col-md-4 order-md-2">
                 <h3>Instructions</h3>
                 <div class="well bg-light small">
-                    <p><strong>Step 1:</strong> Enter a descriptive title for this lecture session.</p>
+                    <p><strong>Step 1:</strong> Enter a descriptive title for this lesson.</p>
                     <p><strong>Step 2:</strong> Provide any number of recordings or reference documents.</p>
                     <p><strong>Step 3:</strong> Click the upload button in the title bar to begin processing.</p>
                     <hr />

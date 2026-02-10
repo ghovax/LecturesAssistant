@@ -59,7 +59,7 @@
         
         <div class="mt-4 text-center">
             <p class="text-muted small">Don't have an account? <a href="/register">Sign up here</a>.</p>
-            <p class="text-muted small">Access your personalized learning materials and study tools.</p>
+            <p class="text-muted small">Access your personalized learning materials and study aids.</p>
         </div>
     </div>
 </div>

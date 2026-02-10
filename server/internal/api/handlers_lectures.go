@@ -836,10 +836,15 @@ func (server *Server) handleGetTranscriptHTML(responseWriter http.ResponseWriter
 
 	// Get transcript segments
 	transcriptRows, databaseError := server.database.Query(`
-		SELECT id, media_id, start_millisecond, end_millisecond, original_start_milliseconds, original_end_milliseconds, text, confidence, speaker
-		FROM transcript_segments
-		WHERE transcript_id = ?
-		ORDER BY start_millisecond ASC
+		SELECT 
+			ts.id, ts.media_id, ts.start_millisecond, ts.end_millisecond, 
+			ts.original_start_milliseconds, ts.original_end_milliseconds, 
+			ts.text, ts.confidence, ts.speaker,
+			lm.original_filename
+		FROM transcript_segments ts
+		LEFT JOIN lecture_media lm ON ts.media_id = lm.id
+		WHERE ts.transcript_id = ?
+		ORDER BY ts.start_millisecond ASC
 	`, transcriptID)
 	if databaseError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get segments", nil)
@@ -850,6 +855,7 @@ func (server *Server) handleGetTranscriptHTML(responseWriter http.ResponseWriter
 	type segmentData struct {
 		ID                        int     `json:"id"`
 		MediaID                   string  `json:"media_id,omitempty"`
+		MediaFilename             string  `json:"media_filename,omitempty"`
 		StartMillisecond          int64   `json:"start_millisecond"`
 		EndMillisecond            int64   `json:"end_millisecond"`
 		OriginalStartMilliseconds int64   `json:"original_start_milliseconds,omitempty"`
@@ -866,17 +872,20 @@ func (server *Server) handleGetTranscriptHTML(responseWriter http.ResponseWriter
 
 	for transcriptRows.Next() {
 		var s segmentData
-		var text, speaker, mediaID sql.NullString
+		var text, speaker, mediaID, mediaFilename sql.NullString
 		var confidence sql.NullFloat64
 		var origStart, origEnd sql.NullInt64
 
-		if err := transcriptRows.Scan(&s.ID, &mediaID, &s.StartMillisecond, &s.EndMillisecond, &origStart, &origEnd, &text, &confidence, &speaker); err != nil {
+		if err := transcriptRows.Scan(&s.ID, &mediaID, &s.StartMillisecond, &s.EndMillisecond, &origStart, &origEnd, &text, &confidence, &speaker, &mediaFilename); err != nil {
 			continue
 		}
 
 		s.Text = text.String
 		if mediaID.Valid {
 			s.MediaID = mediaID.String
+		}
+		if mediaFilename.Valid {
+			s.MediaFilename = mediaFilename.String
 		}
 		if confidence.Valid {
 			s.Confidence = confidence.Float64

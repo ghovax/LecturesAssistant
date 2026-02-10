@@ -14,7 +14,7 @@
     
     <div class="row mt-5 text-start">
         <div class="col-md-6 mb-4">
-            <h4>Intelligence Providers</h4>
+            <h4>AI Services</h4>
             <p>Our sophisticated analysis and generation capabilities are made possible through:</p>
             <ul>
                 <li><strong>OpenRouter</strong> - Access to world-class cloud AI models</li>
@@ -23,9 +23,9 @@
         </div>
         <div class="col-md-6 mb-4">
             <h4>Design Inspiration</h4>
-            <p>The clean and intuitive user interface was inspired by the elegant simplicity of <strong>Kakimashou</strong>, focusing on direct access to complex educational tools.</p>
+            <p>The clean and intuitive user interface was inspired by the elegant simplicity of <strong>Kakimashou</strong>, focusing on direct access to complex educational resources.</p>
         </div>
     </div>
 
-    <p class="mt-4 small text-muted">A special thanks to the countless open-source developers whose foundational tools make complex processing accessible to everyone.</p>
+    <p class="mt-4 small text-muted">A special thanks to the countless open-source developers whose foundational technologies make advanced features accessible to everyone.</p>
 </div>

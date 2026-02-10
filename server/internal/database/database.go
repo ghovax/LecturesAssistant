@@ -185,6 +185,7 @@ func createSchema(database *sql.DB) error {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		session_id TEXT NOT NULL UNIQUE REFERENCES chat_sessions(id) ON DELETE CASCADE,
 		included_lecture_ids JSON,
+		used_lecture_ids JSON,
 		included_tool_ids JSON
 	);
 
@@ -251,6 +252,8 @@ func createSchema(database *sql.DB) error {
 		`ALTER TABLE lectures ADD COLUMN specified_date DATETIME`,
 		// Add lecture_id to tools
 		`ALTER TABLE tools ADD COLUMN lecture_id TEXT`,
+		// Add used_lecture_ids to chat context
+		`ALTER TABLE chat_context_configuration ADD COLUMN used_lecture_ids JSON`,
 
 		// Create indexes (using individual migrations to ignore "already exists" errors)
 		`CREATE INDEX index_users_username ON users(username)`,

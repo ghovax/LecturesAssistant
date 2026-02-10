@@ -21,18 +21,18 @@ export function capitalize(str: string): string {
 }
 
 /**
- * Formats a raw job type string (e.g. 'PUBLISH_MATERIAL') into a human-readable title.
+ * Formats a raw activity type string (e.g. 'PUBLISH_MATERIAL') into a human-readable title.
  */
-export function formatJobType(type: string): string {
+export function formatActivityType(type: string): string {
     if (!type) return '';
     
     const mapping: Record<string, string> = {
-        'BUILD_MATERIAL': 'Building Guide',
-        'INGEST_DOCUMENTS': 'Reading Files',
-        'TRANSCRIBE_MEDIA': 'Transcribing',
-        'PUBLISH_MATERIAL': 'Exporting',
-        'SUGGEST': 'Refining Info',
-        'DOWNLOAD_GOOGLE_DRIVE': 'Importing'
+        'BUILD_MATERIAL': 'Preparing Study Aid',
+        'INGEST_DOCUMENTS': 'Analyzing Documents',
+        'TRANSCRIBE_MEDIA': 'Processing Audio',
+        'PUBLISH_MATERIAL': 'Exporting File',
+        'SUGGEST': 'Refining Details',
+        'DOWNLOAD_GOOGLE_DRIVE': 'Importing Files'
     };
 
     return mapping[type] || capitalize(type.replace(/_/g, ' '));

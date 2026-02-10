@@ -5,7 +5,7 @@
     import { notifications } from '$lib/stores/notifications.svelte';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
-    import { Send, User, Bot, Sparkles, Search, MessageSquare, BookOpen, Layers, Square, CheckSquare } from 'lucide-svelte';
+    import { Send, User, Bot, Sparkles, Search, MessageSquare, BookOpen, Layers, Square, CheckSquare, Lock } from 'lucide-svelte';
 
     let { id: examId, sessionId } = $derived(page.params);
     let exam = $state<any>(null);
@@ -14,6 +14,7 @@
     let otherSessions = $state<any[]>([]);
     let allLectures = $state<any[]>([]);
     let includedLectureIds = $state<string[]>([]);
+    let usedLectureIds = $state<string[]>([]);
     let input = $state('');
     let loading = $state(true);
     let sending = $state(false);
@@ -36,6 +37,7 @@
             session = details.session;
             messages = details.messages ?? [];
             includedLectureIds = details.context?.included_lecture_ids ?? [];
+            usedLectureIds = details.context?.used_lecture_ids ?? [];
             otherSessions = (allSessions ?? []).filter((s: any) => s.id !== sessionId).slice(0, 3);
             allLectures = lecturesData ?? [];
             
@@ -105,6 +107,11 @@
         
         const userMsg = { role: 'user', content: input, created_at: new Date().toISOString() };
         messages = [...messages, userMsg];
+        
+        // Locally lock used IDs immediately
+        const newUsed = new Set([...usedLectureIds, ...includedLectureIds]);
+        usedLectureIds = Array.from(newUsed);
+
         const content = input;
         input = '';
         sending = true;
@@ -137,12 +144,12 @@
     <Breadcrumb items={[
         { label: 'My Studies', href: '/exams' }, 
         { label: exam.title, href: `/exams/${examId}` }, 
-        { label: 'Study Chats', href: `/exams/${examId}` },
+        { label: 'Conversations', href: `/exams/${examId}` },
         { label: session.title || 'Untitled Chat', active: true }
     ]} />
 
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>{session.title || 'Study Assistant'}</h2>
+        <h2>{session.title || 'AI Assistant'}</h2>
     </div>
 
     <div class="container-fluid p-0">
@@ -151,32 +158,44 @@
             <div class="col-lg-3 col-md-4 order-md-2">
                 <div class="mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h3 class="m-0 border-0">Study Context</h3>
+                        <h3 class="m-0 border-0">Knowledge Base</h3>
                         {#if updatingContext}
                             <span class="village-spinner" style="width: 1rem; height: 1rem;"></span>
                         {/if}
                     </div>
-                    <p class="text-muted small">Select the lessons I should use to answer your questions.</p>
+                    <p class="text-muted small">Choose the lessons I should use to answer your questions.</p>
                 </div>
                 
                 <div class="well bg-white p-0 border shadow-none overflow-auto mb-5" style="max-height: 40vh;">
                     {#each allLectures as lecture}
+                        {@const isLocked = usedLectureIds.includes(lecture.id)}
+                        {@const isIncluded = includedLectureIds.includes(lecture.id)}
                         <button 
-                            onclick={() => toggleLecture(lecture.id)}
+                            onclick={() => !isLocked && toggleLecture(lecture.id)}
                             class="w-100 border-0 border-bottom last-child-border-0 p-3 text-start d-flex align-items-center gap-3"
-                            style="background: {includedLectureIds.includes(lecture.id) ? 'rgba(86, 143, 39, 0.05)' : 'transparent'}; transition: all 0.15s ease;"
-                            disabled={updatingContext}
+                            style="background: {isIncluded ? 'rgba(86, 143, 39, 0.05)' : 'transparent'}; 
+                                   transition: all 0.15s ease; 
+                                   cursor: {isLocked ? 'not-allowed' : 'pointer'};
+                                   opacity: {isLocked ? 0.8 : 1};"
+                            disabled={updatingContext || isLocked}
+                            title={isLocked ? 'This context is locked because it was already used in this chat.' : ''}
                         >
                             <div class="flex-shrink-0">
-                                <div class="border" style="width: 1.1rem; height: 1.1rem; border-color: {includedLectureIds.includes(lecture.id) ? '#568f27' : '#ccc'} !important; background: {includedLectureIds.includes(lecture.id) ? '#568f27' : 'transparent'};">
-                                    {#if includedLectureIds.includes(lecture.id)}
-                                        <div class="d-flex align-items-center justify-content-center h-100">
-                                            <div style="width: 0.4rem; height: 0.4rem; background: white;"></div>
-                                        </div>
-                                    {/if}
-                                </div>
+                                {#if isLocked}
+                                    <div class="d-flex align-items-center justify-content-center" style="width: 1.1rem; height: 1.1rem; color: #568f27;">
+                                        <Lock size={14} />
+                                    </div>
+                                {:else}
+                                    <div class="border" style="width: 1.1rem; height: 1.1rem; border-color: {isIncluded ? '#568f27' : '#ccc'} !important; background: {isIncluded ? '#568f27' : 'transparent'};">
+                                        {#if isIncluded}
+                                            <div class="d-flex align-items-center justify-content-center h-100">
+                                                <div style="width: 0.4rem; height: 0.4rem; background: white;"></div>
+                                            </div>
+                                        {/if}
+                                    </div>
+                                {/if}
                             </div>
-                            <span class="small {includedLectureIds.includes(lecture.id) ? 'fw-bold text-success' : 'text-dark'}" style="line-height: 1.2;">
+                            <span class="small {isIncluded ? 'fw-bold text-success' : 'text-dark'}" style="line-height: 1.2;">
                                 {lecture.title}
                             </span>
                         </button>
@@ -212,7 +231,7 @@
                             disabled={sending}
                         />
                         <button class="btn btn-success" type="submit" disabled={sending || !input.trim()}>
-                            <span class="glyphicon m-0"><Send size={18} /></span>
+                            <span class="glyphicon m-0"><Search size={18} /></span>
                         </button>
                     </div>
                 </form>
@@ -221,7 +240,7 @@
                     {#if (!messages || messages.length === 0) && !streamingMessage}
                         <div class="well bg-white text-center p-5 text-muted border shadow-sm">
                             <Bot size={48} class="mb-3 opacity-25" />
-                            <p>I'm your dedicated study assistant. Select the lectures you want me to use from the sidebar, and ask a question above!</p>
+                            <p>I'm your personal AI assistant. Pick the lessons you want to talk about from the Knowledge Base, and ask a question above!</p>
                         </div>
                     {/if}
 

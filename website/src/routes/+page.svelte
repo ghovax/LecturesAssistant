@@ -14,11 +14,11 @@
 <div class="d-none d-md-block">
     <div class="welcome-message">
         <h1>Welcome to Learning Assistant</h1>
-        <p class="lead">Transform your lectures into high-fidelity study materials. Let's learn!</p>
+        <p class="lead">Transform your lessons into smart study materials. Let's learn!</p>
     </div>
 
-    <p>Learning complex subjects takes a lot of practice, but this website will take care of a lot of the legwork for you.
-    You can stop wasting time on manual transcriptions and just focus on learning.</p>
+    <p>Learning complex subjects takes a lot of practice, but this platform will take care of the heavy lifting for you.
+    You can stop wasting time on transcribing and just focus on learning.</p>
     
     <p>Why not give it a try? Get your recordings, slides, or PDFs ready and click the button below to begin.</p>
     
@@ -52,7 +52,7 @@
                         </button>
                         <div class="welcome-message">
                             <h1>Welcome</h1>
-                            <p class="lead">Learning Assistant transforms your lectures into study materials.</p>
+                            <p class="lead">Learning Assistant transforms your lessons into study materials.</p>
                         </div>
 
                         <p>Generating study materials is easier than ever. Simply upload your recordings and reference files.</p>
@@ -78,7 +78,7 @@
 <div class="linkTiles tileSizeMd">
     <Tile href="/exams" icon="辞" title="My Studies">
         {#snippet description()}
-            Access your courses, lessons, and all generated learning materials.
+            Access your subjects, lessons, and all generated learning materials.
         {/snippet}
     </Tile>
 

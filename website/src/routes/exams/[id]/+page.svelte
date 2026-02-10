@@ -39,7 +39,7 @@
         try {
             const session = await api.request('POST', '/chat/sessions', { 
                 exam_id: examId, 
-                title: `Study Session ${chatSessions.length + 1}` 
+                title: `Conversation ${chatSessions.length + 1}` 
             });
             goto(`/exams/${examId}/chat/${session.id}`);
         } catch (e: any) {
@@ -48,11 +48,11 @@
     }
 
     async function deleteLecture(id: string) {
-        if (!confirm('Are you sure you want to delete this lecture?')) return;
+        if (!confirm('Are you sure you want to delete this lesson?')) return;
         try {
             await api.deleteLecture(id, examId);
             await loadData();
-            notifications.success('The lecture has been removed.');
+            notifications.success('The lesson has been removed.');
         } catch (e: any) {
             notifications.error(e.message || e);
         }
@@ -94,7 +94,7 @@
         </div>
         <div class="d-flex gap-2">
             <a href="/exams/{examId}/lectures/new" class="btn btn-primary">
-                <span class="glyphicon me-1"><Plus size={16} /></span> Add Lecture
+                <span class="glyphicon me-1"><Plus size={16} /></span> Add Lesson
             </a>
         </div>
     </div>
@@ -107,44 +107,44 @@
                     <h3 class="m-0">Study Chats</h3>
                 </div>
                 <div class="linkTiles tileSizeMd mb-4">
-                    <Tile href="javascript:void(0)" icon="新" title="New Chat" onclick={(e) => { e.preventDefault(); createChat(); }}>
+                    <Tile href="javascript:void(0)" icon="談" title="New Chat" onclick={(e) => { e.preventDefault(); createChat(); }}>
                         {#snippet description()}
-                            Start a fresh study session.
+                            Start a fresh conversation.
                         {/snippet}
                     </Tile>
                     {#each chatSessions as session}
                         <Tile href="/exams/{examId}/chat/{session.id}" icon="談" title={session.title || 'Untitled Chat'}>
                             {#snippet description()}
-                                Created {new Date(session.created_at).toLocaleDateString()}
-                            {/snippet}
+                                Opened {new Date(session.created_at).toLocaleDateString()}
+                            {#/snippet}
                         </Tile>
                     {/each}
                 </div>
             </div>
 
-            <!-- Main Content / Tile Style for Lectures -->
+            <!-- Main Content / Tile Style for Lessons -->
             <div class="col-lg-9 col-md-8 order-md-1">
                 <div class="mb-3">
-                    <h3>Lectures</h3>
+                    <h3>Lessons</h3>
                 </div>
 
                 {#if lectures.length === 0}
                     <div class="well text-center p-4">
-                        <p>No lectures added yet. Click "Add Lecture" to begin.</p>
+                        <p>No lessons added yet. Click "Add Lesson" to begin.</p>
                     </div>
                 {:else}
                     <div class="linkTiles tileSizeMd">
                         {#each lectures as lecture}
                             <Tile href="/exams/{examId}/lectures/{lecture.id}" icon={lecture.status === 'ready' ? '講' : '作'} title={lecture.title}>
                                 {#snippet description()}
-                                    {lecture.description || 'No description provided.'}
+                                    {lecture.description || 'No summary provided.'}
                                 {/snippet}
                                 
                                 <button 
                                     class="btn btn-link text-danger p-0 position-absolute" 
                                     style="top: 0.5rem; right: 0.5rem; z-index: 10;"
                                     onclick={(e) => { e.preventDefault(); e.stopPropagation(); deleteLecture(lecture.id); }}
-                                    title="Delete Lecture"
+                                    title="Delete Lesson"
                                 >
                                     <span class="glyphicon m-0"><Trash2 size={14} /></span>
                                 </button>

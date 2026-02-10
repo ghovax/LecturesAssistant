@@ -31,6 +31,14 @@
     let selectedDocPageIndex = $state(0);
     let selectedToolId = $state<string | null>(null);
 
+    // Tool Creation State
+    let showCreateModal = $state(false);
+    let pendingToolType = $state<string>('guide');
+    let toolOptions = $state({
+        length: 'medium',
+        language_code: 'en-US'
+    });
+
     // Citation Popup State
     let activeCitation = $state<{ content: string, x: number, y: number, sourceFile?: string, sourcePages?: number[] } | null>(null);
 
@@ -44,18 +52,23 @@
     async function loadLecture() {
         loading = true;
         try {
-            const [examR, lectureR, transcriptR, docsR, toolsR] = await Promise.all([
+            const [examR, lectureR, transcriptR, docsR, toolsR, settingsR] = await Promise.all([
                 api.getExam(examId),
                 api.getLecture(lectureId, examId),
                 api.request('GET', `/transcripts/html?lecture_id=${lectureId}`),
                 api.listDocuments(lectureId),
-                api.request('GET', `/tools?lecture_id=${lectureId}&exam_id=${examId}`)
+                api.request('GET', `/tools?lecture_id=${lectureId}&exam_id=${examId}`),
+                api.getSettings()
             ]);
             exam = examR;
             lecture = lectureR;
             transcript = transcriptR;
             documents = docsR ?? [];
             tools = toolsR ?? [];
+            
+            if (settingsR?.llm?.language) {
+                toolOptions.language_code = settingsR.llm.language;
+            }
             
             if (guideTool) {
                 const htmlRes = await api.getToolHTML(guideTool.id, examId);
@@ -153,25 +166,32 @@
         }
     }
 
-    async function createTool(type: string) {
+    function createTool(type: string) {
+        pendingToolType = type;
+        showCreateModal = true;
+    }
+
+    async function confirmCreateTool() {
+        showCreateModal = false;
         try {
             await api.createTool({
                 exam_id: examId,
                 lecture_id: lectureId,
-                type,
-                length: 'medium'
+                type: pendingToolType,
+                length: toolOptions.length,
+                language_code: toolOptions.language_code
             });
-            notifications.success('We are building your study kit. You can see the progress in the sidebar.');
+            notifications.success(`We are preparing your ${pendingToolType}. It will appear in the study aids list once ready.`);
         } catch (e: any) {
             notifications.error(e.message || e);
         }
     }
 
     async function editLecture() {
-        const newTitle = prompt('Enter new lecture title:', lecture.title);
+        const newTitle = prompt('Enter new lesson title:', lecture.title);
         if (newTitle === null) return;
         
-        const newDesc = prompt('Enter new lecture summary:', lecture.description);
+        const newDesc = prompt('Enter new lesson summary:', lecture.description);
         if (newDesc === null) return;
 
         try {
@@ -183,7 +203,7 @@
             });
             lecture.title = newTitle;
             lecture.description = newDesc;
-            notifications.success('Lecture updated.');
+            notifications.success('Lesson updated.');
         } catch (e: any) {
             notifications.error('Failed to update: ' + (e.message || e));
         }
@@ -213,19 +233,19 @@
     <Breadcrumb items={[
         { label: exam.title, href: `/exams/${examId}` }, 
         { label: lecture.title, active: activeView === 'dashboard' },
-        ...(activeView !== 'dashboard' ? [{ label: activeView === 'guide' ? 'Study Guide' : (activeView === 'transcript' ? 'Transcript' : 'Material'), active: true }] : [])
+        ...(activeView !== 'dashboard' ? [{ label: activeView === 'guide' ? 'Study Guide' : (activeView === 'transcript' ? 'Dialogue' : 'Reference'), active: true }] : [])
     ]} />
 
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div class="d-flex align-items-center gap-3">
             <h2 class="m-0">{lecture.title}</h2>
-            <button class="btn btn-link btn-sm text-muted p-0" onclick={editLecture} title="Edit Lecture">
+            <button class="btn btn-link btn-sm text-muted p-0" onclick={editLecture} title="Edit Lesson">
                 <Edit3 size={18} />
             </button>
         </div>
         <div class="btn-group">
             <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
-                <span class="glyphicon me-1"><Plus size={16} /></span> Create Study Kit
+                <span class="glyphicon me-1"><Plus size={16} /></span> Create Study Aid
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
                 <li><button class="dropdown-item" onclick={() => createTool('guide')}>Study Guide</button></li>
@@ -243,24 +263,24 @@
                     <div class="mb-4">
                         <div class="wordBrief mb-5">
                             <div class="bg-light border-start border-4 border-primary p-3 shadow-sm">
-                                <div class="small fw-bold text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.1em;">Lecture Summary</div>
+                                <div class="small fw-bold text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.1em;">Lesson Summary</div>
                                 <div class="lead" style="font-size: 1.1rem; line-height: 1.5;">
-                                    {lecture.description || 'No summary available for this lecture.'}
+                                    {lecture.description || 'No summary available for this lesson.'}
                                 </div>
                             </div>
                         </div>
 
                         <div class="linkTiles tileSizeMd">
-                            <Tile href="javascript:void(0)" icon="講" title="Transcript" onclick={() => activeView = 'transcript'}>
+                            <Tile href="javascript:void(0)" icon="講" title="Dialogue" onclick={() => activeView = 'transcript'}>
                                 {#snippet description()}
-                                    Comprehensive lecture dialogue and recordings.
+                                    Full lesson recording and text.
                                 {/snippet}
                             </Tile>
 
                             {#each documents as doc}
                                 <Tile href="javascript:void(0)" icon="資" title={doc.title} onclick={() => openDocument(doc.id)}>
                                     {#snippet description()}
-                                        {doc.page_count} pages {doc.extraction_status !== 'completed' ? '• Reading...' : ''}
+                                        {doc.page_count} pages {doc.extraction_status !== 'completed' ? '• Analyzing...' : ''}
                                     {/snippet}
                                 </Tile>
                             {/each}
@@ -284,7 +304,7 @@
                         <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
                             <div class="d-flex align-items-center gap-2">
                                 <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">講</span>
-                                <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem;">Transcript</span>
+                                <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem;">Dialogue</span>
                             </div>
                             <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
                         </div>
@@ -293,7 +313,12 @@
                             {@const seg = transcript.segments[currentSegmentIndex]}
                             <div class="p-4">
                                 <div class="mb-4 d-flex justify-content-between align-items-center bg-light p-2 border">
-                                    <span class="fw-bold small">{formatTime(seg.start_millisecond)} &ndash; {formatTime(seg.end_millisecond)}</span>
+                                    <div class="d-flex align-items-center gap-3">
+                                        <span class="fw-bold small">{formatTime(seg.start_millisecond)} &ndash; {formatTime(seg.end_millisecond)}</span>
+                                        {#if seg.media_filename}
+                                            <span class="text-muted small border-start ps-3" style="font-size: 0.75rem;">{seg.media_filename}</span>
+                                        {/if}
+                                    </div>
                                     <div class="btn-group">
                                         <button class="btn btn-link btn-sm text-dark p-0 d-flex align-items-center me-2" disabled={currentSegmentIndex === 0} onclick={prevSegment}><ChevronLeft size={18} /></button>
                                         <button class="btn btn-link btn-sm text-dark p-0 d-flex align-items-center" disabled={currentSegmentIndex === transcript.segments.length - 1} onclick={nextSegment}><ChevronRight size={18} /></button>
@@ -301,24 +326,30 @@
                                 </div>
 
                                 {#if seg.media_id}
-                                    <div class="mb-4 bg-light p-3 border d-flex align-items-center gap-3">
-                                        <Volume2 size={24} class="text-primary flex-shrink-0" />
-                                        <audio controls class="w-100" style="height: 32px;" src="http://localhost:3000/api/media/content?media_id={seg.media_id}&session_token={localStorage.getItem('session_token')}#t={seg.original_start_milliseconds / 1000},{seg.original_end_milliseconds / 1000}"></audio>
+                                    <div class="mb-4 bg-white p-0 border">
+                                        <audio 
+                                            bind:this={audioElement}
+                                            controls 
+                                            class="w-100" 
+                                            style="height: 40px; display: block; background: #fff;" 
+                                            src="http://localhost:3000/api/media/content?media_id={seg.media_id}&session_token={localStorage.getItem('session_token')}#t={seg.original_start_milliseconds / 1000},{seg.original_end_milliseconds / 1000}"
+                                        ></audio>
                                     </div>
                                 {/if}
 
                                 <div class="transcript-text" style="font-size: 1rem; line-height: 1.6;">{@html seg.text_html}</div>
                             </div>
                         {:else}
-                            <div class="p-5 text-center text-muted">Transcript is not available yet.</div>
+                            <div class="p-5 text-center text-muted">Dialogue is not available yet.</div>
                         {/if}
                     </div>
                 {:else if activeView === 'doc'}
+                    {@const doc = documents.find(d => d.id === selectedDocId)}
                     <div class="well bg-white p-0 overflow-hidden mb-5 border">
                         <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
                             <div class="d-flex align-items-center gap-2">
                                 <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">資</span>
-                                <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem;">Viewing Material</span>
+                                <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem;">{doc?.title || 'Study Resource'}</span>
                             </div>
                             <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
                         </div>
@@ -344,13 +375,13 @@
                                 </div>
                                 
                                 <div class="transcript-text" style="font-size: 1rem; white-space: pre-wrap; line-height: 1.6;">
-                                    {p.extracted_text || 'No text content extracted for this page.'}
+                                    {p.extracted_text || 'No content analyzed for this page.'}
                                 </div>
                             </div>
                         {:else}
                             <div class="p-5 text-center text-muted">
                                 <div class="village-spinner mx-auto mb-3"></div>
-                                <p>Loading document pages...</p>
+                                <p>Analyzing resources...</p>
                             </div>
                         {/if}
                     </div>
@@ -425,7 +456,7 @@
                           title={activeView === 'dashboard' ? 'Dashboard' : 'Back to Hub'} 
                           onclick={() => activeView = 'dashboard'}>
                         {#snippet description()}
-                            {activeView === 'dashboard' ? 'Lecture overview and materials.' : 'Return to the lecture dashboard.'}
+                            {activeView === 'dashboard' ? 'Lesson overview and resources.' : 'Return to the lesson dashboard.'}
                         {/snippet}
                     </Tile>
 
@@ -466,6 +497,55 @@
         y={activeCitation.y} 
         onClose={() => activeCitation = null} 
     />
+{/if}
+
+{#if showCreateModal}
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(2px);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 rounded-0 shadow-lg">
+                <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">作</span>
+                        <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem;">Customize {capitalize(pendingToolType)}</span>
+                    </div>
+                    <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none" onclick={() => showCreateModal = false}><X size={20} /></button>
+                </div>
+                <div class="modal-body p-4 bg-light">
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold text-muted text-uppercase mb-2" style="letter-spacing: 0.05em;">Target Language</label>
+                        <select class="form-select rounded-0 border shadow-none" bind:value={toolOptions.language_code}>
+                            <option value="en-US">English (US)</option>
+                            <option value="it-IT">Italiano</option>
+                            <option value="es-ES">Español</option>
+                            <option value="de-DE">Deutsch</option>
+                            <option value="fr-FR">Français</option>
+                            <option value="ja-JP">日本語</option>
+                        </select>
+                        <div class="form-text mt-1" style="font-size: 0.7rem;">The assistant will translate and prepare content in this language.</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold text-muted text-uppercase mb-2" style="letter-spacing: 0.05em;">Level of Detail</label>
+                        <div class="d-flex gap-2">
+                            {#each ['short', 'medium', 'long', 'comprehensive'] as len}
+                                <button 
+                                    class="btn flex-grow-1 rounded-0 border transition-all {toolOptions.length === len ? 'btn-primary' : 'btn-white bg-white text-dark'}"
+                                    onclick={() => toolOptions.length = len}
+                                >
+                                    {capitalize(len)}
+                                </button>
+                            {/each}
+                        </div>
+                    </div>
+                </div>
+                <div class="px-4 py-3 bg-white border-top text-center">
+                    <button class="btn btn-success w-100" onclick={confirmCreateTool}>
+                        Create Material
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 {/if}
 
 <style>

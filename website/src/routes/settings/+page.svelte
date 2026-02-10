@@ -49,18 +49,18 @@
     </div>
 {:else if settings}
     <form onsubmit={(e) => { e.preventDefault(); saveSettings(); }} class="well">
-        <h4>LLM Configuration</h4>
+        <h4>AI Assistant Settings</h4>
         <div class="mb-4">
-            <label for="provider" class="form-label">Provider</label>
-            <select id="provider" class="form-select" bind:value={settings.llm.provider}>
+            <label for="provider" class="form-label fw-bold">AI Service</label>
+            <select id="provider" class="form-select shadow-none" bind:value={settings.llm.provider}>
                 <option value="openrouter">OpenRouter (Cloud)</option>
                 <option value="ollama">Ollama (Local)</option>
             </select>
         </div>
 
         <div class="mb-4">
-            <label for="language" class="form-label">Study Language</label>
-            <select id="language" class="form-select" bind:value={settings.llm.language}>
+            <label for="language" class="form-label fw-bold">Preferred Language</label>
+            <select id="language" class="form-select shadow-none" bind:value={settings.llm.language}>
                 <option value="en-US">{getLanguageName('en-US')}</option>
                 <option value="it-IT">{getLanguageName('it-IT')}</option>
                 <option value="ja-JP">{getLanguageName('ja-JP')}</option>
@@ -68,19 +68,19 @@
                 <option value="fr-FR">{getLanguageName('fr-FR')}</option>
                 <option value="de-DE">{getLanguageName('de-DE')}</option>
             </select>
-            <small class="text-muted d-block mt-1">Primary language for study kits and assistant responses.</small>
+            <small class="text-muted d-block mt-1">Used for study materials and assistant responses.</small>
         </div>
 
         <div class="mb-4">
-            <label for="model" class="form-label">Primary Model</label>
-            <input type="text" id="model" class="form-control" bind:value={settings.llm.model} />
-            <small class="text-muted">Default model used for generation tasks.</small>
+            <label for="model" class="form-label fw-bold">AI Model</label>
+            <input type="text" id="model" class="form-control shadow-none" bind:value={settings.llm.model} />
+            <small class="text-muted">The specific model used for analysis and generation.</small>
         </div>
 
-        <h4>Provider Credentials</h4>
+        <h4>Service Credentials</h4>
         <div class="mb-4">
-            <label for="openrouterApiKey" class="form-label">OpenRouter API Key</label>
-            <input type="password" id="openrouterApiKey" class="form-control" bind:value={settings.providers.openrouter.api_key} />
+            <label for="openrouterApiKey" class="form-label fw-bold">API Key</label>
+            <input type="password" id="openrouterApiKey" class="form-control shadow-none" bind:value={settings.providers.openrouter.api_key} />
         </div>
 
         <h4>Safety & Budget</h4>

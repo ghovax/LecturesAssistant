@@ -46,16 +46,17 @@
 <div class="linkTiles tileSizeMd mb-4">
     <Tile href="javascript:void(0)" icon="新" title="New Subject" onclick={() => showCreate = !showCreate}>
         {#snippet description()}
-            Add a new course or subject to your hub.
+            Add a new subject to your hub.
         {/snippet}
     </Tile>
     {#each exams as exam}
         <Tile href="/exams/{exam.id}" icon="科" title={exam.title}>
             {#snippet description()}
-                {exam.description || 'Access your lectures and study tools for this subject.'}
+                {exam.description || 'Access your lessons and study materials.'}
             {/snippet}
         </Tile>
     {/each}
+    
 </div>
 
 {#if showCreate}
@@ -66,7 +67,7 @@
                 <input 
                     type="text" 
                     class="form-control" 
-                    placeholder="Enter Subject Title (e.g. History, Science, Mathematics)..." 
+                    placeholder="Enter Subject (e.g. History, Science, Mathematics)..." 
                     bind:value={newExamTitle} 
                     required 
                 />

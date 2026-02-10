@@ -78,7 +78,7 @@
     async function handleExport(format: string) {
         try {
             const res = await api.exportTool({ tool_id: toolId, exam_id: examId, format });
-            notifications.success(`We are preparing your export. You can see the progress in the source lecture.`);
+            notifications.success(`We are preparing your export. You can see the progress in the source lesson.`);
         } catch (e: any) {
             notifications.error(e.message || e);
         }
@@ -97,7 +97,7 @@
     <div class="d-flex justify-content-between align-items-start mb-3">
         <div>
             <h2 class="mb-1">{tool.title}</h2>
-            <span class="badge bg-dark">{capitalize(tool.type)} Kit</span>
+            <span class="badge bg-dark">{capitalize(tool.type)} Material</span>
         </div>
         <div class="btn-group">
             <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
@@ -115,12 +115,12 @@
         <div class="row">
             <!-- Sidebar: Details & Navigation -->
             <div class="col-lg-3 col-md-4 order-md-2">
-                <h3>Source Lecture</h3>
+                <h3>Source Lesson</h3>
                 <div class="well small mb-4">
-                    <p>This study kit was generated from your lecture materials. You can find related tools and documents in the source lecture page.</p>
+                    <p>This material was generated from your lesson. You can find related resources and documents in the source lesson page.</p>
                     {#if tool.lecture_id}
                         <a href="/exams/{examId}/lectures/{tool.lecture_id}" class="btn btn-outline-primary btn-sm w-100">
-                            Back to Lecture
+                            Back to Lesson
                         </a>
                     {/if}
                 </div>

@@ -155,16 +155,17 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 	}
 
 	// Get context configuration
-	var includedLectureIDsJSON, includedToolIDsJSON string
+	var includedLectureIDsJSON, usedLectureIDsJSON, includedToolIDsJSON string
 	databaseError = server.database.QueryRow(`
-		SELECT included_lecture_ids, included_tool_ids 
+		SELECT included_lecture_ids, used_lecture_ids, included_tool_ids 
 		FROM chat_context_configuration 
 		WHERE session_id = ?
-	`, sessionID).Scan(&includedLectureIDsJSON, &includedToolIDsJSON)
+	`, sessionID).Scan(&includedLectureIDsJSON, &usedLectureIDsJSON, &includedToolIDsJSON)
 
-	var includedLectureIDs, includedToolIDs []string
+	var includedLectureIDs, usedLectureIDs, includedToolIDs []string
 	if databaseError == nil {
 		json.Unmarshal([]byte(includedLectureIDsJSON), &includedLectureIDs)
+		json.Unmarshal([]byte(usedLectureIDsJSON), &usedLectureIDs)
 		json.Unmarshal([]byte(includedToolIDsJSON), &includedToolIDs)
 	}
 
@@ -197,6 +198,7 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 		"session": session,
 		"context": map[string]any{
 			"included_lecture_ids": includedLectureIDs,
+			"used_lecture_ids":     usedLectureIDs,
 			"included_tool_ids":    includedToolIDs,
 		},
 		"messages": messages,
@@ -359,6 +361,37 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to save user message", nil)
 		return
 	}
+
+	// 1.5. Lock the current context (move included to used)
+	var currentIncludedJSON string
+	var currentUsedJSON string
+	server.database.QueryRow("SELECT included_lecture_ids, used_lecture_ids FROM chat_context_configuration WHERE session_id = ?", sendMessageRequest.SessionID).Scan(&currentIncludedJSON, &currentUsedJSON)
+
+	var currentIncluded []string
+	var currentUsed []string
+	json.Unmarshal([]byte(currentIncludedJSON), &currentIncluded)
+	json.Unmarshal([]byte(currentUsedJSON), &currentUsed)
+
+	// Merge included into used, avoiding duplicates
+	usedMap := make(map[string]bool)
+	for _, id := range currentUsed {
+		usedMap[id] = true
+	}
+	for _, id := range currentIncluded {
+		usedMap[id] = true
+	}
+
+	newUsed := make([]string, 0, len(usedMap))
+	for id := range usedMap {
+		newUsed = append(newUsed, id)
+	}
+	newUsedJSON, _ := json.Marshal(newUsed)
+
+	_, _ = server.database.Exec(`
+		UPDATE chat_context_configuration 
+		SET used_lecture_ids = ? 
+		WHERE session_id = ?
+	`, string(newUsedJSON), sendMessageRequest.SessionID)
 
 	// 2. Get history and context for LLM
 	messages := server.getChatHistory(sendMessageRequest.SessionID)

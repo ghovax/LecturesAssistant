@@ -6,6 +6,7 @@
     import { goto } from '$app/navigation';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
+    import EditModal from '$lib/components/EditModal.svelte';
     import { Plus, MessageCircle, FileText, Video, Trash2, ExternalLink, Edit3 } from 'lucide-svelte';
 
     let examId = $derived(page.params.id);
@@ -14,6 +15,7 @@
     let tools = $state<any[]>([]);
     let chatSessions = $state<any[]>([]);
     let loading = $state(true);
+    let showEditModal = $state(false);
 
     async function loadData() {
         loading = true;
@@ -58,13 +60,8 @@
         }
     }
 
-    async function editExam() {
-        const newTitle = prompt('Enter new project title:', exam.title);
-        if (newTitle === null) return;
-        
-        const newDesc = prompt('Enter new project description:', exam.description);
-        if (newDesc === null) return;
-
+    async function handleEditConfirm(newTitle: string, newDesc: string) {
+        if (!newTitle) return;
         try {
             await api.request('PATCH', '/exams', {
                 exam_id: examId,
@@ -73,6 +70,7 @@
             });
             exam.title = newTitle;
             exam.description = newDesc;
+            showEditModal = false;
             notifications.success('Project updated.');
         } catch (e: any) {
             notifications.error('Failed to update: ' + (e.message || e));
@@ -82,13 +80,23 @@
     onMount(loadData);
 </script>
 
+{#if showEditModal && exam}
+    <EditModal 
+        title="Edit Project" 
+        initialTitle={exam.title} 
+        initialDescription={exam.description || ''} 
+        onConfirm={handleEditConfirm} 
+        onCancel={() => showEditModal = false} 
+    />
+{/if}
+
 {#if exam}
     <Breadcrumb items={[{ label: 'My Studies', href: '/exams' }, { label: exam.title, active: true }]} />
 
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div class="d-flex align-items-center gap-3">
             <h2 class="m-0">{exam.title}</h2>
-            <button class="btn btn-link btn-sm text-muted p-0" onclick={editExam} title="Edit Project">
+            <button class="btn btn-link btn-sm text-muted p-0" onclick={() => showEditModal = true} title="Edit Project">
                 <Edit3 size={18} />
             </button>
         </div>

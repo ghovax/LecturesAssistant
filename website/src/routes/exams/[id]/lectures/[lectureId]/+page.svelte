@@ -9,6 +9,7 @@
     import Tile from '$lib/components/Tile.svelte';
     import CitationPopup from '$lib/components/CitationPopup.svelte';
     import Flashcard from '$lib/components/Flashcard.svelte';
+    import EditModal from '$lib/components/EditModal.svelte';
     import { FileText, Clock, ChevronLeft, ChevronRight, Volume2, Plus, X, Edit3 } from 'lucide-svelte';
 
     let { id: examId, lectureId } = $derived(page.params);
@@ -33,6 +34,7 @@
 
     // Tool Creation State
     let showCreateModal = $state(false);
+    let showEditModal = $state(false);
     let pendingToolType = $state<string>('guide');
     let toolOptions = $state({
         length: 'medium',
@@ -187,13 +189,8 @@
         }
     }
 
-    async function editLecture() {
-        const newTitle = prompt('Enter new lesson title:', lecture.title);
-        if (newTitle === null) return;
-        
-        const newDesc = prompt('Enter new lesson summary:', lecture.description);
-        if (newDesc === null) return;
-
+    async function handleEditConfirm(newTitle: string, newDesc: string) {
+        if (!newTitle) return;
         try {
             await api.request('PATCH', '/lectures', {
                 exam_id: examId,
@@ -203,6 +200,7 @@
             });
             lecture.title = newTitle;
             lecture.description = newDesc;
+            showEditModal = false;
             notifications.success('Lesson updated.');
         } catch (e: any) {
             notifications.error('Failed to update: ' + (e.message || e));
@@ -229,17 +227,35 @@
     });
 </script>
 
+{#if showEditModal && lecture}
+    <EditModal 
+        title="Edit Lesson" 
+        initialTitle={lecture.title} 
+        initialDescription={lecture.description || ''} 
+        onConfirm={handleEditConfirm} 
+        onCancel={() => showEditModal = false} 
+    />
+{/if}
+
 {#if lecture && exam}
     <Breadcrumb items={[
+        { label: 'My Studies', href: '/exams' },
         { label: exam.title, href: `/exams/${examId}` }, 
-        { label: lecture.title, active: activeView === 'dashboard' },
-        ...(activeView !== 'dashboard' ? [{ label: activeView === 'guide' ? 'Study Guide' : (activeView === 'transcript' ? 'Dialogue' : 'Reference'), active: true }] : [])
+        { label: lecture.title, href: `/exams/${examId}/lectures/${lectureId}`, active: activeView === 'dashboard' },
+        ...(activeView !== 'dashboard' ? [{ 
+            label: activeView === 'guide' ? 'Study Guide' : 
+                   activeView === 'transcript' ? 'Dialogue' : 
+                   activeView === 'doc' ? (documents.find(d => d.id === selectedDocId)?.title || 'Reference') : 
+                   activeView === 'tool' ? (tools.find(t => t.id === selectedToolId)?.title || 'Study Aid') : 
+                   'Resource', 
+            active: true 
+        }] : [])
     ]} />
 
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div class="d-flex align-items-center gap-3">
             <h2 class="m-0">{lecture.title}</h2>
-            <button class="btn btn-link btn-sm text-muted p-0" onclick={editLecture} title="Edit Lesson">
+            <button class="btn btn-link btn-sm text-muted p-0" onclick={() => showEditModal = true} title="Edit Lesson">
                 <Edit3 size={18} />
             </button>
         </div>
@@ -261,12 +277,10 @@
             <div class="col-lg-9 col-md-8 order-md-1">
                 {#if activeView === 'dashboard'}
                     <div class="mb-4">
-                        <div class="wordBrief mb-5">
-                            <div class="bg-light border-start border-4 border-primary p-3 shadow-sm">
-                                <div class="small fw-bold text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.1em;">Lesson Summary</div>
-                                <div class="lead" style="font-size: 1.1rem; line-height: 1.5;">
-                                    {lecture.description || 'No summary available for this lesson.'}
-                                </div>
+                        <div class="bg-white p-4 border mb-5">
+                            <div class="small fw-bold text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.1em;">Description</div>
+                            <div class="lead" style="font-size: 1.1rem; line-height: 1.6;">
+                                {lecture.description || 'No summary available for this lesson.'}
                             </div>
                         </div>
 
@@ -279,9 +293,6 @@
 
                             {#each documents as doc}
                                 <Tile href="javascript:void(0)" icon="資" title={doc.title} onclick={() => openDocument(doc.id)}>
-                                    {#snippet description()}
-                                        {doc.page_count} pages {doc.extraction_status !== 'completed' ? '• Analyzing...' : ''}
-                                    {/snippet}
                                 </Tile>
                             {/each}
                         </div>

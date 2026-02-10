@@ -97,189 +97,103 @@
             <div class="col-lg-9 col-md-8 order-md-1">
                 <h3>Details & Materials</h3>
                 
-                <div class="wordBrief mb-4">
-                    <div class="bg-light border-start border-4 border-primary p-3 shadow-sm">
-                        <div class="small fw-bold text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.1em;">Description</div>
-                        <textarea 
-                            class="form-control bg-transparent border-0 p-0 shadow-none" 
-                            rows="3" 
-                            placeholder="Add an optional summary of the lesson content..."
-                            bind:value={description}
-                            disabled={uploading}
-                            style="font-size: 1.1rem; line-height: 1.5; resize: none;"
-                        ></textarea>
-                    </div>
+                <div class="bg-white p-4 border mb-4">
+                    <div class="small fw-bold text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.1em;">Description</div>
+                    <textarea 
+                        class="form-control bg-transparent border-0 p-0 shadow-none" 
+                        rows="3" 
+                        placeholder="Add an optional summary of the lesson content..."
+                        bind:value={description}
+                        disabled={uploading}
+                        style="font-size: 1.1rem; line-height: 1.5; resize: none;"
+                    ></textarea>
                 </div>
 
-                                <div class="row">
-
-                                    <!-- Media Upload -->
-
-                                    <div class="col-lg-6 mb-4">
-
-                                        <div class="char-results">
-
-                                            <div class="well bg-white p-4 border {mediaFiles.length > 0 ? 'border-success' : ''}">
-
-                                                <div class="row align-items-center">
-
-                                                    <div lang="ja" class="col-3 text-center" style="font-size: 2.5rem; line-height: 1; color: #ccc;">
-
-                                                        新
-
-                                                    </div>
-
-                                                    <div class="col-9">
-
-                                                        <h4 class="mt-0 border-0 pt-0">Recordings</h4>
-
-                                                        <p class="small text-muted mb-2">Video or Audio (MP4, MP3, etc.)</p>
-
-                                                        <input 
-
-                                                            type="file" 
-
-                                                            id="media" 
-
-                                                            class="d-none" 
-
-                                                            accept="video/*,audio/*" 
-
-                                                            multiple
-
-                                                            onchange={addMediaFiles} 
-
-                                                            disabled={uploading}
-
-                                                        />
-
-                                                        <label for="media" class="btn btn-outline-secondary btn-sm">
-
-                                                            Select Files
-
-                                                        </label>
-
-                                                    </div>
-
-                                                </div>
-
-                                                
-
-                                                {#if mediaFiles.length > 0}
-
-                                                    <div class="mt-3 border-top pt-2">
-
-                                                        {#each mediaFiles as file, i}
-
-                                                            <div class="d-flex justify-content-between align-items-center mb-1 small bg-light p-1">
-
-                                                                <span class="text-truncate me-2 fw-bold" title={file.name}>{file.name}</span>
-
-                                                                <button class="btn btn-link btn-sm text-danger p-0" onclick={() => removeMedia(i)} disabled={uploading}>
-
-                                                                    <span class="glyphicon m-0"><X size={14} /></span>
-
-                                                                </button>
-
-                                                            </div>
-
-                                                        {/each}
-
-                                                    </div>
-
-                                                {/if}
-
-                                            </div>
-
-                                        </div>
-
+                <div class="row">
+                    <!-- Media Upload -->
+                    <div class="col-lg-6 mb-4">
+                        <div class="char-results">
+                            <div class="well bg-white p-4 border {mediaFiles.length > 0 ? 'border-success' : ''}">
+                                <div class="row align-items-center">
+                                    <div lang="ja" class="col-3 text-center" style="font-size: 2.5rem; line-height: 1; color: #ccc;">
+                                        新
                                     </div>
-
-                
-
-                                    <!-- Document Upload -->
-
-                                    <div class="col-lg-6 mb-4">
-
-                                        <div class="char-results">
-
-                                            <div class="well bg-white p-4 border {documentFiles.length > 0 ? 'border-success' : ''}">
-
-                                                <div class="row align-items-center">
-
-                                                    <div lang="ja" class="col-3 text-center" style="font-size: 2.5rem; line-height: 1; color: #ccc;">
-
-                                                        資
-
-                                                    </div>
-
-                                                    <div class="col-9">
-
-                                                        <h4 class="mt-0 border-0 pt-0">References</h4>
-
-                                                        <p class="small text-muted mb-2">Slides or PDFs (PDF, PPTX, etc.)</p>
-
-                                                        <input 
-
-                                                            type="file" 
-
-                                                            id="docs" 
-
-                                                            class="d-none" 
-
-                                                            accept=".pdf,.pptx,.docx" 
-
-                                                            multiple
-
-                                                            onchange={addDocumentFiles} 
-
-                                                            disabled={uploading}
-
-                                                        />
-
-                                                        <label for="docs" class="btn btn-outline-secondary btn-sm">
-
-                                                            Select Files
-
-                                                        </label>
-
-                                                    </div>
-
-                                                </div>
-
-                
-
-                                                {#if documentFiles.length > 0}
-
-                                                    <div class="mt-3 border-top pt-2">
-
-                                                        {#each documentFiles as file, i}
-
-                                                            <div class="d-flex justify-content-between align-items-center mb-1 small bg-light p-1">
-
-                                                                <span class="text-truncate me-2 fw-bold" title={file.name}>{file.name}</span>
-
-                                                                <button class="btn btn-link btn-sm text-danger p-0" onclick={() => removeDocument(i)} disabled={uploading}>
-
-                                                                    <span class="glyphicon m-0"><X size={14} /></span>
-
-                                                                </button>
-
-                                                            </div>
-
-                                                        {/each}
-
-                                                    </div>
-
-                                                {/if}
-
-                                            </div>
-
-                                        </div>
-
+                                    <div class="col-9">
+                                        <h4 class="mt-0 border-0 pt-0">Recordings</h4>
+                                        <p class="small text-muted mb-2">Video or Audio (MP4, MP3, etc.)</p>
+                                        <input 
+                                            type="file" 
+                                            id="media" 
+                                            class="d-none" 
+                                            accept="video/*,audio/*" 
+                                            multiple
+                                            onchange={addMediaFiles} 
+                                            disabled={uploading}
+                                        />
+                                        <label for="media" class="btn btn-outline-secondary btn-sm">
+                                            Select Files
+                                        </label>
                                     </div>
-
                                 </div>
+                                
+                                {#if mediaFiles.length > 0}
+                                    <div class="mt-3 border-top pt-2">
+                                        {#each mediaFiles as file, i}
+                                            <div class="d-flex justify-content-between align-items-center mb-1 small bg-light p-1">
+                                                <span class="text-truncate me-2 fw-bold" title={file.name}>{file.name}</span>
+                                                <button class="btn btn-link btn-sm text-danger p-0" onclick={() => removeMedia(i)} disabled={uploading}>
+                                                    <span class="glyphicon m-0"><X size={14} /></span>
+                                                </button>
+                                            </div>
+                                        {/each}
+                                    </div>
+                                {/if}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Document Upload -->
+                    <div class="col-lg-6 mb-4">
+                        <div class="char-results">
+                            <div class="well bg-white p-4 border {documentFiles.length > 0 ? 'border-success' : ''}">
+                                <div class="row align-items-center">
+                                    <div lang="ja" class="col-3 text-center" style="font-size: 2.5rem; line-height: 1; color: #ccc;">
+                                        資
+                                    </div>
+                                    <div class="col-9">
+                                        <h4 class="mt-0 border-0 pt-0">References</h4>
+                                        <p class="small text-muted mb-2">Slides or PDFs (PDF, PPTX, etc.)</p>
+                                        <input 
+                                            type="file" 
+                                            id="docs" 
+                                            class="d-none" 
+                                            accept=".pdf,.pptx,.docx" 
+                                            multiple
+                                            onchange={addDocumentFiles} 
+                                            disabled={uploading}
+                                        />
+                                        <label for="docs" class="btn btn-outline-secondary btn-sm">
+                                            Select Files
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {#if documentFiles.length > 0}
+                                    <div class="mt-3 border-top pt-2">
+                                        {#each documentFiles as file, i}
+                                            <div class="d-flex justify-content-between align-items-center mb-1 small bg-light p-1">
+                                                <span class="text-truncate me-2 fw-bold" title={file.name}>{file.name}</span>
+                                                <button class="btn btn-link btn-sm text-danger p-0" onclick={() => removeDocument(i)} disabled={uploading}>
+                                                    <span class="glyphicon m-0"><X size={14} /></span>
+                                                </button>
+                                            </div>
+                                        {/each}
+                                    </div>
+                                {/if}
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 {#if uploading}
                     <div class="text-center p-4">

@@ -15,6 +15,7 @@ import (
 	"lectures/internal/jobs"
 	"lectures/internal/tools"
 
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -32,7 +33,7 @@ func setupUniqueExtraTestEnv(t *testing.T, testName string) (*Server, string, st
 
 	// Create user and session
 	userID := "user-" + testName
-	sessionID := "session-" + testName
+	sessionID := gonanoid.Must()
 	hash, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 	_, _ = db.Exec("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)", userID, "user"+testName, string(hash), "user")
 	_, _ = db.Exec("INSERT INTO auth_sessions (id, user_id, created_at, last_activity, expires_at) VALUES (?, ?, ?, ?, ?)", sessionID, userID, time.Now(), time.Now(), time.Now().Add(1*time.Hour))

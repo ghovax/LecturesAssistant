@@ -11,7 +11,7 @@ import (
 
 	"lectures/internal/models"
 
-	"github.com/google/uuid"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 // handleCreateExam creates a new exam
@@ -44,8 +44,9 @@ func (server *Server) handleCreateExam(responseWriter http.ResponseWriter, reque
 
 	userID := server.getUserID(request)
 
+	examID, _ := gonanoid.New()
 	exam := models.Exam{
-		ID:          uuid.New().String(),
+		ID:          examID,
 		UserID:      userID,
 		Title:       title,
 		Description: description,

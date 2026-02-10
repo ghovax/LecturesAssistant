@@ -23,7 +23,7 @@ import (
 	"lectures/internal/tools"
 	"lectures/internal/transcription"
 
-	"github.com/google/uuid"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/skip2/go-qrcode"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/drive/v3"
@@ -102,7 +102,7 @@ func RegisterHandlers(
 		}
 
 		// 2. Create transcript record if not exists
-		transcriptID := uuid.New().String()
+		transcriptID, _ := gonanoid.New()
 		_, executionError := database.Exec(`
 			INSERT OR IGNORE INTO transcripts (id, lecture_id, status, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?)
@@ -505,7 +505,7 @@ func RegisterHandlers(
 
 		updateProgress(95, "Finalizing tool...", nil, totalMetrics)
 
-		toolID := uuid.New().String()
+		toolID, _ := gonanoid.New()
 
 		transaction, err := database.Begin()
 		if err != nil {
@@ -1064,14 +1064,25 @@ func RegisterHandlers(
 			slog.Info("QR Code generation requested", "toolID", tool.ID)
 			updateProgress(70, "Uploading document for QR code generation...", nil, models.JobMetrics{})
 
-			downloadURL, uploadError := uploadToTmpFiles(outputPath)
-			if uploadError != nil {
-				slog.Error("Failed to upload for QR code", "error", uploadError)
-			} else {
-				slog.Info("Document uploaded for QR code", "url", downloadURL)
+							downloadURL, uploadError := uploadToTmpFiles(outputPath)
 
-				qrCodePath := filepath.Join(os.TempDir(), fmt.Sprintf("qrcode-%s.png", uuid.New().String()))
-				if qrErr := qrcode.WriteFile(downloadURL, qrcode.Medium, 256, qrCodePath); qrErr != nil {
+							if uploadError != nil {
+
+								slog.Error("Failed to upload for QR code", "error", uploadError)
+
+							} else {
+
+								slog.Info("Document uploaded for QR code", "url", downloadURL)
+
+			
+
+								nanoid, _ := gonanoid.New()
+
+								qrCodePath := filepath.Join(os.TempDir(), fmt.Sprintf("qrcode-%s.png", nanoid))
+
+								if qrErr := qrcode.WriteFile(downloadURL, qrcode.Medium, 256, qrCodePath); qrErr != nil {
+
+			
 					slog.Error("Failed to generate QR code image", "error", qrErr)
 				} else {
 					updateProgress(85, "Re-generating document with QR code...", nil, models.JobMetrics{})

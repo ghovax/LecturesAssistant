@@ -56,7 +56,6 @@
                 included_lecture_ids: includedLectureIds,
                 included_tool_ids: [] // Future-proofing
             });
-            notifications.success('Your study context has been updated.');
         } catch (e: any) {
             notifications.error('Failed to update study context: ' + (e.message || e));
         } finally {
@@ -148,65 +147,48 @@
 
     <div class="container-fluid p-0">
         <div class="row">
-            <!-- Sidebar: Session Info & Context Selection -->
+            <!-- Sidebar: Context Selection & Other Sessions -->
             <div class="col-lg-3 col-md-4 order-md-2">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h3 class="m-0 border-0">Study Context</h3>
-                    {#if updatingContext}
-                        <span class="village-spinner" style="width: 1rem; height: 1rem;"></span>
-                    {/if}
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h3 class="m-0 border-0">Study Context</h3>
+                        {#if updatingContext}
+                            <span class="village-spinner" style="width: 1rem; height: 1rem;"></span>
+                        {/if}
+                    </div>
+                    <p class="text-muted small">Select the lessons I should use to answer your questions.</p>
                 </div>
                 
-                <div class="list-group shadow-sm small overflow-auto mb-4" style="max-height: 35vh;">
+                <div class="well bg-white p-0 border shadow-none overflow-auto mb-5" style="max-height: 40vh;">
                     {#each allLectures as lecture}
                         <button 
                             onclick={() => toggleLecture(lecture.id)}
-                            class="list-group-item list-group-item-action d-flex align-items-center gap-3 text-start {includedLectureIds.includes(lecture.id) ? 'active-context' : ''}"
+                            class="w-100 border-0 border-bottom last-child-border-0 p-3 text-start d-flex align-items-center gap-3"
+                            style="background: {includedLectureIds.includes(lecture.id) ? 'rgba(86, 143, 39, 0.05)' : 'transparent'}; transition: all 0.15s ease;"
                             disabled={updatingContext}
                         >
                             <div class="flex-shrink-0">
-                                {#if includedLectureIds.includes(lecture.id)}
-                                    <CheckSquare size={18} class="text-white" />
-                                {:else}
-                                    <Square size={18} class="text-muted" />
-                                {/if}
-                            </div>
-                            <div class="flex-grow-1 overflow-hidden">
-                                <div class="fw-bold text-truncate" title={lecture.title}>{lecture.title}</div>
-                                <div class="{includedLectureIds.includes(lecture.id) ? 'text-white-50' : 'text-muted'} text-truncate" style="font-size: 0.75rem;">
-                                    {lecture.status === 'ready' ? 'Ready to study' : 'Preparing...'}
+                                <div class="border" style="width: 1.1rem; height: 1.1rem; border-color: {includedLectureIds.includes(lecture.id) ? '#568f27' : '#ccc'} !important; background: {includedLectureIds.includes(lecture.id) ? '#568f27' : 'transparent'};">
+                                    {#if includedLectureIds.includes(lecture.id)}
+                                        <div class="d-flex align-items-center justify-content-center h-100">
+                                            <div style="width: 0.4rem; height: 0.4rem; background: white;"></div>
+                                        </div>
+                                    {/if}
                                 </div>
                             </div>
+                            <span class="small {includedLectureIds.includes(lecture.id) ? 'fw-bold text-success' : 'text-dark'}" style="line-height: 1.2;">
+                                {lecture.title}
+                            </span>
                         </button>
                     {/each}
                     {#if allLectures.length === 0}
-                        <div class="p-3 text-center text-muted">No lectures available.</div>
+                        <div class="p-3 text-center text-muted small">No lessons available yet.</div>
                     {/if}
                 </div>
 
-                <h3>Session Details</h3>
-                <div class="well mb-4 small">
-                    <table class="table table-sm table-borderless m-0">
-                        <tbody>
-                            <tr>
-                                <td style="width: 40%"><strong>Status</strong></td>
-                                <td><span class="badge bg-success">Ready to study</span></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Scope</strong></td>
-                                <td>{includedLectureIds.length} Lectures</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Started</strong></td>
-                                <td>{new Date(session.created_at).toLocaleDateString()}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
                 {#if otherSessions.length > 0}
-                    <h3>Other Chats</h3>
-                    <div class="linkTiles tileSizeMd">
+                    <h3 class="mb-3">Recent Chats</h3>
+                    <div class="linkTiles tileSizeMd w-100 m-0 d-flex flex-column align-items-center">
                         {#each otherSessions as other}
                             <Tile href="/exams/{examId}/chat/{other.id}" icon="談" title={other.title || 'Untitled Chat'}>
                                 {#snippet description()}
@@ -243,28 +225,45 @@
                         </div>
                     {/if}
 
-                    {#each messages ?? [] as msg}
-                        <div class="well bg-white p-0 overflow-hidden mb-4 border shadow-sm {msg.role === 'user' ? 'ms-md-5 border-primary border-opacity-25' : 'me-md-5 border-success border-opacity-25'}">
-                            <div class="bg-light px-4 py-2 border-bottom d-flex justify-content-between align-items-center">
-                                <span class="fw-bold small {msg.role === 'user' ? 'text-primary' : 'text-success'}">
-                                    {msg.role === 'user' ? 'Question' : 'Assistant'}
-                                </span>
-                                <span class="text-muted small" style="font-size: 0.7rem;">
-                                    {new Date(msg.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                            </div>
-                            <div class="p-4">
-                                <div class="message-content {msg.role === 'user' ? 'fw-bold' : ''}" style="font-size: 1rem; line-height: 1.6;">
-                                    {msg.content}
+                    {#each messages ?? [] as msg, i}
+                        {#if msg.role === 'assistant'}
+                            {@const prevMsg = messages[i-1]}
+                            <div class="bg-white p-0 overflow-hidden mb-5 border shadow-none">
+                                <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
+                                    <div class="d-flex align-items-center gap-2 overflow-hidden">
+                                        <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">案</span>
+                                        <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem; flex-shrink: 0;">Assistant</span>
+                                        {#if prevMsg && prevMsg.role === 'user'}
+                                            <span class="text-muted small text-truncate ms-2 border-start ps-2" style="font-weight: normal; opacity: 0.6;">
+                                                {prevMsg.content}
+                                            </span>
+                                        {/if}
+                                    </div>
+                                    <span class="text-muted small flex-shrink-0" style="font-size: 0.75rem;">
+                                        {new Date(msg.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                </div>
+                                <div class="p-4">
+                                    <div class="message-content" style="font-size: 1rem; line-height: 1.6;">
+                                        {msg.content}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        {/if}
                     {/each}
 
                     {#if streamingMessage}
-                        <div class="well bg-white p-0 overflow-hidden mb-4 border border-success border-opacity-25 shadow-sm me-md-5">
-                            <div class="bg-light px-4 py-2 border-bottom d-flex justify-content-between align-items-center">
-                                <span class="fw-bold small text-success">Assistant</span>
+                        <div class="bg-white p-0 overflow-hidden mb-5 border shadow-none">
+                            <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
+                                <div class="d-flex align-items-center gap-2 overflow-hidden">
+                                    <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">案</span>
+                                    <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem; flex-shrink: 0;">Assistant</span>
+                                    {#if messages.length > 0 && messages[messages.length-1].role === 'user'}
+                                        <span class="text-muted small text-truncate ms-2 border-start ps-2" style="font-weight: normal; opacity: 0.6;">
+                                            {messages[messages.length-1].content}
+                                        </span>
+                                    {/if}
+                                </div>
                                 <span class="village-spinner" style="width: 0.8rem; height: 0.8rem;"></span>
                             </div>
                             <div class="p-4">
@@ -311,5 +310,11 @@
     }
     .chat-viewport::-webkit-scrollbar-thumb:hover {
         background: #ccc;
+    }
+
+    .active-context {
+        background-color: #568f27 !important;
+        color: white !important;
+        border-color: #568f27 !important;
     }
 </style>

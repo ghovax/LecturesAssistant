@@ -6,7 +6,7 @@
     import { goto } from '$app/navigation';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
-    import { Plus, MessageCircle, FileText, Video, Trash2, ExternalLink } from 'lucide-svelte';
+    import { Plus, MessageCircle, FileText, Video, Trash2, ExternalLink, Edit3 } from 'lucide-svelte';
 
     let examId = $derived(page.params.id);
     let exam = $state<any>(null);
@@ -58,6 +58,27 @@
         }
     }
 
+    async function editExam() {
+        const newTitle = prompt('Enter new project title:', exam.title);
+        if (newTitle === null) return;
+        
+        const newDesc = prompt('Enter new project description:', exam.description);
+        if (newDesc === null) return;
+
+        try {
+            await api.request('PATCH', '/exams', {
+                exam_id: examId,
+                title: newTitle,
+                description: newDesc
+            });
+            exam.title = newTitle;
+            exam.description = newDesc;
+            notifications.success('Project updated.');
+        } catch (e: any) {
+            notifications.error('Failed to update: ' + (e.message || e));
+        }
+    }
+
     onMount(loadData);
 </script>
 
@@ -65,7 +86,12 @@
     <Breadcrumb items={[{ label: 'My Studies', href: '/exams' }, { label: exam.title, active: true }]} />
 
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>{exam.title}</h2>
+        <div class="d-flex align-items-center gap-3">
+            <h2 class="m-0">{exam.title}</h2>
+            <button class="btn btn-link btn-sm text-muted p-0" onclick={editExam} title="Edit Project">
+                <Edit3 size={18} />
+            </button>
+        </div>
         <div class="d-flex gap-2">
             <a href="/exams/{examId}/lectures/new" class="btn btn-primary">
                 <span class="glyphicon me-1"><Plus size={16} /></span> Add Lecture

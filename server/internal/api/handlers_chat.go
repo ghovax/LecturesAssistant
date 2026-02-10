@@ -15,7 +15,7 @@ import (
 	"lectures/internal/models"
 	"lectures/internal/prompts"
 
-	"github.com/google/uuid"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 // handleCreateChatSession creates a new chat session for an exam
@@ -45,8 +45,9 @@ func (server *Server) handleCreateChatSession(responseWriter http.ResponseWriter
 		return
 	}
 
+	sessionID, _ := gonanoid.New()
 	session := models.ChatSession{
-		ID:        uuid.New().String(),
+		ID:        sessionID,
 		ExamID:    createSessionRequest.ExamID,
 		Title:     createSessionRequest.Title,
 		CreatedAt: time.Now(),
@@ -340,8 +341,9 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 		return
 	}
 
+	userMsgID, _ := gonanoid.New()
 	userMessage := models.ChatMessage{
-		ID:        uuid.New().String(),
+		ID:        userMsgID,
 		SessionID: sendMessageRequest.SessionID,
 		Role:      "user",
 		Content:   sendMessageRequest.Content,
@@ -618,8 +620,9 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 		"estimated_cost_usd", totalMetrics.EstimatedCost)
 
 	// Save complete response
+	assistantMsgID, _ := gonanoid.New()
 	assistantMessage := models.ChatMessage{
-		ID:            uuid.New().String(),
+		ID:            assistantMsgID,
 		SessionID:     sessionID,
 		Role:          "assistant",
 		Content:       finalContent,

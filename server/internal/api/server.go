@@ -17,7 +17,7 @@ import (
 	"lectures/internal/prompts"
 	"lectures/internal/tools"
 
-	"github.com/google/uuid"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/gorilla/mux"
 )
 
@@ -196,7 +196,7 @@ func (server *Server) corsMiddleware(next http.Handler) http.Handler {
 
 func (server *Server) requestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		requestID := uuid.New().String()
+		requestID, _ := gonanoid.New()
 		request.Header.Set("X-Request-ID", requestID)
 		responseWriter.Header().Set("X-Request-ID", requestID)
 		next.ServeHTTP(responseWriter, request)

@@ -24,6 +24,7 @@
 	"dependencies": {
 		"@popperjs/core": "^2.11.8",
 		"bootstrap": "^5.3.8",
-		"lucide-svelte": "^0.563.0"
+		"lucide-svelte": "^0.563.0",
+		"nanoid": "^5.1.6"
 	}
 }

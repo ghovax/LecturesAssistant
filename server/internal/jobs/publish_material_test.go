@@ -16,7 +16,7 @@ import (
 	"lectures/internal/models"
 	"lectures/internal/tools"
 
-	"github.com/google/uuid"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 // MockMarkdownConverter for testing
@@ -69,9 +69,9 @@ func TestJob_PublishMaterial_PuppetData(t *testing.T) {
 	}
 
 	// 2. Prepare Puppet Data
-	userID := uuid.New().String()
-	examID := uuid.New().String()
-	lectureID := uuid.New().String()
+	userID := gonanoid.Must()
+	examID := gonanoid.Must()
+	lectureID := gonanoid.Must()
 
 	// Create common records
 	_, _ = db.Exec("INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)", userID, "tester", "hash")
@@ -101,7 +101,7 @@ func TestJob_PublishMaterial_PuppetData(t *testing.T) {
 
 	// Run subtests for different formats
 	t.Run("PDF Format", func(t *testing.T) {
-		toolID := uuid.New().String()
+		toolID := gonanoid.Must()
 		puppetContent := `# Puppet Guide PDF
 ## Intro
 Content with citation[^1].
@@ -117,7 +117,7 @@ Content with citation[^1].
 
 		jobPayload := map[string]any{"tool_id": toolID, "format": "pdf", "include_qr_code": true}
 		payloadBytes, _ := json.Marshal(jobPayload)
-		job := &models.Job{ID: uuid.New().String(), Type: models.JobTypePublishMaterial, Payload: string(payloadBytes)}
+		job := &models.Job{ID: gonanoid.Must(), Type: models.JobTypePublishMaterial, Payload: string(payloadBytes)}
 
 		err = jobQueue.handlers[models.JobTypePublishMaterial](context.Background(), job, func(p int, m string, meta any, metrics models.JobMetrics) {})
 		if err != nil {
@@ -142,7 +142,7 @@ Content with citation[^1].
 	})
 
 	t.Run("Markdown Format", func(t *testing.T) {
-		toolID := uuid.New().String()
+		toolID := gonanoid.Must()
 		puppetContent := `# Puppet Guide MD
 Some markdown content.`
 
@@ -152,7 +152,7 @@ Some markdown content.`
 
 		jobPayload := map[string]any{"tool_id": toolID, "format": "md", "include_qr_code": true}
 		payloadBytes, _ := json.Marshal(jobPayload)
-		job := &models.Job{ID: uuid.New().String(), Type: models.JobTypePublishMaterial, Payload: string(payloadBytes)}
+		job := &models.Job{ID: gonanoid.Must(), Type: models.JobTypePublishMaterial, Payload: string(payloadBytes)}
 
 		err = jobQueue.handlers[models.JobTypePublishMaterial](context.Background(), job, func(p int, m string, meta any, metrics models.JobMetrics) {})
 		if err != nil {

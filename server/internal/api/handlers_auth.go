@@ -10,7 +10,7 @@ import (
 	"lectures/internal/llm"
 	"lectures/internal/models"
 
-	"github.com/google/uuid"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -77,7 +77,7 @@ func (server *Server) handleAuthSetup(responseWriter http.ResponseWriter, reques
 		return
 	}
 
-	userID := uuid.New().String()
+	userID, _ := gonanoid.New()
 	_, databaseError = server.database.Exec(`
 		INSERT INTO users (id, username, password_hash, role, created_at, updated_at)
 		VALUES (?, ?, ?, 'admin', ?, ?)
@@ -135,7 +135,7 @@ func (server *Server) handleAuthRegister(responseWriter http.ResponseWriter, req
 		return
 	}
 
-	userID := uuid.New().String()
+	userID, _ := gonanoid.New()
 	_, err = server.database.Exec(`
 		INSERT INTO users (id, username, password_hash, role, created_at, updated_at)
 		VALUES (?, ?, ?, 'user', ?, ?)
@@ -202,7 +202,7 @@ func (server *Server) handleAuthLogin(responseWriter http.ResponseWriter, reques
 	}
 
 	// Create session
-	sessionID := uuid.New().String()
+	sessionID, _ := gonanoid.New()
 	expiresAt := time.Now().Add(time.Duration(server.configuration.Security.Auth.SessionTimeoutHours) * time.Hour)
 
 	_, databaseError = server.database.Exec(`

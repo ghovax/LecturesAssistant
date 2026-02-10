@@ -16,7 +16,7 @@ import (
 	"lectures/internal/media"
 	"lectures/internal/models"
 
-	"github.com/google/uuid"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 // handleCreateLecture creates a new lecture and binds staged uploads to it
@@ -84,7 +84,7 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	}
 
 	// 1. Create the Lecture
-	lectureID := uuid.New().String()
+	lectureID, _ := gonanoid.New()
 	lecture := models.Lecture{
 		ID:            lectureID,
 		ExamID:        examID,
@@ -168,7 +168,7 @@ func (server *Server) handleUploadPrepare(responseWriter http.ResponseWriter, re
 		return
 	}
 
-	uploadID := uuid.New().String()
+	uploadID, _ := gonanoid.New()
 	uploadDirectory := filepath.Join(os.TempDir(), "lectures-uploads", uploadID)
 	os.MkdirAll(uploadDirectory, 0755)
 
@@ -273,7 +273,7 @@ func (server *Server) handleUploadStage(responseWriter http.ResponseWriter, requ
 // Internal Helpers (The "Staged Upload Interface")
 
 func (server *Server) stageMultipartFile(fileHeader *multipart.FileHeader) string {
-	uploadID := uuid.New().String()
+	uploadID, _ := gonanoid.New()
 	uploadDirectory := filepath.Join(os.TempDir(), "lectures-uploads", uploadID)
 	os.MkdirAll(uploadDirectory, 0755)
 
@@ -307,7 +307,7 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 	destinationDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "files", "lectures", lectureID, targetType+"s")
 	os.MkdirAll(destinationDirectory, 0755)
 
-	fileID := uuid.New().String()
+	fileID, _ := gonanoid.New()
 	rawExtension := filepath.Ext(metadata.Filename)
 
 	// Sanitize extension: only allow lowercase alphanumeric extensions from our supported list

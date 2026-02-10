@@ -15,6 +15,8 @@ import (
 	"lectures/internal/database"
 	"lectures/internal/jobs"
 	"lectures/internal/tools"
+
+	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 func setupHTMLTestEnv(t *testing.T) (*Server, string, string, func()) {
@@ -31,7 +33,7 @@ func setupHTMLTestEnv(t *testing.T) (*Server, string, string, func()) {
 
 	// Create user and session
 	userID := "user-123"
-	sessionID := "session-123"
+	sessionID := gonanoid.Must()
 	_, _ = db.Exec("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)", userID, "testuser", "hash", "user")
 	_, _ = db.Exec("INSERT INTO auth_sessions (id, user_id, created_at, last_activity, expires_at) VALUES (?, ?, ?, ?, ?)", sessionID, userID, time.Now(), time.Now(), time.Now().Add(1*time.Hour))
 

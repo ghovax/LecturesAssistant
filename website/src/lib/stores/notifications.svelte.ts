@@ -1,3 +1,5 @@
+import { nanoid } from 'nanoid';
+
 export interface Notification {
     id: string;
     message: string;
@@ -9,7 +11,7 @@ class NotificationStore {
     notifications = $state<Notification[]>([]);
 
     add(message: string, type: Notification['type'] = 'info', timeout = 5000) {
-        const id = Math.random().toString(36).substring(2, 9);
+        const id = nanoid();
         const notification: Notification = { id, message, type, timeout };
         this.notifications.push(notification);
 

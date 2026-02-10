@@ -9,7 +9,7 @@
     import Tile from '$lib/components/Tile.svelte';
     import CitationPopup from '$lib/components/CitationPopup.svelte';
     import Flashcard from '$lib/components/Flashcard.svelte';
-    import { FileText, Clock, ChevronLeft, ChevronRight, Volume2, Plus, X } from 'lucide-svelte';
+    import { FileText, Clock, ChevronLeft, ChevronRight, Volume2, Plus, X, Edit3 } from 'lucide-svelte';
 
     let { id: examId, lectureId } = $derived(page.params);
     let exam = $state<any>(null);
@@ -19,6 +19,7 @@
     let tools = $state<any[]>([]);
     let guideTool = $derived(tools.find(t => t.type === 'guide'));
     let guideHTML = $state('');
+    let guideCitations = $state<any[]>([]);
     let loading = $state(true);
     let currentSegmentIndex = $state(0);
     let audioElement: HTMLAudioElement | null = $state(null);
@@ -59,6 +60,7 @@
             if (guideTool) {
                 const htmlRes = await api.getToolHTML(guideTool.id, examId);
                 guideHTML = htmlRes.content_html;
+                guideCitations = htmlRes.citations ?? [];
             }
         } catch (e) {
             console.error(e);
@@ -112,21 +114,16 @@
                 const numMatch = id.match(/\d+$/);
                 const num = numMatch ? parseInt(numMatch[0]) : -1;
                 
-                try {
-                    const htmlRes = await api.getToolHTML(guideTool.id, examId);
-                    const meta = htmlRes.citations?.find((c: any) => c.number === num);
+                const meta = guideCitations.find((c: any) => c.number === num);
 
-                    if (meta) {
-                        activeCitation = {
-                            content: meta.content_html,
-                            x: event.clientX,
-                            y: event.clientY,
-                            sourceFile: meta.source_file,
-                            sourcePages: meta.source_pages
-                        };
-                    }
-                } catch (e) {
-                    console.error('Failed to load citation metadata', e);
+                if (meta) {
+                    activeCitation = {
+                        content: meta.content_html,
+                        x: event.clientX,
+                        y: event.clientY,
+                        sourceFile: meta.source_file,
+                        sourcePages: meta.source_pages
+                    };
                 }
             }
         }
@@ -170,6 +167,28 @@
         }
     }
 
+    async function editLecture() {
+        const newTitle = prompt('Enter new lecture title:', lecture.title);
+        if (newTitle === null) return;
+        
+        const newDesc = prompt('Enter new lecture summary:', lecture.description);
+        if (newDesc === null) return;
+
+        try {
+            await api.request('PATCH', '/lectures', {
+                exam_id: examId,
+                lecture_id: lectureId,
+                title: newTitle,
+                description: newDesc
+            });
+            lecture.title = newTitle;
+            lecture.description = newDesc;
+            notifications.success('Lecture updated.');
+        } catch (e: any) {
+            notifications.error('Failed to update: ' + (e.message || e));
+        }
+    }
+
     $effect(() => {
         if (audioElement && transcript?.segments[currentSegmentIndex]) {
             audioElement.load();
@@ -198,7 +217,12 @@
     ]} />
 
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="m-0">{lecture.title}</h2>
+        <div class="d-flex align-items-center gap-3">
+            <h2 class="m-0">{lecture.title}</h2>
+            <button class="btn btn-link btn-sm text-muted p-0" onclick={editLecture} title="Edit Lecture">
+                <Edit3 size={18} />
+            </button>
+        </div>
         <div class="btn-group">
             <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
                 <span class="glyphicon me-1"><Plus size={16} /></span> Create Study Kit
@@ -236,7 +260,7 @@
                             {#each documents as doc}
                                 <Tile href="javascript:void(0)" icon="資" title={doc.title} onclick={() => openDocument(doc.id)}>
                                     {#snippet description()}
-                                        {doc.page_count} pages • {doc.extraction_status === 'completed' ? 'Ready' : 'Reading...'}
+                                        {doc.page_count} pages {doc.extraction_status !== 'completed' ? '• Reading...' : ''}
                                     {/snippet}
                                 </Tile>
                             {/each}
@@ -315,7 +339,7 @@
                                         src="http://localhost:3000/api/documents/pages/image?document_id={selectedDocId}&lecture_id={lectureId}&page_number={p.page_number}&session_token={localStorage.getItem('session_token')}" 
                                         alt="Page {p.page_number}"
                                         class="img-fluid shadow-sm border"
-                                        style="max-height: 70vh; width: auto;"
+                                        style="width: 100%; height: auto;"
                                     />
                                 </div>
                                 
@@ -360,24 +384,28 @@
                                 {:then toolHTML}
                                     <div class="quiz-list">
                                         {#each toolHTML.content as item, i}
-                                            <div class="well bg-white mb-4 p-4 border shadow-none">
-                                                <h4 class="border-bottom pb-2 mb-3">Question {i + 1}</h4>
-                                                <div class="mb-4 fs-5 fw-bold">{@html item.question_html}</div>
-                                                
-                                                <div class="list-group mb-4 shadow-sm">
-                                                    {#each item.options_html as opt}
-                                                        <div class="list-group-item py-3">{@html opt}</div>
-                                                    {/each}
+                                            <div class="bg-white mb-5 border">
+                                                <div class="px-4 py-2 border-bottom bg-light d-flex justify-content-between align-items-center">
+                                                    <span class="fw-bold small text-muted">Question {i + 1}</span>
                                                 </div>
-                                                
-                                                <div class="well bg-success bg-opacity-10 border-success mb-3 p-3">
-                                                    <strong class="text-success small d-block mb-1">Correct Answer</strong>
-                                                    <div class="fs-6 fw-bold">{@html item.correct_answer_html}</div>
-                                                </div>
-                                                
-                                                <div class="well bg-light border-0 m-0 p-3 small">
-                                                    <strong class="text-muted d-block mb-1">Explanation</strong>
-                                                    <div class="text-muted" style="line-height: 1.5;">{@html item.explanation_html}</div>
+                                                <div class="p-4">
+                                                    <div class="mb-4 fs-5 fw-bold" style="line-height: 1.4;">{@html item.question_html}</div>
+                                                    
+                                                    <div class="list-group mb-4 rounded-0 shadow-none">
+                                                        {#each item.options_html as opt}
+                                                            <div class="list-group-item py-3 border-start-0 border-end-0">{@html opt}</div>
+                                                        {/each}
+                                                    </div>
+                                                    
+                                                    <div class="bg-success bg-opacity-10 border-start border-4 border-success mb-4 p-3">
+                                                        <strong class="text-success small d-block mb-1">Correct Answer</strong>
+                                                        <div class="fs-6 fw-bold">{@html item.correct_answer_html}</div>
+                                                    </div>
+                                                    
+                                                    <div class="bg-light border-start border-4 border-secondary p-3 small">
+                                                        <strong class="text-muted d-block mb-1">Explanation</strong>
+                                                        <div class="text-muted" style="line-height: 1.5;">{@html item.explanation_html}</div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         {/each}

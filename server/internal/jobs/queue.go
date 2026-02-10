@@ -11,7 +11,7 @@ import (
 
 	"lectures/internal/models"
 
-	"github.com/google/uuid"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 // Queue manages background job processing
@@ -99,7 +99,7 @@ func (queue *Queue) recoverJobs() {
 
 // Enqueue creates a new job and adds it to the queue
 func (queue *Queue) Enqueue(userID string, jobType string, payload interface{}, courseID, lectureID string) (string, error) {
-	jobID := uuid.New().String()
+	jobID, _ := gonanoid.New()
 
 	payloadJSON, marshalingError := json.Marshal(payload)
 	if marshalingError != nil {

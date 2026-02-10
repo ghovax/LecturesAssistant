@@ -182,14 +182,48 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 	}
 	defer messageRows.Close()
 
-	var messages []models.ChatMessage
+	type chatMessageResponse struct {
+		ID            string    `json:"id"`
+		SessionID     string    `json:"session_id"`
+		Role          string    `json:"role"`
+		Content       string    `json:"content"`
+		ContentHTML   string    `json:"content_html"`
+		ModelUsed     string    `json:"model_used,omitempty"`
+		InputTokens   int       `json:"input_tokens,omitempty"`
+		OutputTokens  int       `json:"output_tokens,omitempty"`
+		EstimatedCost float64   `json:"estimated_cost,omitempty"`
+		CreatedAt     time.Time `json:"created_at"`
+	}
+
+	var messages []chatMessageResponse
 	for messageRows.Next() {
 		var message models.ChatMessage
 		if scanError := messageRows.Scan(&message.ID, &message.SessionID, &message.Role, &message.Content, &message.ModelUsed, &message.InputTokens, &message.OutputTokens, &message.EstimatedCost, &message.CreatedAt); scanError != nil {
 			slog.Error("Failed to scan chat message", "sessionID", sessionID, "error", scanError)
 			continue
 		}
-		messages = append(messages, message)
+
+		// Convert content to HTML
+		contentHTML := message.Content
+		if message.Content != "" {
+			convertedHTML, err := server.markdownConverter.MarkdownToHTML(message.Content)
+			if err == nil {
+				contentHTML = convertedHTML
+			}
+		}
+
+		messages = append(messages, chatMessageResponse{
+			ID:            message.ID,
+			SessionID:     message.SessionID,
+			Role:          message.Role,
+			Content:       message.Content,
+			ContentHTML:   contentHTML,
+			ModelUsed:     message.ModelUsed,
+			InputTokens:   message.InputTokens,
+			OutputTokens:  message.OutputTokens,
+			EstimatedCost: message.EstimatedCost,
+			CreatedAt:     message.CreatedAt,
+		})
 	}
 
 	slog.Info("Retrieved chat messages", "sessionID", sessionID, "count", len(messages))

@@ -148,8 +148,12 @@
                             </div>
                             
                             <!-- Page Text -->
-                            <div class="transcript-text" style="font-size: 1rem; white-space: pre-wrap; line-height: 1.6;">
-                                {p.extracted_text || 'No text content analyzed for this page.'}
+                            <div class="prose">
+                                {#if p.extracted_html}
+                                    {@html p.extracted_html}
+                                {:else}
+                                    <p class="text-muted">No text content analyzed for this page.</p>
+                                {/if}
                             </div>
                         </div>
                     </div>

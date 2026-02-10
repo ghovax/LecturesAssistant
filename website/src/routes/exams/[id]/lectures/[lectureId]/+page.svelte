@@ -346,8 +346,8 @@
                     <div class="mb-4">
                         <div class="bg-white p-4 border mb-5">
                             <div class="small fw-bold text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.1em;">Description</div>
-                            <div class="lead" style="font-size: 1.1rem; line-height: 1.6;">
-                                {lecture.description || 'No summary available for this lesson.'}
+                            <div class="prose" style="font-size: 1.1rem;">
+                                <p>{lecture.description || 'No summary available for this lesson.'}</p>
                             </div>
                         </div>
 
@@ -449,7 +449,7 @@
                                     </div>
                                 {/if}
 
-                                <div class="transcript-text" style="font-size: 1rem; line-height: 1.6;">{@html seg.text_html}</div>
+                                <div class="prose">{@html seg.text_html}</div>
                             </div>
                         {:else}
                             <div class="p-5 text-center">
@@ -503,8 +503,12 @@
                                     />
                                 </div>
                                 
-                                <div class="transcript-text" style="font-size: 1rem; white-space: pre-wrap; line-height: 1.6;">
-                                    {p.extracted_text || 'No content analyzed for this page.'}
+                                <div class="prose">
+                                    {#if p.extracted_html}
+                                        {@html p.extracted_html}
+                                    {:else}
+                                        <p>{p.extracted_text || 'No content analyzed for this page.'}</p>
+                                    {/if}
                                 </div>
                             </div>
                         {:else}

@@ -119,13 +119,39 @@ func (server *Server) handleGetDocumentPages(responseWriter http.ResponseWriter,
 	}
 	defer pageRows.Close()
 
-	var pages []models.ReferencePage
+	type pageResponse struct {
+		ID            string `json:"id"`
+		DocumentID    string `json:"document_id"`
+		PageNumber    int    `json:"page_number"`
+		ImagePath     string `json:"image_path"`
+		ExtractedText string `json:"extracted_text"`
+		ExtractedHTML string `json:"extracted_html"`
+	}
+
+	var pages []pageResponse
 	for pageRows.Next() {
 		var page models.ReferencePage
 		if err := pageRows.Scan(&page.ID, &page.DocumentID, &page.PageNumber, &page.ImagePath, &page.ExtractedText); err != nil {
 			continue
 		}
-		pages = append(pages, page)
+
+		// Convert extracted text to HTML
+		htmlContent := page.ExtractedText
+		if page.ExtractedText != "" {
+			convertedHTML, err := server.markdownConverter.MarkdownToHTML(page.ExtractedText)
+			if err == nil {
+				htmlContent = convertedHTML
+			}
+		}
+
+		pages = append(pages, pageResponse{
+			ID:            strconv.Itoa(page.ID),
+			DocumentID:    page.DocumentID,
+			PageNumber:    page.PageNumber,
+			ImagePath:     page.ImagePath,
+			ExtractedText: page.ExtractedText,
+			ExtractedHTML: htmlContent,
+		})
 	}
 
 	server.writeJSON(responseWriter, http.StatusOK, pages)

@@ -267,10 +267,12 @@
                                         {new Date(msg.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
                                 </div>
-                                <div class="p-4">
-                                    <div class="message-content" style="font-size: 1rem; line-height: 1.6;">
-                                        {msg.content}
-                                    </div>
+                                <div class="p-4 prose">
+                                    {#if msg.content_html}
+                                        {@html msg.content_html}
+                                    {:else}
+                                        <p>{msg.content}</p>
+                                    {/if}
                                 </div>
                             </div>
                         {/if}
@@ -290,10 +292,8 @@
                                 </div>
                                 <span class="village-spinner" style="width: 0.8rem; height: 0.8rem;"></span>
                             </div>
-                            <div class="p-4">
-                                <div class="message-content" style="font-size: 1rem; line-height: 1.6;">
-                                    {streamingMessage}
-                                </div>
+                            <div class="p-4 prose">
+                                <p>{streamingMessage}</p>
                             </div>
                         </div>
                     {/if}

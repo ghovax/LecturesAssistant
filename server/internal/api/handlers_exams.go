@@ -85,7 +85,12 @@ func (server *Server) handleListExams(responseWriter http.ResponseWriter, reques
 	}
 	defer examRows.Close()
 
-	exams := []models.Exam{}
+	type examResponse struct {
+		models.Exam
+		DescriptionHTML string `json:"description_html"`
+	}
+
+	exams := []examResponse{}
 	for examRows.Next() {
 		var exam models.Exam
 		var language sql.NullString
@@ -96,7 +101,19 @@ func (server *Server) handleListExams(responseWriter http.ResponseWriter, reques
 		if language.Valid {
 			exam.Language = language.String
 		}
-		exams = append(exams, exam)
+
+		// Convert description to HTML
+		response := examResponse{Exam: exam}
+		if exam.Description != "" {
+			htmlContent, err := server.markdownConverter.MarkdownToHTML(exam.Description)
+			if err == nil {
+				response.DescriptionHTML = htmlContent
+			} else {
+				response.DescriptionHTML = exam.Description
+			}
+		}
+
+		exams = append(exams, response)
 	}
 
 	server.writeJSON(responseWriter, http.StatusOK, exams)
@@ -133,7 +150,23 @@ func (server *Server) handleGetExam(responseWriter http.ResponseWriter, request 
 		return
 	}
 
-	server.writeJSON(responseWriter, http.StatusOK, exam)
+	// Convert description to HTML
+	type examResponse struct {
+		models.Exam
+		DescriptionHTML string `json:"description_html"`
+	}
+
+	response := examResponse{Exam: exam}
+	if exam.Description != "" {
+		htmlContent, err := server.markdownConverter.MarkdownToHTML(exam.Description)
+		if err == nil {
+			response.DescriptionHTML = htmlContent
+		} else {
+			response.DescriptionHTML = exam.Description
+		}
+	}
+
+	server.writeJSON(responseWriter, http.StatusOK, response)
 }
 
 // handleUpdateExam updates an exam owned by the user

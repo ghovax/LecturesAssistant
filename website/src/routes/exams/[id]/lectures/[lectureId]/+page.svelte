@@ -8,6 +8,7 @@
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
     import CitationPopup from '$lib/components/CitationPopup.svelte';
+    import Flashcard from '$lib/components/Flashcard.svelte';
     import { FileText, Clock, ChevronLeft, ChevronRight, Volume2, Plus, X } from 'lucide-svelte';
 
     let { id: examId, lectureId } = $derived(page.params);
@@ -330,16 +331,59 @@
                         {/if}
                     </div>
                 {:else if activeView === 'tool'}
+                    {@const tool = tools.find(t => t.id === selectedToolId)}
                     <div class="well bg-white p-0 overflow-hidden mb-5 border shadow-sm">
                         <div class="bg-light px-4 py-2 border-bottom d-flex justify-content-between align-items-center">
                             <div class="d-flex align-items-center gap-2">
-                                <span class="glyphicon m-0" style="font-size: 1.1rem; color: #568f27;">札</span>
-                                <span class="fw-bold small" style="letter-spacing: 0.05em;">Viewing Study Kit</span>
+                                <span class="glyphicon m-0" style="font-size: 1.1rem; color: #568f27;">{tool?.type === 'flashcard' ? '札' : '問'}</span>
+                                <span class="fw-bold small" style="letter-spacing: 0.05em;">{tool?.title || 'Practice Mode'}</span>
                             </div>
                             <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center" onclick={() => activeView = 'dashboard'}><X size={16} /></button>
                         </div>
-                        <div class="p-4 text-center">
-                            <a href="/exams/{examId}/tools/{selectedToolId}" class="btn btn-primary">Open Practice Mode</a>
+                        
+                        <div class="p-4">
+                            {#if tool?.type === 'flashcard'}
+                                {#await api.getToolHTML(tool.id, examId)}
+                                    <div class="text-center p-5"><div class="village-spinner mx-auto"></div></div>
+                                {:then toolHTML}
+                                    <div class="row g-4">
+                                        {#each toolHTML.content as card}
+                                            <div class="col-xl-4 col-lg-6 col-md-12">
+                                                <Flashcard frontHTML={card.front_html} backHTML={card.back_html} />
+                                            </div>
+                                        {/each}
+                                    </div>
+                                {/await}
+                            {:else if tool?.type === 'quiz'}
+                                {#await api.getToolHTML(tool.id, examId)}
+                                    <div class="text-center p-5"><div class="village-spinner mx-auto"></div></div>
+                                {:then toolHTML}
+                                    <div class="quiz-list">
+                                        {#each toolHTML.content as item, i}
+                                            <div class="well bg-white mb-4 p-4 border shadow-none">
+                                                <h4 class="border-bottom pb-2 mb-3">Question {i + 1}</h4>
+                                                <div class="mb-4 fs-5 fw-bold">{@html item.question_html}</div>
+                                                
+                                                <div class="list-group mb-4 shadow-sm">
+                                                    {#each item.options_html as opt}
+                                                        <div class="list-group-item py-3">{@html opt}</div>
+                                                    {/each}
+                                                </div>
+                                                
+                                                <div class="well bg-success bg-opacity-10 border-success mb-3 p-3">
+                                                    <strong class="text-success small d-block mb-1">Correct Answer</strong>
+                                                    <div class="fs-6 fw-bold">{@html item.correct_answer_html}</div>
+                                                </div>
+                                                
+                                                <div class="well bg-light border-0 m-0 p-3 small">
+                                                    <strong class="text-muted d-block mb-1">Explanation</strong>
+                                                    <div class="text-muted" style="line-height: 1.5;">{@html item.explanation_html}</div>
+                                                </div>
+                                            </div>
+                                        {/each}
+                                    </div>
+                                {/await}
+                            {/if}
                         </div>
                     </div>
                 {/if}
@@ -428,6 +472,50 @@
         background-color: #568f27;
         color: #fff !important;
         text-decoration: none;
+    }
+
+    /* Table of Contents Styling */
+    .prose :global(#TOC) {
+        background-color: #fcfcfc;
+        border: 1px solid #eee;
+        padding: 1rem 1.5rem;
+        margin-bottom: 2rem;
+        font-size: 0.9rem;
+    }
+
+    .prose :global(#TOC::before) {
+        content: "Contents";
+        display: block;
+        font-weight: bold;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        color: #666;
+        margin-bottom: 0.75rem;
+        letter-spacing: 0.05em;
+    }
+
+    .prose :global(#TOC ul) {
+        list-style: none;
+        padding-left: 0;
+        margin-bottom: 0;
+    }
+
+    .prose :global(#TOC ul ul) {
+        padding-left: 1.25rem;
+        margin-top: 0.25rem;
+    }
+
+    .prose :global(#TOC li) {
+        margin-bottom: 0.25rem;
+    }
+
+    .prose :global(#TOC a) {
+        color: #568f27;
+        text-decoration: none;
+    }
+
+    .prose :global(#TOC a:hover) {
+        text-decoration: underline;
     }
 
     audio::-webkit-media-controls-enclosure {

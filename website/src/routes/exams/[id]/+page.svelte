@@ -137,8 +137,8 @@
                 </div>
 
                 {#if lectures.length === 0}
-                    <div class="well text-center p-4">
-                        <p>No lessons added yet. Click "Add Lesson" to begin.</p>
+                    <div class="well text-center p-5">
+                        <p class="text-muted mb-0">No lessons added yet. Click "Add Lesson" to begin.</p>
                     </div>
                 {:else}
                     <div class="linkTiles tileSizeMd">

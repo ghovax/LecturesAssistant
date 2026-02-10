@@ -182,9 +182,36 @@ func (server *Server) setupRoutes() {
 	if err != nil {
 		slog.Error("Failed to subdirectory embedded web filesystem", "error", err)
 	} else {
-		// Serve static files
-		server.router.PathPrefix("/").Handler(http.FileServer(http.FS(webFS)))
+		// Serve static files with SPA fallback
+		server.router.PathPrefix("/").Handler(server.spaHandler(webFS))
 	}
+}
+
+// spaHandler serves static files with fallback to index.html for SPA routing
+func (server *Server) spaHandler(webFS fs.FS) http.Handler {
+	fileServer := http.FileServer(http.FS(webFS))
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Skip API routes - they're already handled
+		if strings.HasPrefix(r.URL.Path, "/api") {
+			http.NotFound(w, r)
+			return
+		}
+
+		// Try to open the requested file
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path == "" {
+			path = "index.html"
+		}
+
+		_, err := webFS.Open(path)
+		if err != nil {
+			// File doesn't exist - serve index.html for SPA routing
+			r.URL.Path = "/"
+		}
+
+		fileServer.ServeHTTP(w, r)
+	})
 }
 
 // Middleware

@@ -351,7 +351,7 @@
                                 <div class="transcript-text" style="font-size: 1rem; line-height: 1.6;">{@html seg.text_html}</div>
                             </div>
                         {:else}
-                            <div class="p-5 text-center text-muted">Dialogue is not available yet.</div>
+                            <div class="p-5 text-center"><p class="text-muted mb-0">Dialogue is not available yet.</p></div>
                         {/if}
                     </div>
                 {:else if activeView === 'doc'}

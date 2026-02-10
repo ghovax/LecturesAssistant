@@ -201,7 +201,7 @@
                         </button>
                     {/each}
                     {#if allLectures.length === 0}
-                        <div class="p-3 text-center text-muted small">No lessons available yet.</div>
+                        <div class="p-4 text-center"><p class="text-muted mb-0">No lessons available yet.</p></div>
                     {/if}
                 </div>
 

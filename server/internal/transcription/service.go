@@ -214,15 +214,23 @@ func (service *Service) cleanupTranscriptChunk(jobContext context.Context, rawTe
 
 	latexInstructions, _ := service.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
 
+	// Inject a strong language preservation instruction
+	languagePreservation := "Mandatory: You MUST preserve the original language(s) of the transcript. Do NOT translate. If the text is in Italian, it must stay in Italian. If it is in English, it must stay in English. If it is mixed, preserve the mix."
+
 	cleanupPrompt, promptError := service.promptManager.GetPrompt(prompts.PromptCleanTranscript, map[string]string{
-		"transcript":         rawText,
-		"latex_instructions": latexInstructions,
+		"transcript":           rawText,
+		"latex_instructions":   latexInstructions,
+		"language_requirement": languagePreservation,
 	})
 	if promptError != nil {
 		return "", metrics, promptError
 	}
 
-	model := service.configuration.LLM.Model
+	// Use content_polishing model if configured, otherwise fallback to default
+	model := service.configuration.LLM.GetModelForTask("content_polishing")
+	if model == "" {
+		model = service.configuration.LLM.Model
+	}
 
 	responseChannel, chatError := service.llmProvider.Chat(jobContext, &llm.ChatRequest{
 		Model: model,

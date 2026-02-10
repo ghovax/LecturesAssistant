@@ -70,7 +70,7 @@ func (parser *Parser) Parse(markdown string) *Node {
 				allElements = append(allElements, splitElements...)
 			} else {
 				if element.Type == NodeListItem {
-					element.Content = parser.escapeDollarSigns(element.Content)
+					element.Content = parser.escapeUnescapedDollars(element.Content)
 				}
 				allElements = append(allElements, element)
 			}
@@ -102,7 +102,7 @@ func (parser *Parser) unwrapBacktickMath(markdown string) string {
 	return markdown
 }
 
-func (parser *Parser) escapeDollarSigns(text string) string {
+func (parser *Parser) escapeUnescapedDollars(text string) string {
 	var builder strings.Builder
 	runes := []rune(text)
 	for runeIndex := range runes {
@@ -477,7 +477,7 @@ func (parser *Parser) parseTable(lines []string, startIndex int) (*Node, int) {
 
 	headerCells := parser.splitByPipesOutsideMath(headerLine)
 	for i, cell := range headerCells {
-		headerCells[i] = parser.escapeDollarSigns(cell)
+		headerCells[i] = parser.escapeUnescapedDollars(cell)
 	}
 	var rows []*TableRow
 	rows = append(rows, &TableRow{Cells: headerCells, IsHeader: true})
@@ -490,7 +490,7 @@ func (parser *Parser) parseTable(lines []string, startIndex int) (*Node, int) {
 		}
 		cells := parser.splitByPipesOutsideMath(line)
 		for i, cell := range cells {
-			cells[i] = parser.escapeDollarSigns(cell)
+			cells[i] = parser.escapeUnescapedDollars(cell)
 		}
 		rows = append(rows, &TableRow{Cells: cells, IsHeader: false})
 		currentIndex++
@@ -556,7 +556,8 @@ func (parser *Parser) splitParagraphEquations(paragraph *Node) []*Node {
 	var parts []*Node
 
 	// Match dollar signs ($...$ or $$...$$) in the content
-	equationRegex := regexp.MustCompile(`(\${1,2})([^\$]+)(\${1,2})`)
+	// We need to be careful with ordering: check for $$ first
+	equationRegex := regexp.MustCompile(`(\$\${1,2})([^\$]+)(\$\${1,2})|(\$)([^\$]+)(\$)`)
 	matches := equationRegex.FindAllStringSubmatchIndex(content, -1)
 
 	lastIndex := 0
@@ -565,13 +566,32 @@ func (parser *Parser) splitParagraphEquations(paragraph *Node) []*Node {
 		if textBefore != "" {
 			parts = append(parts, &Node{
 				Type:    NodeParagraph,
-				Content: parser.escapeDollarSigns(textBefore),
+				Content: parser.escapeUnescapedDollars(textBefore),
 			})
 		}
 
-		equationContent := strings.TrimSpace(content[match[4]:match[5]])
+		isDisplay := false
+		var equationContent string
+		if match[2] != -1 { // Group 1 (\$\${1,2}) matched something that might be $$
+			delim := content[match[2]:match[3]]
+			if delim == "$$" {
+				isDisplay = true
+				equationContent = strings.TrimSpace(content[match[4]:match[5]])
+			} else {
+				// It matched $ but via the first group? Should not happen with the regex above but let's be safe
+				equationContent = strings.TrimSpace(content[match[4]:match[5]])
+			}
+		} else { // Group 7 ($) matched
+			equationContent = strings.TrimSpace(content[match[10]:match[11]])
+		}
+
+		nodeType := NodeInlineMath
+		if isDisplay {
+			nodeType = NodeDisplayEquation
+		}
+
 		parts = append(parts, &Node{
-			Type:    NodeDisplayEquation,
+			Type:    nodeType,
 			Content: equationContent,
 		})
 
@@ -582,12 +602,12 @@ func (parser *Parser) splitParagraphEquations(paragraph *Node) []*Node {
 	if textAfter != "" {
 		parts = append(parts, &Node{
 			Type:    NodeParagraph,
-			Content: parser.escapeDollarSigns(textAfter),
+			Content: parser.escapeUnescapedDollars(textAfter),
 		})
 	}
 
 	if len(parts) == 0 {
-		paragraph.Content = parser.escapeDollarSigns(paragraph.Content)
+		paragraph.Content = parser.escapeUnescapedDollars(paragraph.Content)
 		return []*Node{paragraph}
 	}
 	return parts

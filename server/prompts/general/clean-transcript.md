@@ -21,6 +21,8 @@ The resulting text must be formatted as one or more paragraphs with natural brea
 **Handling Incomplete Sentences:**
 Start with an ellipsis (...) if the segment clearly begins mid-sentence. End with an ellipsis (...) if it clearly cuts off mid-sentence. Otherwise, all sentences must be complete. Remove all situation markers (e.g., [cough], [applause]).
 
+{{language_requirement}}
+
 {{latex_instructions}}
 
 ---

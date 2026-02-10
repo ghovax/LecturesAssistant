@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -75,6 +76,9 @@ type ConversionOptions struct {
 
 // MarkdownToHTML converts markdown text to HTML string
 func (converter *ExternalConverter) MarkdownToHTML(markdownText string) (string, error) {
+	// Normalize LaTeX delimiters before passing to pandoc
+	markdownText = converter.normalizeMathDelimiters(markdownText)
+
 	command := exec.Command("pandoc",
 		"-f", "gfm+smart",
 		"-t", "html",
@@ -95,6 +99,49 @@ func (converter *ExternalConverter) MarkdownToHTML(markdownText string) (string,
 	}
 
 	return stdout.String(), nil
+}
+
+func (converter *ExternalConverter) normalizeMathDelimiters(markdown string) string {
+	// 1. Escape pre-existing dollar signs (e.g., currency) so they aren't mistaken for math
+	markdown = converter.escapeUnescapedDollars(markdown)
+
+	// 2. \(...\) -> $...$
+	inlineRegex := regexp.MustCompile(`(?s)\\\((.*?)\\\)`)
+	markdown = inlineRegex.ReplaceAllStringFunc(markdown, func(match string) string {
+		// Extract content between \( and \)
+		content := match[2 : len(match)-2]
+		return "$" + strings.TrimSpace(content) + "$"
+	})
+
+	// 3. \[...\] -> $$...$$
+	displayRegex := regexp.MustCompile(`(?s)\\\[(.*?)\\\]`)
+	markdown = displayRegex.ReplaceAllStringFunc(markdown, func(match string) string {
+		// Extract content between \[ and \]
+		content := match[2 : len(match)-2]
+		return "$$" + content + "$$"
+	})
+
+	return markdown
+}
+
+func (converter *ExternalConverter) escapeUnescapedDollars(text string) string {
+	var builder strings.Builder
+	runes := []rune(text)
+	for runeIndex := 0; runeIndex < len(runes); runeIndex++ {
+		if runes[runeIndex] == '$' {
+			// Count backslashes before this dollar sign
+			backslashCount := 0
+			for backslashIndex := runeIndex - 1; backslashIndex >= 0 && runes[backslashIndex] == '\\'; backslashIndex-- {
+				backslashCount++
+			}
+			// If backslash count is even, the dollar is unescaped
+			if backslashCount%2 == 0 {
+				builder.WriteRune('\\')
+			}
+		}
+		builder.WriteRune(runes[runeIndex])
+	}
+	return builder.String()
 }
 
 // HTMLToPDF converts HTML content to a PDF file

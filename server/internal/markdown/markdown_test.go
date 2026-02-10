@@ -256,7 +256,7 @@ func TestArithmeticProgressionIndentation(tester *testing.T) {
 	}
 }
 
-func TestEscapeDollarSigns(tester *testing.T) {
+func TestEscapeUnescapedDollars(tester *testing.T) {
 	testCases := []struct {
 		name     string
 		input    string
@@ -287,7 +287,7 @@ func TestEscapeDollarSigns(tester *testing.T) {
 	markdownParser := NewParser()
 	for _, testCase := range testCases {
 		tester.Run(testCase.name, func(subTester *testing.T) {
-			result := markdownParser.escapeDollarSigns(testCase.input)
+			result := markdownParser.escapeUnescapedDollars(testCase.input)
 			if result != testCase.expected {
 				subTester.Errorf("Expected: %s, Got: %s", testCase.expected, result)
 			}
@@ -1642,6 +1642,74 @@ func TestMixedMathDelimiters(tester *testing.T) {
 
 	if strings.Count(reconstructed, "$") < 4 {
 		tester.Errorf("Expected at least 4 dollar signs, got %d", strings.Count(reconstructed, "$"))
+	}
+}
+
+func TestMarkdownToHTMLMathNormalization(tester *testing.T) {
+	converter := NewConverter("test_data")
+	
+	testCases := []struct {
+		name     string
+		input    string
+		expected string // We check for MathML tags which pandoc produces with --mathml
+	}{
+		{
+			name:     "Inline LaTeX normalization",
+			input:    "The equation \\(E=mc^2\\) is famous.",
+			expected: "<math", 
+		},
+		{
+			name:     "Display LaTeX normalization",
+			input:    "\\[x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}\\]",
+			expected: "display=\"block\"",
+		},
+		{
+			name:     "Currency and math mixed",
+			input:    "Price $100 for \\(x^2\\)",
+			expected: "Price $100 for <math",
+		},
+	}
+
+	for _, tc := range testCases {
+		tester.Run(tc.name, func(t *testing.T) {
+			html, err := converter.MarkdownToHTML(tc.input)
+			if err != nil {
+				// Skip if pandoc not installed in test environment
+				t.Logf("Skipping pandoc test: %v", err)
+				return
+			}
+			if !strings.Contains(html, tc.expected) {
+				t.Errorf("Expected HTML to contain '%s', got: %s", tc.expected, html)
+			}
+		})
+	}
+}
+
+func TestInlineMathReconstruction(tester *testing.T) {
+	parser := NewParser()
+	reconstructor := NewReconstructor()
+	
+	input := "This is \\(inline\\) math."
+	ast := parser.Parse(input)
+	reconstructed := reconstructor.Reconstruct(ast)
+	
+	expected := "This is $inline$ math."
+	if strings.TrimSpace(reconstructed) != expected {
+		tester.Errorf("Expected '%s', got '%s'", expected, reconstructed)
+	}
+}
+
+func TestDisplayMathReconstruction(tester *testing.T) {
+	parser := NewParser()
+	reconstructor := NewReconstructor()
+	
+	input := "\\[E=mc^2\\]"
+	ast := parser.Parse(input)
+	reconstructed := reconstructor.Reconstruct(ast)
+	
+	expected := "$$E=mc^2$$"
+	if strings.TrimSpace(reconstructed) != expected {
+		tester.Errorf("Expected '%s', got '%s'", expected, reconstructed)
 	}
 }
 

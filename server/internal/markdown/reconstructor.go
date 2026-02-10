@@ -83,8 +83,13 @@ func (reconstructor *Reconstructor) reconstructNode(node *Node, markdownLines *[
 		}
 
 	case NodeParagraph:
-		reconstructor.ensureBlankLine(markdownLines)
-		*markdownLines = append(*markdownLines, node.Content)
+		if len(*markdownLines) > 0 && (*markdownLines)[len(*markdownLines)-1] != "" {
+			// Append to the last line if it's not empty (likely followed by inline math)
+			(*markdownLines)[len(*markdownLines)-1] = (*markdownLines)[len(*markdownLines)-1] + " " + node.Content
+		} else {
+			reconstructor.ensureBlankLine(markdownLines)
+			*markdownLines = append(*markdownLines, node.Content)
+		}
 
 	case NodeHeading:
 		reconstructor.ensureBlankLine(markdownLines)
@@ -147,6 +152,14 @@ func (reconstructor *Reconstructor) reconstructNode(node *Node, markdownLines *[
 			*markdownLines = append(*markdownLines, "$$")
 		} else {
 			*markdownLines = append(*markdownLines, fmt.Sprintf("$$%s$$", node.Content))
+		}
+
+	case NodeInlineMath:
+		if len(*markdownLines) > 0 && (*markdownLines)[len(*markdownLines)-1] != "" {
+			// Append to the last line
+			(*markdownLines)[len(*markdownLines)-1] = (*markdownLines)[len(*markdownLines)-1] + " " + fmt.Sprintf("$%s$", node.Content)
+		} else {
+			*markdownLines = append(*markdownLines, fmt.Sprintf("$%s$", node.Content))
 		}
 
 	case NodeCodeBlock:

@@ -15,6 +15,7 @@ const (
 	NodeHorizontalRule  NodeType = "horizontal_rule"
 	NodeTable           NodeType = "table"
 	NodeDisplayEquation NodeType = "display_equation"
+	NodeInlineMath      NodeType = "inline_math"
 	NodeImage           NodeType = "image"
 )
 

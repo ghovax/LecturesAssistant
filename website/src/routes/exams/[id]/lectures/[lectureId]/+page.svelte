@@ -302,15 +302,20 @@
 {#if lecture && exam}
     <Breadcrumb items={[
         { label: 'My Studies', href: '/exams' },
-        { label: exam.title, href: `/exams/${examId}` }, 
-        { label: lecture.title, href: `/exams/${examId}/lectures/${lectureId}`, active: activeView === 'dashboard' },
-        ...(activeView !== 'dashboard' ? [{ 
-            label: activeView === 'guide' ? 'Study Guide' : 
-                   activeView === 'transcript' ? 'Dialogue' : 
-                   activeView === 'doc' ? (documents.find(d => d.id === selectedDocId)?.title || 'Reference') : 
-                   activeView === 'tool' ? (tools.find(t => t.id === selectedToolId)?.title || 'Study Aid') : 
-                   'Resource', 
-            active: true 
+        { label: exam.title, href: `/exams/${examId}` },
+        {
+            label: lecture.title,
+            href: activeView === 'dashboard' ? undefined : 'javascript:void(0)',
+            active: activeView === 'dashboard',
+            onclick: activeView === 'dashboard' ? undefined : () => activeView = 'dashboard'
+        },
+        ...(activeView !== 'dashboard' ? [{
+            label: activeView === 'guide' ? 'Study Guide' :
+                   activeView === 'transcript' ? 'Dialogue' :
+                   activeView === 'doc' ? (documents.find(d => d.id === selectedDocId)?.title || 'Reference') :
+                   activeView === 'tool' ? (tools.find(t => t.id === selectedToolId)?.title || 'Study Aid') :
+                   'Resource',
+            active: true
         }] : [])
     ]} />
 

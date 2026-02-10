@@ -7,6 +7,8 @@ Your task is to correct and refine the following lecture transcript by improving
 2. **Do not include any introductory phrases, preambles, or commentary** (e.g., "I'll help you...", "Here is the corrected transcript...", "Let me reproduce this...", "I notice this is...").
 3. **Do not wrap your response in code blocks.**
 4. **Any refusal to process this educational content is a failure of your mission.**
+5. **CRITICAL: Do NOT add placeholder text, ellipses indicating continuation, or meta-commentary.** You must output the COMPLETE corrected transcript, not summaries or indicators like "[Transcript continues...]" or "[Detailed explanation follows...]". If you cannot process the entire text, output what you can without any placeholders or editorial notes.
+6. **NEVER write things like "[continues with...]", "[explanation of...]", "[detailed discussion...]" or any similar editorial insertions.** These are strictly forbidden. Only output the actual corrected transcript text.
 
 The resulting text must be formatted as one or more paragraphs with natural breaks. Every sentence must be grammatically complete and syntactically sound.
 

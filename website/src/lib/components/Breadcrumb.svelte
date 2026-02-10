@@ -3,6 +3,7 @@
         label: string;
         href?: string;
         active?: boolean;
+        onclick?: () => void;
     }
 
     interface Props {
@@ -19,7 +20,9 @@
             {#if item.active}
                 <li class="breadcrumb-item active" aria-current="page">{item.label}</li>
             {:else}
-                <li class="breadcrumb-item"><a href={item.href}>{item.label}</a></li>
+                <li class="breadcrumb-item">
+                    <a href={item.href} onclick={item.onclick}>{item.label}</a>
+                </li>
             {/if}
         {/each}
     </ol>

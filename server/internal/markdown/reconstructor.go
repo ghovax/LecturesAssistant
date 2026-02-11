@@ -77,15 +77,20 @@ func (reconstructor *Reconstructor) reconstructNode(node *Node, markdownLines *[
 		if node.Title != "" {
 			reconstructor.ensureBlankLine(markdownLines)
 			*markdownLines = append(*markdownLines, fmt.Sprintf("%s %s", strings.Repeat("#", node.Level), node.Title))
+			*markdownLines = append(*markdownLines, "") // Force blank line after heading
 		}
 		for _, child := range node.Children {
 			reconstructor.reconstructNode(child, markdownLines)
 		}
 
 	case NodeParagraph:
+		reconstructor.ensureBlankLine(markdownLines)
+		*markdownLines = append(*markdownLines, node.Content)
+
+	case NodeText:
 		if len(*markdownLines) > 0 && (*markdownLines)[len(*markdownLines)-1] != "" {
-			// Append to the last line if it's not empty (likely followed by inline math)
-			(*markdownLines)[len(*markdownLines)-1] = (*markdownLines)[len(*markdownLines)-1] + " " + node.Content
+			// Append to the last line if it's not empty
+			(*markdownLines)[len(*markdownLines)-1] = (*markdownLines)[len(*markdownLines)-1] + node.Content
 		} else {
 			reconstructor.ensureBlankLine(markdownLines)
 			*markdownLines = append(*markdownLines, node.Content)
@@ -94,6 +99,7 @@ func (reconstructor *Reconstructor) reconstructNode(node *Node, markdownLines *[
 	case NodeHeading:
 		reconstructor.ensureBlankLine(markdownLines)
 		*markdownLines = append(*markdownLines, fmt.Sprintf("%s %s", strings.Repeat("#", node.Level), node.Content))
+		*markdownLines = append(*markdownLines, "") // Force blank line after heading
 
 	case NodeListItem:
 		// Items in a list don't strictly need blank lines between them unless they are "loose"
@@ -157,7 +163,7 @@ func (reconstructor *Reconstructor) reconstructNode(node *Node, markdownLines *[
 	case NodeInlineMath:
 		if len(*markdownLines) > 0 && (*markdownLines)[len(*markdownLines)-1] != "" {
 			// Append to the last line
-			(*markdownLines)[len(*markdownLines)-1] = (*markdownLines)[len(*markdownLines)-1] + " " + fmt.Sprintf("$%s$", node.Content)
+			(*markdownLines)[len(*markdownLines)-1] = (*markdownLines)[len(*markdownLines)-1] + fmt.Sprintf("$%s$", node.Content)
 		} else {
 			*markdownLines = append(*markdownLines, fmt.Sprintf("$%s$", node.Content))
 		}

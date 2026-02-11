@@ -80,7 +80,7 @@ func (converter *ExternalConverter) MarkdownToHTML(markdownText string) (string,
 	markdownText = converter.normalizeMathDelimiters(markdownText)
 
 	command := exec.Command("pandoc",
-		"-f", "gfm+smart",
+		"-f", "gfm+smart+tex_math_dollars",
 		"-t", "html",
 		"--standalone=false",
 		"--mathml",
@@ -121,7 +121,55 @@ func (converter *ExternalConverter) normalizeMathDelimiters(markdown string) str
 		return "$$" + content + "$$"
 	})
 
+	// 4. Convert raw ^ and _ notation to LaTeX if not already in math mode
+	// We do this AFTER normalization so we can accurately skip existing math
+	markdown = converter.convertSimpleSupersub(markdown)
+
+	// 5. Escape literal asterisks used in parentheses like (*) to prevent <em> tags
+	// Biology often uses (*) for stop codons
+	markdown = strings.ReplaceAll(markdown, "(*)", "(\\*)")
+
 	return markdown
+}
+
+func (converter *ExternalConverter) convertSimpleSupersub(text string) string {
+	// We want to match word^something and word_something ONLY when NOT inside $...$ or $$...$$
+	// A simple way is to use a regex that matches either math blocks (which we leave alone)
+	// or the target patterns (which we replace).
+	
+	// Match: 
+	// 1. $$...$$ (group 1)
+	// 2. $...$   (group 2)
+	// 3. \w+^... (group 3)
+	// 4. \w+_... (group 4)
+	
+	combinedRegex := regexp.MustCompile(`(\$\$.*?\$\$)|(\$.*?\$)|((\w+)\^([a-zA-Z0-9]+|\{[^{}]+\}))|((\w+)_([a-zA-Z0-9]+|\{[^{}]+\}))`)
+	
+	return combinedRegex.ReplaceAllStringFunc(text, func(match string) string {
+		if strings.HasPrefix(match, "$") {
+			return match // Leave math blocks alone
+		}
+		
+		// Check for superscript (group 3)
+		if strings.Contains(match, "^") {
+			parts := regexp.MustCompile(`(\w+)\^([a-zA-Z0-9]+|\{[^{}]+\})`).FindStringSubmatch(match)
+			if len(parts) > 2 {
+				content := strings.Trim(parts[2], "{}")
+				return parts[1] + "$^{" + content + "}$"
+			}
+		}
+		
+		// Check for subscript (group 6)
+		if strings.Contains(match, "_") {
+			parts := regexp.MustCompile(`(\w+)_([a-zA-Z0-9]+|\{[^{}]+\})`).FindStringSubmatch(match)
+			if len(parts) > 2 {
+				content := strings.Trim(parts[2], "{}")
+				return parts[1] + "$_{" + content + "}$"
+			}
+		}
+		
+		return match
+	})
 }
 
 func (converter *ExternalConverter) escapeUnescapedDollars(text string) string {

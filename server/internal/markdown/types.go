@@ -8,6 +8,7 @@ const (
 	NodeSection         NodeType = "section"
 	NodeHeading         NodeType = "heading"
 	NodeParagraph       NodeType = "paragraph"
+	NodeText            NodeType = "text"
 	NodeList            NodeType = "list"
 	NodeListItem        NodeType = "list_item"
 	NodeFootnote        NodeType = "footnote"

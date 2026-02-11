@@ -560,12 +560,17 @@ func (parser *Parser) splitParagraphEquations(paragraph *Node) []*Node {
 	equationRegex := regexp.MustCompile(`(\$\${1,2})([^\$]+)(\$\${1,2})|(\$)([^\$]+)(\$)`)
 	matches := equationRegex.FindAllStringSubmatchIndex(content, -1)
 
+	if len(matches) == 0 {
+		paragraph.Content = parser.escapeUnescapedDollars(paragraph.Content)
+		return []*Node{paragraph}
+	}
+
 	lastIndex := 0
 	for _, match := range matches {
-		textBefore := strings.TrimSpace(content[lastIndex:match[0]])
+		textBefore := content[lastIndex:match[0]]
 		if textBefore != "" {
 			parts = append(parts, &Node{
-				Type:    NodeParagraph,
+				Type:    NodeText,
 				Content: parser.escapeUnescapedDollars(textBefore),
 			})
 		}
@@ -598,10 +603,10 @@ func (parser *Parser) splitParagraphEquations(paragraph *Node) []*Node {
 		lastIndex = match[1]
 	}
 
-	textAfter := strings.TrimSpace(content[lastIndex:])
+	textAfter := content[lastIndex:]
 	if textAfter != "" {
 		parts = append(parts, &Node{
-			Type:    NodeParagraph,
+			Type:    NodeText,
 			Content: parser.escapeUnescapedDollars(textAfter),
 		})
 	}

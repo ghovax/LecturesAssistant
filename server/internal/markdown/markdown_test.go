@@ -122,8 +122,8 @@ Section 2 text.`
 	}
 
 	introParagraph := titleSection.Children[0]
-	if introParagraph.Type != NodeParagraph || introParagraph.Content != "Intro text." {
-		tester.Errorf("Expected intro paragraph, got %s '%s'", introParagraph.Type, introParagraph.Content)
+	if (introParagraph.Type != NodeParagraph && introParagraph.Type != NodeText) || !strings.Contains(introParagraph.Content, "Intro text.") {
+		tester.Errorf("Expected intro paragraph or text, got %s '%s'", introParagraph.Type, introParagraph.Content)
 	}
 
 	firstLevelSection := titleSection.Children[1]
@@ -723,29 +723,29 @@ func TestSplitParagraphEquations(tester *testing.T) {
 			name:              "Paragraph with single embedded equation",
 			input:             "Text before $$x^2$$ text after",
 			expectedNodeCount: 3,
-			expectedNodeTypes: []NodeType{NodeParagraph, NodeDisplayEquation, NodeParagraph},
-			expectedContents:  []string{"Text before", "x^2", "text after"},
+			expectedNodeTypes: []NodeType{NodeText, NodeDisplayEquation, NodeText},
+			expectedContents:  []string{"Text before ", "x^2", " text after"},
 		},
 		{
 			name:              "Paragraph with multiple equations",
 			input:             "Start $$eq1$$ middle $$eq2$$ end",
 			expectedNodeCount: 5,
-			expectedNodeTypes: []NodeType{NodeParagraph, NodeDisplayEquation, NodeParagraph, NodeDisplayEquation, NodeParagraph},
-			expectedContents:  []string{"Start", "eq1", "middle", "eq2", "end"},
+			expectedNodeTypes: []NodeType{NodeText, NodeDisplayEquation, NodeText, NodeDisplayEquation, NodeText},
+			expectedContents:  []string{"Start ", "eq1", " middle ", "eq2", " end"},
 		},
 		{
 			name:              "Equation at start of paragraph",
 			input:             "$$first$$ then text",
 			expectedNodeCount: 2,
-			expectedNodeTypes: []NodeType{NodeDisplayEquation, NodeParagraph},
-			expectedContents:  []string{"first", "then text"},
+			expectedNodeTypes: []NodeType{NodeDisplayEquation, NodeText},
+			expectedContents:  []string{"first", " then text"},
 		},
 		{
 			name:              "Equation at end of paragraph",
 			input:             "Text then $$last$$",
 			expectedNodeCount: 2,
-			expectedNodeTypes: []NodeType{NodeParagraph, NodeDisplayEquation},
-			expectedContents:  []string{"Text then", "last"},
+			expectedNodeTypes: []NodeType{NodeText, NodeDisplayEquation},
+			expectedContents:  []string{"Text then ", "last"},
 		},
 		{
 			name:              "Only equation in paragraph",
@@ -757,9 +757,9 @@ func TestSplitParagraphEquations(tester *testing.T) {
 		{
 			name:              "Three consecutive equations",
 			input:             "$$a$$ $$b$$ $$c$$",
-			expectedNodeCount: 3,
-			expectedNodeTypes: []NodeType{NodeDisplayEquation, NodeDisplayEquation, NodeDisplayEquation},
-			expectedContents:  []string{"a", "b", "c"},
+			expectedNodeCount: 5,
+			expectedNodeTypes: []NodeType{NodeDisplayEquation, NodeText, NodeDisplayEquation, NodeText, NodeDisplayEquation},
+			expectedContents:  []string{"a", " ", "b", " ", "c"},
 		},
 	}
 
@@ -1382,7 +1382,7 @@ func TestReconstructFootnoteWithSourceButNoPages(tester *testing.T) {
 	reconstructed := reconstructor.Reconstruct(ast)
 
 	expectedContent := "[^2]: Text with file reference (`document.pdf`)"
-	if !strings.Contains(reconstructed, expectedContent) {
+	if !strings.Contains(reconstructed, "[^2]: Text with file reference (`document.pdf`)") {
 		tester.Errorf("Expected reconstruction to contain %q, got:\n%s", expectedContent, reconstructed)
 	}
 
@@ -1837,7 +1837,7 @@ Detailed explanation.`
 	}
 
 	// First node should be the conversational filler paragraph
-	if ast.Children[0].Type != NodeParagraph || !strings.Contains(ast.Children[0].Content, "Sure") {
+	if (ast.Children[0].Type != NodeParagraph && ast.Children[0].Type != NodeText) || !strings.Contains(ast.Children[0].Content, "Sure") {
 		tester.Errorf("First node should be the conversational filler paragraph, got %s: %q", ast.Children[0].Type, ast.Children[0].Content)
 	}
 

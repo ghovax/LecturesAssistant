@@ -4,6 +4,7 @@
     import { browser } from '$app/environment';
     import { api } from '$lib/api/client';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+    import StatusIndicator from '$lib/components/StatusIndicator.svelte';
     import { FileText, ChevronLeft, ChevronRight, Search } from 'lucide-svelte';
 
     let { id: examId, lectureId, docId } = $derived(page.params);
@@ -84,7 +85,7 @@
     <div class="d-flex justify-content-between align-items-start mb-3">
         <div>
             <h2 class="mb-1">{documentData.title}</h2>
-            <span class="badge bg-dark">Page {currentPageIndex + 1} of {pages.length}</span>
+            <StatusIndicator type="page" current={currentPageIndex + 1} total={pages.length} />
         </div>
     </div>
 
@@ -115,7 +116,7 @@
                     {@const p = pages[currentPageIndex]}
                     <div class="well bg-white mb-5 p-0 overflow-hidden border shadow-sm">
                         <div class="bg-light px-4 py-2 border-bottom d-flex justify-content-between align-items-center">
-                            <span class="fw-bold small text-uppercase">Page {p.page_number}</span>
+                            <StatusIndicator type="page" label="Page" current={p.page_number} total={pages.length} />
                             <div class="btn-group">
                                 <button 
                                     class="btn btn-link btn-sm text-dark p-0 me-2 shadow-none" 

@@ -10,7 +10,9 @@
     import CitationPopup from '$lib/components/CitationPopup.svelte';
     import Flashcard from '$lib/components/Flashcard.svelte';
     import EditModal from '$lib/components/EditModal.svelte';
-    import { FileText, Clock, ChevronLeft, ChevronRight, Volume2, Plus, X, Edit3 } from 'lucide-svelte';
+    import Modal from '$lib/components/Modal.svelte';
+    import StatusIndicator from '$lib/components/StatusIndicator.svelte';
+    import { FileText, Clock, ChevronLeft, ChevronRight, Volume2, Plus, X, Edit3, Loader2 } from 'lucide-svelte';
 
     let { id: examId, lectureId } = $derived(page.params);
     let exam = $state<any>(null);
@@ -32,9 +34,13 @@
     let documentsJobRunning = $derived(jobs.some(j => j.type === 'INGEST_DOCUMENTS' && (j.status === 'PENDING' || j.status === 'RUNNING')));
     let transcriptJob = $derived(jobs.find(j => j.type === 'TRANSCRIBE_MEDIA'));
     let documentsJob = $derived(jobs.find(j => j.type === 'INGEST_DOCUMENTS'));
+    
+    // Derived tools being built
+    let toolsInProgress = $derived(jobs.filter(j => j.type === 'BUILD_MATERIAL' && (j.status === 'PENDING' || j.status === 'RUNNING')));
 
     // View State
     let activeView = $state<'dashboard' | 'guide' | 'transcript' | 'doc' | 'tool'>('dashboard');
+
     let selectedDocId = $state<string | null>(null);
     let selectedDocPages = $state<any[]>([]);
     let selectedDocPageIndex = $state(0);
@@ -422,16 +428,14 @@
                             <div class="p-4">
                                 <div class="transcript-nav mb-4 d-flex justify-content-between align-items-center p-2 border">
                                     <div class="d-flex align-items-center gap-3">
-                                        <div class="d-flex align-items-center gap-2">
-                                            <Volume2 size={16} class="text-success" />
-                                            <span class="fw-bold small">Segment {currentSegmentIndex + 1} of {transcript.segments.length}</span>
-                                        </div>
-                                        <span class="small border-start ps-3">{formatTime(seg.start_millisecond)} &ndash; {formatTime(seg.end_millisecond)}</span>
+                                        <StatusIndicator type="count" label="Segment" current={currentSegmentIndex + 1} total={transcript.segments.length} />
+                                        <StatusIndicator type="time" current={formatTime(seg.start_millisecond)} total={formatTime(seg.end_millisecond)} />
                                         {#if seg.media_filename}
-                                            <span class="text-muted small border-start ps-3" style="font-size: 0.75rem;">{seg.media_filename}</span>
+                                            <span class="text-muted small border-start ps-3 d-none d-lg-inline" style="font-size: 0.75rem;">{seg.media_filename}</span>
                                         {/if}
                                     </div>
                                     <div class="btn-group">
+
                                         <button class="btn btn-outline-success btn-sm p-1 d-flex align-items-center me-2" disabled={currentSegmentIndex === 0} onclick={prevSegment} title="Previous Segment"><ChevronLeft size={18} /></button>
                                         <button class="btn btn-outline-success btn-sm p-1 d-flex align-items-center" disabled={currentSegmentIndex === transcript.segments.length - 1} onclick={nextSegment} title="Next Segment"><ChevronRight size={18} /></button>
                                     </div>
@@ -484,11 +488,9 @@
                             {@const p = selectedDocPages[selectedDocPageIndex]}
                             <div class="p-4">
                                 <div class="document-nav mb-4 d-flex justify-content-between align-items-center p-2 border">
-                                    <div class="d-flex align-items-center gap-2">
-                                        <FileText size={16} class="text-primary" />
-                                        <span class="fw-bold small">Page {p.page_number} of {selectedDocPages.length}</span>
-                                    </div>
+                                    <StatusIndicator type="page" label="Page" current={p.page_number} total={selectedDocPages.length} />
                                     <div class="btn-group">
+
                                         <button class="btn btn-outline-primary btn-sm p-1 d-flex align-items-center me-2" disabled={selectedDocPageIndex === 0} onclick={prevDocPage} title="Previous Page"><ChevronLeft size={18} /></button>
                                         <button class="btn btn-outline-primary btn-sm p-1 d-flex align-items-center" disabled={selectedDocPageIndex === selectedDocPages.length - 1} onclick={nextDocPage} title="Next Page"><ChevronRight size={18} /></button>
                                     </div>
@@ -599,9 +601,24 @@
                                 Read the comprehensive, carefully prepared guide.
                             {/snippet}
                         </Tile>
+                    {:else if toolsInProgress.some(j => j.type === 'BUILD_MATERIAL')}
+                        <Tile href="javascript:void(0)" 
+                            icon="案" 
+                            title="Preparing Guide"
+                            class="tile-processing">
+                            {#snippet description()}
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="spinner-border spinner-border-sm text-success" role="status">
+                                        <span class="visually-hidden">Processing...</span>
+                                    </div>
+                                    <span>Building study guide...</span>
+                                </div>
+                            {/snippet}
+                        </Tile>
                     {/if}
 
                     {#each tools.filter(t => t.type !== 'guide') as tool}
+
                         <Tile href="javascript:void(0)" 
                             icon={tool.type === 'flashcard' ? '札' : '問'} 
                             title={capitalize(tool.type)}
@@ -611,7 +628,24 @@
                             {/snippet}
                         </Tile>
                     {/each}
+
+                    {#each toolsInProgress as job}
+                        <Tile href="javascript:void(0)" 
+                            icon="作" 
+                            title="Preparing Aid"
+                            class="tile-processing">
+                            {#snippet description()}
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="spinner-border spinner-border-sm text-success" role="status">
+                                        <span class="visually-hidden">Processing...</span>
+                                    </div>
+                                    <span>Building study material... {job.progress}%</span>
+                                </div>
+                            {/snippet}
+                        </Tile>
+                    {/each}
                 </div>
+
             </div>
         </div>
     </div>
@@ -632,54 +666,45 @@
     />
 {/if}
 
-{#if showCreateModal}
-    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(2px);">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 rounded-0 shadow-lg">
-                <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">作</span>
-                        <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem;">Customize {capitalize(pendingToolType)}</span>
-                    </div>
-                    <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none" onclick={() => showCreateModal = false}><X size={20} /></button>
-                </div>
-                <div class="modal-body p-4 bg-light">
-                    <div class="mb-4">
-                        <label class="form-label small fw-bold text-muted text-uppercase mb-2" style="letter-spacing: 0.05em;">Target Language</label>
-                        <select class="form-select rounded-0 border shadow-none" bind:value={toolOptions.language_code}>
-                            <option value="en-US">English (US)</option>
-                            <option value="it-IT">Italiano</option>
-                            <option value="es-ES">Español</option>
-                            <option value="de-DE">Deutsch</option>
-                            <option value="fr-FR">Français</option>
-                            <option value="ja-JP">日本語</option>
-                        </select>
-                        <div class="form-text mt-1" style="font-size: 0.7rem;">The assistant will translate and prepare content in this language.</div>
-                    </div>
+<Modal 
+    title="Customize {capitalize(pendingToolType)}" 
+    glyph="作" 
+    isOpen={showCreateModal} 
+    onClose={() => showCreateModal = false}
+>
+    <div class="mb-4">
+        <label class="form-label" for="tool-lang">Target Language</label>
+        <select id="tool-lang" class="form-select rounded-0 border shadow-none" bind:value={toolOptions.language_code}>
+            <option value="en-US">English (US)</option>
+            <option value="it-IT">Italiano</option>
+            <option value="es-ES">Español</option>
+            <option value="de-DE">Deutsch</option>
+            <option value="fr-FR">Français</option>
+            <option value="ja-JP">日本語</option>
+        </select>
+        <div class="form-text mt-1" style="font-size: 0.7rem;">The assistant will translate and prepare content in this language.</div>
+    </div>
 
-                    <div class="mb-4">
-                        <label class="form-label small fw-bold text-muted text-uppercase mb-2" style="letter-spacing: 0.05em;">Level of Detail</label>
-                        <div class="d-flex gap-2">
-                            {#each ['short', 'medium', 'long', 'comprehensive'] as len}
-                                <button 
-                                    class="btn flex-grow-1 rounded-0 border transition-all {toolOptions.length === len ? 'btn-primary' : 'btn-white bg-white text-dark'}"
-                                    onclick={() => toolOptions.length = len}
-                                >
-                                    {capitalize(len)}
-                                </button>
-                            {/each}
-                        </div>
-                    </div>
-                </div>
-                <div class="px-4 py-3 bg-white border-top text-center">
-                    <button class="btn btn-success w-100" onclick={confirmCreateTool}>
-                        Create Material
-                    </button>
-                </div>
-            </div>
+    <div class="mb-0">
+        <label class="form-label">Level of Detail</label>
+        <div class="d-flex gap-2">
+            {#each ['short', 'medium', 'long', 'comprehensive'] as len}
+                <button 
+                    class="btn flex-grow-1 rounded-0 border transition-all {toolOptions.length === len ? 'btn-primary' : 'btn-white bg-white text-dark'}"
+                    onclick={() => toolOptions.length = len}
+                >
+                    {capitalize(len)}
+                </button>
+            {/each}
         </div>
     </div>
-{/if}
+
+    {#snippet footer()}
+        <button class="btn btn-success w-100" onclick={confirmCreateTool}>
+            Create Material
+        </button>
+    {/snippet}
+</Modal>
 
 <style>
     .transcript-text {

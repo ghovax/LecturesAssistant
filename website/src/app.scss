@@ -134,10 +134,22 @@ div.linkTiles a {
     position: relative;
     text-decoration: none;
     vertical-align: top;
+    transition: transform 0.1s ease, background-color 0.1s ease, box-shadow 0.1s ease;
 }
 
 div.tileSizeMd a {
     width: 15.5rem; /* Exactly as specified */
+}
+
+div.linkTiles a:hover {
+    background: #c2c4a8;
+    text-decoration: none;
+}
+
+div.linkTiles a:active {
+    background: #c2c4a8;
+    box-shadow: .1875rem .1875rem .5rem rgba(0, 0, 0, .5);
+    transform: scale(.95);
 }
 
 .linkTiles>a, .linkTiles>a:active, .linkTiles>a:hover {

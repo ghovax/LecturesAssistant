@@ -185,9 +185,14 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 	var messages []models.ChatMessage
 	for messageRows.Next() {
 		var message models.ChatMessage
-		if scanError := messageRows.Scan(&message.ID, &message.SessionID, &message.Role, &message.Content, &message.ModelUsed, &message.InputTokens, &message.OutputTokens, &message.EstimatedCost, &message.CreatedAt); scanError != nil {
+		var modelUsed sql.NullString
+		if scanError := messageRows.Scan(&message.ID, &message.SessionID, &message.Role, &message.Content, &modelUsed, &message.InputTokens, &message.OutputTokens, &message.EstimatedCost, &message.CreatedAt); scanError != nil {
 			slog.Error("Failed to scan chat message", "sessionID", sessionID, "error", scanError)
 			continue
+		}
+
+		if modelUsed.Valid {
+			message.ModelUsed = modelUsed.String
 		}
 
 		// Convert content to HTML

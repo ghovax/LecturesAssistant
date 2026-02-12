@@ -1647,7 +1647,7 @@ func TestMixedMathDelimiters(tester *testing.T) {
 
 func TestMarkdownToHTMLMathNormalization(tester *testing.T) {
 	converter := NewConverter("test_data")
-	
+
 	testCases := []struct {
 		name     string
 		input    string
@@ -1656,7 +1656,7 @@ func TestMarkdownToHTMLMathNormalization(tester *testing.T) {
 		{
 			name:     "Inline LaTeX normalization",
 			input:    "The equation \\(E=mc^2\\) is famous.",
-			expected: "<math", 
+			expected: "<math",
 		},
 		{
 			name:     "Display LaTeX normalization",
@@ -1688,11 +1688,11 @@ func TestMarkdownToHTMLMathNormalization(tester *testing.T) {
 func TestInlineMathReconstruction(tester *testing.T) {
 	parser := NewParser()
 	reconstructor := NewReconstructor()
-	
+
 	input := "This is \\(inline\\) math."
 	ast := parser.Parse(input)
 	reconstructed := reconstructor.Reconstruct(ast)
-	
+
 	expected := "This is $inline$ math."
 	if strings.TrimSpace(reconstructed) != expected {
 		tester.Errorf("Expected '%s', got '%s'", expected, reconstructed)
@@ -1702,11 +1702,11 @@ func TestInlineMathReconstruction(tester *testing.T) {
 func TestDisplayMathReconstruction(tester *testing.T) {
 	parser := NewParser()
 	reconstructor := NewReconstructor()
-	
+
 	input := "\\[E=mc^2\\]"
 	ast := parser.Parse(input)
 	reconstructed := reconstructor.Reconstruct(ast)
-	
+
 	expected := "$$E=mc^2$$"
 	if strings.TrimSpace(reconstructed) != expected {
 		tester.Errorf("Expected '%s', got '%s'", expected, reconstructed)
@@ -1858,4 +1858,3 @@ Detailed explanation.`
 		tester.Errorf("Should find section header 'Main Topic', got %q", title)
 	}
 }
-

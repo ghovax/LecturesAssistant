@@ -36,7 +36,7 @@ func setupImportTestEnv(t *testing.T) (*Server, *jobs.Queue, string, func()) {
 
 	// 3. User & Session
 	userID := "test-user-id"
-	sessionID := gonanoid.Must()
+	_ = gonanoid.Must()
 	_, _ = db.Exec("INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)", userID, "testuser", "hash", "user")
 
 	// 4. Job Queue

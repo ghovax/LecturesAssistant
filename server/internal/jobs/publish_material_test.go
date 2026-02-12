@@ -30,6 +30,9 @@ func (m *MockMarkdownConverter) MarkdownToHTML(markdownText string) (string, err
 	m.LastMarkdown = markdownText
 	return "<html>" + markdownText + "</html>", nil
 }
+func (m *MockMarkdownConverter) NormalizeMath(markdownText string) string {
+	return markdownText
+}
 func (m *MockMarkdownConverter) HTMLToPDF(htmlContent, outputPath string, options markdown.ConversionOptions) error {
 	m.LastOptions = options
 	return os.WriteFile(outputPath, []byte("fake-pdf-content"), 0644)

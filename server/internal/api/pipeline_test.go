@@ -27,7 +27,6 @@ import (
 	"lectures/internal/transcription"
 
 	"github.com/gorilla/websocket"
-	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 type MockLLMProvider struct {
@@ -863,6 +862,10 @@ func (markdownConverter *MockMarkdownConverter) CheckDependencies() error { retu
 
 func (markdownConverter *MockMarkdownConverter) MarkdownToHTML(markdownText string) (string, error) {
 	return "<html>" + markdownText + "</html>", nil
+}
+
+func (markdownConverter *MockMarkdownConverter) NormalizeMath(markdownText string) string {
+	return markdownText
 }
 
 func (markdownConverter *MockMarkdownConverter) HTMLToPDF(htmlContent, outputPath string, options markdown.ConversionOptions) error {

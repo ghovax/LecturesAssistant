@@ -1028,7 +1028,7 @@ func RegisterHandlers(
 		generateFile := func(currentContent string, currentOptions markdown.ConversionOptions) error {
 			// Normalize math for all non-HTML outputs if needed
 			normalizedContent := markdownConverter.NormalizeMath(currentContent)
-			
+
 			contentWithHeader := normalizedContent
 			if payload.Format == "md" || payload.Format == "docx" {
 				metadataHeader := markdownConverter.GenerateMetadataHeader(currentOptions)

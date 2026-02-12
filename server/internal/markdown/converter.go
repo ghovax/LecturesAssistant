@@ -141,23 +141,23 @@ func (converter *ExternalConverter) normalizeMathDelimiters(markdown string) str
 func (converter *ExternalConverter) convertSimpleSupersub(text string) string {
 	// We want to match word^something and word_something ONLY when NOT inside math delimiters.
 	// We match all types of math delimiters to skip them.
-	
-	// Match: 
-	// 1. $$...$$ 
-	// 2. $...$   
+
+	// Match:
+	// 1. $$...$$
+	// 2. $...$
 	// 3. \[...\]
 	// 4. \(...\)
 	// 5. \w+^... (target)
 	// 6. \w+_... (target)
-	
+
 	combinedRegex := regexp.MustCompile(`(\$\$.*?\$\$)|(\$.*?\$)|(\\\(.*?\\\))|(\\\[.*?\\\])|((\w+)\^([a-zA-Z0-9]+|\{[^{}]+\}))|((\w+)_([a-zA-Z0-9]+|\{[^{}]+\}))`)
-	
+
 	return combinedRegex.ReplaceAllStringFunc(text, func(match string) string {
 		// If it starts with any delimiter, skip it
 		if strings.HasPrefix(match, "$") || strings.HasPrefix(match, "\\(") || strings.HasPrefix(match, "\\[") {
 			return match
 		}
-		
+
 		// Check for superscript
 		if strings.Contains(match, "^") {
 			parts := regexp.MustCompile(`(\w+)\^([a-zA-Z0-9]+|\{[^{}]+\})`).FindStringSubmatch(match)
@@ -166,7 +166,7 @@ func (converter *ExternalConverter) convertSimpleSupersub(text string) string {
 				return parts[1] + "\\(^{" + content + "}\\)"
 			}
 		}
-		
+
 		// Check for subscript
 		if strings.Contains(match, "_") {
 			parts := regexp.MustCompile(`(\w+)_([a-zA-Z0-9]+|\{[^{}]+\})`).FindStringSubmatch(match)
@@ -175,7 +175,7 @@ func (converter *ExternalConverter) convertSimpleSupersub(text string) string {
 				return parts[1] + "\\(_{" + content + "}\\)"
 			}
 		}
-		
+
 		return match
 	})
 }
@@ -185,7 +185,7 @@ func (converter *ExternalConverter) escapeUnescapedDollars(text string) string {
 	// Double dollars: $$ ... $$
 	// Single dollars: $ ... $ (must not be empty and must not start/end with space)
 	combinedRegex := regexp.MustCompile(`(\$\$.*?\$\$)|(\$[^$\s][^$]*?[^$\s]\$)|(\$[^$\s]\$)|(\$)`)
-	
+
 	return combinedRegex.ReplaceAllStringFunc(text, func(match string) string {
 		// If it's a math block, return as is
 		if len(match) > 1 && strings.HasPrefix(match, "$") {

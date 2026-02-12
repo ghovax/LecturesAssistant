@@ -43,7 +43,7 @@ type WSMessage struct {
 func NewHub() *Hub {
 	return &Hub{
 		clients:    make(map[*WSClient]bool),
-		broadcast:  make(chan WSMessage),
+		broadcast:  make(chan WSMessage, 1024), // Buffered to prevent blocking
 		register:   make(chan *WSClient),
 		unregister: make(chan *WSClient),
 	}
@@ -51,7 +51,12 @@ func NewHub() *Hub {
 
 // Broadcast sends a message to the hub for broadcasting
 func (hub *Hub) Broadcast(message WSMessage) {
-	hub.broadcast <- message
+	// Use a non-blocking send or a timeout to prevent deadlocking the entire server if the hub is stuck
+	select {
+	case hub.broadcast <- message:
+	case <-time.After(5 * time.Second):
+		slog.Error("Hub broadcast channel full, message dropped", "type", message.Type, "channel", message.Channel)
+	}
 }
 
 // Run starts the hub loop
@@ -62,30 +67,51 @@ func (hub *Hub) Run() {
 			hub.mutex.Lock()
 			hub.clients[client] = true
 			hub.mutex.Unlock()
+			slog.Debug("WS client registered", "total", len(hub.clients))
+
 		case client := <-hub.unregister:
 			hub.mutex.Lock()
-			if _, isRegistered := hub.clients[client]; isRegistered {
+			if _, ok := hub.clients[client]; ok {
 				delete(hub.clients, client)
 				close(client.send)
 			}
 			hub.mutex.Unlock()
+			slog.Debug("WS client unregistered", "total", len(hub.clients))
+
 		case wsMessage := <-hub.broadcast:
 			hub.mutex.RLock()
+			var toRemove []*WSClient
 			sentCount := 0
-			totalClients := len(hub.clients)
+
 			for client := range hub.clients {
 				if client.isSubscribed(wsMessage.Channel) {
 					select {
 					case client.send <- wsMessage:
 						sentCount++
 					default:
-						close(client.send)
-						delete(hub.clients, client)
+						// If send channel is full, mark client for removal
+						toRemove = append(toRemove, client)
 					}
 				}
 			}
 			hub.mutex.RUnlock()
-			slog.Debug("Broadcast message sent", "type", wsMessage.Type, "channel", wsMessage.Channel, "recipients", sentCount, "total_clients", totalClients)
+
+			// Perform removals outside of RLock to avoid concurrent map modification
+			if len(toRemove) > 0 {
+				hub.mutex.Lock()
+				for _, client := range toRemove {
+					if _, ok := hub.clients[client]; ok {
+						delete(hub.clients, client)
+						close(client.send)
+						slog.Warn("WS client disconnected due to full buffer", "userID", client.userID)
+					}
+				}
+				hub.mutex.Unlock()
+			}
+
+			if sentCount > 0 || len(toRemove) > 0 {
+				slog.Debug("Broadcast delivered", "type", wsMessage.Type, "channel", wsMessage.Channel, "sent", sentCount, "dropped", len(toRemove))
+			}
 		}
 	}
 }
@@ -112,22 +138,17 @@ func (client *WSClient) isSubscribed(channel string) bool {
 func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, request *http.Request) {
 	sessionToken := server.getSessionToken(request)
 	if sessionToken == "" {
-		slog.Warn("WebSocket attempt without session token")
 		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Authentication required", nil)
 		return
 	}
 
-	// Verify session and get user ID
 	var userID string
 	var expiresAt time.Time
 	databaseError := server.database.QueryRow("SELECT user_id, expires_at FROM auth_sessions WHERE id = ?", sessionToken).Scan(&userID, &expiresAt)
 	if databaseError != nil || time.Now().After(expiresAt) {
-		slog.Warn("WebSocket attempt with invalid or expired token", "error", databaseError)
 		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid or expired session", nil)
 		return
 	}
-
-	slog.Info("Upgrading WebSocket connection", "userID", userID, "origin", request.Header.Get("Origin"))
 
 	connection, upgradeError := upgrader.Upgrade(responseWriter, request, nil)
 	if upgradeError != nil {
@@ -139,18 +160,17 @@ func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, reques
 		hub:           server.wsHub,
 		server:        server,
 		connection:    connection,
-		send:          make(chan any, 256),
+		send:          make(chan any, 512), // Larger buffer
 		subscriptions: make(map[string]chan bool),
-		userID:        userID, // Add this field to WSClient
+		userID:        userID,
 	}
-	
+
 	// Auto-subscribe to chat session if provided in query
 	if autoChatID := request.URL.Query().Get("subscribe_chat"); autoChatID != "" {
-		// Basic check if chat belongs to user
 		var exists bool
 		server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM chat_sessions JOIN exams ON chat_sessions.exam_id = exams.id WHERE chat_sessions.id = ? AND exams.user_id = ?)", autoChatID, userID).Scan(&exists)
 		if exists {
-			slog.Info("Auto-subscribing to chat", "sessionID", autoChatID)
+			slog.Info("Auto-subscribing to chat", "sessionID", autoChatID, "userID", userID)
 			client.subscriptions["chat:"+autoChatID] = make(chan bool)
 		}
 	}
@@ -215,6 +235,7 @@ func (client *WSClient) writePump() {
 			}
 
 			if err := client.connection.WriteJSON(wsMessage); err != nil {
+				slog.Error("WS write error", "userID", client.userID, "error", err)
 				return
 			}
 
@@ -245,14 +266,6 @@ func (client *WSClient) handleSubscribe(channel string) {
 		go client.monitorJob(jobID, stopChannel)
 	}
 
-	if len(channel) > 8 && channel[:8] == "lecture:" {
-		// Generic lecture channel, just used for broadcast
-	}
-
-	if len(channel) > 7 && channel[:7] == "course:" {
-		// Generic course channel, just used for broadcast
-	}
-
 	client.send <- map[string]any{
 		"type":      "subscribed",
 		"channel":   channel,
@@ -271,10 +284,8 @@ func (client *WSClient) handleUnsubscribe(channel string) {
 }
 
 func (client *WSClient) monitorJob(jobID string, stopChannel chan bool) {
-	// Verify job ownership
 	job, err := client.server.jobQueue.GetJob(jobID)
 	if err != nil || job.UserID != client.userID {
-		slog.Warn("Unauthorized job subscription attempt", "jobID", jobID, "userID", client.userID)
 		return
 	}
 

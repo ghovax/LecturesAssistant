@@ -175,9 +175,9 @@
     async function loadLectureData() {
         try {
             const [lectureR, transcriptR, docsR, toolsR] = await Promise.all([
-                api.getLecture(lectureId, examId),
+                api.getLecture(lectureId!, examId!),
                 api.request('GET', `/transcripts/html?lecture_id=${lectureId}`),
-                api.listDocuments(lectureId),
+                api.listDocuments(lectureId!),
                 api.request('GET', `/tools?lecture_id=${lectureId}&exam_id=${examId}`)
             ]);
             lecture = lectureR;
@@ -186,7 +186,7 @@
             tools = toolsR ?? [];
 
             if (guideTool) {
-                const htmlRes = await api.getToolHTML(guideTool.id, examId);
+                const htmlRes = await api.getToolHTML(guideTool.id, examId!);
                 guideHTML = htmlRes.content_html;
                 guideCitations = htmlRes.citations ?? [];
             }
@@ -199,7 +199,7 @@
         loading = true;
         try {
             const [examR, settingsR] = await Promise.all([
-                api.getExam(examId),
+                api.getExam(examId!),
                 api.getSettings()
             ]);
             exam = examR;
@@ -224,7 +224,7 @@
         activeView = 'doc';
         selectedDocPageIndex = 0;
         try {
-            selectedDocPages = await api.getDocumentPages(id, lectureId);
+            selectedDocPages = await api.getDocumentPages(id, lectureId!);
         } catch (e) {
             console.error('Failed to load document pages', e);
         }
@@ -537,7 +537,13 @@
                         </div>
                     </div>
                 {:else if activeView === 'guide'}
-                    <div class="well bg-white p-0 overflow-hidden mb-5 border" onclick={handleCitationClick}>
+                    <div 
+                        class="well bg-white p-0 overflow-hidden mb-5 border" 
+                        onclick={handleCitationClick}
+                        onkeydown={(e) => e.key === 'Enter' && handleCitationClick(e as any)}
+                        role="article"
+                        tabindex="0"
+                    >
                         <div class="standard-header">
                             <div class="header-title">
                                 <span class="header-glyph" lang="ja">案</span>
@@ -684,7 +690,7 @@
                         
                         <div class="p-4">
                             {#if tool?.type === 'flashcard'}
-                                {#await api.getToolHTML(tool.id, examId)}
+                                {#await api.getToolHTML(tool.id, examId!)}
                                     <div class="text-center p-5"><div class="village-spinner mx-auto"></div></div>
                                 {:then toolHTML}
                                     <div class="row g-4">
@@ -696,7 +702,7 @@
                                     </div>
                                 {/await}
                             {:else if tool?.type === 'quiz'}
-                                {#await api.getToolHTML(tool.id, examId)}
+                                {#await api.getToolHTML(tool.id, examId!)}
                                     <div class="text-center p-5"><div class="village-spinner mx-auto"></div></div>
                                 {:then toolHTML}
                                     <div class="quiz-list">
@@ -880,7 +886,7 @@
     </div>
 
     <div class="mb-0">
-        <label class="form-label">Level of Detail</label>
+        <span class="form-label">Level of Detail</span>
         <div class="d-flex gap-2">
             {#each ['short', 'medium', 'long', 'comprehensive'] as len}
                 <button 
@@ -901,14 +907,6 @@
 </Modal>
 
 <style>
-    .transcript-text {
-        color: #333;
-    }
-
-    .last-child-border-0:last-child {
-        border-bottom: 0 !important;
-    }
-
     .prose :global(h2) { font-size: 1.5rem; margin-top: 2rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; color: #2c4529; }
     .prose :global(h3) { font-size: 1.2rem; margin-top: 1.5rem; color: #555; }
     .prose :global(p) { line-height: 1.6; margin-bottom: 1rem; font-size: 1rem; }

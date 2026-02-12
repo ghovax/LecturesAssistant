@@ -49,7 +49,9 @@
                 <div class="text-center">
                     <button type="submit" class="btn btn-primary px-4" disabled={loading}>
                         {#if loading}
-                            <span class="village-spinner d-inline-block me-2" style="width: 1rem; height: 1rem;"></span>
+                            <div class="spinner-border spinner-border-sm me-2" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
                         {/if}
                         Sign In
                     </button>

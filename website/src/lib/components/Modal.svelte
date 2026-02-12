@@ -33,10 +33,10 @@
         <div class="modal-dialog modal-dialog-centered" style="max-width: {maxWidth};">
             <div class="modal-content border-0 rounded-0 shadow-kakimashou">
                 <!-- Header -->
-                <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="glyph-icon" lang="ja">{glyph}</span>
-                        <span class="fw-bold modal-title-text">{title}</span>
+                <div class="standard-header">
+                    <div class="header-title">
+                        <span class="header-glyph" lang="ja">{glyph}</span>
+                        <span class="header-text">{title}</span>
                     </div>
                     <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={onClose}>
                         <X size={20} />
@@ -62,19 +62,6 @@
 <style lang="scss">
     .shadow-kakimashou {
         box-shadow: .3125rem .3125rem .625rem rgba(0, 0, 0, .5) !important;
-    }
-
-    .glyph-icon {
-        font-size: 1.25rem;
-        color: #568f27;
-        font-family: "ＭＳ Ｐゴシック", "MS PGothic", "メイリオ", Meiryo, sans-serif;
-    }
-
-    .modal-title-text {
-        letter-spacing: 0.02em;
-        font-size: 1rem;
-        text-transform: uppercase;
-        color: #333;
     }
 
     .modal-content {

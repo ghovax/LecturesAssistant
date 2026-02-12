@@ -11,8 +11,9 @@
     import Flashcard from '$lib/components/Flashcard.svelte';
     import EditModal from '$lib/components/EditModal.svelte';
     import Modal from '$lib/components/Modal.svelte';
+    import ConfirmModal from '$lib/components/ConfirmModal.svelte';
     import StatusIndicator from '$lib/components/StatusIndicator.svelte';
-    import { FileText, Clock, ChevronLeft, ChevronRight, Volume2, Plus, X, Edit3, Loader2 } from 'lucide-svelte';
+    import { FileText, Clock, ChevronLeft, ChevronRight, Volume2, Plus, X, Edit3, Loader2, Trash2 } from 'lucide-svelte';
 
     let { id: examId, lectureId } = $derived(page.params);
     let exam = $state<any>(null);
@@ -29,6 +30,30 @@
     let audioElement: HTMLAudioElement | null = $state(null);
     let jobPollingInterval: number | null = null;
 
+    // Confirmation Modal State
+    let confirmModal = $state({
+        isOpen: false,
+        title: '',
+        message: '',
+        confirmText: 'Confirm',
+        onConfirm: () => {},
+        isDanger: false
+    });
+
+    function showConfirm(options: { title: string, message: string, confirmText?: string, onConfirm: () => void, isDanger?: boolean }) {
+        confirmModal = {
+            isOpen: true,
+            title: options.title,
+            message: options.message,
+            confirmText: options.confirmText ?? 'Confirm',
+            onConfirm: () => {
+                options.onConfirm();
+                confirmModal.isOpen = false;
+            },
+            isDanger: options.isDanger ?? false
+        };
+    }
+
     // Derived state for job status
     let transcriptJobRunning = $derived(jobs.some(j => j.type === 'TRANSCRIBE_MEDIA' && (j.status === 'PENDING' || j.status === 'RUNNING')));
     let documentsJobRunning = $derived(jobs.some(j => j.type === 'INGEST_DOCUMENTS' && (j.status === 'PENDING' || j.status === 'RUNNING')));
@@ -37,6 +62,10 @@
     
     // Derived tools being built
     let activeToolsJobs = $derived(jobs.filter(j => j.type === 'BUILD_MATERIAL' && (j.status === 'PENDING' || j.status === 'RUNNING' || j.status === 'FAILED')));
+
+    let hasGuide = $derived(tools.some(t => t.type === 'guide') || activeToolsJobs.some(j => j.payload?.type === 'guide'));
+    let hasFlashcards = $derived(tools.some(t => t.type === 'flashcard') || activeToolsJobs.some(j => j.payload?.type === 'flashcard'));
+    let hasQuiz = $derived(tools.some(t => t.type === 'quiz') || activeToolsJobs.some(j => j.payload?.type === 'quiz'));
 
     // View State
     let activeView = $state<'dashboard' | 'guide' | 'transcript' | 'doc' | 'tool'>('dashboard');
@@ -178,6 +207,25 @@
         }
     }
 
+    async function deleteTool(id: string) {
+        showConfirm({
+            title: 'Delete Material',
+            message: 'Are you sure you want to remove this study material? This cannot be undone.',
+            isDanger: true,
+            confirmText: 'Remove',
+            onConfirm: async () => {
+                try {
+                    await api.request('DELETE', '/tools', { tool_id: id, exam_id: examId });
+                    notifications.success('Material removed.');
+                    activeView = 'dashboard';
+                    await loadLectureData();
+                } catch (e: any) {
+                    notifications.error(e.message || e);
+                }
+            }
+        });
+    }
+
     async function handleCitationClick(event: MouseEvent) {
         const target = event.target as HTMLElement;
         const footnoteRef = target.closest('.footnote-ref');
@@ -229,7 +277,32 @@
         }
     }
 
-    function createTool(type: string) {
+    async function createTool(type: string) {
+        // Check if tool already exists or is being built
+        const existing = tools.find(t => t.type === type);
+        if (existing) {
+            showConfirm({
+                title: `Recreate ${capitalize(type)}`,
+                message: `A ${type} already exists. Do you want to delete it and create a new one?`,
+                confirmText: 'Recreate',
+                onConfirm: async () => {
+                    try {
+                        await api.request('DELETE', '/tools', { tool_id: existing.id, exam_id: examId });
+                        await loadLectureData();
+                        // Proceed to show creation modal
+                        pendingToolType = type;
+                        if (lecture?.language) {
+                            toolOptions.language_code = lecture.language;
+                        }
+                        showCreateModal = true;
+                    } catch (e: any) {
+                        notifications.error('Failed to remove old material: ' + e.message);
+                    }
+                }
+            });
+            return;
+        }
+
         pendingToolType = type;
         if (lecture?.language) {
             toolOptions.language_code = lecture.language;
@@ -337,12 +410,12 @@
         </div>
         <div class="btn-group">
             <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
-                <span class="glyphicon me-1"><Plus size={16} /></span> Create Study Aid
+                <span class="glyphicon me-1"><Plus size={16} /></span> Prepare Material
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
-                <li><button class="dropdown-item" onclick={() => createTool('guide')}>Study Guide</button></li>
-                <li><button class="dropdown-item" onclick={() => createTool('flashcard')}>Flashcards</button></li>
-                <li><button class="dropdown-item" onclick={() => createTool('quiz')}>Practice Quiz</button></li>
+                <li><button class="dropdown-item" onclick={() => createTool('guide')}>{hasGuide ? 'Recreate' : 'Create'} Study Guide</button></li>
+                <li><button class="dropdown-item" onclick={() => createTool('flashcard')}>{hasFlashcards ? 'Recreate' : 'Create'} Flashcards</button></li>
+                <li><button class="dropdown-item" onclick={() => createTool('quiz')}>{hasQuiz ? 'Recreate' : 'Create'} Practice Quiz</button></li>
             </ul>
         </div>
     </div>
@@ -353,9 +426,14 @@
             <div class="col-lg-9 col-md-8 order-md-1">
                 {#if activeView === 'dashboard'}
                     <div class="mb-4">
-                        <div class="bg-white p-4 border mb-5">
-                            <div class="small fw-bold text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.1em;">Description</div>
-                            <div class="prose" style="font-size: 1.1rem;">
+                        <div class="bg-white border mb-5">
+                            <div class="standard-header">
+                                <div class="header-title">
+                                    <span class="header-glyph" lang="ja">解</span>
+                                    <span class="header-text">Description</span>
+                                </div>
+                            </div>
+                            <div class="p-4 prose" style="font-size: 1.1rem;">
                                 <p>{lecture.description || 'No summary available for this lesson.'}</p>
                             </div>
                         </div>
@@ -405,12 +483,17 @@
                     </div>
                 {:else if activeView === 'guide'}
                     <div class="well bg-white p-0 overflow-hidden mb-5 border" onclick={handleCitationClick}>
-                        <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">案</span>
-                                <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem;">Study Guide</span>
+                        <div class="standard-header">
+                            <div class="header-title">
+                                <span class="header-glyph" lang="ja">案</span>
+                                <span class="header-text">Study Guide</span>
                             </div>
-                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                            <div class="d-flex align-items-center gap-2">
+                                <button class="btn btn-link btn-sm text-danger p-0 d-flex align-items-center shadow-none border-0" title="Delete Guide" onclick={() => deleteTool(guideTool.id)}>
+                                    <Trash2 size={18} />
+                                </button>
+                                <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                            </div>
                         </div>
                         <div class="p-4 prose">
                             {@html guideHTML}
@@ -418,12 +501,12 @@
                     </div>
                 {:else if activeView === 'transcript'}
                     <div class="well bg-white p-0 overflow-hidden mb-5 border">
-                        <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">講</span>
-                                <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem;">Dialogue</span>
+                        <div class="standard-header">
+                            <div class="header-title">
+                                <span class="header-glyph" lang="ja">講</span>
+                                <span class="header-text">Dialogue</span>
                             </div>
-                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
                         </div>
                         
                         {#if transcript && transcript.segments}
@@ -479,12 +562,12 @@
                 {:else if activeView === 'doc'}
                     {@const doc = documents.find(d => d.id === selectedDocId)}
                     <div class="well bg-white p-0 overflow-hidden mb-5 border">
-                        <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">資</span>
-                                <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem;">{doc?.title || 'Study Resource'}</span>
+                        <div class="standard-header">
+                            <div class="header-title">
+                                <span class="header-glyph" lang="ja">資</span>
+                                <span class="header-text">{doc?.title || 'Study Resource'}</span>
                             </div>
-                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
                         </div>
                         
                         {#if selectedDocPages.length > 0}
@@ -518,20 +601,31 @@
                             </div>
                         {:else}
                             <div class="p-5 text-center text-muted">
-                                <div class="village-spinner mx-auto mb-3"></div>
-                                <p>Analyzing resources...</p>
+                                <div class="d-flex flex-column align-items-center gap-3">
+                                    <div class="spinner-border text-success" role="status">
+                                        <span class="visually-hidden">Analyzing...</span>
+                                    </div>
+                                    <p class="mb-0">Analyzing study material...</p>
+                                </div>
                             </div>
                         {/if}
                     </div>
                 {:else if activeView === 'tool'}
                     {@const tool = tools.find(t => t.id === selectedToolId)}
                     <div class="well bg-white p-0 overflow-hidden mb-5 border">
-                        <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
-                            <div class="d-flex align-items-center gap-2">
-                                <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">{tool?.type === 'flashcard' ? '札' : '問'}</span>
-                                <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem;">{tool?.title || 'Practice Mode'}</span>
+                        <div class="standard-header">
+                            <div class="header-title">
+                                <span class="header-glyph" lang="ja">{tool?.type === 'flashcard' ? '札' : '問'}</span>
+                                <span class="header-text">{tool?.title || 'Practice Mode'}</span>
                             </div>
-                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                            <div class="d-flex align-items-center gap-2">
+                                {#if tool}
+                                    <button class="btn btn-link btn-sm text-danger p-0 d-flex align-items-center shadow-none border-0" title="Delete {capitalize(tool.type)}" onclick={() => deleteTool(tool.id)}>
+                                        <Trash2 size={18} />
+                                    </button>
+                                {/if}
+                                <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                            </div>
                         </div>
                         
                         <div class="p-4">
@@ -588,80 +682,88 @@
 
             <!-- Sidebar: Navigation Tiles ONLY (Right Side on Desktop) -->
             <div class="col-lg-3 col-md-4 order-md-2">
-                <div class="linkTiles tileSizeMd w-100 m-0 d-flex flex-column align-items-center">
-                    <Tile href="javascript:void(0)" 
-                          icon={activeView === 'dashboard' ? '家' : '戻'} 
-                          title={activeView === 'dashboard' ? 'Dashboard' : 'Back to Hub'} 
-                          onclick={() => activeView = 'dashboard'}>
-                        {#snippet description()}
-                            {activeView === 'dashboard' ? 'Lesson overview and resources.' : 'Return to the lesson dashboard.'}
-                        {/snippet}
-                    </Tile>
+                <div class="bg-white border mb-4">
+                    <div class="standard-header">
+                        <div class="header-title">
+                            <span class="header-glyph" lang="ja">案</span>
+                            <span class="header-text">Study Aids</span>
+                        </div>
+                    </div>
+                    <div class="linkTiles tileSizeMd w-100 m-0 d-flex flex-column align-items-center p-2">
+                        {#if activeView !== 'dashboard'}
+                            <Tile icon="戻" 
+                                title="Back to Hub" 
+                                onclick={() => activeView = 'dashboard'}>
+                                {#snippet description()}
+                                    Return to the lesson dashboard.
+                                {/snippet}
+                            </Tile>
+                        {/if}
 
-                    {#if guideTool}
-                        <Tile href="javascript:void(0)" icon="案" title="Study Guide" onclick={() => activeView = 'guide'}>
-                            {#snippet description()}
-                                Read the comprehensive, carefully prepared guide.
-                            {/snippet}
-                        </Tile>
-                    {:else if toolsInProgress.some(j => j.type === 'BUILD_MATERIAL')}
-                        <Tile href="javascript:void(0)" 
-                            icon="案" 
-                            title="Preparing Guide"
-                            class="tile-processing">
-                            {#snippet description()}
-                                <div class="d-flex align-items-center gap-2">
-                                    <div class="spinner-border spinner-border-sm text-success" role="status">
-                                        <span class="visually-hidden">Processing...</span>
-                                    </div>
-                                    <span>Building study guide...</span>
-                                </div>
-                            {/snippet}
-                        </Tile>
-                    {/if}
+                        {#if guideTool}
+                            <Tile href="javascript:void(0)" icon="案" title="Study Guide" onclick={() => activeView = 'guide'}>
+                                {#snippet description()}
+                                    Read the comprehensive, carefully prepared guide.
+                                {/snippet}
+                            </Tile>
+                        {/if}
 
-                    {#each tools.filter(t => t.type !== 'guide') as tool}
-
-                        <Tile href="javascript:void(0)" 
-                            icon={tool.type === 'flashcard' ? '札' : '問'} 
-                            title={capitalize(tool.type)}
-                            onclick={() => openTool(tool.id)}>
-                            {#snippet description()}
-                                Practice your knowledge.
-                            {/snippet}
-                        </Tile>
-                    {/each}
-
-                    {#each activeToolsJobs as job}
-                        <Tile
-                            icon={job.status === 'FAILED' ? '疑' : '作'} 
-                            title={job.status === 'FAILED' ? 'Failed Generation' : 'Preparing Aid'}
-                            class={job.status === 'FAILED' ? 'tile-error' : 'tile-processing'}
-                        >
-                            {#snippet description()}
-                                {#if job.status === 'FAILED'}
-                                    <div class="text-danger small fw-bold">
-                                        <X size={14} class="me-1" /> Generation failed.
-                                    </div>
-                                {:else}
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div class="spinner-border spinner-border-sm text-success" role="status">
-                                            <span class="visually-hidden">Processing...</span>
-                                        </div>
-                                        <span>Building study material... {job.progress}%</span>
-                                    </div>
-                                {/if}
-                            {/snippet}
-                        </Tile>
-                    {/each}
+                        {#each tools.filter(t => t.type !== 'guide') as tool}
+                            <Tile href="javascript:void(0)" 
+                                icon={tool.type === 'flashcard' ? '札' : '問'} 
+                                title={capitalize(tool.type)}
+                                onclick={() => openTool(tool.id)}>
+                                {#snippet description()}
+                                    Practice your knowledge.
+                                {/snippet}
+                            </Tile>
+                        {/each}
+                    </div>
                 </div>
 
+                {#if activeToolsJobs.length > 0}
+                    <div class="bg-white border mb-4">
+                        <div class="standard-header">
+                            <div class="header-title">
+                                <span class="header-glyph" lang="ja">作</span>
+                                <span class="header-text">Current Jobs</span>
+                            </div>
+                        </div>
+                        <div class="linkTiles tileSizeMd w-100 m-0 d-flex flex-column align-items-center p-2">
+                            {#each activeToolsJobs as job}
+                                <Tile
+                                    icon={job.status === 'FAILED' ? '疑' : '作'} 
+                                    title={job.status === 'FAILED' ? 'Failed Generation' : 'Preparing Aid'}
+                                    class={job.status === 'FAILED' ? 'tile-error' : 'tile-processing'}
+                                >
+                                    {#snippet description()}
+                                        {#if job.status === 'FAILED'}
+                                            <div class="text-danger small fw-bold">
+                                                <X size={14} class="me-1" /> Generation failed.
+                                            </div>
+                                        {:else}
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="spinner-border spinner-border-sm text-success" role="status">
+                                                    <span class="visually-hidden">Processing...</span>
+                                                </div>
+                                                <span>Building {job.payload?.type || 'material'}... {job.progress}%</span>
+                                            </div>
+                                        {/if}
+                                    {/snippet}
+                                </Tile>
+                            {/each}
+                        </div>
+                    </div>
+                {/if}
             </div>
         </div>
     </div>
 {:else if loading}
-    <div class="text-center p-5">
-        <div class="village-spinner mx-auto"></div>
+    <div class="p-5 text-center">
+        <div class="d-flex flex-column align-items-center gap-3">
+            <div class="village-spinner mx-auto" role="status"></div>
+            <p class="text-muted mb-0">Opening lesson dashboard...</p>
+        </div>
     </div>
 {/if}
 
@@ -675,6 +777,16 @@
         onClose={() => activeCitation = null} 
     />
 {/if}
+
+<ConfirmModal 
+    isOpen={confirmModal.isOpen}
+    title={confirmModal.title}
+    message={confirmModal.message}
+    confirmText={confirmModal.confirmText}
+    isDanger={confirmModal.isDanger}
+    onConfirm={confirmModal.onConfirm}
+    onCancel={() => confirmModal.isOpen = false}
+/>
 
 <Modal 
     title="Customize {capitalize(pendingToolType)}" 

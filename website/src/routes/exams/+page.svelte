@@ -24,8 +24,11 @@
         }
     }
 
+    let creating = $state(false);
+
     async function createExam() {
-        if (!newExamTitle) return;
+        if (!newExamTitle || creating) return;
+        creating = true;
         try {
             await api.createExam({
                 title: newExamTitle,
@@ -38,6 +41,8 @@
             notifications.success('Your new subject has been added.');
         } catch (e: any) {
             notifications.error(e.message || e);
+        } finally {
+            creating = false;
         }
     }
 
@@ -46,22 +51,28 @@
 
 <Breadcrumb items={[{ label: 'My Studies', active: true }]} />
 
-<h2>My Studies</h2>
+<div class="bg-white border mb-5">
+    <div class="standard-header">
+        <div class="header-title">
+            <span class="header-glyph" lang="ja">科</span>
+            <span class="header-text">My Studies</span>
+        </div>
+    </div>
 
-<div class="linkTiles tileSizeMd mb-4">
-    <Tile href="javascript:void(0)" icon="新" title="New Subject" onclick={() => showCreate = !showCreate}>
-        {#snippet description()}
-            Add a new subject to your hub.
-        {/snippet}
-    </Tile>
-    {#each exams as exam}
-        <Tile href="/exams/{exam.id}" icon="科" title={exam.title}>
+    <div class="linkTiles tileSizeMd p-2">
+        <Tile href="javascript:void(0)" icon="新" title="New Subject" onclick={() => showCreate = !showCreate}>
             {#snippet description()}
-                {exam.description || 'Access your lessons and study materials.'}
+                Add a new subject to your hub.
             {/snippet}
         </Tile>
-    {/each}
-    
+        {#each exams as exam}
+            <Tile href="/exams/{exam.id}" icon="科" title={exam.title}>
+                {#snippet description()}
+                    {exam.description || 'Access your lessons and study materials.'}
+                {/snippet}
+            </Tile>
+        {/each}
+    </div>
 </div>
 
 {#if showCreate}
@@ -94,8 +105,12 @@
                 </select>
                 <div class="form-text small">Lectures will inherit this language for transcription and document processing.</div>
             </div>
-            <button type="submit" class="btn btn-primary">
-                <span class="glyphicon me-1"><Plus size={18} /></span>
+            <button type="submit" class="btn btn-primary" disabled={creating}>
+                {#if creating}
+                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                {:else}
+                    <span class="glyphicon me-1"><Plus size={18} /></span>
+                {/if}
                 Create Subject
             </button>
         </form>
@@ -103,7 +118,10 @@
 {/if}
 
 {#if loading && exams.length === 0}
-    <div class="text-center p-5">
-        <div class="village-spinner mx-auto"></div>
+    <div class="p-5 text-center">
+        <div class="d-flex flex-column align-items-center gap-3">
+            <div class="village-spinner mx-auto" role="status"></div>
+            <p class="text-muted mb-0">Loading your studies...</p>
+        </div>
     </div>
 {/if}

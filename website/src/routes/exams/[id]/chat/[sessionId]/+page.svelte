@@ -162,17 +162,23 @@
         <div class="row">
             <!-- Sidebar: Context Selection & Other Sessions -->
             <div class="col-lg-3 col-md-4 order-md-2">
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h3 class="m-0 border-0">Knowledge Base</h3>
+                <div class="bg-white border mb-4">
+                    <div class="standard-header">
+                        <div class="header-title">
+                            <span class="header-glyph" lang="ja">基</span>
+                            <span class="header-text">Knowledge Base</span>
+                        </div>
                         {#if updatingContext}
-                            <span class="village-spinner" style="width: 1rem; height: 1rem;"></span>
+                            <div class="spinner-border spinner-border-sm text-success" role="status">
+                                <span class="visually-hidden">Syncing...</span>
+                            </div>
                         {/if}
                     </div>
-                    <p class="text-muted small">Choose the lessons I should use to answer your questions.</p>
-                </div>
-                
-                <div class="well bg-white p-0 border shadow-none overflow-auto mb-5" style="max-height: 40vh;">
+                    <div class="p-3 bg-light border-bottom">
+                        <p class="text-muted small mb-0">Choose the lessons I should use to answer your questions.</p>
+                    </div>
+                    
+                    <div class="bg-white p-0 overflow-auto" style="max-height: 40vh;">
                     {#each allLectures as lecture}
                         {@const isLocked = usedLectureIds.includes(lecture.id)}
                         {@const isIncluded = includedLectureIds.includes(lecture.id)}
@@ -212,15 +218,22 @@
                 </div>
 
                 {#if otherSessions.length > 0}
-                    <h3 class="mb-3">Recent Chats</h3>
-                    <div class="linkTiles tileSizeMd w-100 m-0 d-flex flex-column align-items-center">
-                        {#each otherSessions as other}
-                            <Tile href="/exams/{examId}/chat/{other.id}" icon="談" title={other.title || 'Untitled Chat'}>
-                                {#snippet description()}
-                                    Switch to this study session.
-                                {/snippet}
-                            </Tile>
-                        {/each}
+                    <div class="bg-white border mb-4">
+                        <div class="standard-header">
+                            <div class="header-title">
+                                <span class="header-glyph" lang="ja">談</span>
+                                <span class="header-text">Recent Chats</span>
+                            </div>
+                        </div>
+                        <div class="linkTiles tileSizeMd w-100 m-0 d-flex flex-column align-items-center p-2">
+                            {#each otherSessions as other}
+                                <Tile href="/exams/{examId}/chat/{other.id}" icon="談" title={other.title || 'Untitled Chat'}>
+                                    {#snippet description()}
+                                        Switch to this study session.
+                                    {/snippet}
+                                </Tile>
+                            {/each}
+                        </div>
                     </div>
                 {/if}
             </div>
@@ -254,12 +267,12 @@
                         {#if msg.role === 'assistant'}
                             {@const prevMsg = messages[i-1]}
                             <div class="bg-white p-0 overflow-hidden mb-5 border shadow-none">
-                                <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
-                                    <div class="d-flex align-items-center gap-2 overflow-hidden">
-                                        <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">案</span>
-                                        <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem; flex-shrink: 0;">Assistant</span>
+                                <div class="standard-header">
+                                    <div class="header-title overflow-hidden">
+                                        <span class="header-glyph" lang="ja">案</span>
+                                        <span class="header-text">Assistant</span>
                                         {#if prevMsg && prevMsg.role === 'user'}
-                                            <span class="text-muted small text-truncate ms-2 border-start ps-2" style="font-weight: normal; opacity: 0.6;">
+                                            <span class="text-muted small text-truncate ms-2 border-start ps-2" style="font-weight: normal; opacity: 0.6; text-transform: none;">
                                                 {prevMsg.content}
                                             </span>
                                         {/if}
@@ -281,17 +294,19 @@
 
                     {#if streamingMessage}
                         <div class="bg-white p-0 overflow-hidden mb-5 border shadow-none">
-                            <div class="px-4 py-3 border-bottom d-flex justify-content-between align-items-center bg-white">
-                                <div class="d-flex align-items-center gap-2 overflow-hidden">
-                                    <span class="glyphicon m-0" style="font-size: 1.25rem; color: #568f27;">案</span>
-                                    <span class="fw-bold" style="letter-spacing: 0.02em; font-size: 1rem; flex-shrink: 0;">Assistant</span>
+                            <div class="standard-header">
+                                <div class="header-title overflow-hidden">
+                                    <span class="header-glyph" lang="ja">案</span>
+                                    <span class="header-text">Assistant</span>
                                     {#if messages.length > 0 && messages[messages.length-1].role === 'user'}
-                                        <span class="text-muted small text-truncate ms-2 border-start ps-2" style="font-weight: normal; opacity: 0.6;">
+                                        <span class="text-muted small text-truncate ms-2 border-start ps-2" style="font-weight: normal; opacity: 0.6; text-transform: none;">
                                             {messages[messages.length-1].content}
                                         </span>
                                     {/if}
                                 </div>
-                                <span class="village-spinner" style="width: 0.8rem; height: 0.8rem;"></span>
+                                <div class="spinner-border spinner-border-sm text-success" role="status">
+                                    <span class="visually-hidden">Thinking...</span>
+                                </div>
                             </div>
                             <div class="p-4 prose">
                                 <p>{streamingMessage}</p>

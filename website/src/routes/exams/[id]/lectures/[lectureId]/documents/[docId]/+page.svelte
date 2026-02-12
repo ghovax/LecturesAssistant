@@ -115,11 +115,14 @@
                 {#if pages[currentPageIndex]}
                     {@const p = pages[currentPageIndex]}
                     <div class="well bg-white mb-5 p-0 overflow-hidden border shadow-sm">
-                        <div class="bg-light px-4 py-2 border-bottom d-flex justify-content-between align-items-center">
-                            <StatusIndicator type="page" label="Page" current={p.page_number} total={pages.length} />
+                        <div class="standard-header">
+                            <div class="header-title">
+                                <span class="header-glyph" lang="ja">資</span>
+                                <span class="header-text">Page {p.page_number} / {pages.length}</span>
+                            </div>
                             <div class="btn-group">
                                 <button 
-                                    class="btn btn-link btn-sm text-dark p-0 me-2 shadow-none" 
+                                    class="btn btn-link btn-sm text-dark p-0 me-2 shadow-none border-0" 
                                     disabled={currentPageIndex === 0}
                                     onclick={prevPage}
                                     title="Previous Page (Left Arrow)"
@@ -127,7 +130,7 @@
                                     <ChevronLeft size={18} />
                                 </button>
                                 <button 
-                                    class="btn btn-link btn-sm text-dark p-0 shadow-none" 
+                                    class="btn btn-link btn-sm text-dark p-0 shadow-none border-0" 
                                     disabled={currentPageIndex === pages.length - 1}
                                     onclick={nextPage}
                                     title="Next Page (Right Arrow)"

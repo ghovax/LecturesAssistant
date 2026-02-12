@@ -83,6 +83,14 @@ func (server *Server) handleCreateTool(responseWriter http.ResponseWriter, reque
 
 	userID := server.getUserID(request)
 
+	// Enforce "one of each type" by deleting existing tool of the same type
+	_, _ = server.database.Exec(`
+		DELETE FROM tools 
+		WHERE lecture_id = ? AND type = ? AND EXISTS (
+			SELECT 1 FROM exams WHERE id = ? AND user_id = ?
+		)
+	`, createToolRequest.LectureID, createToolRequest.Type, createToolRequest.ExamID, userID)
+
 	// Enqueue job
 	jobIdentifier, err := server.jobQueue.Enqueue(userID, models.JobTypeBuildMaterial, map[string]string{
 		"exam_id":                   createToolRequest.ExamID,

@@ -56,10 +56,13 @@
     class="citation-popup well bg-white border p-0 overflow-hidden"
     style="left: {adjustedX}px; top: {adjustedY}px;"
 >
-    <div class="bg-light px-3 py-2 border-bottom d-flex justify-content-between align-items-center">
-        <span class="fw-bold small" style="letter-spacing: 0.05em; font-size: 0.75rem; color: #568f27;">{title}</span>
-        <button class="btn btn-link btn-sm p-0 text-muted" onclick={onClose}>
-            <X size={14} />
+    <div class="standard-header">
+        <div class="header-title">
+            <span class="header-glyph" lang="ja">資</span>
+            <span class="header-text" style="font-size: 0.75rem;">{title}</span>
+        </div>
+        <button class="btn btn-link btn-sm p-0 text-muted border-0 shadow-none" onclick={onClose}>
+            <X size={16} />
         </button>
     </div>
     <div class="p-3 pb-2 citation-content">

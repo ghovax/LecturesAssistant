@@ -260,6 +260,8 @@ func createSchema(database *sql.DB) error {
 		`ALTER TABLE tools ADD COLUMN lecture_id TEXT`,
 		// Add used_lecture_ids to chat context
 		`ALTER TABLE chat_context_configuration ADD COLUMN used_lecture_ids JSON`,
+		// Add included_tool_ids to chat context
+		`ALTER TABLE chat_context_configuration ADD COLUMN included_tool_ids JSON`,
 
 		// Create indexes (using individual migrations to ignore "already exists" errors)
 		`CREATE INDEX index_users_username ON users(username)`,

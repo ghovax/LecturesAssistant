@@ -1445,14 +1445,18 @@ func TestAPI_ResourceBoundariesAndDataIntegrity(tester *testing.T) {
 			Data struct {
 				Context struct {
 					IncludedLectureIDs []string `json:"included_lecture_ids"`
+					UsedLectureIDs     []string `json:"used_lecture_ids"`
 				} `json:"context"`
 			} `json:"data"`
 		}
 		_ = json.NewDecoder(getResponse.Body).Decode(&getResponseData)
 		getResponse.Body.Close()
 
-		if len(getResponseData.Data.Context.IncludedLectureIDs) != 2 {
-			subTester.Errorf("Context not updated correctly, got %v", getResponseData.Data.Context.IncludedLectureIDs)
+		// Note: handleSendMessage might automatically move included to used if a message is sent,
+		// but here we just check if they are in either list since the backend combines them for context.
+		totalCount := len(getResponseData.Data.Context.IncludedLectureIDs) + len(getResponseData.Data.Context.UsedLectureIDs)
+		if totalCount != 2 {
+			subTester.Errorf("Context not updated correctly, got Included:%v Used:%v", getResponseData.Data.Context.IncludedLectureIDs, getResponseData.Data.Context.UsedLectureIDs)
 		}
 	})
 

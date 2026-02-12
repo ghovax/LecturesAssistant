@@ -162,11 +162,11 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 		WHERE session_id = ?
 	`, sessionID).Scan(&includedLectureIDsJSON, &usedLectureIDsJSON, &includedToolIDsJSON)
 
-	var includedLectureIDs, usedLectureIDs, includedToolIDs []string
+	var contextIncludedLectureIDs, contextUsedLectureIDs, contextIncludedToolIDs []string
 	if databaseError == nil {
-		json.Unmarshal([]byte(includedLectureIDsJSON), &includedLectureIDs)
-		json.Unmarshal([]byte(usedLectureIDsJSON), &usedLectureIDs)
-		json.Unmarshal([]byte(includedToolIDsJSON), &includedToolIDs)
+		json.Unmarshal([]byte(includedLectureIDsJSON), &contextIncludedLectureIDs)
+		json.Unmarshal([]byte(usedLectureIDsJSON), &contextUsedLectureIDs)
+		json.Unmarshal([]byte(includedToolIDsJSON), &contextIncludedToolIDs)
 	}
 
 	// Get messages
@@ -213,9 +213,9 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 	server.writeJSON(responseWriter, http.StatusOK, map[string]any{
 		"session": session,
 		"context": map[string]any{
-			"included_lecture_ids": includedLectureIDs,
-			"used_lecture_ids":     usedLectureIDs,
-			"included_tool_ids":    includedToolIDs,
+			"included_lecture_ids": contextIncludedLectureIDs,
+			"used_lecture_ids":     contextUsedLectureIDs,
+			"included_tool_ids":    contextIncludedToolIDs,
 		},
 		"messages": messages,
 	})

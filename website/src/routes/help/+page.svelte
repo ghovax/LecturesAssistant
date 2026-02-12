@@ -5,73 +5,104 @@
 
 <Breadcrumb items={[{ label: 'Features', active: true }]} />
 
-<div class="bg-white border mb-5">
-    <div class="standard-header">
-        <div class="header-title">
-            <span class="header-glyph" lang="ja">機</span>
-            <span class="header-text">Features & Capabilities</span>
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="bg-white border h-100">
+            <div class="standard-header">
+                <div class="header-title">
+                    <span class="header-glyph" lang="ja">講</span>
+                    <span class="header-text">Lesson Transcripts</span>
+                </div>
+            </div>
+            <div class="p-4">
+                <div class="d-flex align-items-start gap-3">
+                    <Zap class="text-success mt-1 flex-shrink-0" size={24} />
+                    <p class="mb-0 text-muted">High-fidelity conversion of your lesson audio and video into structured, readable text. Our AI handles technical terminology and complex reasoning with extreme precision.</p>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="p-4">
-        <div class="row">
-            <div class="col-md-6 mb-4">
-                <div class="well h-100">
-                    <div class="d-flex align-items-center mb-3">
-                        <Zap class="text-primary me-2" size={24} />
-                        <h4 class="m-0">Lesson Transcripts</h4>
-                    </div>
-                    <p>High-fidelity conversion of your lesson audio and video into structured, readable text. Our AI handles technical terminology and complex reasoning with extreme precision.</p>
+    <div class="col-md-6 mb-4">
+        <div class="bg-white border h-100">
+            <div class="standard-header">
+                <div class="header-title">
+                    <span class="header-glyph" lang="ja">案</span>
+                    <span class="header-text">Smart Study Aids</span>
                 </div>
             </div>
-
-            <div class="col-md-6 mb-4">
-                <div class="well h-100">
-                    <div class="d-flex align-items-center mb-3">
-                        <BookOpen class="text-primary me-2" size={24} />
-                        <h4 class="m-0">Smart Study Aids</h4>
-                    </div>
-                    <p>Automatically generate comprehensive study guides, flashcards, and practice quizzes. Every resource is deeply grounded in your specific lesson materials and reference files.</p>
+            <div class="p-4">
+                <div class="d-flex align-items-start gap-3">
+                    <BookOpen class="text-success mt-1 flex-shrink-0" size={24} />
+                    <p class="mb-0 text-muted">Automatically generate comprehensive study guides, flashcards, and practice quizzes. Every resource is deeply grounded in your specific lesson materials and reference files.</p>
                 </div>
             </div>
+        </div>
+    </div>
 
-            <div class="col-md-6 mb-4">
-                <div class="well h-100">
-                    <div class="d-flex align-items-center mb-3">
-                        <MessageSquare class="text-primary me-2" size={24} />
-                        <h4 class="m-0">Study Assistant</h4>
-                    </div>
-                    <p>Interact with your materials through an intelligent chat interface. Ask questions, clarify concepts, and explore connections across all your lessons simultaneously.</p>
+    <div class="col-md-6 mb-4">
+        <div class="bg-white border h-100">
+            <div class="standard-header">
+                <div class="header-title">
+                    <span class="header-glyph" lang="ja">談</span>
+                    <span class="header-text">Study Assistant</span>
                 </div>
             </div>
-
-            <div class="col-md-6 mb-4">
-                <div class="well h-100">
-                    <div class="d-flex align-items-center mb-3">
-                        <Search class="text-primary me-2" size={24} />
-                        <h4 class="m-0">Deep Content Search</h4>
-                    </div>
-                    <p>Locate specific topics, quotes, or data points instantly across thousands of pages of documents and hours of text with integrated global search.</p>
+            <div class="p-4">
+                <div class="d-flex align-items-start gap-3">
+                    <MessageSquare class="text-success mt-1 flex-shrink-0" size={24} />
+                    <p class="mb-0 text-muted">Interact with your materials through an intelligent chat interface. Ask questions, clarify concepts, and explore connections across all your lessons simultaneously.</p>
                 </div>
             </div>
+        </div>
+    </div>
 
-            <div class="col-md-6 mb-4">
-                <div class="well h-100">
-                    <div class="d-flex align-items-center mb-3">
-                        <Download class="text-primary me-2" size={24} />
-                        <h4 class="m-0">Professional Export</h4>
-                    </div>
-                    <p>Export your generated materials into beautifully formatted PDF, Word, or Markdown documents, ready for offline study or printing.</p>
+    <div class="col-md-6 mb-4">
+        <div class="bg-white border h-100">
+            <div class="standard-header">
+                <div class="header-title">
+                    <span class="header-glyph" lang="ja">探</span>
+                    <span class="header-text">Deep Content Search</span>
                 </div>
             </div>
+            <div class="p-4">
+                <div class="d-flex align-items-start gap-3">
+                    <Search class="text-success mt-1 flex-shrink-0" size={24} />
+                    <p class="mb-0 text-muted">Locate specific topics, quotes, or data points instantly across thousands of pages of documents and hours of text with integrated global search.</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
-            <div class="col-md-6 mb-4">
-                <div class="well h-100">
-                    <div class="d-flex align-items-center mb-3">
-                        <ShieldCheck class="text-primary me-2" size={24} />
-                        <h4 class="m-0">Local & Cloud AI</h4>
-                    </div>
-                    <p>Flexibility to use powerful cloud-based models or fully private, local AI services like Ollama, keeping your data under your control.</p>
+    <div class="col-md-6 mb-4">
+        <div class="bg-white border h-100">
+            <div class="standard-header">
+                <div class="header-title">
+                    <span class="header-glyph" lang="ja">刊</span>
+                    <span class="header-text">Professional Export</span>
+                </div>
+            </div>
+            <div class="p-4">
+                <div class="d-flex align-items-start gap-3">
+                    <Download class="text-success mt-1 flex-shrink-0" size={24} />
+                    <p class="mb-0 text-muted">Export your generated materials into beautifully formatted PDF, Word, or Markdown documents, ready for offline study or printing.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="bg-white border h-100">
+            <div class="standard-header">
+                <div class="header-title">
+                    <span class="header-glyph" lang="ja">脳</span>
+                    <span class="header-text">Local & Cloud AI</span>
+                </div>
+            </div>
+            <div class="p-4">
+                <div class="d-flex align-items-start gap-3">
+                    <ShieldCheck class="text-success mt-1 flex-shrink-0" size={24} />
+                    <p class="mb-0 text-muted">Flexibility to use powerful cloud-based models or fully private, local AI services like Ollama, keeping your data under your control.</p>
                 </div>
             </div>
         </div>

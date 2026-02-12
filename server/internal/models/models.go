@@ -123,6 +123,7 @@ type ChatMessage struct {
 	SessionID     string    `json:"session_id"`
 	Role          string    `json:"role"` // "user", "assistant", "system"
 	Content       string    `json:"content"`
+	ContentHTML   string    `json:"content_html,omitempty"`
 	ModelUsed     string    `json:"model_used,omitempty"`
 	InputTokens   int       `json:"input_tokens,omitempty"`
 	OutputTokens  int       `json:"output_tokens,omitempty"`

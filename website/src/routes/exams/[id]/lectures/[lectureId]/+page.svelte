@@ -13,7 +13,7 @@
     import Modal from '$lib/components/Modal.svelte';
     import ConfirmModal from '$lib/components/ConfirmModal.svelte';
     import StatusIndicator from '$lib/components/StatusIndicator.svelte';
-    import { FileText, Clock, ChevronLeft, ChevronRight, Volume2, Plus, X, Edit3, Loader2, Trash2 } from 'lucide-svelte';
+    import { FileText, Clock, ChevronLeft, ChevronRight, Volume2, Plus, X, Edit3, Loader2, Trash2, RotateCcw } from 'lucide-svelte';
 
     let { id: examId, lectureId } = $derived(page.params);
     let exam = $state<any>(null);
@@ -29,30 +29,6 @@
     let currentSegmentIndex = $state(0);
     let audioElement: HTMLAudioElement | null = $state(null);
     let jobPollingInterval: number | null = null;
-
-    // Confirmation Modal State
-    let confirmModal = $state({
-        isOpen: false,
-        title: '',
-        message: '',
-        confirmText: 'Confirm',
-        onConfirm: () => {},
-        isDanger: false
-    });
-
-    function showConfirm(options: { title: string, message: string, confirmText?: string, onConfirm: () => void, isDanger?: boolean }) {
-        confirmModal = {
-            isOpen: true,
-            title: options.title,
-            message: options.message,
-            confirmText: options.confirmText ?? 'Confirm',
-            onConfirm: () => {
-                options.onConfirm();
-                confirmModal.isOpen = false;
-            },
-            isDanger: options.isDanger ?? false
-        };
-    }
 
     // Derived state for job status
     let transcriptJobRunning = $derived(jobs.some(j => j.type === 'TRANSCRIBE_MEDIA' && (j.status === 'PENDING' || j.status === 'RUNNING')));
@@ -84,6 +60,30 @@
         language_code: 'en-US'
     });
 
+    // Confirmation Modal State
+    let confirmModal = $state({
+        isOpen: false,
+        title: '',
+        message: '',
+        confirmText: 'Confirm',
+        onConfirm: () => {},
+        isDanger: false
+    });
+
+    function showConfirm(options: { title: string, message: string, confirmText?: string, onConfirm: () => void, isDanger?: boolean }) {
+        confirmModal = {
+            isOpen: true,
+            title: options.title,
+            message: options.message,
+            confirmText: options.confirmText ?? 'Confirm',
+            onConfirm: () => {
+                options.onConfirm();
+                confirmModal.isOpen = false;
+            },
+            isDanger: options.isDanger ?? false
+        };
+    }
+
     // Citation Popup State
     let activeCitation = $state<{ content: string, x: number, y: number, sourceFile?: string, sourcePages?: number[] } | null>(null);
 
@@ -97,7 +97,27 @@
     async function loadJobs() {
         try {
             const jobsR = await api.request('GET', `/jobs?lecture_id=${lectureId}`);
-            jobs = jobsR ?? [];
+            const rawJobs = jobsR ?? [];
+            const newJobs = rawJobs.map((j: any) => {
+                if (typeof j.payload === 'string') {
+                    try {
+                        j.payload = JSON.parse(j.payload);
+                    } catch (e) {
+                        console.error('Failed to parse job payload', e);
+                    }
+                }
+                return j;
+            });
+
+            // Check for newly failed jobs to notify user
+            for (const newJob of newJobs) {
+                const oldJob = jobs.find(j => j.id === newJob.id);
+                if (newJob.status === 'FAILED' && (!oldJob || oldJob.status !== 'FAILED')) {
+                    notifications.error(`${newJob.error || 'Unknown error'}`);
+                }
+            }
+
+            jobs = newJobs;
 
             // If there are active jobs, start polling
             const hasActiveJobs = jobs.some(j => j.status === 'PENDING' || j.status === 'RUNNING');
@@ -108,6 +128,31 @@
             }
         } catch (e) {
             console.error('Failed to load jobs:', e);
+        }
+    }
+
+    async function retryJob(job: any) {
+        if (!job.payload) return;
+        try {
+            // Remove the failed job record first to clean up UI
+            await api.request('POST', '/jobs/cancel', { job_id: job.id, delete: true });
+            
+            // Re-trigger the tool creation with the same payload
+            await api.createTool(job.payload);
+            
+            notifications.success(`Retrying ${job.payload.type} generation...`);
+            await loadJobs();
+        } catch (e: any) {
+            notifications.error('Failed to retry: ' + e.message);
+        }
+    }
+
+    async function removeJob(jobId: string) {
+        try {
+            await api.request('POST', '/jobs/cancel', { job_id: jobId, delete: true });
+            await loadJobs();
+        } catch (e: any) {
+            notifications.error('Failed to remove job record: ' + e.message);
         }
     }
 
@@ -381,6 +426,16 @@
     />
 {/if}
 
+<ConfirmModal 
+    isOpen={confirmModal.isOpen}
+    title={confirmModal.title}
+    message={confirmModal.message}
+    confirmText={confirmModal.confirmText}
+    isDanger={confirmModal.isDanger}
+    onConfirm={confirmModal.onConfirm}
+    onCancel={() => confirmModal.isOpen = false}
+/>
+
 {#if lecture && exam}
     <Breadcrumb items={[
         { label: 'My Studies', href: '/exams' },
@@ -440,10 +495,10 @@
 
                         <div class="linkTiles tileSizeMd">
                             <Tile
-                                href="javascript:void(0)"
                                 icon="講"
                                 title="Dialogue"
-                                onclick={() => { if (!transcriptJobRunning) activeView = 'transcript' }}
+                                onclick={() => activeView = 'transcript'}
+                                disabled={transcriptJobRunning || !transcript || !transcript.segments}
                                 class={transcriptJobRunning ? 'tile-processing' : ''}
                             >
                                 {#snippet description()}
@@ -452,7 +507,7 @@
                                             <div class="spinner-border spinner-border-sm text-success" role="status">
                                                 <span class="visually-hidden">Processing...</span>
                                             </div>
-                                            <span>Transcribing audio... {transcriptJob?.progress || 0}%</span>
+                                            <span>{transcriptJob?.progress || 0}%</span>
                                         </div>
                                     {:else if !transcript || !transcript.segments}
                                         <span class="text-muted">Not yet available.</span>
@@ -468,13 +523,13 @@
                             {/each}
 
                             {#if documentsJobRunning}
-                                <Tile href="javascript:void(0)" icon="資" title="Reference Materials" class="tile-processing">
+                                <Tile icon="資" title="Reference Materials" class="tile-processing" disabled={true}>
                                     {#snippet description()}
                                         <div class="d-flex align-items-center gap-2">
                                             <div class="spinner-border spinner-border-sm text-success" role="status">
                                                 <span class="visually-hidden">Processing...</span>
                                             </div>
-                                            <span>Processing documents... {documentsJob?.progress || 0}%</span>
+                                            <span>{documentsJob?.progress || 0}%</span>
                                         </div>
                                     {/snippet}
                                 </Tile>
@@ -603,9 +658,8 @@
                             <div class="p-5 text-center text-muted">
                                 <div class="d-flex flex-column align-items-center gap-3">
                                     <div class="spinner-border text-success" role="status">
-                                        <span class="visually-hidden">Analyzing...</span>
+                                        <span class="visually-hidden">Loading...</span>
                                     </div>
-                                    <p class="mb-0">Analyzing study material...</p>
                                 </div>
                             </div>
                         {/if}
@@ -682,6 +736,18 @@
 
             <!-- Sidebar: Navigation Tiles ONLY (Right Side on Desktop) -->
             <div class="col-lg-3 col-md-4 order-md-2">
+                {#if activeView !== 'dashboard'}
+                    <div class="linkTiles tileSizeMd w-100 m-0 d-flex flex-column align-items-center mb-4">
+                        <Tile icon="戻" 
+                            title="Back to Hub" 
+                            onclick={() => activeView = 'dashboard'}>
+                            {#snippet description()}
+                                Return to the lesson dashboard.
+                            {/snippet}
+                        </Tile>
+                    </div>
+                {/if}
+
                 <div class="bg-white border mb-4">
                     <div class="standard-header">
                         <div class="header-title">
@@ -689,36 +755,33 @@
                             <span class="header-text">Study Aids</span>
                         </div>
                     </div>
-                    <div class="linkTiles tileSizeMd w-100 m-0 d-flex flex-column align-items-center p-2">
-                        {#if activeView !== 'dashboard'}
-                            <Tile icon="戻" 
-                                title="Back to Hub" 
-                                onclick={() => activeView = 'dashboard'}>
-                                {#snippet description()}
-                                    Return to the lesson dashboard.
-                                {/snippet}
-                            </Tile>
-                        {/if}
+                    
+                    {#if tools.length > 0}
+                        <div class="linkTiles tileSizeMd w-100 m-0 d-flex flex-column align-items-center p-2">
+                            {#if guideTool}
+                                <Tile href="javascript:void(0)" icon="案" title="Study Guide" onclick={() => activeView = 'guide'}>
+                                    {#snippet description()}
+                                        Read the comprehensive, carefully prepared guide.
+                                    {/snippet}
+                                </Tile>
+                            {/if}
 
-                        {#if guideTool}
-                            <Tile href="javascript:void(0)" icon="案" title="Study Guide" onclick={() => activeView = 'guide'}>
-                                {#snippet description()}
-                                    Read the comprehensive, carefully prepared guide.
-                                {/snippet}
-                            </Tile>
-                        {/if}
-
-                        {#each tools.filter(t => t.type !== 'guide') as tool}
-                            <Tile href="javascript:void(0)" 
-                                icon={tool.type === 'flashcard' ? '札' : '問'} 
-                                title={capitalize(tool.type)}
-                                onclick={() => openTool(tool.id)}>
-                                {#snippet description()}
-                                    Practice your knowledge.
-                                {/snippet}
-                            </Tile>
-                        {/each}
-                    </div>
+                            {#each tools.filter(t => t.type !== 'guide') as tool}
+                                <Tile href="javascript:void(0)" 
+                                    icon={tool.type === 'flashcard' ? '札' : '問'} 
+                                    title={capitalize(tool.type)}
+                                    onclick={() => openTool(tool.id)}>
+                                    {#snippet description()}
+                                        Practice your knowledge.
+                                    {/snippet}
+                                </Tile>
+                            {/each}
+                        </div>
+                    {:else}
+                        <div class="p-4 text-center">
+                            <p class="text-muted small mb-0">No materials prepared yet. Use the <strong>Prepare Material</strong> menu to generate aids.</p>
+                        </div>
+                    {/if}
                 </div>
 
                 {#if activeToolsJobs.length > 0}
@@ -746,8 +809,27 @@
                                                 <div class="spinner-border spinner-border-sm text-success" role="status">
                                                     <span class="visually-hidden">Processing...</span>
                                                 </div>
-                                                <span>Building {job.payload?.type || 'material'}... {job.progress}%</span>
+                                                <span>{job.progress}%</span>
                                             </div>
+                                        {/if}
+                                    {/snippet}
+
+                                    {#snippet actions()}
+                                        {#if job.status === 'FAILED'}
+                                            <button 
+                                                class="btn btn-link text-primary p-0 border-0 shadow-none me-2" 
+                                                onclick={(e) => { e.preventDefault(); e.stopPropagation(); retryJob(job); }}
+                                                title="Retry Generation"
+                                            >
+                                                <RotateCcw size={16} />
+                                            </button>
+                                            <button 
+                                                class="btn btn-link text-muted p-0 border-0 shadow-none" 
+                                                onclick={(e) => { e.preventDefault(); e.stopPropagation(); removeJob(job.id); }}
+                                                title="Clear Error"
+                                            >
+                                                <X size={16} />
+                                            </button>
                                         {/if}
                                     {/snippet}
                                 </Tile>
@@ -777,16 +859,6 @@
         onClose={() => activeCitation = null} 
     />
 {/if}
-
-<ConfirmModal 
-    isOpen={confirmModal.isOpen}
-    title={confirmModal.title}
-    message={confirmModal.message}
-    confirmText={confirmModal.confirmText}
-    isDanger={confirmModal.isDanger}
-    onConfirm={confirmModal.onConfirm}
-    onCancel={() => confirmModal.isOpen = false}
-/>
 
 <Modal 
     title="Customize {capitalize(pendingToolType)}" 

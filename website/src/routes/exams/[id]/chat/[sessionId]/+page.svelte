@@ -1,11 +1,12 @@
 <script lang="ts">
     import { onMount, onDestroy, tick } from 'svelte';
     import { page } from '$app/state';
+    import { browser } from '$app/environment';
     import { api } from '$lib/api/client';
     import { notifications } from '$lib/stores/notifications.svelte';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
-    import { Send, User, Bot, Sparkles, Search, MessageSquare, BookOpen, Layers, Square, CheckSquare, Lock } from 'lucide-svelte';
+    import { Send, User, Bot, Sparkles, Search, MessageSquare, BookOpen, Layers, Square, CheckSquare, Lock, X } from 'lucide-svelte';
 
     let { id: examId, sessionId } = $derived(page.params);
     let exam = $state<any>(null);
@@ -27,10 +28,10 @@
         loading = true;
         try {
             const [examData, details, allSessions, lecturesData] = await Promise.all([
-                api.getExam(examId),
+                api.getExam(examId!),
                 api.request('GET', `/chat/sessions/details?session_id=${sessionId}&exam_id=${examId}`),
                 api.request('GET', `/chat/sessions?exam_id=${examId}`),
-                api.listLectures(examId)
+                api.listLectures(examId!)
             ]);
             
             exam = examData;
@@ -77,9 +78,10 @@
     function setupWebSocket() {
         const token = localStorage.getItem('session_token');
         const baseUrl = api.getBaseUrl().replace('http', 'ws');
-        socket = new WebSocket(`${baseUrl}/socket?session_token=${token}`);
+        socket = new WebSocket(`${baseUrl}/socket?session_token=${token}&subscribe_chat=${sessionId}`);
         
         socket.onopen = () => {
+            // Already auto-subscribed via query param, but we keep this for redundancy or fallback
             if (sessionId) {
                 socket?.send(JSON.stringify({
                     type: 'subscribe',
@@ -99,6 +101,14 @@
                 sending = false;
                 await tick();
                 scrollToBottom();
+            } else if (data.type === 'chat:error') {
+                notifications.error(data.payload.error || 'An error occurred during generation');
+                sending = false;
+                streamingMessage = '';
+            } else if (data.type === 'job:progress') {
+                if (data.payload.Status === 'FAILED') {
+                    notifications.error(`Background task failed: ${data.payload.Error || 'Unknown error'}`);
+                }
             }
         };
     }
@@ -132,8 +142,11 @@
     }
 
     function scrollToBottom() {
-        if (messageContainer) {
-            messageContainer.scrollTop = messageContainer.scrollHeight;
+        if (browser) {
+            window.scrollTo({
+                top: document.body.scrollHeight,
+                behavior: 'smooth'
+            });
         }
     }
 
@@ -179,42 +192,41 @@
                     </div>
                     
                     <div class="bg-white p-0 overflow-auto" style="max-height: 40vh;">
-                    {#each allLectures as lecture}
-                        {@const isLocked = usedLectureIds.includes(lecture.id)}
-                        {@const isIncluded = includedLectureIds.includes(lecture.id)}
-                        <button 
-                            onclick={() => !isLocked && toggleLecture(lecture.id)}
-                            class="w-100 border-0 border-bottom last-child-border-0 p-3 text-start d-flex align-items-center gap-3"
-                            style="background: {isIncluded ? 'rgba(86, 143, 39, 0.05)' : 'transparent'}; 
-                                   transition: all 0.15s ease; 
-                                   cursor: {isLocked ? 'not-allowed' : 'pointer'};
-                                   opacity: {isLocked ? 0.8 : 1};"
-                            disabled={updatingContext || isLocked}
-                            title={isLocked ? 'This context is locked because it was already used in this chat.' : ''}
-                        >
-                            <div class="flex-shrink-0">
-                                {#if isLocked}
-                                    <div class="d-flex align-items-center justify-content-center" style="width: 1.1rem; height: 1.1rem; color: #568f27;">
-                                        <Lock size={14} />
-                                    </div>
-                                {:else}
-                                    <div class="border" style="width: 1.1rem; height: 1.1rem; border-color: {isIncluded ? '#568f27' : '#ccc'} !important; background: {isIncluded ? '#568f27' : 'transparent'};">
-                                        {#if isIncluded}
-                                            <div class="d-flex align-items-center justify-content-center h-100">
-                                                <div style="width: 0.4rem; height: 0.4rem; background: white;"></div>
-                                            </div>
-                                        {/if}
-                                    </div>
-                                {/if}
-                            </div>
-                            <span class="small {isIncluded ? 'fw-bold text-success' : 'text-dark'}" style="line-height: 1.2;">
-                                {lecture.title}
-                            </span>
-                        </button>
-                    {/each}
-                    {#if allLectures.length === 0}
-                        <div class="p-4 text-center"><p class="text-muted mb-0">No lessons available yet.</p></div>
-                    {/if}
+                        {#each allLectures as lecture}
+                            {@const isLocked = usedLectureIds.includes(lecture.id)}
+                            {@const isIncluded = includedLectureIds.includes(lecture.id)}
+                            <button 
+                                onclick={() => !isLocked && toggleLecture(lecture.id)}
+                                class="w-100 border-0 border-bottom last-child-border-0 p-3 text-start d-flex align-items-center gap-3"
+                                style="background: {isIncluded ? 'rgba(86, 143, 39, 0.05)' : 'transparent'}; 
+                                    transition: all 0.15s ease; 
+                                    cursor: {isLocked ? 'not-allowed' : 'pointer'};
+                                    opacity: {isLocked ? 0.8 : 1};"
+                                disabled={updatingContext || isLocked}
+                                title={isLocked ? 'This context is locked because it was already used in this chat.' : ''}
+                            >
+                                <div class="flex-shrink-0">
+                                    {#if isLocked}
+                                        <div class="village-toggle is-locked is-active"></div>
+                                    {:else}
+                                        <div class="village-toggle" class:is-active={isIncluded}></div>
+                                    {/if}
+                                </div>
+                                <div 
+                                    class="small no-shift-bold" 
+                                    style="line-height: 1.2;"
+                                    data-text={lecture.title}
+                                >
+                                    <span class={isIncluded || isLocked ? 'fw-bold text-success' : 'text-dark'}>
+                                        {lecture.title}
+                                    </span>
+                                </div>
+                            </button>
+                        {/each}
+                        {#if allLectures.length === 0}
+                            <div class="p-4 text-center"><p class="text-muted mb-0">No lessons available yet.</p></div>
+                        {/if}
+                    </div>
                 </div>
 
                 {#if otherSessions.length > 0}
@@ -255,11 +267,11 @@
                     </div>
                 </form>
 
-                <div class="chat-viewport mb-5" bind:this={messageContainer} style="height: 65vh; overflow-y: auto;">
+                <div class="chat-viewport mb-5" bind:this={messageContainer}>
                     {#if (!messages || messages.length === 0) && !streamingMessage}
                         <div class="well bg-white text-center p-5 text-muted border shadow-sm">
                             <Bot size={48} class="mb-3 opacity-25" />
-                            <p>I'm your personal AI assistant. Pick the lessons you want to talk about from the Knowledge Base, and ask a question above!</p>
+                            <p>Select lessons from your Knowledge Base and start a conversation.</p>
                         </div>
                     {/if}
 
@@ -272,8 +284,8 @@
                                         <span class="header-glyph" lang="ja">案</span>
                                         <span class="header-text">Assistant</span>
                                         {#if prevMsg && prevMsg.role === 'user'}
-                                            <span class="text-muted small text-truncate ms-2 border-start ps-2" style="font-weight: normal; opacity: 0.6; text-transform: none;">
-                                                {prevMsg.content}
+                                            <span class="text-muted small text-truncate ms-3 fw-normal" style="opacity: 0.7; text-transform: none; font-style: italic;">
+                                                “{prevMsg.content}”
                                             </span>
                                         {/if}
                                     </div>
@@ -299,8 +311,8 @@
                                     <span class="header-glyph" lang="ja">案</span>
                                     <span class="header-text">Assistant</span>
                                     {#if messages.length > 0 && messages[messages.length-1].role === 'user'}
-                                        <span class="text-muted small text-truncate ms-2 border-start ps-2" style="font-weight: normal; opacity: 0.6; text-transform: none;">
-                                            {messages[messages.length-1].content}
+                                        <span class="text-muted small text-truncate ms-3 fw-normal" style="opacity: 0.7; text-transform: none; font-style: italic;">
+                                            “{messages[messages.length-1].content}”
                                         </span>
                                     {/if}
                                 </div>
@@ -323,38 +335,75 @@
             </div>
         </div>
     </div>
-{:else if loading}
+{/if}
+
+{#if loading}
     <div class="text-center p-5">
-        <div class="village-spinner mx-auto"></div>
+        <div class="d-flex flex-column align-items-center gap-3">
+            <div class="village-spinner mx-auto" role="status"></div>
+            <p class="text-muted mb-0">Connecting to assistant...</p>
+        </div>
     </div>
 {/if}
 
 <style>
-    .message-content {
-        white-space: pre-wrap;
-    }
-    
-    .cursor-pointer {
-        cursor: pointer;
+    .no-shift-bold {
+        display: inline-grid;
+        text-align: left;
     }
 
-    /* Scrollbar styling */
-    .chat-viewport::-webkit-scrollbar {
-        width: 8px;
-    }
-    .chat-viewport::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    .chat-viewport::-webkit-scrollbar-thumb {
-        background: #ddd;
-    }
-    .chat-viewport::-webkit-scrollbar-thumb:hover {
-        background: #ccc;
+    .no-shift-bold::after {
+        content: attr(data-text);
+        grid-area: 1 / 1;
+        font-weight: bold;
+        visibility: hidden;
+        height: 0;
     }
 
-    .active-context {
-        background-color: #568f27 !important;
-        color: white !important;
-        border-color: #568f27 !important;
+    .no-shift-bold > span {
+        grid-area: 1 / 1;
+    }
+
+    /* Kakimashou Toggle Switch */
+    .village-toggle {
+        position: relative;
+        width: 2.5rem;
+        height: 1.25rem;
+        background: #eee;
+        border: 1px solid #ccc;
+        flex-shrink: 0;
+        transition: all 0.2s ease;
+    }
+
+    .village-toggle::after {
+        content: '';
+        position: absolute;
+        top: 1px;
+        left: 1px;
+        width: calc(1.25rem - 4px);
+        height: calc(1.25rem - 4px);
+        background: #fff;
+        box-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        transition: all 0.2s ease;
+    }
+
+    .village-toggle.is-active {
+        background: #568f27;
+        border-color: #4a7a20;
+    }
+
+    .village-toggle.is-active::after {
+        left: calc(2.5rem - 1.25rem + 1px);
+    }
+
+    .village-toggle.is-locked.is-active {
+        background: #568f27;
+        filter: grayscale(40%) opacity(0.6);
+        border-color: #4a7a20;
+        cursor: not-allowed;
+    }
+
+    .village-toggle.is-locked::after {
+        background: #f8f9fa;
     }
 </style>

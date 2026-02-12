@@ -182,20 +182,7 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 	}
 	defer messageRows.Close()
 
-	type chatMessageResponse struct {
-		ID            string    `json:"id"`
-		SessionID     string    `json:"session_id"`
-		Role          string    `json:"role"`
-		Content       string    `json:"content"`
-		ContentHTML   string    `json:"content_html"`
-		ModelUsed     string    `json:"model_used,omitempty"`
-		InputTokens   int       `json:"input_tokens,omitempty"`
-		OutputTokens  int       `json:"output_tokens,omitempty"`
-		EstimatedCost float64   `json:"estimated_cost,omitempty"`
-		CreatedAt     time.Time `json:"created_at"`
-	}
-
-	var messages []chatMessageResponse
+	var messages []models.ChatMessage
 	for messageRows.Next() {
 		var message models.ChatMessage
 		if scanError := messageRows.Scan(&message.ID, &message.SessionID, &message.Role, &message.Content, &message.ModelUsed, &message.InputTokens, &message.OutputTokens, &message.EstimatedCost, &message.CreatedAt); scanError != nil {
@@ -204,26 +191,16 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 		}
 
 		// Convert content to HTML
-		contentHTML := message.Content
 		if message.Content != "" {
 			convertedHTML, err := server.markdownConverter.MarkdownToHTML(message.Content)
 			if err == nil {
-				contentHTML = convertedHTML
+				message.ContentHTML = convertedHTML
+			} else {
+				message.ContentHTML = message.Content
 			}
 		}
 
-		messages = append(messages, chatMessageResponse{
-			ID:            message.ID,
-			SessionID:     message.SessionID,
-			Role:          message.Role,
-			Content:       message.Content,
-			ContentHTML:   contentHTML,
-			ModelUsed:     message.ModelUsed,
-			InputTokens:   message.InputTokens,
-			OutputTokens:  message.OutputTokens,
-			EstimatedCost: message.EstimatedCost,
-			CreatedAt:     message.CreatedAt,
-		})
+		messages = append(messages, message)
 	}
 
 	slog.Info("Retrieved chat messages", "sessionID", sessionID, "count", len(messages))
@@ -432,12 +409,14 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 
 	// Fetch language code for the session
 	var languageCode string
-	_ = server.database.QueryRow(`
-		SELECT exams.user_id FROM exams
+	err := server.database.QueryRow(`
+		SELECT exams.language FROM exams
 		JOIN chat_sessions ON exams.id = chat_sessions.exam_id
 		WHERE chat_sessions.id = ?
-	`, sendMessageRequest.SessionID).Scan(new(string))
-	languageCode = server.configuration.LLM.Language
+	`, sendMessageRequest.SessionID).Scan(&languageCode)
+	if err != nil || languageCode == "" {
+		languageCode = server.configuration.LLM.Language
+	}
 
 	lectureContext := server.getLectureContext(sendMessageRequest.SessionID, languageCode)
 
@@ -454,6 +433,7 @@ func (server *Server) getChatHistory(sessionID string) []llm.Message {
 		ORDER BY created_at ASC
 	`, sessionID)
 	if databaseError != nil {
+		slog.Error("Failed to query chat history", "sessionID", sessionID, "error", databaseError)
 		return nil
 	}
 	defer messageRows.Close()
@@ -470,20 +450,36 @@ func (server *Server) getChatHistory(sessionID string) []llm.Message {
 			})
 		}
 	}
+	slog.Debug("Retrieved chat history", "sessionID", sessionID, "count", len(messages))
 	return messages
 }
 
 func (server *Server) getLectureContext(sessionID string, languageCode string) string {
 	var includedLectureIDsJSON string
-	databaseError := server.database.QueryRow("SELECT included_lecture_ids FROM chat_context_configuration WHERE session_id = ?", sessionID).Scan(&includedLectureIDsJSON)
+	var usedLectureIDsJSON string
+	databaseError := server.database.QueryRow(`
+		SELECT included_lecture_ids, used_lecture_ids 
+		FROM chat_context_configuration 
+		WHERE session_id = ?
+	`, sessionID).Scan(&includedLectureIDsJSON, &usedLectureIDsJSON)
 	if databaseError != nil {
 		return ""
 	}
 
-	var includedLectureIDs []string
-	json.Unmarshal([]byte(includedLectureIDsJSON), &includedLectureIDs)
+	var includedIDs, usedIDs []string
+	json.Unmarshal([]byte(includedLectureIDsJSON), &includedIDs)
+	json.Unmarshal([]byte(usedLectureIDsJSON), &usedIDs)
 
-	if len(includedLectureIDs) == 0 {
+	// Combine both sets into a unique list
+	allIDsMap := make(map[string]bool)
+	for _, id := range includedIDs {
+		allIDsMap[id] = true
+	}
+	for _, id := range usedIDs {
+		allIDsMap[id] = true
+	}
+
+	if len(allIDsMap) == 0 {
 		return ""
 	}
 
@@ -491,7 +487,8 @@ func (server *Server) getLectureContext(sessionID string, languageCode string) s
 	markdownReconstructor.Language = languageCode
 	rootNode := &markdown.Node{Type: markdown.NodeDocument}
 
-	for _, lectureID := range includedLectureIDs {
+	// Iterate through the combined unique IDs
+	for lectureID := range allIDsMap {
 		var title string
 		server.database.QueryRow("SELECT title FROM lectures WHERE id = ?", lectureID).Scan(&title)
 
@@ -565,17 +562,16 @@ func (server *Server) getLectureContext(sessionID string, languageCode string) s
 }
 
 func (server *Server) processAIResponse(sessionID string, history []llm.Message, lectureContext string) {
-	// Fetch language code for the session (from exam or default)
+	// Fetch language code for the session
 	var languageCode string
-	_ = server.database.QueryRow(`
-		SELECT exams.user_id FROM exams
-		JOIN chat_sessions ON exams.id = chat_sessions.exam_id
+	err := server.database.QueryRow(`
+		SELECT exams.language FROM exams
+		JOIN chat_sessions ON chat_sessions.exam_id = exams.id
 		WHERE chat_sessions.id = ?
-	`, sessionID).Scan(new(string)) // Just verify session
-
-	// For now, let's assume we use the global default or could fetch it from settings
-	// Ideally, it should be part of the session or exam
-	languageCode = server.configuration.LLM.Language
+	`, sessionID).Scan(&languageCode)
+	if err != nil || languageCode == "" {
+		languageCode = server.configuration.LLM.Language
+	}
 
 	// Prepare system prompt
 	var systemPrompt string
@@ -634,6 +630,12 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 
 	if chatError != nil {
 		slog.Error("LLM chat failed", "error", chatError)
+		server.wsHub.Broadcast(WSMessage{
+			Type:      "chat:error",
+			Channel:   "chat:" + sessionID,
+			Payload:   map[string]string{"error": "Failed to generate response"},
+			Timestamp: time.Now().Format(time.RFC3339),
+		})
 		return
 	}
 
@@ -642,6 +644,12 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 	for chunk := range responseChannel {
 		if chunk.Error != nil {
 			slog.Error("LLM stream error", "error", chunk.Error)
+			server.wsHub.Broadcast(WSMessage{
+				Type:      "chat:error",
+				Channel:   "chat:" + sessionID,
+				Payload:   map[string]string{"error": "Stream interrupted"},
+				Timestamp: time.Now().Format(time.RFC3339),
+			})
 			break
 		}
 
@@ -680,6 +688,9 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 
 	finalContent = markdownReconstructor.AppendCitations(finalContent, citations)
 
+	// Convert complete response to HTML
+	contentHTML, _ := server.markdownConverter.MarkdownToHTML(finalContent)
+
 	slog.Info("Chat AI response completed",
 		"sessionID", sessionID,
 		"input_tokens", totalMetrics.InputTokens,
@@ -693,6 +704,7 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 		SessionID:     sessionID,
 		Role:          "assistant",
 		Content:       finalContent,
+		ContentHTML:   contentHTML,
 		ModelUsed:     model,
 		InputTokens:   totalMetrics.InputTokens,
 		OutputTokens:  totalMetrics.OutputTokens,

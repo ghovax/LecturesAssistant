@@ -71,10 +71,13 @@ func (hub *Hub) Run() {
 			hub.mutex.Unlock()
 		case wsMessage := <-hub.broadcast:
 			hub.mutex.RLock()
+			sentCount := 0
+			totalClients := len(hub.clients)
 			for client := range hub.clients {
 				if client.isSubscribed(wsMessage.Channel) {
 					select {
 					case client.send <- wsMessage:
+						sentCount++
 					default:
 						close(client.send)
 						delete(hub.clients, client)
@@ -82,6 +85,7 @@ func (hub *Hub) Run() {
 				}
 			}
 			hub.mutex.RUnlock()
+			slog.Debug("Broadcast message sent", "type", wsMessage.Type, "channel", wsMessage.Channel, "recipients", sentCount, "total_clients", totalClients)
 		}
 	}
 }
@@ -139,6 +143,18 @@ func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, reques
 		subscriptions: make(map[string]chan bool),
 		userID:        userID, // Add this field to WSClient
 	}
+	
+	// Auto-subscribe to chat session if provided in query
+	if autoChatID := request.URL.Query().Get("subscribe_chat"); autoChatID != "" {
+		// Basic check if chat belongs to user
+		var exists bool
+		server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM chat_sessions JOIN exams ON chat_sessions.exam_id = exams.id WHERE chat_sessions.id = ? AND exams.user_id = ?)", autoChatID, userID).Scan(&exists)
+		if exists {
+			slog.Info("Auto-subscribing to chat", "sessionID", autoChatID)
+			client.subscriptions["chat:"+autoChatID] = make(chan bool)
+		}
+	}
+
 	client.hub.register <- client
 
 	// Send handshake

@@ -4,13 +4,36 @@
     import { notifications } from '$lib/stores/notifications.svelte';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
-    import { Plus } from 'lucide-svelte';
+    import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+    import { Plus, Trash2 } from 'lucide-svelte';
 
     let exams = $state<any[]>([]);
     let loading = $state(true);
     let newExamTitle = $state('');
     let newExamLanguage = $state('');
     let showCreate = $state(false);
+
+    // Confirmation Modal State
+    let confirmModal = $state({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        isDanger: false
+    });
+
+    function showConfirm(options: { title: string, message: string, onConfirm: () => void, isDanger?: boolean }) {
+        confirmModal = {
+            isOpen: true,
+            title: options.title,
+            message: options.message,
+            onConfirm: () => {
+                options.onConfirm();
+                confirmModal.isOpen = false;
+            },
+            isDanger: options.isDanger ?? false
+        };
+    }
 
     async function loadExams() {
         loading = true;
@@ -22,6 +45,23 @@
         } finally {
             loading = false;
         }
+    }
+
+    async function deleteExam(id: string) {
+        showConfirm({
+            title: 'Delete Subject',
+            message: 'Are you sure you want to delete this subject? All lessons and study materials within it will be permanently removed.',
+            isDanger: true,
+            onConfirm: async () => {
+                try {
+                    await api.request('DELETE', '/exams', { exam_id: id });
+                    await loadExams();
+                    notifications.success('The subject has been removed.');
+                } catch (e: any) {
+                    notifications.error(e.message || e);
+                }
+            }
+        });
     }
 
     let creating = $state(false);
@@ -51,6 +91,15 @@
 
 <Breadcrumb items={[{ label: 'My Studies', active: true }]} />
 
+<ConfirmModal 
+    isOpen={confirmModal.isOpen}
+    title={confirmModal.title}
+    message={confirmModal.message}
+    isDanger={confirmModal.isDanger}
+    onConfirm={confirmModal.onConfirm}
+    onCancel={() => confirmModal.isOpen = false}
+/>
+
 <div class="bg-white border mb-5">
     <div class="standard-header">
         <div class="header-title">
@@ -70,50 +119,65 @@
                 {#snippet description()}
                     {exam.description || 'Access your lessons and study materials.'}
                 {/snippet}
+
+                {#snippet actions()}
+                    <button 
+                        class="btn btn-link text-danger p-0 border-0 shadow-none" 
+                        onclick={(e) => { e.preventDefault(); e.stopPropagation(); deleteExam(exam.id); }}
+                        title="Delete Subject"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                {/snippet}
             </Tile>
         {/each}
     </div>
 </div>
 
 {#if showCreate}
-    <div class="well mb-4 bg-white border shadow-sm p-4">
-        <h4 class="mt-0">Create a New Subject</h4>
-        <form onsubmit={(e) => { e.preventDefault(); createExam(); }}>
-            <div class="mb-3">
-                <label for="examTitle" class="form-label small fw-bold">Subject Name</label>
-                <input
-                    id="examTitle"
-                    type="text"
-                    class="form-control"
-                    placeholder="e.g. History, Science, Mathematics..."
-                    bind:value={newExamTitle}
-                    required
-                />
+    <div class="bg-white border mb-5 shadow-none">
+        <div class="standard-header">
+            <div class="header-title">
+                <span class="header-glyph" lang="ja">新</span>
+                <span class="header-text">Create a New Subject</span>
             </div>
-            <div class="mb-3">
-                <label for="examLanguage" class="form-label small fw-bold">Language (Optional)</label>
-                <select id="examLanguage" class="form-select" bind:value={newExamLanguage}>
-                    <option value="">Default (from settings)</option>
-                    <option value="en-US">English (US)</option>
-                    <option value="it-IT">Italian</option>
-                    <option value="ja-JP">Japanese</option>
-                    <option value="es-ES">Spanish</option>
-                    <option value="fr-FR">French</option>
-                    <option value="de-DE">German</option>
-                    <option value="zh-CN">Chinese (Simplified)</option>
-                    <option value="pt-BR">Portuguese (Brazilian)</option>
-                </select>
-                <div class="form-text small">Lectures will inherit this language for transcription and document processing.</div>
-            </div>
-            <button type="submit" class="btn btn-primary" disabled={creating}>
-                {#if creating}
-                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
-                {:else}
-                    <span class="glyphicon me-1"><Plus size={18} /></span>
-                {/if}
-                Create Subject
-            </button>
-        </form>
+        </div>
+        <div class="p-4">
+            <form onsubmit={(e) => { e.preventDefault(); createExam(); }}>
+                <div class="mb-4">
+                    <label for="examTitle" class="form-label fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Subject Name</label>
+                    <input
+                        id="examTitle"
+                        type="text"
+                        class="form-control rounded-0 border shadow-none"
+                        placeholder="e.g. History, Science, Mathematics..."
+                        bind:value={newExamTitle}
+                        required
+                    />
+                </div>
+                <div class="mb-5">
+                    <label for="examLanguage" class="form-label fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Language (Optional)</label>
+                    <select id="examLanguage" class="form-select rounded-0 border shadow-none" bind:value={newExamLanguage}>
+                        <option value="">Default (from settings)</option>
+                        <option value="en-US">English (US)</option>
+                        <option value="it-IT">Italian</option>
+                        <option value="ja-JP">Japanese</option>
+                        <option value="es-ES">Spanish</option>
+                        <option value="fr-FR">French</option>
+                        <option value="de-DE">German</option>
+                        <option value="zh-CN">Chinese (Simplified)</option>
+                        <option value="pt-BR">Portuguese (Brazilian)</option>
+                    </select>
+                    <div class="form-text small">Lectures will inherit this language for transcription and document processing.</div>
+                </div>
+                <button type="submit" class="btn btn-primary px-5 rounded-0" disabled={creating}>
+                    {#if creating}
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    {/if}
+                    Create Subject
+                </button>
+            </form>
+        </div>
     </div>
 {/if}
 

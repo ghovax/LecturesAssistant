@@ -33,41 +33,48 @@
 <Breadcrumb items={[{ label: 'Sign Up', active: true }]} />
 
 <div class="row justify-content-center">
-    <div class="col-md-6">
-        <h1>Sign Up</h1>
-        
-        <div class="well bg-white shadow-sm border p-4">
-            <form onsubmit={(e) => { e.preventDefault(); handleRegister(); }}>
-                {#if error}
-                    <div class="alert alert-danger mb-4">{error}</div>
-                {/if}
-                
-                <div class="mb-3">
-                    <label for="username" class="form-label fw-bold small text-muted">Desired Username</label>
-                    <input type="text" id="username" class="form-control" bind:value={username} required />
+    <div class="col-lg-6">
+        <div class="bg-white border mb-5">
+            <div class="standard-header">
+                <div class="header-title">
+                    <span class="header-glyph" lang="ja">新</span>
+                    <span class="header-text">Sign Up</span>
                 </div>
+            </div>
 
-                <div class="mb-3">
-                    <label for="password" class="form-label fw-bold small text-muted">Password (minimum 8 letters)</label>
-                    <input type="password" id="password" class="form-control" bind:value={password} required minlength="8" />
-                </div>
+            <div class="p-4">
+                <form onsubmit={(e) => { e.preventDefault(); handleRegister(); }}>
+                    {#if error}
+                        <div class="alert alert-danger mb-4 rounded-0 border-danger bg-danger bg-opacity-10 text-danger">{error}</div>
+                    {/if}
+                    
+                    <div class="mb-4">
+                        <label for="username" class="form-label fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Desired Username</label>
+                        <input type="text" id="username" class="form-control rounded-0 border shadow-none" bind:value={username} required />
+                    </div>
 
-                <div class="mb-4">
-                    <label for="confirmPassword" class="form-label fw-bold small text-muted">Confirm Password</label>
-                    <input type="password" id="confirmPassword" class="form-control" bind:value={confirmPassword} required />
-                </div>
+                    <div class="mb-4">
+                        <label for="password" class="form-label fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Password (minimum 8 letters)</label>
+                        <input type="password" id="password" class="form-control rounded-0 border shadow-none" bind:value={password} required minlength="8" />
+                    </div>
 
-                <div class="text-center">
-                    <button type="submit" class="btn btn-success px-4" disabled={loading}>
-                        {#if loading}
-                            <div class="spinner-border spinner-border-sm me-2" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        {/if}
-                        Create Account
-                    </button>
-                </div>
-            </form>
+                    <div class="mb-5">
+                        <label for="confirmPassword" class="form-label fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Confirm Password</label>
+                        <input type="password" id="confirmPassword" class="form-control rounded-0 border shadow-none" bind:value={confirmPassword} required />
+                    </div>
+
+                    <div class="text-center">
+                        <button type="submit" class="btn btn-success px-5 btn-lg rounded-0 w-100" disabled={loading}>
+                            {#if loading}
+                                <div class="spinner-border spinner-border-sm me-2" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            {/if}
+                            Create Account
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
         
         <div class="mt-4 text-center">

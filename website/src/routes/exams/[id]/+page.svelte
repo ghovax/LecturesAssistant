@@ -72,6 +72,23 @@
         }
     }
 
+    async function deleteChat(id: string) {
+        showConfirm({
+            title: 'Delete Chat',
+            message: 'Are you sure you want to delete this conversation? All messages will be permanently removed.',
+            isDanger: true,
+            onConfirm: async () => {
+                try {
+                    await api.request('DELETE', '/chat/sessions', { session_id: id, exam_id: examId });
+                    await loadData();
+                    notifications.success('The conversation has been removed.');
+                } catch (e: any) {
+                    notifications.error(e.message || e);
+                }
+            }
+        });
+    }
+
     async function deleteLecture(id: string) {
         showConfirm({
             title: 'Delete Lesson',
@@ -171,6 +188,16 @@
                                 {#snippet description()}
                                     Opened {new Date(session.created_at).toLocaleDateString()}
                                 {/snippet}
+
+                                {#snippet actions()}
+                                    <button 
+                                        class="btn btn-link text-danger p-0 border-0 shadow-none" 
+                                        onclick={(e) => { e.preventDefault(); e.stopPropagation(); deleteChat(session.id); }}
+                                        title="Delete Conversation"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                {/snippet}
                             </Tile>
                         {/each}
                     </div>
@@ -199,14 +226,15 @@
                                         {lecture.description || 'No summary provided.'}
                                     {/snippet}
                                     
-                                    <button 
-                                        class="btn btn-link text-danger p-0 position-absolute border-0 shadow-none" 
-                                        style="top: 0.5rem; right: 0.5rem; z-index: 10;"
-                                        onclick={(e) => { e.preventDefault(); e.stopPropagation(); deleteLecture(lecture.id); }}
-                                        title="Delete Lesson"
-                                    >
-                                        <span class="glyphicon m-0"><Trash2 size={14} /></span>
-                                    </button>
+                                    {#snippet actions()}
+                                        <button 
+                                            class="btn btn-link text-danger p-0 border-0 shadow-none" 
+                                            onclick={(e) => { e.preventDefault(); e.stopPropagation(); deleteLecture(lecture.id); }}
+                                            title="Delete Lesson"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    {/snippet}
                                 </Tile>
                             {/each}
                         </div>

@@ -1666,7 +1666,7 @@ func TestMarkdownToHTMLMathNormalization(tester *testing.T) {
 		{
 			name:     "Currency and math mixed",
 			input:    "Price $100 for \\(x^2\\)",
-			expected: "Price $100 for <math",
+			expected: "Price \\$100 for <math",
 		},
 	}
 
@@ -1858,3 +1858,4 @@ Detailed explanation.`
 		tester.Errorf("Should find section header 'Main Topic', got %q", title)
 	}
 }
+

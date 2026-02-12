@@ -159,7 +159,7 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 
 	// 5. Trigger Async Jobs
 	server.jobQueue.Enqueue(userID, models.JobTypeTranscribeMedia, map[string]string{"lecture_id": lectureID}, examID, lectureID)
-	server.jobQueue.Enqueue(userID, models.JobTypeIngestDocuments, map[string]string{"lecture_id": lectureID, "language_code": server.configuration.LLM.Language}, examID, lectureID)
+	server.jobQueue.Enqueue(userID, models.JobTypeIngestDocuments, map[string]string{"lecture_id": lectureID, "language_code": language}, examID, lectureID)
 
 	server.writeJSON(responseWriter, http.StatusCreated, lecture)
 }

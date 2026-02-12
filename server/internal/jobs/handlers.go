@@ -1026,10 +1026,13 @@ func RegisterHandlers(
 
 		originalContent := contentToConvert
 		generateFile := func(currentContent string, currentOptions markdown.ConversionOptions) error {
-			contentWithHeader := currentContent
+			// Normalize math for all non-HTML outputs if needed
+			normalizedContent := markdownConverter.NormalizeMath(currentContent)
+			
+			contentWithHeader := normalizedContent
 			if payload.Format == "md" || payload.Format == "docx" {
 				metadataHeader := markdownConverter.GenerateMetadataHeader(currentOptions)
-				contentWithHeader = metadataHeader + currentContent
+				contentWithHeader = metadataHeader + normalizedContent
 			}
 
 			if payload.Format == "md" {
@@ -1037,7 +1040,7 @@ func RegisterHandlers(
 			}
 
 			updateProgress(60, fmt.Sprintf("Converting %s document...", payload.Format), nil, models.JobMetrics{})
-			htmlContent, err := markdownConverter.MarkdownToHTML(contentWithHeader)
+			htmlContent, err := markdownConverter.MarkdownToHTML(currentContent) // MarkdownToHTML already calls normalize internally
 			if err != nil {
 				return fmt.Errorf("failed to convert to HTML: %w", err)
 			}

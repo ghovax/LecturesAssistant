@@ -19,6 +19,7 @@ import (
 type MarkdownConverter interface {
 	CheckDependencies() error
 	MarkdownToHTML(markdownText string) (string, error)
+	NormalizeMath(markdownText string) string
 	HTMLToPDF(htmlContent string, outputPath string, options ConversionOptions) error
 	HTMLToDocx(htmlContent string, outputPath string, options ConversionOptions) error
 	HTMLToAnki(toolType string, toolContent string, outputPath string) error
@@ -101,9 +102,15 @@ func (converter *ExternalConverter) MarkdownToHTML(markdownText string) (string,
 	return stdout.String(), nil
 }
 
+// NormalizeMath exposes the normalization logic for other formats
+func (converter *ExternalConverter) NormalizeMath(markdownText string) string {
+	return converter.normalizeMathDelimiters(markdownText)
+}
+
 func (converter *ExternalConverter) normalizeMathDelimiters(markdown string) string {
-	// 1. Escape pre-existing dollar signs (e.g., currency) so they aren't mistaken for math
-	markdown = converter.escapeUnescapedDollars(markdown)
+	// 1. Convert raw ^ and _ notation to LaTeX
+	// We do this first so they are caught by the subsequent standard normalization
+	markdown = converter.convertSimpleSupersub(markdown)
 
 	// 2. \(...\) -> $...$
 	inlineRegex := regexp.MustCompile(`(?s)\\\((.*?)\\\)`)
@@ -121,9 +128,8 @@ func (converter *ExternalConverter) normalizeMathDelimiters(markdown string) str
 		return "$$" + content + "$$"
 	})
 
-	// 4. Convert raw ^ and _ notation to LaTeX if not already in math mode
-	// We do this AFTER normalization so we can accurately skip existing math
-	markdown = converter.convertSimpleSupersub(markdown)
+	// 4. Escape pre-existing dollar signs (e.g., currency) ONLY if they are NOT part of math blocks
+	markdown = converter.escapeUnescapedDollars(markdown)
 
 	// 5. Escape literal asterisks used in parentheses like (*) to prevent <em> tags
 	// Biology often uses (*) for stop codons
@@ -133,38 +139,40 @@ func (converter *ExternalConverter) normalizeMathDelimiters(markdown string) str
 }
 
 func (converter *ExternalConverter) convertSimpleSupersub(text string) string {
-	// We want to match word^something and word_something ONLY when NOT inside $...$ or $$...$$
-	// A simple way is to use a regex that matches either math blocks (which we leave alone)
-	// or the target patterns (which we replace).
+	// We want to match word^something and word_something ONLY when NOT inside math delimiters.
+	// We match all types of math delimiters to skip them.
 	
 	// Match: 
-	// 1. $$...$$ (group 1)
-	// 2. $...$   (group 2)
-	// 3. \w+^... (group 3)
-	// 4. \w+_... (group 4)
+	// 1. $$...$$ 
+	// 2. $...$   
+	// 3. \[...\]
+	// 4. \(...\)
+	// 5. \w+^... (target)
+	// 6. \w+_... (target)
 	
-	combinedRegex := regexp.MustCompile(`(\$\$.*?\$\$)|(\$.*?\$)|((\w+)\^([a-zA-Z0-9]+|\{[^{}]+\}))|((\w+)_([a-zA-Z0-9]+|\{[^{}]+\}))`)
+	combinedRegex := regexp.MustCompile(`(\$\$.*?\$\$)|(\$.*?\$)|(\\\(.*?\\\))|(\\\[.*?\\\])|((\w+)\^([a-zA-Z0-9]+|\{[^{}]+\}))|((\w+)_([a-zA-Z0-9]+|\{[^{}]+\}))`)
 	
 	return combinedRegex.ReplaceAllStringFunc(text, func(match string) string {
-		if strings.HasPrefix(match, "$") {
-			return match // Leave math blocks alone
+		// If it starts with any delimiter, skip it
+		if strings.HasPrefix(match, "$") || strings.HasPrefix(match, "\\(") || strings.HasPrefix(match, "\\[") {
+			return match
 		}
 		
-		// Check for superscript (group 3)
+		// Check for superscript
 		if strings.Contains(match, "^") {
 			parts := regexp.MustCompile(`(\w+)\^([a-zA-Z0-9]+|\{[^{}]+\})`).FindStringSubmatch(match)
 			if len(parts) > 2 {
 				content := strings.Trim(parts[2], "{}")
-				return parts[1] + "$^{" + content + "}$"
+				return parts[1] + "\\(^{" + content + "}\\)"
 			}
 		}
 		
-		// Check for subscript (group 6)
+		// Check for subscript
 		if strings.Contains(match, "_") {
 			parts := regexp.MustCompile(`(\w+)_([a-zA-Z0-9]+|\{[^{}]+\})`).FindStringSubmatch(match)
 			if len(parts) > 2 {
 				content := strings.Trim(parts[2], "{}")
-				return parts[1] + "$_{" + content + "}$"
+				return parts[1] + "\\(_{" + content + "}\\)"
 			}
 		}
 		
@@ -173,23 +181,19 @@ func (converter *ExternalConverter) convertSimpleSupersub(text string) string {
 }
 
 func (converter *ExternalConverter) escapeUnescapedDollars(text string) string {
-	var builder strings.Builder
-	runes := []rune(text)
-	for runeIndex := 0; runeIndex < len(runes); runeIndex++ {
-		if runes[runeIndex] == '$' {
-			// Count backslashes before this dollar sign
-			backslashCount := 0
-			for backslashIndex := runeIndex - 1; backslashIndex >= 0 && runes[backslashIndex] == '\\'; backslashIndex-- {
-				backslashCount++
-			}
-			// If backslash count is even, the dollar is unescaped
-			if backslashCount%2 == 0 {
-				builder.WriteRune('\\')
-			}
+	// Match both double and single dollar math environments to skip them
+	// Double dollars: $$ ... $$
+	// Single dollars: $ ... $ (must not be empty and must not start/end with space)
+	combinedRegex := regexp.MustCompile(`(\$\$.*?\$\$)|(\$[^$\s][^$]*?[^$\s]\$)|(\$[^$\s]\$)|(\$)`)
+	
+	return combinedRegex.ReplaceAllStringFunc(text, func(match string) string {
+		// If it's a math block, return as is
+		if len(match) > 1 && strings.HasPrefix(match, "$") {
+			return match
 		}
-		builder.WriteRune(runes[runeIndex])
-	}
-	return builder.String()
+		// It's a single raw dollar sign
+		return "\\\\$"
+	})
 }
 
 // HTMLToPDF converts HTML content to a PDF file

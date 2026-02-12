@@ -118,10 +118,14 @@ func (processor *Processor) interpretPageContent(jobContext context.Context, ima
 	var ingestPrompt string
 	if processor.promptManager != nil {
 		latexInstructions, _ := processor.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+		languageRequirement, _ := processor.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{
+			"language":      languageCode,
+			"language_code": languageCode,
+		})
 
 		var promptError error
 		ingestPrompt, promptError = processor.promptManager.GetPrompt(prompts.PromptIngestDocumentPage, map[string]string{
-			"language_requirement": fmt.Sprintf("The response must be written in %s.", languageCode),
+			"language_requirement": languageRequirement,
 			"latex_instructions":   latexInstructions,
 		})
 		if promptError != nil {

@@ -36,7 +36,7 @@
     let documentsJob = $derived(jobs.find(j => j.type === 'INGEST_DOCUMENTS'));
     
     // Derived tools being built
-    let toolsInProgress = $derived(jobs.filter(j => j.type === 'BUILD_MATERIAL' && (j.status === 'PENDING' || j.status === 'RUNNING')));
+    let activeToolsJobs = $derived(jobs.filter(j => j.type === 'BUILD_MATERIAL' && (j.status === 'PENDING' || j.status === 'RUNNING' || j.status === 'FAILED')));
 
     // View State
     let activeView = $state<'dashboard' | 'guide' | 'transcript' | 'doc' | 'tool'>('dashboard');
@@ -231,6 +231,9 @@
 
     function createTool(type: string) {
         pendingToolType = type;
+        if (lecture?.language) {
+            toolOptions.language_code = lecture.language;
+        }
         showCreateModal = true;
     }
 
@@ -448,7 +451,7 @@
                                             controls 
                                             class="w-100" 
                                             style="height: 40px; display: block; background: #fff;" 
-                                            src="http://localhost:3000/api/media/content?media_id={seg.media_id}&session_token={localStorage.getItem('session_token')}#t={seg.original_start_milliseconds / 1000},{seg.original_end_milliseconds / 1000}"
+                                            src={api.getAuthenticatedMediaUrl(`/media/content?media_id=${seg.media_id}`) + `#t=${seg.original_start_milliseconds / 1000},${seg.original_end_milliseconds / 1000}`}
                                         ></audio>
                                     </div>
                                 {/if}
@@ -498,7 +501,7 @@
 
                                 <div class="bg-light d-flex justify-content-center p-3 mb-4 border text-center">
                                     <img 
-                                        src="http://localhost:3000/api/documents/pages/image?document_id={selectedDocId}&lecture_id={lectureId}&page_number={p.page_number}&session_token={localStorage.getItem('session_token')}" 
+                                        src={api.getAuthenticatedMediaUrl(`/documents/pages/image?document_id=${selectedDocId}&lecture_id=${lectureId}&page_number=${p.page_number}`)} 
                                         alt="Page {p.page_number}"
                                         class="img-fluid shadow-sm border"
                                         style="width: 100%; height: auto;"
@@ -629,18 +632,25 @@
                         </Tile>
                     {/each}
 
-                    {#each toolsInProgress as job}
-                        <Tile href="javascript:void(0)" 
-                            icon="作" 
-                            title="Preparing Aid"
-                            class="tile-processing">
+                    {#each activeToolsJobs as job}
+                        <Tile
+                            icon={job.status === 'FAILED' ? '疑' : '作'} 
+                            title={job.status === 'FAILED' ? 'Failed Generation' : 'Preparing Aid'}
+                            class={job.status === 'FAILED' ? 'tile-error' : 'tile-processing'}
+                        >
                             {#snippet description()}
-                                <div class="d-flex align-items-center gap-2">
-                                    <div class="spinner-border spinner-border-sm text-success" role="status">
-                                        <span class="visually-hidden">Processing...</span>
+                                {#if job.status === 'FAILED'}
+                                    <div class="text-danger small fw-bold">
+                                        <X size={14} class="me-1" /> Generation failed.
                                     </div>
-                                    <span>Building study material... {job.progress}%</span>
-                                </div>
+                                {:else}
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="spinner-border spinner-border-sm text-success" role="status">
+                                            <span class="visually-hidden">Processing...</span>
+                                        </div>
+                                        <span>Building study material... {job.progress}%</span>
+                                    </div>
+                                {/if}
                             {/snippet}
                         </Tile>
                     {/each}

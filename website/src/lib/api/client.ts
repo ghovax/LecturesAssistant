@@ -2,11 +2,24 @@ export class APIClient {
     private baseUrl: string;
     private sessionToken: string | null = null;
 
-    constructor(baseUrl = 'http://localhost:3000/api') {
-        this.baseUrl = baseUrl;
+    constructor() {
         if (typeof window !== 'undefined') {
+            const host = window.location.hostname;
+            const port = window.location.port === '5173' ? '3000' : window.location.port;
+            this.baseUrl = `${window.location.protocol}//${host}${port ? ':' + port : ''}/api`;
             this.sessionToken = localStorage.getItem('session_token');
+        } else {
+            this.baseUrl = 'http://localhost:3000/api';
         }
+    }
+
+    getBaseUrl() {
+        return this.baseUrl;
+    }
+
+    getAuthenticatedMediaUrl(path: string) {
+        const separator = path.includes('?') ? '&' : '?';
+        return `${this.baseUrl}${path}${separator}session_token=${this.sessionToken}`;
     }
 
     setToken(token: string | null) {

@@ -76,7 +76,8 @@
 
     function setupWebSocket() {
         const token = localStorage.getItem('session_token');
-        socket = new WebSocket(`ws://localhost:3000/api/socket?session_token=${token}`);
+        const baseUrl = api.getBaseUrl().replace('http', 'ws');
+        socket = new WebSocket(`${baseUrl}/socket?session_token=${token}`);
         
         socket.onopen = () => {
             if (sessionId) {

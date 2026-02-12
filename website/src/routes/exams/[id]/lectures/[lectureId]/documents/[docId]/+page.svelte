@@ -141,7 +141,7 @@
                             <!-- Page Image -->
                             <div class="bg-light d-flex align-items-start justify-content-center p-3 mb-4 border text-center">
                                 <img 
-                                    src="http://localhost:3000/api/documents/pages/image?document_id={docId}&lecture_id={lectureId}&page_number={p.page_number}&session_token={localStorage.getItem('session_token')}" 
+                                    src={api.getAuthenticatedMediaUrl(`/documents/pages/image?document_id=${docId}&lecture_id=${lectureId}&page_number=${p.page_number}`)} 
                                     alt="Page {p.page_number}"
                                     class="img-fluid shadow-sm border"
                                     style="max-height: 80vh; width: auto;"

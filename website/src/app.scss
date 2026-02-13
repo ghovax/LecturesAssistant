@@ -370,3 +370,11 @@ body {
 .shadow-kakimashou {
     box-shadow: 0.25rem 0.25rem 0.5rem rgba(0, 0, 0, 0.08) !important;
 }
+
+.filename {
+    font-family: "Menlo", "Monaco", "Consolas", monospace;
+    font-size-adjust: 0.5; /* Makes x-height consistent with surrounding text */
+    background-color: rgba(0, 0, 0, 0.03);
+    padding: 0.1em 0.3em;
+    font-size: 0.9em;
+}

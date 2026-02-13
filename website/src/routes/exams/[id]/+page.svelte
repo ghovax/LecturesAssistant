@@ -163,7 +163,7 @@
             </button>
         </div>
         {#if exam.description}
-            <div class="p-4 prose bg-light bg-opacity-10" style="font-size: 1.1rem;">
+            <div class="p-4 prose border-top bg-light bg-opacity-10" style="font-size: 1.1rem;">
                 <p class="mb-0">{exam.description}</p>
             </div>
         {/if}

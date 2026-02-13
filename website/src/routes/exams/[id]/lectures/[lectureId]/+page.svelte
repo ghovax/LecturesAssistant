@@ -19,6 +19,7 @@
     let exam = $state<any>(null);
     let lecture = $state<any>(null);
     let transcript = $state<any>(null);
+    let mediaFiles = $state<any[]>([]);
     let documents = $state<any[]>([]);
     let tools = $state<any[]>([]);
     let jobs = $state<any[]>([]);
@@ -103,7 +104,7 @@
             const newJobs = rawJobs.map((j: any) => {
                 if (typeof j.payload === 'string') {
                     try {
-                        j.payload = json.parse(j.payload);
+                        j.payload = JSON.parse(j.payload);
                     } catch (e) {
                         // ignore
                     }
@@ -157,7 +158,7 @@
                 await api.request('POST', '/jobs/cancel', { job_id: failedJob.id, delete: true });
             }
             
-            await api.retryLectureJob(lectureId, examId, type);
+            await api.retryLectureJob(lectureId!, examId!, type);
             notifications.success(`Retrying ${type === 'TRANSCRIBE_MEDIA' ? 'transcription' : 'document ingestion'}...`);
             await loadJobs();
             // Refresh lecture metadata too
@@ -194,16 +195,18 @@
 
     async function loadLectureData() {
         try {
-            const [lectureR, transcriptR, docsR, toolsR] = await Promise.all([
+            const [lectureR, transcriptR, docsR, toolsR, mediaR] = await Promise.all([
                 api.getLecture(lectureId!, examId!),
                 api.request('GET', `/transcripts/html?lecture_id=${lectureId}`),
                 api.listDocuments(lectureId!),
-                api.request('GET', `/tools?lecture_id=${lectureId}&exam_id=${examId}`)
+                api.request('GET', `/tools?lecture_id=${lectureId}&exam_id=${examId}`),
+                api.request('GET', `/media?lecture_id=${lectureId}`)
             ]);
             lecture = lectureR;
             transcript = transcriptR;
             documents = docsR ?? [];
             tools = toolsR ?? [];
+            mediaFiles = mediaR ?? [];
 
             if (guideTool) {
                 const htmlRes = await api.getToolHTML(guideTool.id, examId!);
@@ -615,8 +618,48 @@
                                 </Tile>
                             {/if}
                         </div>
+
+                        <div class="bg-white border mt-4">
+                            <div class="standard-header">
+                                <div class="header-title">
+                                    <span class="header-glyph" lang="ja">源</span>
+                                    <span class="header-text">Source Assets</span>
+                                </div>
+                            </div>
+                            <div class="p-3">
+                                <div class="row g-3">
+                                    {#if mediaFiles.length > 0}
+                                        <div class="col-md-6">
+                                            <div class="fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.65rem; letter-spacing: 0.05em;">Recordings</div>
+                                            <ul class="list-unstyled mb-0">
+                                                {#each mediaFiles as media}
+                                                    <li class="mb-1">
+                                                        <span class="filename">{media.original_filename || 'Unknown recording'}</span>
+                                                    </li>
+                                                {/each}
+                                            </ul>
+                                        </div>
+                                    {/if}
+                                    {#if documents.length > 0}
+                                        <div class="col-md-6">
+                                            <div class="fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.65rem; letter-spacing: 0.05em;">Reference Files</div>
+                                            <ul class="list-unstyled mb-0">
+                                                {#each documents as doc}
+                                                    <li class="mb-1">
+                                                        <span class="filename">{doc.original_filename || doc.title}</span>
+                                                    </li>
+                                                {/each}
+                                            </ul>
+                                        </div>
+                                    {/if}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 {:else if activeView === 'guide'}
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+                    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
                     <div 
                         class="well bg-white p-0 overflow-hidden mb-3 border" 
                         onclick={handleCitationClick}
@@ -629,18 +672,19 @@
                                 <span class="header-glyph" lang="ja">案</span>
                                 <span class="header-text">Study Guide</span>
                             </div>
-                            <div class="d-flex align-items-center gap-2">
-                                <button class="btn btn-link btn-sm text-danger p-0 d-flex align-items-center shadow-none border-0" title="Delete Guide" onclick={() => deleteTool(guideTool.id)}>
-                                    <Trash2 size={18} />
-                                </button>
-                                <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
-                            </div>
-                        </div>
-                        <div class="p-4 prose">
-                            {@html guideHTML}
-                        </div>
-                    </div>
-                {:else if activeView === 'transcript'}
+                                            <div class="d-flex align-items-center gap-2">
+                                                <button class="btn btn-link btn-sm text-danger p-0 d-flex align-items-center shadow-none border-0" title="Delete Guide" onclick={() => deleteTool(guideTool?.id || '')}>
+                                                    <Trash2 size={18} />
+                                                </button>
+                                                <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                                            </div>
+                                        </div>
+                                        <div class="p-4 prose">
+                                            {@html guideHTML}
+                                        </div>
+                                    </div>
+                                {:else if activeView === 'transcript'}
+                            
                     <div class="well bg-white p-0 overflow-hidden mb-3 border">
                         <div class="standard-header">
                             <div class="header-title">

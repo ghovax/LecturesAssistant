@@ -622,15 +622,26 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 	finalSystemPrompt := markdownReconstructor.Reconstruct(rootNode)
 
 	fullMessages := append([]llm.Message{
-		{Role: "system", Content: []llm.ContentPart{{Type: "text", Text: finalSystemPrompt}}},
+		{
+			Role: "system",
+			Content: []llm.ContentPart{
+				{
+					Type: "text",
+					Text: finalSystemPrompt,
+					// Large context is in the system prompt, enable caching
+					CacheControl: &llm.CacheControl{Type: "ephemeral"},
+				},
+			},
+		},
 	}, history...)
 
 	model := server.configuration.LLM.Model
 
 	responseChannel, chatError := server.llmProvider.Chat(context.Background(), &llm.ChatRequest{
-		Model:    model,
-		Messages: fullMessages,
-		Stream:   true,
+		Model:     model,
+		Messages:  fullMessages,
+		Stream:    true,
+		SessionID: sessionID,
 	})
 
 	if chatError != nil {

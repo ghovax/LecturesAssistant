@@ -46,11 +46,19 @@ func (provider *OpenRouterProvider) Chat(jobContext context.Context, request *Ch
 	for _, message := range request.Messages {
 		var contentParts []openrouter.ChatMessagePart
 		for _, contentPart := range message.Content {
+			var cacheControl *openrouter.CacheControl
+			if contentPart.CacheControl != nil {
+				cacheControl = &openrouter.CacheControl{
+					Type: contentPart.CacheControl.Type,
+				}
+			}
+
 			switch contentPart.Type {
 			case "text":
 				contentParts = append(contentParts, openrouter.ChatMessagePart{
-					Type: openrouter.ChatMessagePartTypeText,
-					Text: contentPart.Text,
+					Type:         openrouter.ChatMessagePartTypeText,
+					Text:         contentPart.Text,
+					CacheControl: cacheControl,
 				})
 			case "image":
 				contentParts = append(contentParts, openrouter.ChatMessagePart{
@@ -58,6 +66,7 @@ func (provider *OpenRouterProvider) Chat(jobContext context.Context, request *Ch
 					ImageURL: &openrouter.ChatMessageImageURL{
 						URL: contentPart.ImageURL,
 					},
+					CacheControl: cacheControl,
 				})
 			case "input_audio":
 				contentParts = append(contentParts, openrouter.ChatMessagePart{
@@ -66,6 +75,7 @@ func (provider *OpenRouterProvider) Chat(jobContext context.Context, request *Ch
 						Data:   contentPart.AudioData,
 						Format: openrouter.AudioFormat(contentPart.AudioFormat),
 					},
+					CacheControl: cacheControl,
 				})
 			}
 		}
@@ -82,9 +92,10 @@ func (provider *OpenRouterProvider) Chat(jobContext context.Context, request *Ch
 
 		if request.Stream {
 			completionStream, streamError := client.CreateChatCompletionStream(jobContext, openrouter.ChatCompletionRequest{
-				Model:    request.Model,
-				Messages: chatMessages,
-				Stream:   true,
+				Model:     request.Model,
+				Messages:  chatMessages,
+				Stream:    true,
+				SessionId: request.SessionID,
 			})
 			if streamError != nil {
 				responseChannel <- ChatResponseChunk{Error: streamError}
@@ -116,8 +127,9 @@ func (provider *OpenRouterProvider) Chat(jobContext context.Context, request *Ch
 			}
 		} else {
 			chatResponse, chatError := client.CreateChatCompletion(jobContext, openrouter.ChatCompletionRequest{
-				Model:    request.Model,
-				Messages: chatMessages,
+				Model:     request.Model,
+				Messages:  chatMessages,
+				SessionId: request.SessionID,
 			})
 			if chatError != nil {
 				responseChannel <- ChatResponseChunk{Error: chatError}

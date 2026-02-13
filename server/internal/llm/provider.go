@@ -10,11 +10,17 @@ import (
 
 // ContentPart represents a part of a message (text, image, or audio)
 type ContentPart struct {
-	Type        string `json:"type"`                   // "text", "image", or "input_audio"
-	Text        string `json:"text,omitempty"`         // For type "text"
-	ImageURL    string `json:"image_url,omitempty"`    // For type "image" (base64 or URL)
-	AudioData   string `json:"audio_data,omitempty"`   // For type "input_audio" (base64-encoded)
-	AudioFormat string `json:"audio_format,omitempty"` // For type "input_audio" (e.g., "wav", "mp3")
+	Type         string        `json:"type"`                   // "text", "image", or "input_audio"
+	Text         string        `json:"text,omitempty"`         // For type "text"
+	ImageURL     string        `json:"image_url,omitempty"`    // For type "image" (base64 or URL)
+	AudioData    string        `json:"audio_data,omitempty"`   // For type "input_audio" (base64-encoded)
+	AudioFormat  string        `json:"audio_format,omitempty"` // For type "input_audio" (e.g., "wav", "mp3")
+	CacheControl *CacheControl `json:"cache_control,omitempty"`
+}
+
+// CacheControl represents prompt caching parameters
+type CacheControl struct {
+	Type string `json:"type"` // only "ephemeral" is currently supported by OpenRouter
 }
 
 // Message represents a chat message
@@ -25,9 +31,10 @@ type Message struct {
 
 // ChatRequest represents a request to the LLM
 type ChatRequest struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
-	Stream   bool      `json:"stream"`
+	Model     string    `json:"model"`
+	Messages  []Message `json:"messages"`
+	Stream    bool      `json:"stream"`
+	SessionID string    `json:"session_id,omitempty"`
 }
 
 // ChatResponseChunk represents a chunk of the streamed response

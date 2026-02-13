@@ -1,5 +1,7 @@
 <script lang="ts">
     import type { Snippet } from 'svelte';
+    import Highlighter from './Highlighter.svelte';
+
     interface Props {
         href?: string;
         icon: string;
@@ -12,6 +14,7 @@
         class?: string;
         disabled?: boolean;
     }
+
     let { 
         href, 
         icon, 
@@ -24,17 +27,31 @@
         class: className = '', 
         disabled = false 
     }: Props = $props();
+
+    let isHovered = $state(false);
 </script>
-<div class="tile-wrapper {className}">
+
+<div 
+    class="tile-wrapper {className}"
+    onmouseenter={() => isHovered = true}
+    onmouseleave={() => isHovered = false}
+>
     {#if href}
         <a {href} {onclick}>
             <div lang="ja" class="tile-glyph">{icon}</div>
-            <p class="tile-title" class:font-monospace={monospaceTitle}><strong>{title}</strong><br /></p>
+            <p class="tile-title" class:font-monospace={monospaceTitle}>
+                <Highlighter show={isHovered} padding={0} offsetY={2}>
+                    <strong>{title}</strong>
+                </Highlighter>
+                <br />
+            </p>
+            
             {#if description}
                 <div class="tileContent">
                     {@render description()}
                 </div>
             {/if}
+
             {#if children}
                 <div class="tile-extra-children">
                     {@render children()}
@@ -44,12 +61,19 @@
     {:else}
         <button type="button" class="tile-button" {onclick} {disabled}>
             <div lang="ja" class="tile-glyph">{icon}</div>
-            <p class="tile-title" class:font-monospace={monospaceTitle}><strong>{title}</strong><br /></p>
+            <p class="tile-title" class:font-monospace={monospaceTitle}>
+                <Highlighter show={isHovered} padding={0} offsetY={2}>
+                    <strong>{title}</strong>
+                </Highlighter>
+                <br />
+            </p>
+            
             {#if description}
                 <div class="tileContent">
                     {@render description()}
                 </div>
             {/if}
+
             {#if children}
                 <div class="tile-extra-children">
                     {@render children()}
@@ -57,6 +81,7 @@
             {/if}
         </button>
     {/if}
+
     {#if actions}
         <div class="tile-actions">
             {@render actions()}

@@ -200,6 +200,8 @@ func (reconstructor *Reconstructor) reconstructNode(node *Node, markdownLines *[
 			} else {
 				metadataCaption = fmt.Sprintf("<code>%s</code>", node.SourceFile)
 			}
+		} else if node.Title != "" {
+			metadataCaption = node.Title
 		}
 
 		// 2. Output as HTML figure

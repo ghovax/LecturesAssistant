@@ -51,6 +51,13 @@ func sanitizeFilename(name string) string {
 	return result
 }
 
+func formatTimestamp(ms int64) string {
+	totalSeconds := ms / 1000
+	minutes := totalSeconds / 60
+	seconds := totalSeconds % 60
+	return fmt.Sprintf("%02d:%02d", minutes, seconds)
+}
+
 // RegisterHandlers registers all standard job handlers
 func RegisterHandlers(
 	queue *Queue,
@@ -742,9 +749,11 @@ func RegisterHandlers(
 			database.QueryRow("SELECT title FROM exams WHERE id = ?", examID).Scan(&examTitle)
 
 			rows, err := database.Query(`
-				SELECT text FROM transcript_segments 
-				WHERE transcript_id = (SELECT id FROM transcripts WHERE lecture_id = ?)
-				ORDER BY start_millisecond ASC
+				SELECT ts.text, ts.start_millisecond, ts.end_millisecond, lm.original_filename
+				FROM transcript_segments ts
+				JOIN lecture_media lm ON ts.media_id = lm.id
+				WHERE ts.transcript_id = (SELECT id FROM transcripts WHERE lecture_id = ?)
+				ORDER BY lm.sequence_order ASC, ts.start_millisecond ASC
 			`, payload.LectureID)
 			if err != nil {
 				return err
@@ -752,23 +761,58 @@ func RegisterHandlers(
 			defer rows.Close()
 
 			var transcriptBuilder strings.Builder
-			transcriptBuilder.WriteString("# " + lecture.Title + " - Transcript\n\n")
+			transcriptBuilder.WriteString("# \"" + lecture.Title + "\" -- Transcript\n\n")
 
-			var segments []string
+			// 1. First pass: Organize segments by media file
+			type segment struct {
+				text  string
+				start string
+				end   string
+			}
+			mediaGroups := make(map[string][]segment)
+			var mediaOrder []string
+
 			for rows.Next() {
 				var text string
-				if err := rows.Scan(&text); err == nil {
-					segments = append(segments, text)
+				var startMs, endMs int64
+				var filename sql.NullString
+				if err := rows.Scan(&text, &startMs, &endMs, &filename); err == nil {
+					name := "Recording"
+					if filename.Valid && filename.String != "" {
+						name = filename.String
+					}
+
+					if _, exists := mediaGroups[name]; !exists {
+						mediaOrder = append(mediaOrder, name)
+					}
+					mediaGroups[name] = append(mediaGroups[name], segment{
+						text:  text,
+						start: formatTimestamp(startMs),
+						end:   formatTimestamp(endMs),
+					})
 				}
 			}
 
-			// Join segments with double newlines for better paragraph separation in PDF
-			content := transcriptBuilder.String() + strings.Join(segments, "\n\n")
+			// 2. Build TOC (Índice)
+			transcriptBuilder.WriteString("## Índice\n\n")
+			for _, name := range mediaOrder {
+				transcriptBuilder.WriteString(fmt.Sprintf("- [%s](#%s)\n", name, strings.ToLower(strings.ReplaceAll(name, " ", "-"))))
+			}
+			transcriptBuilder.WriteString("\n---\n\n")
+
+			// 3. Build Content
+			for _, name := range mediaOrder {
+				transcriptBuilder.WriteString(fmt.Sprintf("## %s\n\n", name))
+				for _, seg := range mediaGroups[name] {
+					transcriptBuilder.WriteString(fmt.Sprintf("### %s – %s\n\n", seg.start, seg.end))
+					transcriptBuilder.WriteString(seg.text + "\n\n")
+				}
+			}
 
 			// Setup export directory
 			exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", job.ID)
 			os.MkdirAll(exportDirectory, 0755)
-			safeFilename := sanitizeFilename(lecture.Title) + "_Transcript." + payload.Format
+			safeFilename := sanitizeFilename(lecture.Title) + " Transcript." + payload.Format
 			outputPath := filepath.Join(exportDirectory, safeFilename)
 
 			// Convert
@@ -779,13 +823,13 @@ func RegisterHandlers(
 			}
 
 			if payload.Format == "pdf" {
-				html, _ := markdownConverter.MarkdownToHTML(content)
+				html, _ := markdownConverter.MarkdownToHTML(transcriptBuilder.String())
 				err = markdownConverter.HTMLToPDF(html, outputPath, options)
 			} else if payload.Format == "docx" {
-				html, _ := markdownConverter.MarkdownToHTML(content)
+				html, _ := markdownConverter.MarkdownToHTML(transcriptBuilder.String())
 				err = markdownConverter.HTMLToDocx(html, outputPath, options)
 			} else {
-				err = markdownConverter.SaveMarkdown(content, outputPath)
+				err = markdownConverter.SaveMarkdown(transcriptBuilder.String(), outputPath)
 			}
 
 			if err != nil {
@@ -838,14 +882,24 @@ func RegisterHandlers(
 						imagePath = relPath
 					}
 
+					if pageNum%10 == 0 || pageNum == 1 {
+						rootNode.Children = append(rootNode.Children, &markdown.Node{
+							Type:    markdown.NodeHeading,
+							Level:   2,
+							Content: fmt.Sprintf("Page %d", pageNum),
+						})
+					} else {
+						rootNode.Children = append(rootNode.Children, &markdown.Node{
+							Type:    markdown.NodeHeading,
+							Level:   3,
+							Content: fmt.Sprintf("Page %d", pageNum),
+						})
+					}
 					rootNode.Children = append(rootNode.Children, &markdown.Node{
-						Type:    markdown.NodeHeading,
-						Level:   2,
-						Content: fmt.Sprintf("Page %d", pageNum),
-					})
-					rootNode.Children = append(rootNode.Children, &markdown.Node{
-						Type:    markdown.NodeImage,
-						Content: imagePath,
+						Type:        markdown.NodeImage,
+						Content:     imagePath,
+						SourceFile:  doc.Title,
+						SourcePages: []int{pageNum},
 					})
 					rootNode.Children = append(rootNode.Children, &markdown.Node{
 						Type:    markdown.NodeParagraph,
@@ -859,7 +913,7 @@ func RegisterHandlers(
 			// Setup export directory
 			exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", job.ID)
 			os.MkdirAll(exportDirectory, 0755)
-			safeFilename := sanitizeFilename(doc.Title) + "_Analysis." + payload.Format
+			safeFilename := sanitizeFilename(doc.Title) + "." + payload.Format
 			outputPath := filepath.Join(exportDirectory, safeFilename)
 
 			// Convert

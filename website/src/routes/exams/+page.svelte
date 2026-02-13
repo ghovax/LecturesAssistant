@@ -216,31 +216,4 @@
             }
         }
     }
-
-    .cozy-label {
-        font-family: 'Manrope', sans-serif;
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: var(--gray-500);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-bottom: 8px;
-        display: block;
-    }
-
-    .cozy-input {
-        border-radius: 0;
-        border: 1px solid var(--gray-300) !important;
-        font-family: 'Manrope', sans-serif;
-        font-size: 0.85rem;
-        padding: 12px;
-        background: #fff;
-        transition: all 0.2s ease;
-
-        &:focus {
-            border-color: var(--orange) !important;
-            box-shadow: none;
-            background: #fafaf9;
-        }
-    }
 </style>

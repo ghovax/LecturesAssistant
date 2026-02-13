@@ -21,21 +21,21 @@
     onClose={onCancel}
 >
     <div class="mb-4">
-        <label class="form-label" for="edit-title">Title</label>
+        <label class="form-label cozy-label" for="edit-title">Title</label>
         <input 
             id="edit-title"
             type="text" 
-            class="form-control rounded-0 border shadow-none" 
+            class="form-control cozy-input" 
             bind:value={newTitle}
             autofocus
         />
     </div>
 
     <div class="mb-0">
-        <label class="form-label" for="edit-desc">Description</label>
+        <label class="form-label cozy-label" for="edit-desc">Description</label>
         <textarea 
             id="edit-desc"
-            class="form-control rounded-0 border shadow-none" 
+            class="form-control cozy-input" 
             rows="4" 
             bind:value={newDescription}
         ></textarea>

@@ -59,7 +59,7 @@ body {
     flex-wrap: wrap;
     gap: 0;
     margin: 0;
-    overflow: hidden;
+    overflow: visible;
     &.flex-column {
         margin: 0;
         gap: 0.75rem;
@@ -98,12 +98,52 @@ body {
 .bg-dark {
     background-color: #222 !important;
 }
+.cozy-label {
+    font-family: 'Manrope', sans-serif !important;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    color: var(--gray-500) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    margin-bottom: 8px !important;
+    display: block !important;
+}
+
+.cozy-input {
+    border-radius: 0 !important;
+    border: 1px solid var(--gray-300) !important;
+    font-family: 'Manrope', sans-serif !important;
+    font-size: 0.85rem !important;
+    padding: 10px 12px !important;
+    background: #fff !important;
+    transition: all 0.2s ease !important;
+    height: 2.75rem;
+
+    &:focus {
+        border-color: var(--orange) !important;
+        box-shadow: none !important;
+        background: #fafaf9 !important;
+    }
+}
+
+textarea.cozy-input {
+    height: auto !important;
+    min-height: 2.75rem;
+}
+
+.form-select.cozy-input {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    line-height: 2.75rem !important;
+    appearance: none;
+}
+
 /* Dictionary Search Style Input Group */
 .input-group.dictionary-style {
-    .form-control, .btn {
-        height: 2.5rem;
+    .form-control, .form-select, .btn {
+        height: 2.75rem;
     }
-    .form-control {
+    .form-control, .form-select {
         border-right: none;
         font-size: 0.85rem;
     }
@@ -120,7 +160,8 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.04em;
     font-size: 0.75rem;
-    padding: 0.5rem 1.25rem;
+    height: 2.75rem; // Homogenous height for primary buttons
+    padding: 0 1.25rem;
     transition: all 0.15s ease;
     box-shadow: 0.125rem 0.125rem 0.25rem rgba(0, 0, 0, 0.05);
     display: inline-flex;
@@ -132,6 +173,27 @@ body {
         box-shadow: none !important;
         transform: translateY(1px);
     }
+}
+
+.btn-sm {
+    height: 2rem;
+    padding: 0 0.75rem;
+    font-size: 0.7rem;
+}
+
+.btn-lg {
+    height: 3.25rem;
+    padding: 0 2.5rem;
+    font-size: 0.85rem;
+}
+
+.btn-link {
+    height: auto;
+    padding: 0;
+    box-shadow: none;
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: normal;
 }
 
 .btn-primary, .btn-success {
@@ -147,6 +209,7 @@ body {
 .btn-outline-primary, .btn-outline-success {
     color: var(--gray-800) !important;
     border-color: var(--gray-300) !important;
+    background-color: transparent !important;
     &:hover {
         background-color: var(--gray-200) !important;
         color: var(--gray-900) !important;
@@ -173,15 +236,6 @@ body {
     }
 }
 
-.btn-sm {
-    padding: 0.35rem 0.75rem;
-    font-size: 0.7rem;
-}
-
-.btn-lg {
-    padding: 0.75rem 2rem;
-    font-size: 0.85rem;
-}
 .breadcrumb {
     background-color: transparent !important;
     border: none !important;
@@ -220,7 +274,7 @@ body {
     border: 1px solid #d6d3d1;
     padding: 0;
     margin-bottom: 24px;
-    overflow: hidden;
+    overflow: visible;
 }
 /* Utils */
 .btn, .form-control, .form-select {
@@ -406,16 +460,16 @@ math {
 /* Dropdown / Pop-up refinements */
 .dropdown-menu {
     border-radius: 0;
-    border: none !important;
+    border: 1px solid var(--gray-300) !important;
     box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-    padding: 8px 0;
+    padding: 0;
     background: #fff;
 
     .dropdown-item {
         font-family: 'Manrope', sans-serif;
-        font-size: 13px;
+        font-size: 0.85rem;
         font-weight: 500;
-        padding: 8px 20px;
+        padding: 10px 20px;
         color: var(--gray-700);
         transition: all 0.2s ease;
 

@@ -131,12 +131,16 @@
                             
                             if (resultData?.file_path) {
                                 const filePath = resultData.file_path;
-                                // Attempt automatic download
+                                // Attempt automatic download immediately
+                                
+                                // First attempt: Standard fetch-based blob download
                                 api.downloadExport(filePath).catch(err => {
-                                    // ignore silently in production
+                                    // Fallback: Direct authenticated window.open (more likely to bypass certain blocks if fetch failed)
+                                    const directUrl = api.getAuthenticatedMediaUrl(`/exports/download?path=${encodeURIComponent(filePath)}`);
+                                    window.open(directUrl, '_blank');
                                 });
                                 
-                                notifications.success('Your export is ready.');
+                                notifications.success('Your export has been downloaded.');
                             }
                         }
                         handledJobIds.add(newJob.id);
@@ -416,9 +420,28 @@
     }
 
     async function handleExportTranscript(format: string) {
+        // Check for existing completed job
+        const existingJob = jobs.find(j => 
+            j.type === 'PUBLISH_MATERIAL' && 
+            j.status === 'COMPLETED' && 
+            j.payload?.lecture_id === lectureId && 
+            !j.payload?.document_id && 
+            !j.payload?.tool_id &&
+            j.payload?.format === format
+        );
+
+        if (existingJob) {
+            const res = JSON.parse(existingJob.result || '{}');
+            if (res.file_path) {
+                api.downloadExport(res.file_path);
+                notifications.success('Your export has been downloaded.');
+                return;
+            }
+        }
+
         try {
             await api.exportTranscript({ lecture_id: lectureId, exam_id: examId, format });
-            notifications.success(`We are preparing your transcript export. You can see the progress here.`);
+            notifications.success(`We are preparing your transcript export.`);
             await loadJobs();
         } catch (e: any) {
             notifications.error(e.message || e);
@@ -426,9 +449,26 @@
     }
 
     async function handleExportDocument(docId: string, format: string) {
+        // Check for existing completed job
+        const existingJob = jobs.find(j => 
+            j.type === 'PUBLISH_MATERIAL' && 
+            j.status === 'COMPLETED' && 
+            j.payload?.document_id === docId && 
+            j.payload?.format === format
+        );
+
+        if (existingJob) {
+            const res = JSON.parse(existingJob.result || '{}');
+            if (res.file_path) {
+                api.downloadExport(res.file_path);
+                notifications.success('Your export has been downloaded.');
+                return;
+            }
+        }
+
         try {
             await api.exportDocument({ document_id: docId, lecture_id: lectureId, exam_id: examId, format });
-            notifications.success(`We are preparing your document analysis export. You can see the progress here.`);
+            notifications.success(`We are preparing your document analysis export.`);
             await loadJobs();
         } catch (e: any) {
             notifications.error(e.message || e);
@@ -436,9 +476,26 @@
     }
 
     async function handleExportTool(toolId: string, format: string) {
+        // Check for existing completed job
+        const existingJob = jobs.find(j => 
+            j.type === 'PUBLISH_MATERIAL' && 
+            j.status === 'COMPLETED' && 
+            j.payload?.tool_id === toolId && 
+            j.payload?.format === format
+        );
+
+        if (existingJob) {
+            const res = JSON.parse(existingJob.result || '{}');
+            if (res.file_path) {
+                api.downloadExport(res.file_path);
+                notifications.success('Your export has been downloaded.');
+                return;
+            }
+        }
+
         try {
             await api.exportTool({ tool_id: toolId, exam_id: examId, format });
-            notifications.success(`We are preparing your study guide export. You can see the progress here.`);
+            notifications.success(`We are preparing your study guide export.`);
             await loadJobs();
         } catch (e: any) {
             notifications.error(e.message || e);
@@ -548,26 +605,24 @@
                                 class={transcriptJobRunning ? 'tile-processing' : (transcriptJobFailed ? 'tile-error' : '')}
                             >
                                 {#snippet actions()}
-                                        {#if transcriptJob && transcriptJob.status === 'COMPLETED'}
-                                            {@const res = JSON.parse(transcriptJob.result || '{}')}
-                                            <button 
-                                                class="btn btn-link text-success p-0 border-0 shadow-none" 
-                                                onclick={(e) => { e.preventDefault(); e.stopPropagation(); api.downloadExport(res.file_path); }} 
-                                                title="Download Again"
-                                            >
-                                                <Download size={16} />
-                                            </button>
-                                        {:else if transcriptJobFailed}
-                                            <button 
-                                                class="btn btn-link text-primary p-0 border-0 shadow-none" 
-                                                onclick={(e) => { e.preventDefault(); e.stopPropagation(); retryBaseJob('TRANSCRIBE_MEDIA'); }} 
-                                                title="Retry Transcription"
-                                            >
-                                                <RotateCcw size={16} />
-                                            </button>
-                                        {:else if transcript && transcript.segments}
+                                    {#if transcriptJobRunning}
+                                        <!-- No actions while running -->
+                                    {:else if transcriptJobFailed}
+                                        <button 
+                                            class="btn btn-link text-primary p-0 border-0 shadow-none" 
+                                            onclick={(e) => { e.preventDefault(); e.stopPropagation(); retryBaseJob('TRANSCRIBE_MEDIA'); }} 
+                                            title="Retry Transcription"
+                                        >
+                                            <RotateCcw size={16} />
+                                        </button>
+                                    {:else if transcript && transcript.segments}
+                                        {@const isCompleted = transcriptJob?.status === 'COMPLETED'}
                                         <div class="dropdown" onclick={(e) => e.stopPropagation()}>
-                                            <button class="btn btn-link text-muted p-0 border-0 shadow-none dropdown-toggle no-caret" data-bs-toggle="dropdown" title="Export">
+                                            <button 
+                                                class="btn btn-link {isCompleted ? 'text-success' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
+                                                data-bs-toggle="dropdown" 
+                                                title="Export Options"
+                                            >
                                                 <Download size={16} />
                                             </button>
                                             <ul class="dropdown-menu dropdown-menu-end">
@@ -599,8 +654,13 @@
                             {#if guideTool}
                                 <Tile href="javascript:void(0)" icon="" title="Study Guide" onclick={() => activeView = 'guide'}>
                                     {#snippet actions()}
+                                        {@const guideExportJob = jobs.find(j => j.type === 'PUBLISH_MATERIAL' && j.status === 'COMPLETED' && j.payload?.tool_id === guideTool.id)}
                                         <div class="dropdown" onclick={(e) => e.stopPropagation()}>
-                                            <button class="btn btn-link text-muted p-0 border-0 shadow-none dropdown-toggle no-caret" data-bs-toggle="dropdown" title="Export">
+                                            <button 
+                                                class="btn btn-link {guideExportJob ? 'text-success' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
+                                                data-bs-toggle="dropdown" 
+                                                title="Export Options"
+                                            >
                                                 <Download size={16} />
                                             </button>
                                             <ul class="dropdown-menu dropdown-menu-end">
@@ -648,8 +708,13 @@
                             {#each documents as doc}
                                 <Tile href="javascript:void(0)" icon="" title={doc.title} onclick={() => openDocument(doc.id)}>
                                     {#snippet actions()}
+                                        {@const docExportJob = jobs.find(j => j.type === 'PUBLISH_MATERIAL' && j.status === 'COMPLETED' && j.payload?.document_id === doc.id)}
                                         <div class="dropdown" onclick={(e) => e.stopPropagation()}>
-                                            <button class="btn btn-link text-muted p-0 border-0 shadow-none dropdown-toggle no-caret" data-bs-toggle="dropdown" title="Export">
+                                            <button 
+                                                class="btn btn-link {docExportJob ? 'text-success' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
+                                                data-bs-toggle="dropdown" 
+                                                title="Export Options"
+                                            >
                                                 <Download size={16} />
                                             </button>
                                             <ul class="dropdown-menu dropdown-menu-end">
@@ -932,8 +997,8 @@
     onClose={() => showCreateModal = false}
 >
     <div class="mb-4">
-        <label class="form-label" for="tool-lang">Target Language</label>
-        <select id="tool-lang" class="form-select rounded-0 border shadow-none" bind:value={toolOptions.language_code}>
+        <label class="form-label cozy-label" for="tool-lang">Target Language</label>
+        <select id="tool-lang" class="form-select cozy-input" bind:value={toolOptions.language_code}>
             <option value="en-US">English (US)</option>
             <option value="it-IT">Italiano</option>
             <option value="es-ES">Español</option>
@@ -945,7 +1010,7 @@
     </div>
 
     <div class="mb-0">
-        <span class="form-label">Level of Detail</span>
+        <span class="form-label cozy-label">Level of Detail</span>
         <div class="d-flex gap-2 mt-3">
             {#each ['short', 'medium', 'long', 'comprehensive'] as len}
                 <button 

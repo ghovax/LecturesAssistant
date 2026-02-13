@@ -124,7 +124,6 @@
         flex-direction: column;
         height: 140px;
         width: 240px;
-        overflow: hidden;
         padding: 24px;
         text-decoration: none;
         text-align: left;

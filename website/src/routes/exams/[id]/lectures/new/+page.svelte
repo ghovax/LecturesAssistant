@@ -178,7 +178,7 @@
                                         </div>
                                     </div>
                                     <div class="p-4">
-                                        <p class="small text-muted mb-3">Video or Audio (MP4, MP3, etc.)</p>
+                                        <p class="small text-muted mb-3">Upload the lecture's audio or video recordings. We support common formats like MP4, MKV, MP3, WAV, and M4A. You can upload multiple files, and they will be automatically unified into a single chronological transcript.</p>
                                         <input 
                                             type="file" 
                                             id="media" 
@@ -240,7 +240,7 @@
                                         </div>
                                     </div>
                                     <div class="p-4">
-                                        <p class="small text-muted mb-3">Slides or PDFs (PDF, PPTX, etc.)</p>
+                                        <p class="small text-muted mb-3">Provide any accompanying materials like slides, research papers, or textbooks (PDF, PPTX, DOCX). These will be analyzed to enrich the lecture content with precise terminology and citations in your study aids.</p>
                                         <input 
                                             type="file" 
                                             id="docs" 
@@ -302,32 +302,5 @@
     
     label {
         cursor: pointer;
-    }
-
-    .cozy-input {
-        border-radius: 0;
-        border: 1px solid var(--gray-300) !important;
-        font-family: 'Manrope', sans-serif;
-        font-size: 0.85rem;
-        padding: 12px;
-        background: #fff;
-        transition: all 0.2s ease;
-
-        &:focus {
-            border-color: var(--orange) !important;
-            box-shadow: none;
-            background: #fafaf9;
-        }
-    }
-
-    .cozy-label {
-        font-family: 'Manrope', sans-serif;
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: var(--gray-500);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-bottom: 8px;
-        display: block;
     }
 </style>

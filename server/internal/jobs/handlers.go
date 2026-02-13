@@ -707,6 +707,8 @@ func RegisterHandlers(
 
 		var payload struct {
 			ToolID        string          `json:"tool_id"`
+			DocumentID    string          `json:"document_id"`
+			LectureID     string          `json:"lecture_id"`
 			LanguageCode  string          `json:"language_code"`
 			Format        string          `json:"format"` // "pdf", "docx", "md"
 			IncludeImages json.RawMessage `json:"include_images"`
@@ -716,578 +718,570 @@ func RegisterHandlers(
 			return fmt.Errorf("failed to unmarshal job payload: %w", unmarshalingError)
 		}
 
-		// Parse include_images boolean (it might be a string "true" or a boolean true)
-		includeImages := true
-		if len(payload.IncludeImages) > 0 {
-			rawStr := string(payload.IncludeImages)
-			if rawStr == "false" || rawStr == `"false"` {
-				includeImages = false
-			}
-		}
-
-		// Parse include_qr_code boolean
-		includeQRCode := false
-		if len(payload.IncludeQRCode) > 0 {
-			rawStr := string(payload.IncludeQRCode)
-			if rawStr == "true" || rawStr == `"true"` {
-				includeQRCode = true
-			}
-		}
-
 		if payload.Format == "" {
 			payload.Format = "pdf"
 		}
 
-		var tool models.Tool
-		var examID string
-		queryError := database.QueryRow("SELECT id, exam_id, type, title, language_code, content, created_at FROM tools WHERE id = ?", payload.ToolID).Scan(&tool.ID, &examID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.Content, &tool.CreatedAt)
-		if queryError != nil {
-			return fmt.Errorf("failed to get tool: %w", queryError)
-		}
-
-		// Fetch Exam Title
-		var examTitle string
-		if err := database.QueryRow("SELECT title FROM exams WHERE id = ?", examID).Scan(&examTitle); err != nil {
-			slog.Warn("Failed to fetch exam title for metadata", "examID", examID, "error", err)
-		}
-
-		if payload.LanguageCode == "" {
-			payload.LanguageCode = tool.LanguageCode
-		}
 		if payload.LanguageCode == "" {
 			payload.LanguageCode = config.LLM.Language
 		}
 
-		exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", tool.ID)
-		if mkdirError := os.MkdirAll(exportDirectory, 0755); mkdirError != nil {
-			return fmt.Errorf("failed to create export directory: %w", mkdirError)
-		}
+		// 1. Handle Transcript Export
+		if payload.ToolID == "" && payload.DocumentID == "" && payload.LectureID != "" {
+			// Get lecture and transcript
+			var lecture models.Lecture
+			var examID string
+			err := database.QueryRow(`
+				SELECT id, exam_id, title, description FROM lectures WHERE id = ?
+			`, payload.LectureID).Scan(&lecture.ID, &examID, &lecture.Title, &lecture.Description)
+			if err != nil {
+				return err
+			}
 
-		// Use sanitized tool title as filename
-		outputExtension := "." + payload.Format
-		safeFilename := sanitizeFilename(tool.Title) + outputExtension
-		outputPath := filepath.Join(exportDirectory, safeFilename)
-		slog.Info("Exporting tool", "tool_title", tool.Title, "format", payload.Format, "filename", safeFilename, "path", outputPath)
+			var examTitle string
+			database.QueryRow("SELECT title FROM exams WHERE id = ?", examID).Scan(&examTitle)
 
-		// 3. Prepare content for PDF/Docx/MD (convert JSON to Markdown if needed)
-		contentToConvert := tool.Content
+			rows, err := database.Query(`
+				SELECT text FROM transcript_segments 
+				WHERE transcript_id = (SELECT id FROM transcripts WHERE lecture_id = ?)
+				ORDER BY start_millisecond ASC
+			`, payload.LectureID)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
 
-		// If it's a guide, transform raw citations to footnotes at runtime
-		if tool.Type == "guide" {
-			markdownReconstructor := markdown.NewReconstructor()
-			markdownReconstructor.Language = payload.LanguageCode
+			var transcriptBuilder strings.Builder
+			transcriptBuilder.WriteString("# " + lecture.Title + " - Transcript\n\n")
 
-			// 1. Convert triple braces to references
-			processedContent, textCitations := markdownReconstructor.ParseCitations(contentToConvert)
-
-			// 2. Fetch improved citations from database
-			rows, err := database.Query("SELECT metadata FROM tool_source_references WHERE tool_id = ?", tool.ID)
-			if err == nil {
-				improvedCitations := make(map[int]string)
-				for rows.Next() {
-					var metadataJSON string
-					if err := rows.Scan(&metadataJSON); err == nil {
-						var meta struct {
-							FootnoteNumber int    `json:"footnote_number"`
-							Description    string `json:"description"`
-						}
-						if json.Unmarshal([]byte(metadataJSON), &meta) == nil {
-							improvedCitations[meta.FootnoteNumber] = meta.Description
-						}
-					}
-				}
-				rows.Close()
-
-				// 3. Apply improved descriptions
-				for i := range textCitations {
-					if desc, ok := improvedCitations[textCitations[i].Number]; ok {
-						textCitations[i].Description = desc
-					}
+			var segments []string
+			for rows.Next() {
+				var text string
+				if err := rows.Scan(&text); err == nil {
+					segments = append(segments, text)
 				}
 			}
 
-			// 4. Finalize markdown with footnote definitions
-			contentToConvert = markdownReconstructor.AppendCitations(processedContent, textCitations)
+			// Join segments with double newlines for better paragraph separation in PDF
+			content := transcriptBuilder.String() + strings.Join(segments, "\n\n")
 
-			slog.Info("Starting tool content parsing and enrichment", "toolID", tool.ID)
-			markdownParser := markdown.NewParser()
-			ast := markdownParser.Parse(contentToConvert)
+			// Setup export directory
+			exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", job.ID)
+			os.MkdirAll(exportDirectory, 0755)
+			safeFilename := sanitizeFilename(lecture.Title) + "_Transcript." + payload.Format
+			outputPath := filepath.Join(exportDirectory, safeFilename)
 
-			if includeImages {
-				// 1. Get structured citation metadata from DB (The Source of Truth)
-				citationMetadata := make(map[int]struct {
-					File  string
-					Pages []int
-				})
-				refRows, err := database.Query("SELECT source_id, metadata FROM tool_source_references WHERE tool_id = ?", tool.ID)
-				if err == nil {
-					for refRows.Next() {
-						var sourceID, metadataStr string
-						if err := refRows.Scan(&sourceID, &metadataStr); err == nil {
-							var meta struct {
-								FootnoteNumber int   `json:"footnote_number"`
-								Pages          []int `json:"pages"`
-							}
-							if json.Unmarshal([]byte(metadataStr), &meta) == nil {
-								citationMetadata[meta.FootnoteNumber] = struct {
-									File  string
-									Pages []int
-								}{File: sourceID, Pages: meta.Pages}
-							}
-						}
+			// Convert
+			updateProgress(50, "Generating transcript PDF...", nil, models.JobMetrics{})
+			options := markdown.ConversionOptions{
+				Language:    payload.LanguageCode,
+				CourseTitle: examTitle,
+			}
+
+			if payload.Format == "pdf" {
+				html, _ := markdownConverter.MarkdownToHTML(content)
+				err = markdownConverter.HTMLToPDF(html, outputPath, options)
+			} else if payload.Format == "docx" {
+				html, _ := markdownConverter.MarkdownToHTML(content)
+				err = markdownConverter.HTMLToDocx(html, outputPath, options)
+			} else {
+				err = markdownConverter.SaveMarkdown(content, outputPath)
+			}
+
+			if err != nil {
+				return err
+			}
+
+			updateProgress(100, "Export completed", map[string]string{"file_path": outputPath}, models.JobMetrics{})
+			job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
+			return nil
+		}
+
+		// 2. Handle Document Export
+		if payload.ToolID == "" && payload.DocumentID != "" {
+			// Get document and pages
+			var doc models.ReferenceDocument
+			var examID string
+			err := database.QueryRow(`
+				SELECT rd.id, rd.title, l.exam_id FROM reference_documents rd
+				JOIN lectures l ON rd.lecture_id = l.id
+				WHERE rd.id = ?
+			`, payload.DocumentID).Scan(&doc.ID, &doc.Title, &examID)
+			if err != nil {
+				return err
+			}
+
+			var examTitle string
+			database.QueryRow("SELECT title FROM exams WHERE id = ?", examID).Scan(&examTitle)
+
+			rows, err := database.Query(`
+				SELECT page_number, image_path, extracted_text FROM reference_pages
+				WHERE document_id = ? ORDER BY page_number ASC
+			`, payload.DocumentID)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			markdownReconstructor := markdown.NewReconstructor()
+			markdownReconstructor.Language = payload.LanguageCode
+			rootNode := &markdown.Node{Type: markdown.NodeDocument}
+			rootNode.Children = append(rootNode.Children, &markdown.Node{Type: markdown.NodeHeading, Level: 1, Content: doc.Title})
+
+			for rows.Next() {
+				var pageNum int
+				var imagePath, text string
+				if err := rows.Scan(&pageNum, &imagePath, &text); err == nil {
+					// Convert to relative path for Pandoc
+					relPath, err := filepath.Rel(config.Storage.DataDirectory, imagePath)
+					if err == nil {
+						imagePath = relPath
 					}
-					refRows.Close()
+
+					rootNode.Children = append(rootNode.Children, &markdown.Node{
+						Type:    markdown.NodeHeading,
+						Level:   2,
+						Content: fmt.Sprintf("Page %d", pageNum),
+					})
+					rootNode.Children = append(rootNode.Children, &markdown.Node{
+						Type:    markdown.NodeImage,
+						Content: imagePath,
+					})
+					rootNode.Children = append(rootNode.Children, &markdown.Node{
+						Type:    markdown.NodeParagraph,
+						Content: text,
+					})
 				}
+			}
 
-				// 2. Manually enrich AST nodes with the reliable metadata
-				var enrichNodeMetadata func(*markdown.Node)
-				enrichNodeMetadata = func(node *markdown.Node) {
-					if node.Type == markdown.NodeFootnote {
-						if info, ok := citationMetadata[node.FootnoteNumber]; ok {
-							node.SourceFile = info.File
-							node.SourcePages = info.Pages
-						}
-					}
-					for _, child := range node.Children {
-						enrichNodeMetadata(child)
-					}
+			content := markdownReconstructor.Reconstruct(rootNode)
+
+			// Setup export directory
+			exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", job.ID)
+			os.MkdirAll(exportDirectory, 0755)
+			safeFilename := sanitizeFilename(doc.Title) + "_Analysis." + payload.Format
+			outputPath := filepath.Join(exportDirectory, safeFilename)
+
+			// Convert
+			updateProgress(50, "Generating document analysis PDF...", nil, models.JobMetrics{})
+			options := markdown.ConversionOptions{
+				Language:    payload.LanguageCode,
+				CourseTitle: examTitle,
+			}
+
+			if payload.Format == "pdf" {
+				html, _ := markdownConverter.MarkdownToHTML(content)
+				err = markdownConverter.HTMLToPDF(html, outputPath, options)
+			} else if payload.Format == "docx" {
+				html, _ := markdownConverter.MarkdownToHTML(content)
+				err = markdownConverter.HTMLToDocx(html, outputPath, options)
+			} else {
+				err = markdownConverter.SaveMarkdown(content, outputPath)
+			}
+
+			if err != nil {
+				return err
+			}
+
+			updateProgress(100, "Export completed", map[string]string{"file_path": outputPath}, models.JobMetrics{})
+			job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
+			return nil
+		}
+
+		// 3. Handle Tool Export (Study Guide, etc.)
+		if payload.ToolID != "" {
+			// Parse include_images boolean (it might be a string "true" or a boolean true)
+			includeImages := true
+			if len(payload.IncludeImages) > 0 {
+				rawStr := string(payload.IncludeImages)
+				if rawStr == "false" || rawStr == `"false"` {
+					includeImages = false
 				}
-				enrichNodeMetadata(ast)
+			}
 
-				// 3. Pre-fetch all page paths for this exam
-				pageMap := make(map[string]string) // Key: "filename:page"
-				slog.Info("Pre-fetching page image paths from database", "examID", examID)
-				rows, err := database.Query(`
-					SELECT reference_documents.original_filename, reference_documents.title, reference_pages.page_number, reference_pages.image_path
-					FROM reference_pages
-					JOIN reference_documents ON reference_pages.document_id = reference_documents.id
-					JOIN lectures ON reference_documents.lecture_id = lectures.id
-					WHERE lectures.exam_id = ?
-				`, examID)
+			// Parse include_qr_code boolean
+			includeQRCode := false
+			if len(payload.IncludeQRCode) > 0 {
+				rawStr := string(payload.IncludeQRCode)
+				if rawStr == "true" || rawStr == `"true"` {
+					includeQRCode = true
+				}
+			}
+
+			var tool models.Tool
+			var examID string
+			queryError := database.QueryRow("SELECT id, exam_id, type, title, language_code, content, created_at FROM tools WHERE id = ?", payload.ToolID).Scan(&tool.ID, &examID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.Content, &tool.CreatedAt)
+			if queryError != nil {
+				return fmt.Errorf("failed to get tool: %w", queryError)
+			}
+
+			// Fetch Exam Title
+			var examTitle string
+			if err := database.QueryRow("SELECT title FROM exams WHERE id = ?", examID).Scan(&examTitle); err != nil {
+				slog.Warn("Failed to fetch exam title for metadata", "examID", examID, "error", err)
+			}
+
+			if payload.LanguageCode == "" {
+				payload.LanguageCode = tool.LanguageCode
+			}
+			if payload.LanguageCode == "" {
+				payload.LanguageCode = config.LLM.Language
+			}
+
+			exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", tool.ID)
+			if mkdirError := os.MkdirAll(exportDirectory, 0755); mkdirError != nil {
+				return fmt.Errorf("failed to create export directory: %w", mkdirError)
+			}
+
+			// Use sanitized tool title as filename
+			outputExtension := "." + payload.Format
+			safeFilename := sanitizeFilename(tool.Title) + outputExtension
+			outputPath := filepath.Join(exportDirectory, safeFilename)
+			slog.Info("Exporting tool", "tool_title", tool.Title, "format", payload.Format, "filename", safeFilename, "path", outputPath)
+
+			// Prepare content for PDF/Docx/MD (convert JSON to Markdown if needed)
+			contentToConvert := tool.Content
+
+			// If it's a guide, transform raw citations to footnotes at runtime
+			if tool.Type == "guide" {
+				markdownReconstructor := markdown.NewReconstructor()
+				markdownReconstructor.Language = payload.LanguageCode
+
+				// 1. Convert triple braces to references
+				processedContent, textCitations := markdownReconstructor.ParseCitations(contentToConvert)
+
+				// 2. Fetch improved citations from database
+				rows, err := database.Query("SELECT metadata FROM tool_source_references WHERE tool_id = ?", tool.ID)
 				if err == nil {
+					improvedCitations := make(map[int]string)
 					for rows.Next() {
-						var originalFilename sql.NullString
-						var title, imagePath string
-						var pageNumber int
-						if err := rows.Scan(&originalFilename, &title, &pageNumber, &imagePath); err == nil {
-							if originalFilename.Valid && originalFilename.String != "" {
-								pageMap[fmt.Sprintf("%s:%d", originalFilename.String, pageNumber)] = imagePath
+						var metadataJSON string
+						if err := rows.Scan(&metadataJSON); err == nil {
+							var meta struct {
+								FootnoteNumber int    `json:"footnote_number"`
+								Description    string `json:"description"`
 							}
-							if title != "" {
-								pageMap[fmt.Sprintf("%s:%d", title, pageNumber)] = imagePath
+							if json.Unmarshal([]byte(metadataJSON), &meta) == nil {
+								improvedCitations[meta.FootnoteNumber] = meta.Description
 							}
 						}
 					}
 					rows.Close()
-				}
-				slog.Info("Pre-fetched pages for enrichment", "count", len(pageMap))
 
-				imageResolver := func(filename string, pageNumber int) string {
-					key := fmt.Sprintf("%s:%d", filename, pageNumber)
-					absPath := pageMap[key]
-					if absPath == "" {
-						return ""
-					}
-					// Return path relative to data directory for Pandoc
-					relPath, err := filepath.Rel(config.Storage.DataDirectory, absPath)
-					if err != nil {
-						return absPath
-					}
-					return relPath
-				}
-
-				slog.Info("Starting AST enrichment with cited images")
-				markdown.EnrichWithCitedImages(ast, imageResolver)
-				slog.Info("Finished AST enrichment with cited images")
-			}
-
-			contentToConvert = markdownReconstructor.Reconstruct(ast)
-			slog.Info("Finished tool content reconstruction", "contentLength", len(contentToConvert))
-		}
-
-		updateProgress(30, "Gathering lecture metadata...", nil, models.JobMetrics{})
-
-		// Get lectures for this exam to collect metadata
-		lectureRows, databaseError := database.Query("SELECT id, specified_date FROM lectures WHERE exam_id = ? AND status = 'ready'", examID)
-		if databaseError != nil {
-			return fmt.Errorf("failed to query lectures: %w", databaseError)
-		}
-
-		type lectureMeta struct {
-			id            string
-			specifiedDate sql.NullTime
-		}
-		var lectures []lectureMeta
-		for lectureRows.Next() {
-			var lecture lectureMeta
-			if err := lectureRows.Scan(&lecture.id, &lecture.specifiedDate); err == nil {
-				lectures = append(lectures, lecture)
-			}
-		}
-		lectureRows.Close()
-
-		var audioFiles []markdown.AudioFileMetadata
-		var referenceFiles []markdown.ReferenceFileMetadata
-		var finalDate time.Time = tool.CreatedAt
-
-		for _, lecture := range lectures {
-			if lecture.specifiedDate.Valid {
-				finalDate = lecture.specifiedDate.Time
-			}
-
-			// Get media files
-			mediaRows, mediaQueryError := database.Query("SELECT original_filename, file_path, duration_milliseconds FROM lecture_media WHERE lecture_id = ? ORDER BY sequence_order", lecture.id)
-			if mediaQueryError == nil {
-				for mediaRows.Next() {
-					var originalFilename sql.NullString
-					var filePath string
-					var durationMs int64
-					if scanError := mediaRows.Scan(&originalFilename, &filePath, &durationMs); scanError == nil {
-						filename := filepath.Base(filePath)
-						if originalFilename.Valid && originalFilename.String != "" {
-							filename = originalFilename.String
+					// 3. Apply improved descriptions
+					for i := range textCitations {
+						if desc, ok := improvedCitations[textCitations[i].Number]; ok {
+							textCitations[i].Description = desc
 						}
-						audioFiles = append(audioFiles, markdown.AudioFileMetadata{
-							Filename: filename,
-							Duration: durationMs / 1000,
-						})
 					}
 				}
-				mediaRows.Close()
-			}
 
-			// Get documents
-			docRows, docQueryError := database.Query("SELECT title, original_filename, page_count FROM reference_documents WHERE lecture_id = ?", lecture.id)
-			if docQueryError == nil {
-				for docRows.Next() {
-					var title string
-					var originalFilename sql.NullString
-					var pageCount int
-					if scanError := docRows.Scan(&title, &originalFilename, &pageCount); scanError == nil {
-						filename := title
-						if originalFilename.Valid && originalFilename.String != "" {
-							filename = originalFilename.String
+				// 4. Finalize markdown with footnote definitions
+				contentToConvert = markdownReconstructor.AppendCitations(processedContent, textCitations)
+
+				slog.Info("Starting tool content parsing and enrichment", "toolID", tool.ID)
+				markdownParser := markdown.NewParser()
+				ast := markdownParser.Parse(contentToConvert)
+
+				if includeImages {
+					// 1. Get structured citation metadata from DB (The Source of Truth)
+					citationMetadata := make(map[int]struct {
+						File  string
+						Pages []int
+					})
+					refRows, err := database.Query("SELECT source_id, metadata FROM tool_source_references WHERE tool_id = ?", tool.ID)
+					if err == nil {
+						for refRows.Next() {
+							var sourceID, metadataStr string
+							if err := refRows.Scan(&sourceID, &metadataStr); err == nil {
+								var meta struct {
+									FootnoteNumber int   `json:"footnote_number"`
+									Pages          []int `json:"pages"`
+								}
+								if json.Unmarshal([]byte(metadataStr), &meta) == nil {
+									citationMetadata[meta.FootnoteNumber] = struct {
+										File  string
+										Pages []int
+									}{File: sourceID, Pages: meta.Pages}
+								}
+							}
 						}
-						referenceFiles = append(referenceFiles, markdown.ReferenceFileMetadata{
-							Filename:  filename,
-							PageCount: pageCount,
-						})
+						refRows.Close()
 					}
+
+					// 2. Manually enrich AST nodes with the reliable metadata
+					var enrichNodeMetadata func(*markdown.Node)
+					enrichNodeMetadata = func(node *markdown.Node) {
+						if node.Type == markdown.NodeFootnote {
+							if info, ok := citationMetadata[node.FootnoteNumber]; ok {
+								node.SourceFile = info.File
+								node.SourcePages = info.Pages
+							}
+						}
+						for _, child := range node.Children {
+							enrichNodeMetadata(child)
+						}
+					}
+					enrichNodeMetadata(ast)
+
+					// 3. Pre-fetch all page paths for this exam
+					pageMap := make(map[string]string) // Key: "filename:page"
+					slog.Info("Pre-fetching page image paths from database", "examID", examID)
+					rows, err := database.Query(`
+						SELECT reference_documents.original_filename, reference_documents.title, reference_pages.page_number, reference_pages.image_path
+						FROM reference_pages
+						JOIN reference_documents ON reference_pages.document_id = reference_documents.id
+						JOIN lectures ON reference_documents.lecture_id = lectures.id
+						WHERE lectures.exam_id = ?
+					`, examID)
+					if err == nil {
+						for rows.Next() {
+							var originalFilename sql.NullString
+							var title, imagePath string
+							var pageNumber int
+							if err := rows.Scan(&originalFilename, &title, &pageNumber, &imagePath); err == nil {
+								if originalFilename.Valid && originalFilename.String != "" {
+									pageMap[fmt.Sprintf("%s:%d", originalFilename.String, pageNumber)] = imagePath
+								}
+								if title != "" {
+									pageMap[fmt.Sprintf("%s:%d", title, pageNumber)] = imagePath
+								}
+							}
+						}
+						rows.Close()
+					}
+					slog.Info("Pre-fetched pages for enrichment", "count", len(pageMap))
+
+					imageResolver := func(filename string, pageNumber int) string {
+						key := fmt.Sprintf("%s:%d", filename, pageNumber)
+						absPath := pageMap[key]
+						if absPath == "" {
+							return ""
+						}
+						// Return path relative to data directory for Pandoc
+						relPath, err := filepath.Rel(config.Storage.DataDirectory, absPath)
+						if err != nil {
+							return absPath
+						}
+						return relPath
+					}
+
+					slog.Info("Starting AST enrichment with cited images")
+					markdown.EnrichWithCitedImages(ast, imageResolver)
+					slog.Info("Finished AST enrichment with cited images")
 				}
-				docRows.Close()
-			}
-		}
 
-		// Generate abstract
-		updateProgress(40, "Generating document abstract...", nil, totalMetrics)
-		abstract := ""
-		if contentToConvert != "" && toolGenerator != nil {
-			generatedAbstract, abstractMetrics, generationError := toolGenerator.GenerateAbstract(jobContext, contentToConvert, payload.LanguageCode, "")
-			if generationError == nil {
-				abstract = generatedAbstract
-				totalMetrics.InputTokens += abstractMetrics.InputTokens
-				totalMetrics.OutputTokens += abstractMetrics.OutputTokens
-				totalMetrics.EstimatedCost += abstractMetrics.EstimatedCost
-			}
-		}
-
-		updateProgress(50, fmt.Sprintf("Generating %s document...", payload.Format), nil, models.JobMetrics{})
-		options := markdown.ConversionOptions{
-			Language:       payload.LanguageCode,
-			Description:    abstract,
-			CourseTitle:    examTitle,
-			CreationDate:   finalDate,
-			ReferenceFiles: referenceFiles,
-			AudioFiles:     audioFiles,
-		}
-
-		originalContent := contentToConvert
-		generateFile := func(currentContent string, currentOptions markdown.ConversionOptions) error {
-			// Normalize math for all non-HTML outputs if needed
-			normalizedContent := markdownConverter.NormalizeMath(currentContent)
-
-			contentWithHeader := normalizedContent
-			if payload.Format == "md" || payload.Format == "docx" {
-				metadataHeader := markdownConverter.GenerateMetadataHeader(currentOptions)
-				contentWithHeader = metadataHeader + normalizedContent
+				contentToConvert = markdownReconstructor.Reconstruct(ast)
+				slog.Info("Finished tool content reconstruction", "contentLength", len(contentToConvert))
 			}
 
-			if payload.Format == "md" {
-				return markdownConverter.SaveMarkdown(contentWithHeader, outputPath)
+			updateProgress(30, "Gathering lecture metadata...", nil, totalMetrics)
+
+			// Get lectures for this exam to collect metadata
+			lectureRows, databaseError := database.Query("SELECT id, specified_date FROM lectures WHERE exam_id = ? AND status = 'ready'", examID)
+			if databaseError != nil {
+				return fmt.Errorf("failed to query lectures: %w", databaseError)
 			}
 
-			updateProgress(60, fmt.Sprintf("Converting %s document...", payload.Format), nil, models.JobMetrics{})
-			htmlContent, err := markdownConverter.MarkdownToHTML(currentContent) // MarkdownToHTML already calls normalize internally
-			if err != nil {
-				return fmt.Errorf("failed to convert to HTML: %w", err)
+			type lectureMeta struct {
+				id            string
+				specifiedDate sql.NullTime
+			}
+			var lectures []lectureMeta
+			for lectureRows.Next() {
+				var lecture lectureMeta
+				if err := lectureRows.Scan(&lecture.id, &lecture.specifiedDate); err == nil {
+					lectures = append(lectures, lecture)
+				}
+			}
+			lectureRows.Close()
+
+			var audioFiles []markdown.AudioFileMetadata
+			var referenceFiles []markdown.ReferenceFileMetadata
+			var finalDate time.Time = tool.CreatedAt
+
+			for _, lecture := range lectures {
+				if lecture.specifiedDate.Valid {
+					finalDate = lecture.specifiedDate.Time
+				}
+
+				// Get media files
+				mediaRows, mediaQueryError := database.Query("SELECT original_filename, file_path, duration_milliseconds FROM lecture_media WHERE lecture_id = ? ORDER BY sequence_order", lecture.id)
+				if mediaQueryError == nil {
+					for mediaRows.Next() {
+						var originalFilename sql.NullString
+						var filePath string
+						var durationMs int64
+						if scanError := mediaRows.Scan(&originalFilename, &filePath, &durationMs); scanError == nil {
+							filename := filepath.Base(filePath)
+							if originalFilename.Valid && originalFilename.String != "" {
+								filename = originalFilename.String
+							}
+							audioFiles = append(audioFiles, markdown.AudioFileMetadata{
+								Filename: filename,
+								Duration: durationMs / 1000,
+							})
+						}
+					}
+					mediaRows.Close()
+				}
+
+				// Get documents
+				docRows, docQueryError := database.Query("SELECT title, original_filename, page_count FROM reference_documents WHERE lecture_id = ?", lecture.id)
+				if docQueryError == nil {
+					for docRows.Next() {
+						var title string
+						var originalFilename sql.NullString
+						var pageCount int
+						if scanError := docRows.Scan(&title, &originalFilename, &pageCount); scanError == nil {
+							filename := title
+							if originalFilename.Valid && originalFilename.String != "" {
+								filename = originalFilename.String
+							}
+							referenceFiles = append(referenceFiles, markdown.ReferenceFileMetadata{
+								Filename:  filename,
+								PageCount: pageCount,
+							})
+						}
+					}
+					docRows.Close()
+				}
 			}
 
-			if payload.Format == "docx" {
-				return markdownConverter.HTMLToDocx(htmlContent, outputPath, currentOptions)
+			// Generate abstract
+			updateProgress(40, "Generating document abstract...", nil, totalMetrics)
+			abstract := ""
+			if contentToConvert != "" && toolGenerator != nil {
+				generatedAbstract, abstractMetrics, generationError := toolGenerator.GenerateAbstract(jobContext, contentToConvert, payload.LanguageCode, "")
+				if generationError == nil {
+					abstract = generatedAbstract
+					totalMetrics.InputTokens += abstractMetrics.InputTokens
+					totalMetrics.OutputTokens += abstractMetrics.OutputTokens
+					totalMetrics.EstimatedCost += abstractMetrics.EstimatedCost
+				}
 			}
-			if payload.Format == "anki" {
-				return markdownConverter.HTMLToAnki(tool.Type, tool.Content, outputPath)
+
+			updateProgress(50, fmt.Sprintf("Generating %s document...", payload.Format), nil, models.JobMetrics{})
+			options := markdown.ConversionOptions{
+				Language:       payload.LanguageCode,
+				Description:    abstract,
+				CourseTitle:    examTitle,
+				CreationDate:   finalDate,
+				ReferenceFiles: referenceFiles,
+				AudioFiles:     audioFiles,
 			}
-			if payload.Format == "csv" {
-				return markdownConverter.HTMLToCSV(tool.Type, tool.Content, outputPath)
+
+			originalContent := contentToConvert
+			generateFile := func(currentContent string, currentOptions markdown.ConversionOptions) error {
+				// Normalize math for all non-HTML outputs if needed
+				normalizedContent := markdownConverter.NormalizeMath(currentContent)
+
+				contentWithHeader := normalizedContent
+				if payload.Format == "md" || payload.Format == "docx" {
+					metadataHeader := markdownConverter.GenerateMetadataHeader(currentOptions)
+					contentWithHeader = metadataHeader + normalizedContent
+				}
+
+				if payload.Format == "md" {
+					return markdownConverter.SaveMarkdown(contentWithHeader, outputPath)
+				}
+
+				updateProgress(60, fmt.Sprintf("Converting %s document...", payload.Format), nil, models.JobMetrics{})
+				htmlContent, err := markdownConverter.MarkdownToHTML(currentContent) // MarkdownToHTML already calls normalize internally
+				if err != nil {
+					return fmt.Errorf("failed to convert to HTML: %w", err)
+				}
+
+				if payload.Format == "docx" {
+					return markdownConverter.HTMLToDocx(htmlContent, outputPath, currentOptions)
+				}
+				if payload.Format == "anki" {
+					return markdownConverter.HTMLToAnki(tool.Type, tool.Content, outputPath)
+				}
+				if payload.Format == "csv" {
+					return markdownConverter.HTMLToCSV(tool.Type, tool.Content, outputPath)
+				}
+				return markdownConverter.HTMLToPDF(htmlContent, outputPath, currentOptions)
 			}
-			return markdownConverter.HTMLToPDF(htmlContent, outputPath, currentOptions)
-		}
 
-		// 1. Initial generation
-		if err := generateFile(originalContent, options); err != nil {
-			return fmt.Errorf("initial generation failed: %w", err)
-		}
+			// 1. Initial generation
+			if err := generateFile(originalContent, options); err != nil {
+				return fmt.Errorf("initial generation failed: %w", err)
+			}
 
-		// 2. Optional second pass for QR Code
-		if includeQRCode {
-			slog.Info("QR Code generation requested", "toolID", tool.ID)
-			updateProgress(70, "Uploading document for QR code generation...", nil, models.JobMetrics{})
+			// 2. Optional second pass for QR Code
+			if includeQRCode {
+				slog.Info("QR Code generation requested", "toolID", tool.ID)
+				updateProgress(70, "Uploading document for QR code generation...", nil, models.JobMetrics{})
 
-			downloadURL, uploadError := uploadToTmpFiles(outputPath)
+				downloadURL, uploadError := uploadToTmpFiles(outputPath)
 
-			if uploadError != nil {
+				if uploadError != nil {
 
-				slog.Error("Failed to upload for QR code", "error", uploadError)
+					slog.Error("Failed to upload for QR code", "error", uploadError)
 
-			} else {
-
-				slog.Info("Document uploaded for QR code", "url", downloadURL)
-
-				nanoid, _ := gonanoid.New()
-
-				qrCodePath := filepath.Join(os.TempDir(), fmt.Sprintf("qrcode-%s.png", nanoid))
-
-				if qrErr := qrcode.WriteFile(downloadURL, qrcode.Medium, 256, qrCodePath); qrErr != nil {
-
-					slog.Error("Failed to generate QR code image", "error", qrErr)
 				} else {
-					updateProgress(85, "Re-generating document with QR code...", nil, models.JobMetrics{})
-					options.QRCodePath = qrCodePath
-					slog.Info("Re-generating document with QR code included", "format", payload.Format)
 
-					if err := generateFile(originalContent, options); err != nil {
-						slog.Error("Failed to re-generate with QR code", "error", err)
+					slog.Info("Document uploaded for QR code", "url", downloadURL)
+
+					nanoid, _ := gonanoid.New()
+
+					qrCodePath := filepath.Join(os.TempDir(), fmt.Sprintf("qrcode-%s.png", nanoid))
+
+					if qrErr := qrcode.WriteFile(downloadURL, qrcode.Medium, 256, qrCodePath); qrErr != nil {
+
+						slog.Error("Failed to generate QR code image", "error", qrErr)
 					} else {
-						// Final upload so the shared file actually contains the QR code
-						finalURL, finalUploadErr := uploadToTmpFiles(outputPath)
-						if finalUploadErr != nil {
-							slog.Error("Failed final upload for QR code", "error", finalUploadErr)
+						updateProgress(85, "Re-generating document with QR code...", nil, models.JobMetrics{})
+						options.QRCodePath = qrCodePath
+						slog.Info("Re-generating document with QR code included", "format", payload.Format)
+
+						if err := generateFile(originalContent, options); err != nil {
+							slog.Error("Failed to re-generate with QR code", "error", err)
 						} else {
-							slog.Info("Final document uploaded with QR code", "url", finalURL)
-							downloadURL = finalURL // Use the final URL for the result
+							// Final upload so the shared file actually contains the QR code
+							finalURL, finalUploadErr := uploadToTmpFiles(outputPath)
+							if finalUploadErr != nil {
+								slog.Error("Failed final upload for QR code", "error", finalUploadErr)
+							} else {
+								slog.Info("Final document uploaded with QR code", "url", finalURL)
+								downloadURL = finalURL // Use the final URL for the result
+							}
 						}
+						os.Remove(qrCodePath)
 					}
-					os.Remove(qrCodePath)
 				}
+
+				updateProgress(100, "Export completed", map[string]string{
+					"file_path":    outputPath,
+					"format":       payload.Format,
+					"download_url": downloadURL,
+				}, totalMetrics)
+
+				slog.Info("Export completed with costs",
+					"file_path", outputPath,
+					"format", payload.Format,
+					"download_url", downloadURL,
+					"input_tokens", totalMetrics.InputTokens,
+					"output_tokens", totalMetrics.OutputTokens,
+					"estimated_cost_usd", totalMetrics.EstimatedCost)
+				job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s", "download_url": "%s"}`, outputPath, payload.Format, downloadURL)
+				return nil
 			}
 
-			updateProgress(100, "Export completed", map[string]string{
-				"file_path":    outputPath,
-				"format":       payload.Format,
-				"download_url": downloadURL,
-			}, totalMetrics)
+			updateProgress(100, "Export completed", map[string]string{"file_path": outputPath, "format": payload.Format}, totalMetrics)
 
 			slog.Info("Export completed with costs",
 				"file_path", outputPath,
 				"format", payload.Format,
-				"download_url", downloadURL,
 				"input_tokens", totalMetrics.InputTokens,
 				"output_tokens", totalMetrics.OutputTokens,
 				"estimated_cost_usd", totalMetrics.EstimatedCost)
-			job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s", "download_url": "%s"}`, outputPath, payload.Format, downloadURL)
+			job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
 			return nil
 		}
 
-		updateProgress(100, "Export completed", map[string]string{"file_path": outputPath, "format": payload.Format}, totalMetrics)
-
-		slog.Info("Export completed with costs",
-			"file_path", outputPath,
-			"format", payload.Format,
-			"input_tokens", totalMetrics.InputTokens,
-			"output_tokens", totalMetrics.OutputTokens,
-			"estimated_cost_usd", totalMetrics.EstimatedCost)
-		job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
-		return nil
-	})
-
-	queue.RegisterHandler(models.JobTypePublishTranscript, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, models.JobMetrics)) error {
-		var payload struct {
-			LectureID    string `json:"lecture_id"`
-			LanguageCode string `json:"language_code"`
-			Format       string `json:"format"`
-		}
-		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
-			return err
-		}
-
-		// 1. Get lecture and transcript
-		var lecture models.Lecture
-		var examID string
-		err := database.QueryRow(`
-			SELECT id, exam_id, title, description FROM lectures WHERE id = ?
-		`, payload.LectureID).Scan(&lecture.ID, &examID, &lecture.Title, &lecture.Description)
-		if err != nil {
-			return err
-		}
-
-		var examTitle string
-		database.QueryRow("SELECT title FROM exams WHERE id = ?", examID).Scan(&examTitle)
-
-		rows, err := database.Query(`
-			SELECT text FROM transcript_segments 
-			WHERE transcript_id = (SELECT id FROM transcripts WHERE lecture_id = ?)
-			ORDER BY start_millisecond ASC
-		`, payload.LectureID)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-
-		var transcriptBuilder strings.Builder
-		transcriptBuilder.WriteString("# " + lecture.Title + " - Transcript\n\n")
-
-		var segments []string
-		for rows.Next() {
-			var text string
-			if err := rows.Scan(&text); err == nil {
-				segments = append(segments, text)
-			}
-		}
-
-		// Join segments with double newlines for better paragraph separation in PDF
-		content := transcriptBuilder.String() + strings.Join(segments, "\n\n")
-
-		// 2. Setup export directory
-		exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", job.ID)
-		os.MkdirAll(exportDirectory, 0755)
-		safeFilename := sanitizeFilename(lecture.Title) + "_Transcript." + payload.Format
-		outputPath := filepath.Join(exportDirectory, safeFilename)
-
-		// 3. Convert
-		updateProgress(50, "Generating transcript PDF...", nil, models.JobMetrics{})
-		options := markdown.ConversionOptions{
-			Language:    payload.LanguageCode,
-			CourseTitle: examTitle,
-		}
-
-		if payload.Format == "pdf" {
-			html, _ := markdownConverter.MarkdownToHTML(content)
-			err = markdownConverter.HTMLToPDF(html, outputPath, options)
-		} else if payload.Format == "docx" {
-			html, _ := markdownConverter.MarkdownToHTML(content)
-			err = markdownConverter.HTMLToDocx(html, outputPath, options)
-		} else {
-			err = markdownConverter.SaveMarkdown(content, outputPath)
-		}
-
-		if err != nil {
-			return err
-		}
-
-		updateProgress(100, "Export completed", map[string]string{"file_path": outputPath}, models.JobMetrics{})
-		job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
-		return nil
-	})
-
-	queue.RegisterHandler(models.JobTypePublishDocument, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, models.JobMetrics)) error {
-		var payload struct {
-			DocumentID   string `json:"document_id"`
-			LectureID    string `json:"lecture_id"`
-			LanguageCode string `json:"language_code"`
-			Format       string `json:"format"`
-		}
-		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
-			return err
-		}
-
-		// 1. Get document and pages
-		var doc models.ReferenceDocument
-		var examID string
-		err := database.QueryRow(`
-			SELECT rd.id, rd.title, l.exam_id FROM reference_documents rd
-			JOIN lectures l ON rd.lecture_id = l.id
-			WHERE rd.id = ?
-		`, payload.DocumentID).Scan(&doc.ID, &doc.Title, &examID)
-		if err != nil {
-			return err
-		}
-
-		var examTitle string
-		database.QueryRow("SELECT title FROM exams WHERE id = ?", examID).Scan(&examTitle)
-
-		rows, err := database.Query(`
-			SELECT page_number, image_path, extracted_text FROM reference_pages
-			WHERE document_id = ? ORDER BY page_number ASC
-		`, payload.DocumentID)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-
-		markdownReconstructor := markdown.NewReconstructor()
-		markdownReconstructor.Language = payload.LanguageCode
-		rootNode := &markdown.Node{Type: markdown.NodeDocument}
-		rootNode.Children = append(rootNode.Children, &markdown.Node{Type: markdown.NodeHeading, Level: 1, Content: doc.Title})
-
-		for rows.Next() {
-			var pageNum int
-			var imagePath, text string
-			if err := rows.Scan(&pageNum, &imagePath, &text); err == nil {
-				// Convert to relative path for Pandoc
-				relPath, err := filepath.Rel(config.Storage.DataDirectory, imagePath)
-				if err == nil {
-					imagePath = relPath
-				}
-
-				rootNode.Children = append(rootNode.Children, &markdown.Node{
-					Type:    markdown.NodeHeading,
-					Level:   2,
-					Content: fmt.Sprintf("Page %d", pageNum),
-				})
-				rootNode.Children = append(rootNode.Children, &markdown.Node{
-					Type:    markdown.NodeImage,
-					Content: imagePath,
-				})
-				rootNode.Children = append(rootNode.Children, &markdown.Node{
-					Type:    markdown.NodeParagraph,
-					Content: text,
-				})
-			}
-		}
-
-		content := markdownReconstructor.Reconstruct(rootNode)
-
-		// 2. Setup export directory
-		exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", job.ID)
-		os.MkdirAll(exportDirectory, 0755)
-		safeFilename := sanitizeFilename(doc.Title) + "_Analysis." + payload.Format
-		outputPath := filepath.Join(exportDirectory, safeFilename)
-
-		// 3. Convert
-		updateProgress(50, "Generating document analysis PDF...", nil, models.JobMetrics{})
-		options := markdown.ConversionOptions{
-			Language:    payload.LanguageCode,
-			CourseTitle: examTitle,
-		}
-
-		if payload.Format == "pdf" {
-			html, _ := markdownConverter.MarkdownToHTML(content)
-			err = markdownConverter.HTMLToPDF(html, outputPath, options)
-		} else if payload.Format == "docx" {
-			html, _ := markdownConverter.MarkdownToHTML(content)
-			err = markdownConverter.HTMLToDocx(html, outputPath, options)
-		} else {
-			err = markdownConverter.SaveMarkdown(content, outputPath)
-		}
-
-		if err != nil {
-			return err
-		}
-
-		updateProgress(100, "Export completed", map[string]string{"file_path": outputPath}, models.JobMetrics{})
-		job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
-		return nil
+		return fmt.Errorf("invalid publish material payload: no ID provided")
 	})
 }
 

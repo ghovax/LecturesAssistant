@@ -120,7 +120,7 @@
 
                 // Auto-download completed exports (only if not the very first load of the page)
                 if (newJob.status === 'COMPLETED' && !handledJobIds.has(newJob.id)) {
-                    if (newJob.type === 'PUBLISH_MATERIAL' || newJob.type === 'PUBLISH_TRANSCRIPT' || newJob.type === 'PUBLISH_DOCUMENT') {
+                    if (newJob.type === 'PUBLISH_MATERIAL') {
                         if (!isInitialJobsLoad) {
                             let resultData: any;
                             try {

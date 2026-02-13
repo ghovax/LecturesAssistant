@@ -679,7 +679,7 @@ func (server *Server) handleExportTranscript(responseWriter http.ResponseWriter,
 	}
 
 	// Enqueue export job
-	jobIdentifier, enqueuingError := server.jobQueue.Enqueue(userID, models.JobTypePublishTranscript, map[string]string{
+	jobIdentifier, enqueuingError := server.jobQueue.Enqueue(userID, models.JobTypePublishMaterial, map[string]string{
 		"lecture_id":    exportRequest.LectureID,
 		"language_code": lang,
 		"format":        exportRequest.Format,
@@ -751,7 +751,7 @@ func (server *Server) handleExportDocument(responseWriter http.ResponseWriter, r
 	}
 
 	// Enqueue export job
-	jobIdentifier, enqueuingError := server.jobQueue.Enqueue(userID, models.JobTypePublishDocument, map[string]string{
+	jobIdentifier, enqueuingError := server.jobQueue.Enqueue(userID, models.JobTypePublishMaterial, map[string]string{
 		"document_id":   exportRequest.DocumentID,
 		"lecture_id":    exportRequest.LectureID,
 		"language_code": lang,

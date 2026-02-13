@@ -101,7 +101,12 @@
 />
 
 <header class="page-header">
-    <h1 class="page-title">My Studies</h1>
+    <div class="d-flex justify-content-between align-items-center">
+        <h1 class="page-title m-0">My Studies</h1>
+        <button class="btn btn-primary rounded-0" onclick={() => showCreate = !showCreate}>
+            <Plus size={16} /> Add Subject
+        </button>
+    </div>
 </header>
 
 <div class="bg-white border mb-3">
@@ -112,11 +117,6 @@
     </div>
 
     <div class="linkTiles">
-        <Tile href="javascript:void(0)" icon="" title="New Subject" onclick={() => showCreate = !showCreate}>
-            {#snippet description()}
-                Add a new subject to your hub.
-            {/snippet}
-        </Tile>
         {#each exams as exam}
             <Tile href="/exams/{exam.id}" icon="" title={exam.title}>
                 {#snippet description()}

@@ -93,7 +93,7 @@
     ]} />
 
     <header class="page-header">
-        <div class="d-flex justify-content-between align-items-start mb-2">
+        <div class="d-flex justify-content-between align-items-center mb-2">
             <h1 class="page-title m-0">{tool.title}</h1>
             <div class="btn-group">
                 <button class="btn btn-primary btn-sm dropdown-toggle rounded-0" data-bs-toggle="dropdown">

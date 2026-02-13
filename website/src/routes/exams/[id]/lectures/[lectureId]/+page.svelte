@@ -570,7 +570,7 @@
     ]} />
 
     <header class="page-header">
-        <div class="d-flex justify-content-between align-items-start mb-2">
+        <div class="d-flex justify-content-between align-items-center mb-2">
             <h1 class="page-title m-0">{lecture.title}</h1>
             <div class="d-flex align-items-center gap-3">
                 <button class="btn btn-link btn-sm text-muted p-0 border-0 shadow-none d-flex align-items-center" onclick={() => showEditModal = true} title="Edit Lesson">
@@ -619,7 +619,7 @@
                                         {@const isCompleted = transcriptJob?.status === 'COMPLETED'}
                                         <div class="dropdown" onclick={(e) => e.stopPropagation()}>
                                             <button 
-                                                class="btn btn-link {isCompleted ? 'text-success' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
+                                                class="btn btn-link {isCompleted ? 'text-orange' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
                                                 data-bs-toggle="dropdown" 
                                                 title="Export Options"
                                             >
@@ -657,7 +657,7 @@
                                         {@const guideExportJob = jobs.find(j => j.type === 'PUBLISH_MATERIAL' && j.status === 'COMPLETED' && j.payload?.tool_id === guideTool.id)}
                                         <div class="dropdown" onclick={(e) => e.stopPropagation()}>
                                             <button 
-                                                class="btn btn-link {guideExportJob ? 'text-success' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
+                                                class="btn btn-link {guideExportJob ? 'text-orange' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
                                                 data-bs-toggle="dropdown" 
                                                 title="Export Options"
                                             >
@@ -711,7 +711,7 @@
                                         {@const docExportJob = jobs.find(j => j.type === 'PUBLISH_MATERIAL' && j.status === 'COMPLETED' && j.payload?.document_id === doc.id)}
                                         <div class="dropdown" onclick={(e) => e.stopPropagation()}>
                                             <button 
-                                                class="btn btn-link {docExportJob ? 'text-success' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
+                                                class="btn btn-link {docExportJob ? 'text-orange' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
                                                 data-bs-toggle="dropdown" 
                                                 title="Export Options"
                                             >

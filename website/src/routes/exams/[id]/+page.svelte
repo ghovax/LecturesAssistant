@@ -153,7 +153,7 @@
     <Breadcrumb items={[{ label: 'My Studies', href: '/exams' }, { label: exam.title, active: true }]} />
 
     <header class="page-header">
-        <div class="d-flex justify-content-between align-items-start mb-2">
+        <div class="d-flex justify-content-between align-items-center mb-2">
             <h1 class="page-title m-0">{exam.title}</h1>
             <div class="d-flex align-items-center gap-3">
                 <button class="btn btn-link btn-sm text-muted p-0 border-0 shadow-none d-flex align-items-center" onclick={() => showEditModal = true} title="Edit Subject">
@@ -199,6 +199,10 @@
                                     </button>
                                 {/snippet}
                             </Tile>
+                        {:else}
+                            <div class="p-4 text-center text-muted">
+                                <p class="mb-0 small">No conversations started yet. Click "New Chat" to begin.</p>
+                            </div>
                         {/each}
                     </div>
                 </div>
@@ -230,6 +234,10 @@
                                     </button>
                                 {/snippet}
                             </Tile>
+                        {:else}
+                            <div class="p-4 text-center text-muted w-100">
+                                <p class="mb-0 small">No lessons added to this subject. Click "Add Lesson" to get started.</p>
+                            </div>
                         {/each}
                     </div>
                 </div>

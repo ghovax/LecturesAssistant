@@ -99,6 +99,7 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 		SpecifiedDate: specifiedDate,
 		Language:      language,
 		Status:        "processing",
+		EstimatedCost: metrics.EstimatedCost,
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 	}
@@ -111,13 +112,19 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	defer transaction.Rollback()
 
 	_, err = transaction.Exec(`
-		INSERT INTO lectures (id, exam_id, title, description, specified_date, language, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, lecture.ID, lecture.ExamID, lecture.Title, lecture.Description, lecture.SpecifiedDate, lecture.Language, lecture.Status, lecture.CreatedAt, lecture.UpdatedAt)
+		INSERT INTO lectures (id, exam_id, title, description, specified_date, language, status, estimated_cost, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, lecture.ID, lecture.ExamID, lecture.Title, lecture.Description, lecture.SpecifiedDate, lecture.Language, lecture.Status, lecture.EstimatedCost, lecture.CreatedAt, lecture.UpdatedAt)
 
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to save lecture", nil)
 		return
+	}
+
+	// Update exam cost
+	_, err = transaction.Exec("UPDATE exams SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", metrics.EstimatedCost, time.Now(), examID)
+	if err != nil {
+		slog.Warn("Failed to update exam estimated cost in handleCreateLecture", "examID", examID, "error", err)
 	}
 
 	// 2. Bind Staged Media
@@ -434,7 +441,7 @@ func (server *Server) handleListLectures(responseWriter http.ResponseWriter, req
 	userID := server.getUserID(request)
 
 	lectureRows, databaseError := server.database.Query(`
-		SELECT lectures.id, lectures.exam_id, lectures.title, lectures.description, lectures.specified_date, lectures.language, lectures.status, lectures.created_at, lectures.updated_at
+		SELECT lectures.id, lectures.exam_id, lectures.title, lectures.description, lectures.specified_date, lectures.language, lectures.status, lectures.estimated_cost, lectures.created_at, lectures.updated_at
 		FROM lectures
 		JOIN exams ON lectures.exam_id = exams.id
 		WHERE lectures.exam_id = ? AND exams.user_id = ?
@@ -451,7 +458,7 @@ func (server *Server) handleListLectures(responseWriter http.ResponseWriter, req
 		var lecture models.Lecture
 		var description, language sql.NullString
 		var specifiedDate sql.NullTime
-		if err := lectureRows.Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &description, &specifiedDate, &language, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt); err != nil {
+		if err := lectureRows.Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &description, &specifiedDate, &language, &lecture.Status, &lecture.EstimatedCost, &lecture.CreatedAt, &lecture.UpdatedAt); err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to scan lecture", nil)
 			return
 		}
@@ -486,11 +493,11 @@ func (server *Server) handleGetLecture(responseWriter http.ResponseWriter, reque
 	var description, language sql.NullString
 	var specifiedDate sql.NullTime
 	err := server.database.QueryRow(`
-		SELECT lectures.id, lectures.exam_id, lectures.title, lectures.description, lectures.specified_date, lectures.language, lectures.status, lectures.created_at, lectures.updated_at
+		SELECT lectures.id, lectures.exam_id, lectures.title, lectures.description, lectures.specified_date, lectures.language, lectures.status, lectures.estimated_cost, lectures.created_at, lectures.updated_at
 		FROM lectures
 		JOIN exams ON lectures.exam_id = exams.id
 		WHERE lectures.id = ? AND lectures.exam_id = ? AND exams.user_id = ?
-	`, lectureID, examID, userID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &description, &specifiedDate, &language, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt)
+	`, lectureID, examID, userID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &description, &specifiedDate, &language, &lecture.Status, &lecture.EstimatedCost, &lecture.CreatedAt, &lecture.UpdatedAt)
 
 	if description.Valid {
 		lecture.Description = description.String
@@ -583,6 +590,16 @@ func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, re
 		if updateRequest.Description != nil {
 			query += ", description = ?"
 			updates = append(updates, cleanedDescription)
+		}
+		query += ", estimated_cost = estimated_cost + ?"
+		updates = append(updates, metrics.EstimatedCost)
+
+		// Update exam cost
+		if metrics.EstimatedCost > 0 {
+			_, err = server.database.Exec("UPDATE exams SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", metrics.EstimatedCost, time.Now(), updateRequest.ExamID)
+			if err != nil {
+				slog.Warn("Failed to update exam estimated cost in handleUpdateLecture", "examID", updateRequest.ExamID, "error", err)
+			}
 		}
 	}
 
@@ -776,13 +793,14 @@ func (server *Server) handleGetTranscript(responseWriter http.ResponseWriter, re
 
 	// Get transcript metadata and verify ownership
 	var transcriptID, status string
+	var estimatedCost float64
 	err := server.database.QueryRow(`
-		SELECT transcripts.id, transcripts.status 
+		SELECT transcripts.id, transcripts.status, transcripts.estimated_cost
 		FROM transcripts 
 		JOIN lectures ON transcripts.lecture_id = lectures.id
 		JOIN exams ON lectures.exam_id = exams.id
 		WHERE transcripts.lecture_id = ? AND exams.user_id = ?
-	`, lectureID, userID).Scan(&transcriptID, &status)
+	`, lectureID, userID).Scan(&transcriptID, &status, &estimatedCost)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Transcript not found", nil)
@@ -833,9 +851,10 @@ func (server *Server) handleGetTranscript(responseWriter http.ResponseWriter, re
 	}
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]any{
-		"transcript_id": transcriptID,
-		"status":        status,
-		"segments":      segments,
+		"transcript_id":  transcriptID,
+		"status":         status,
+		"estimated_cost": estimatedCost,
+		"segments":       segments,
 	})
 }
 
@@ -924,13 +943,14 @@ func (server *Server) handleGetTranscriptHTML(responseWriter http.ResponseWriter
 
 	// Verify lecture ownership and get transcript metadata
 	var transcriptID, status string
+	var estimatedCost float64
 	err := server.database.QueryRow(`
-		SELECT transcripts.id, transcripts.status 
+		SELECT transcripts.id, transcripts.status, transcripts.estimated_cost
 		FROM transcripts 
 		JOIN lectures ON transcripts.lecture_id = lectures.id
 		JOIN exams ON lectures.exam_id = exams.id
 		WHERE transcripts.lecture_id = ? AND exams.user_id = ?
-	`, lectureID, userID).Scan(&transcriptID, &status)
+	`, lectureID, userID).Scan(&transcriptID, &status, &estimatedCost)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Transcript not found", nil)
@@ -1020,8 +1040,9 @@ func (server *Server) handleGetTranscriptHTML(responseWriter http.ResponseWriter
 	}
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]any{
-		"transcript_id": transcriptID,
-		"status":        status,
-		"segments":      segments,
+		"transcript_id":  transcriptID,
+		"status":         status,
+		"estimated_cost": estimatedCost,
+		"segments":       segments,
 	})
 }

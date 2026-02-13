@@ -47,19 +47,20 @@ func (server *Server) handleCreateExam(responseWriter http.ResponseWriter, reque
 
 	examID, _ := gonanoid.New()
 	exam := models.Exam{
-		ID:          examID,
-		UserID:      userID,
-		Title:       title,
-		Description: description,
-		Language:    createExamRequest.Language,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		ID:            examID,
+		UserID:        userID,
+		Title:         title,
+		Description:   description,
+		Language:      createExamRequest.Language,
+		EstimatedCost: metrics.EstimatedCost,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 
 	_, err = server.database.Exec(`
-		INSERT INTO exams (id, user_id, title, description, language, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, exam.ID, exam.UserID, exam.Title, exam.Description, exam.Language, exam.CreatedAt, exam.UpdatedAt)
+		INSERT INTO exams (id, user_id, title, description, language, estimated_cost, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, exam.ID, exam.UserID, exam.Title, exam.Description, exam.Language, exam.EstimatedCost, exam.CreatedAt, exam.UpdatedAt)
 
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to create exam", nil)
@@ -74,7 +75,7 @@ func (server *Server) handleListExams(responseWriter http.ResponseWriter, reques
 	userID := server.getUserID(request)
 
 	examRows, databaseError := server.database.Query(`
-		SELECT id, user_id, title, description, language, created_at, updated_at
+		SELECT id, user_id, title, description, language, estimated_cost, created_at, updated_at
 		FROM exams
 		WHERE user_id = ?
 		ORDER BY created_at DESC
@@ -94,7 +95,7 @@ func (server *Server) handleListExams(responseWriter http.ResponseWriter, reques
 	for examRows.Next() {
 		var exam models.Exam
 		var description, language sql.NullString
-		if err := examRows.Scan(&exam.ID, &exam.UserID, &exam.Title, &description, &language, &exam.CreatedAt, &exam.UpdatedAt); err != nil {
+		if err := examRows.Scan(&exam.ID, &exam.UserID, &exam.Title, &description, &language, &exam.EstimatedCost, &exam.CreatedAt, &exam.UpdatedAt); err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to scan exam", nil)
 			return
 		}
@@ -135,10 +136,10 @@ func (server *Server) handleGetExam(responseWriter http.ResponseWriter, request 
 	var exam models.Exam
 	var description, language sql.NullString
 	err := server.database.QueryRow(`
-		SELECT id, user_id, title, description, language, created_at, updated_at
+		SELECT id, user_id, title, description, language, estimated_cost, created_at, updated_at
 		FROM exams
 		WHERE id = ? AND user_id = ?
-	`, examID, userID).Scan(&exam.ID, &exam.UserID, &exam.Title, &description, &language, &exam.CreatedAt, &exam.UpdatedAt)
+	`, examID, userID).Scan(&exam.ID, &exam.UserID, &exam.Title, &description, &language, &exam.EstimatedCost, &exam.CreatedAt, &exam.UpdatedAt)
 
 	if description.Valid {
 		exam.Description = description.String
@@ -243,6 +244,8 @@ func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, reque
 			query += ", description = ?"
 			updates = append(updates, cleanedDescription)
 		}
+		query += ", estimated_cost = estimated_cost + ?"
+		updates = append(updates, metrics.EstimatedCost)
 	}
 
 	query += " WHERE id = ? AND user_id = ?"

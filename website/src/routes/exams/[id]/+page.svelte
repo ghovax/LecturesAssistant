@@ -154,7 +154,14 @@
 
     <header class="page-header">
         <div class="d-flex justify-content-between align-items-center mb-2">
-            <h1 class="page-title m-0">{exam.title}</h1>
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="page-title m-0">{exam.title}</h1>
+                {#if exam.estimated_cost > 0}
+                    <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
+                        ${exam.estimated_cost.toFixed(4)}
+                    </span>
+                {/if}
+            </div>
             <div class="d-flex align-items-center gap-3">
                 <button class="btn btn-link btn-sm text-muted p-0 border-0 shadow-none d-flex align-items-center" onclick={() => showEditModal = true} title="Edit Subject">
                     <Edit3 size={16} />
@@ -184,9 +191,9 @@
                     </div>
                     <div class="linkTiles flex-column">
                         {#each chatSessions as session}
-                            <Tile href="/exams/{examId}/chat/{session.id}" icon="" title={session.title || 'Untitled Chat'}>
+                            <Tile href="/exams/{examId}/chat/{session.id}" icon="" title={session.title || 'Untitled Chat'} cost={session.estimated_cost}>
                                 {#snippet description()}
-                                    Opened {new Date(session.created_at).toLocaleDateString()}
+                                    Opened {new Date(session.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
                                 {/snippet}
 
                                 {#snippet actions()}
@@ -219,7 +226,7 @@
 
                     <div class="linkTiles">
                         {#each lectures as lecture}
-                            <Tile href="/exams/{examId}/lectures/{lecture.id}" icon="" title={lecture.title}>
+                            <Tile href="/exams/{examId}/lectures/{lecture.id}" icon="" title={lecture.title} cost={lecture.estimated_cost}>
                                 {#snippet description()}
                                     {lecture.description || 'Access lesson materials and study aids.'}
                                 {/snippet}

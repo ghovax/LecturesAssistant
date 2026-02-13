@@ -118,7 +118,7 @@
 
     <div class="linkTiles">
         {#each exams as exam}
-            <Tile href="/exams/{exam.id}" icon="" title={exam.title}>
+            <Tile href="/exams/{exam.id}" icon="" title={exam.title} cost={exam.estimated_cost}>
                 {#snippet description()}
                     {exam.description || 'Access your lessons and study materials.'}
                 {/snippet}

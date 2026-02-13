@@ -101,7 +101,7 @@ func (server *Server) handleListChatSessions(responseWriter http.ResponseWriter,
 	userID := server.getUserID(request)
 
 	sessionRows, databaseError := server.database.Query(`
-		SELECT chat_sessions.id, chat_sessions.exam_id, chat_sessions.title, chat_sessions.created_at, chat_sessions.updated_at
+		SELECT chat_sessions.id, chat_sessions.exam_id, chat_sessions.title, chat_sessions.estimated_cost, chat_sessions.created_at, chat_sessions.updated_at
 		FROM chat_sessions
 		JOIN exams ON chat_sessions.exam_id = exams.id
 		WHERE chat_sessions.exam_id = ? AND exams.user_id = ?
@@ -116,7 +116,7 @@ func (server *Server) handleListChatSessions(responseWriter http.ResponseWriter,
 	var sessions []models.ChatSession
 	for sessionRows.Next() {
 		var session models.ChatSession
-		if scanError := sessionRows.Scan(&session.ID, &session.ExamID, &session.Title, &session.CreatedAt, &session.UpdatedAt); scanError != nil {
+		if scanError := sessionRows.Scan(&session.ID, &session.ExamID, &session.Title, &session.EstimatedCost, &session.CreatedAt, &session.UpdatedAt); scanError != nil {
 			continue
 		}
 		sessions = append(sessions, session)
@@ -139,11 +139,11 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 
 	var session models.ChatSession
 	databaseError := server.database.QueryRow(`
-		SELECT chat_sessions.id, chat_sessions.exam_id, chat_sessions.title, chat_sessions.created_at, chat_sessions.updated_at
+		SELECT chat_sessions.id, chat_sessions.exam_id, chat_sessions.title, chat_sessions.estimated_cost, chat_sessions.created_at, chat_sessions.updated_at
 		FROM chat_sessions
 		JOIN exams ON chat_sessions.exam_id = exams.id
 		WHERE chat_sessions.id = ? AND chat_sessions.exam_id = ? AND exams.user_id = ?
-	`, sessionID, examID, userID).Scan(&session.ID, &session.ExamID, &session.Title, &session.CreatedAt, &session.UpdatedAt)
+	`, sessionID, examID, userID).Scan(&session.ID, &session.ExamID, &session.Title, &session.EstimatedCost, &session.CreatedAt, &session.UpdatedAt)
 
 	if databaseError == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Chat session not found in this exam", nil)
@@ -778,6 +778,22 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 
 	if databaseError != nil {
 		slog.Error("Failed to save assistant message", "error", databaseError)
+	}
+
+	// Update session total cost
+	_, databaseError = server.database.Exec("UPDATE chat_sessions SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", assistantMessage.EstimatedCost, time.Now(), sessionID)
+	if databaseError != nil {
+		slog.Warn("Failed to update chat session estimated cost", "sessionID", sessionID, "error", databaseError)
+	}
+
+	// Update exam cost (aggregate)
+	var examID string
+	server.database.QueryRow("SELECT exam_id FROM chat_sessions WHERE id = ?", sessionID).Scan(&examID)
+	if examID != "" {
+		_, databaseError = server.database.Exec("UPDATE exams SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", assistantMessage.EstimatedCost, time.Now(), examID)
+		if databaseError != nil {
+			slog.Warn("Failed to update exam estimated cost during chat", "examID", examID, "error", databaseError)
+		}
 	}
 
 	// Broadcast complete message

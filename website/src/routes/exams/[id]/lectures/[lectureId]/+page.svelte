@@ -440,7 +440,13 @@
         }
 
         try {
-            await api.exportTranscript({ lecture_id: lectureId, exam_id: examId, format });
+            await api.exportTranscript({ 
+                lecture_id: lectureId, 
+                exam_id: examId, 
+                format,
+                include_images: true,
+                include_qr_code: true
+            });
             notifications.success(`We are preparing your transcript export.`);
             await loadJobs();
         } catch (e: any) {
@@ -467,7 +473,14 @@
         }
 
         try {
-            await api.exportDocument({ document_id: docId, lecture_id: lectureId, exam_id: examId, format });
+            await api.exportDocument({ 
+                document_id: docId, 
+                lecture_id: lectureId, 
+                exam_id: examId, 
+                format,
+                include_images: true,
+                include_qr_code: true
+            });
             notifications.success(`We are preparing your document analysis export.`);
             await loadJobs();
         } catch (e: any) {
@@ -494,7 +507,13 @@
         }
 
         try {
-            await api.exportTool({ tool_id: toolId, exam_id: examId, format });
+            await api.exportTool({ 
+                tool_id: toolId, 
+                exam_id: examId, 
+                format,
+                include_images: true,
+                include_qr_code: true
+            });
             notifications.success(`We are preparing your study guide export.`);
             await loadJobs();
         } catch (e: any) {
@@ -571,7 +590,14 @@
 
     <header class="page-header">
         <div class="d-flex justify-content-between align-items-center mb-2">
-            <h1 class="page-title m-0">{lecture.title}</h1>
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="page-title m-0">{lecture.title}</h1>
+                {#if lecture.estimated_cost > 0}
+                    <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
+                        ${lecture.estimated_cost.toFixed(4)}
+                    </span>
+                {/if}
+            </div>
             <div class="d-flex align-items-center gap-3">
                 <button class="btn btn-link btn-sm text-muted p-0 border-0 shadow-none d-flex align-items-center" onclick={() => showEditModal = true} title="Edit Lesson">
                     <Edit3 size={16} />
@@ -603,6 +629,7 @@
                                 onclick={() => activeView = 'transcript'}
                                 disabled={transcriptJobRunning || !transcript || !transcript.segments}
                                 class={transcriptJobRunning ? 'tile-processing' : (transcriptJobFailed ? 'tile-error' : '')}
+                                cost={transcript?.estimated_cost}
                             >
                                 {#snippet actions()}
                                     {#if transcriptJobRunning}
@@ -652,7 +679,7 @@
                             </Tile>
 
                             {#if guideTool}
-                                <Tile href="javascript:void(0)" icon="" title="Study Guide" onclick={() => activeView = 'guide'}>
+                                <Tile href="javascript:void(0)" icon="" title="Study Guide" onclick={() => activeView = 'guide'} cost={guideTool.estimated_cost}>
                                     {#snippet actions()}
                                         {@const guideExportJob = jobs.find(j => j.type === 'PUBLISH_MATERIAL' && j.status === 'COMPLETED' && j.payload?.tool_id === guideTool.id)}
                                         <div class="dropdown" onclick={(e) => e.stopPropagation()}>
@@ -706,7 +733,7 @@
                             {/if}
 
                             {#each documents as doc}
-                                <Tile href="javascript:void(0)" icon="" title={doc.title} onclick={() => openDocument(doc.id)}>
+                                <Tile href="javascript:void(0)" icon="" title={doc.title} onclick={() => openDocument(doc.id)} cost={doc.estimated_cost}>
                                     {#snippet actions()}
                                         {@const docExportJob = jobs.find(j => j.type === 'PUBLISH_MATERIAL' && j.status === 'COMPLETED' && j.payload?.document_id === doc.id)}
                                         <div class="dropdown" onclick={(e) => e.stopPropagation()}>

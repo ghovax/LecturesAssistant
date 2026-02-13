@@ -23,7 +23,7 @@ func (server *Server) handleListDocuments(responseWriter http.ResponseWriter, re
 	userID := server.getUserID(request)
 
 	documentRows, databaseError := server.database.Query(`
-		SELECT reference_documents.id, reference_documents.lecture_id, reference_documents.document_type, reference_documents.title, reference_documents.file_path, reference_documents.page_count, reference_documents.extraction_status, reference_documents.created_at, reference_documents.updated_at
+		SELECT reference_documents.id, reference_documents.lecture_id, reference_documents.document_type, reference_documents.title, reference_documents.file_path, reference_documents.page_count, reference_documents.extraction_status, reference_documents.estimated_cost, reference_documents.created_at, reference_documents.updated_at
 		FROM reference_documents
 		JOIN lectures ON reference_documents.lecture_id = lectures.id
 		JOIN exams ON lectures.exam_id = exams.id
@@ -38,7 +38,7 @@ func (server *Server) handleListDocuments(responseWriter http.ResponseWriter, re
 	var documentsList = []models.ReferenceDocument{}
 	for documentRows.Next() {
 		var document models.ReferenceDocument
-		if err := documentRows.Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt); err != nil {
+		if err := documentRows.Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.EstimatedCost, &document.CreatedAt, &document.UpdatedAt); err != nil {
 			continue
 		}
 		documentsList = append(documentsList, document)
@@ -61,12 +61,12 @@ func (server *Server) handleGetDocument(responseWriter http.ResponseWriter, requ
 
 	var document models.ReferenceDocument
 	err := server.database.QueryRow(`
-		SELECT reference_documents.id, reference_documents.lecture_id, reference_documents.document_type, reference_documents.title, reference_documents.file_path, reference_documents.page_count, reference_documents.extraction_status, reference_documents.created_at, reference_documents.updated_at
+		SELECT reference_documents.id, reference_documents.lecture_id, reference_documents.document_type, reference_documents.title, reference_documents.file_path, reference_documents.page_count, reference_documents.extraction_status, reference_documents.estimated_cost, reference_documents.created_at, reference_documents.updated_at
 		FROM reference_documents
 		JOIN lectures ON reference_documents.lecture_id = lectures.id
 		JOIN exams ON lectures.exam_id = exams.id
 		WHERE reference_documents.id = ? AND reference_documents.lecture_id = ? AND exams.user_id = ?
-	`, documentID, lectureID, userID).Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt)
+	`, documentID, lectureID, userID).Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.EstimatedCost, &document.CreatedAt, &document.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Document not found in this lecture", nil)

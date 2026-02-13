@@ -205,9 +205,25 @@ func RegisterHandlers(
 		}
 
 		// 7. Finalize transcript
-		_, transactionError = databaseTransaction.Exec("UPDATE transcripts SET status = ?, updated_at = ? WHERE id = ?", "completed", time.Now(), transcriptID)
-		if transactionError != nil {
-			return fmt.Errorf("failed to finalize transcript status: %w", transactionError)
+		_, executionError = databaseTransaction.Exec("UPDATE transcripts SET status = ?, estimated_cost = ?, updated_at = ? WHERE id = ?", "completed", totalMetrics.EstimatedCost, time.Now(), transcriptID)
+		if executionError != nil {
+			return fmt.Errorf("failed to finalize transcript status: %w", executionError)
+		}
+
+		// Update lecture cost (aggregate)
+		_, executionError = databaseTransaction.Exec("UPDATE lectures SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), payload.LectureID)
+		if executionError != nil {
+			slog.Warn("Failed to update lecture estimated cost", "lectureID", payload.LectureID, "error", executionError)
+		}
+
+		// Update exam cost (aggregate)
+		var examID string
+		databaseTransaction.QueryRow("SELECT exam_id FROM lectures WHERE id = ?", payload.LectureID).Scan(&examID)
+		if examID != "" {
+			_, executionError = databaseTransaction.Exec("UPDATE exams SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), examID)
+			if executionError != nil {
+				slog.Warn("Failed to update exam estimated cost", "examID", examID, "error", executionError)
+			}
 		}
 
 		if commitError := databaseTransaction.Commit(); commitError != nil {
@@ -331,12 +347,28 @@ func RegisterHandlers(
 			}
 
 			// 6. Update document as completed
-			_, transactionError = databaseTransaction.Exec("UPDATE reference_documents SET extraction_status = ?, page_count = ?, updated_at = ? WHERE id = ?", "completed", len(pages), time.Now(), document.ID)
+			_, transactionError = databaseTransaction.Exec("UPDATE reference_documents SET extraction_status = ?, page_count = ?, estimated_cost = ?, updated_at = ? WHERE id = ?", "completed", len(pages), docMetrics.EstimatedCost, time.Now(), document.ID)
 			if transactionError != nil {
 				// Clean up PNG images since we can't finalize the document
 				os.RemoveAll(outputDirectory)
 				slog.Warn("Cleaned up document images after document status update failure", "document_id", document.ID, "output_directory", outputDirectory)
 				return fmt.Errorf("failed to finalize document status: %w", transactionError)
+			}
+
+			// Update lecture cost (aggregate)
+			_, executionError = databaseTransaction.Exec("UPDATE lectures SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", docMetrics.EstimatedCost, time.Now(), payload.LectureID)
+			if executionError != nil {
+				slog.Warn("Failed to update lecture estimated cost during document ingestion", "lectureID", payload.LectureID, "error", executionError)
+			}
+
+			// Update exam cost (aggregate)
+			var examID string
+			databaseTransaction.QueryRow("SELECT exam_id FROM lectures WHERE id = ?", payload.LectureID).Scan(&examID)
+			if examID != "" {
+				_, executionError = databaseTransaction.Exec("UPDATE exams SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", docMetrics.EstimatedCost, time.Now(), examID)
+				if executionError != nil {
+					slog.Warn("Failed to update exam estimated cost during document ingestion", "examID", examID, "error", executionError)
+				}
 			}
 
 			if commitError := databaseTransaction.Commit(); commitError != nil {
@@ -514,11 +546,29 @@ func RegisterHandlers(
 		defer transaction.Rollback()
 
 		_, executionError := transaction.Exec(`
-			INSERT INTO tools (id, exam_id, lecture_id, type, title, language_code, content, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, toolID, payload.ExamID, payload.LectureID, payload.Type, toolTitle, payload.LanguageCode, toolContent, time.Now(), time.Now())
+			INSERT INTO tools (id, exam_id, lecture_id, type, title, language_code, content, estimated_cost, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, toolID, payload.ExamID, payload.LectureID, payload.Type, toolTitle, payload.LanguageCode, toolContent, totalMetrics.EstimatedCost, time.Now(), time.Now())
 		if executionError != nil {
 			return fmt.Errorf("failed to store tool: %w", executionError)
+		}
+
+		// Update lecture cost (aggregate)
+		if payload.LectureID != "" {
+			_, executionError = transaction.Exec("UPDATE lectures SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), payload.LectureID)
+			if executionError != nil {
+				slog.Warn("Failed to update lecture estimated cost during tool build", "lectureID", payload.LectureID, "error", executionError)
+			}
+
+			// Update exam cost (aggregate)
+			var examID string
+			transaction.QueryRow("SELECT exam_id FROM lectures WHERE id = ?", payload.LectureID).Scan(&examID)
+			if examID != "" {
+				_, executionError = transaction.Exec("UPDATE exams SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), examID)
+				if executionError != nil {
+					slog.Warn("Failed to update exam estimated cost during tool build", "examID", examID, "error", executionError)
+				}
+			}
 		}
 
 		// Store citation metadata in structured table
@@ -699,7 +749,7 @@ func RegisterHandlers(
 		}
 
 		// 4. Update exam
-		_, err = database.Exec("UPDATE exams SET title = ?, description = ?, updated_at = ? WHERE id = ?", newTitle, newDescription, time.Now(), payload.ExamID)
+		_, err = database.Exec("UPDATE exams SET title = ?, description = ?, estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", newTitle, newDescription, totalMetrics.EstimatedCost, time.Now(), payload.ExamID)
 		if err != nil {
 			return err
 		}
@@ -1312,6 +1362,19 @@ func RegisterHandlers(
 					"download_url": downloadURL,
 				}, totalMetrics)
 
+				// Update costs
+				if payload.ToolID != "" {
+					database.Exec("UPDATE tools SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), payload.ToolID)
+				} else if payload.DocumentID != "" {
+					database.Exec("UPDATE reference_documents SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), payload.DocumentID)
+				} else if payload.LectureID != "" {
+					database.Exec("UPDATE transcripts SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE lecture_id = ?", totalMetrics.EstimatedCost, time.Now(), payload.LectureID)
+				}
+				if payload.LectureID != "" {
+					database.Exec("UPDATE lectures SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), payload.LectureID)
+				}
+				database.Exec("UPDATE exams SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), examID)
+
 				slog.Info("Export completed with costs",
 					"file_path", outputPath,
 					"format", payload.Format,
@@ -1324,6 +1387,19 @@ func RegisterHandlers(
 			}
 
 			updateProgress(100, "Export completed", map[string]string{"file_path": outputPath, "format": payload.Format}, totalMetrics)
+
+			// Update costs
+			if payload.ToolID != "" {
+				database.Exec("UPDATE tools SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), payload.ToolID)
+			} else if payload.DocumentID != "" {
+				database.Exec("UPDATE reference_documents SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), payload.DocumentID)
+			} else if payload.LectureID != "" {
+				database.Exec("UPDATE transcripts SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE lecture_id = ?", totalMetrics.EstimatedCost, time.Now(), payload.LectureID)
+			}
+			if payload.LectureID != "" {
+				database.Exec("UPDATE lectures SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), payload.LectureID)
+			}
+			database.Exec("UPDATE exams SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), examID)
 
 			slog.Info("Export completed with costs",
 				"file_path", outputPath,

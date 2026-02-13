@@ -52,6 +52,7 @@ func createSchema(database *sql.DB) error {
 		title TEXT NOT NULL,
 		description TEXT,
 		language TEXT,
+		estimated_cost REAL DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -65,6 +66,7 @@ func createSchema(database *sql.DB) error {
 		specified_date DATETIME,
 		language TEXT,
 		status TEXT CHECK(status IN ('processing', 'ready', 'failed')) DEFAULT 'processing',
+		estimated_cost REAL DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -89,6 +91,7 @@ func createSchema(database *sql.DB) error {
 		language TEXT,
 		status TEXT CHECK(status IN ('pending', 'processing', 'completed', 'failed')) DEFAULT 'pending',
 		confidence REAL DEFAULT 0,
+		estimated_cost REAL DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -117,6 +120,7 @@ func createSchema(database *sql.DB) error {
 		original_filename TEXT,
 		page_count INTEGER NOT NULL,
 		extraction_status TEXT CHECK(extraction_status IN ('pending', 'processing', 'completed', 'failed')) DEFAULT 'pending',
+		estimated_cost REAL DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -140,6 +144,7 @@ func createSchema(database *sql.DB) error {
 		title TEXT NOT NULL,
 		language_code TEXT,
 		content JSON NOT NULL,
+		estimated_cost REAL DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -157,6 +162,7 @@ func createSchema(database *sql.DB) error {
 		id TEXT PRIMARY KEY,
 		exam_id TEXT NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
 		title TEXT,
+		estimated_cost REAL DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -265,6 +271,14 @@ func createSchema(database *sql.DB) error {
 		`ALTER TABLE chat_context_configuration ADD COLUMN used_lecture_ids JSON`,
 		// Add included_tool_ids to chat context
 		`ALTER TABLE chat_context_configuration ADD COLUMN included_tool_ids JSON`,
+
+		// Add estimated_cost to all main entities
+		`ALTER TABLE reference_documents ADD COLUMN estimated_cost REAL DEFAULT 0`,
+		`ALTER TABLE tools ADD COLUMN estimated_cost REAL DEFAULT 0`,
+		`ALTER TABLE transcripts ADD COLUMN estimated_cost REAL DEFAULT 0`,
+		`ALTER TABLE exams ADD COLUMN estimated_cost REAL DEFAULT 0`,
+		`ALTER TABLE lectures ADD COLUMN estimated_cost REAL DEFAULT 0`,
+		`ALTER TABLE chat_sessions ADD COLUMN estimated_cost REAL DEFAULT 0`,
 
 		// Create indexes (using individual migrations to ignore "already exists" errors)
 		`CREATE INDEX index_users_username ON users(username)`,

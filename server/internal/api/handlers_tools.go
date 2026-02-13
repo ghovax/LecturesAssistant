@@ -135,7 +135,7 @@ func (server *Server) handleListTools(responseWriter http.ResponseWriter, reques
 	toolType := request.URL.Query().Get("type")
 
 	query := `
-		SELECT tools.id, tools.exam_id, tools.lecture_id, tools.type, tools.title, tools.language_code, tools.created_at, tools.updated_at
+		SELECT tools.id, tools.exam_id, tools.lecture_id, tools.type, tools.title, tools.language_code, tools.estimated_cost, tools.created_at, tools.updated_at
 		FROM tools
 		JOIN exams ON tools.exam_id = exams.id
 		WHERE exams.user_id = ?
@@ -169,7 +169,7 @@ func (server *Server) handleListTools(responseWriter http.ResponseWriter, reques
 	for toolRows.Next() {
 		var tool models.Tool
 		var lID sql.NullString
-		if err := toolRows.Scan(&tool.ID, &tool.ExamID, &lID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.CreatedAt, &tool.UpdatedAt); err != nil {
+		if err := toolRows.Scan(&tool.ID, &tool.ExamID, &lID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.EstimatedCost, &tool.CreatedAt, &tool.UpdatedAt); err != nil {
 			continue
 		}
 		if lID.Valid {
@@ -195,11 +195,11 @@ func (server *Server) handleGetTool(responseWriter http.ResponseWriter, request 
 
 	var tool models.Tool
 	err := server.database.QueryRow(`
-		SELECT tools.id, tools.exam_id, tools.type, tools.title, tools.language_code, tools.content, tools.created_at, tools.updated_at
+		SELECT tools.id, tools.exam_id, tools.type, tools.title, tools.language_code, tools.content, tools.estimated_cost, tools.created_at, tools.updated_at
 		FROM tools
 		JOIN exams ON tools.exam_id = exams.id
 		WHERE tools.id = ? AND tools.exam_id = ? AND exams.user_id = ?
-	`, toolID, examID, userID).Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.Content, &tool.CreatedAt, &tool.UpdatedAt)
+	`, toolID, examID, userID).Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.Content, &tool.EstimatedCost, &tool.CreatedAt, &tool.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found in this exam", nil)
@@ -629,9 +629,11 @@ func (server *Server) handleExportTool(responseWriter http.ResponseWriter, reque
 // handleExportTranscript triggers an export job for a lecture transcript
 func (server *Server) handleExportTranscript(responseWriter http.ResponseWriter, request *http.Request) {
 	var exportRequest struct {
-		LectureID string `json:"lecture_id"`
-		ExamID    string `json:"exam_id"`
-		Format    string `json:"format"` // "pdf", "docx", "md"
+		LectureID     string `json:"lecture_id"`
+		ExamID        string `json:"exam_id"`
+		Format        string `json:"format"` // "pdf", "docx", "md"
+		IncludeImages *bool  `json:"include_images"`
+		IncludeQRCode *bool  `json:"include_qr_code"`
 	}
 
 	if decodingError := json.NewDecoder(request.Body).Decode(&exportRequest); decodingError != nil {
@@ -646,6 +648,16 @@ func (server *Server) handleExportTranscript(responseWriter http.ResponseWriter,
 
 	if exportRequest.Format == "" {
 		exportRequest.Format = "pdf"
+	}
+
+	includeImages := true
+	if exportRequest.IncludeImages != nil {
+		includeImages = *exportRequest.IncludeImages
+	}
+
+	includeQRCode := false
+	if exportRequest.IncludeQRCode != nil {
+		includeQRCode = *exportRequest.IncludeQRCode
 	}
 
 	userID := server.getUserID(request)
@@ -680,9 +692,11 @@ func (server *Server) handleExportTranscript(responseWriter http.ResponseWriter,
 
 	// Enqueue export job
 	jobIdentifier, enqueuingError := server.jobQueue.Enqueue(userID, models.JobTypePublishMaterial, map[string]string{
-		"lecture_id":    exportRequest.LectureID,
-		"language_code": lang,
-		"format":        exportRequest.Format,
+		"lecture_id":      exportRequest.LectureID,
+		"language_code":   lang,
+		"format":          exportRequest.Format,
+		"include_images":  fmt.Sprintf("%v", includeImages),
+		"include_qr_code": fmt.Sprintf("%v", includeQRCode),
 	}, exportRequest.ExamID, exportRequest.LectureID)
 
 	if enqueuingError != nil {
@@ -699,10 +713,12 @@ func (server *Server) handleExportTranscript(responseWriter http.ResponseWriter,
 // handleExportDocument triggers an export job for a reference document (images + interpretations)
 func (server *Server) handleExportDocument(responseWriter http.ResponseWriter, request *http.Request) {
 	var exportRequest struct {
-		DocumentID string `json:"document_id"`
-		LectureID  string `json:"lecture_id"`
-		ExamID     string `json:"exam_id"`
-		Format     string `json:"format"` // "pdf", "docx", "md"
+		DocumentID    string `json:"document_id"`
+		LectureID     string `json:"lecture_id"`
+		ExamID        string `json:"exam_id"`
+		Format        string `json:"format"` // "pdf", "docx", "md"
+		IncludeImages *bool  `json:"include_images"`
+		IncludeQRCode *bool  `json:"include_qr_code"`
 	}
 
 	if decodingError := json.NewDecoder(request.Body).Decode(&exportRequest); decodingError != nil {
@@ -717,6 +733,16 @@ func (server *Server) handleExportDocument(responseWriter http.ResponseWriter, r
 
 	if exportRequest.Format == "" {
 		exportRequest.Format = "pdf"
+	}
+
+	includeImages := true
+	if exportRequest.IncludeImages != nil {
+		includeImages = *exportRequest.IncludeImages
+	}
+
+	includeQRCode := false
+	if exportRequest.IncludeQRCode != nil {
+		includeQRCode = *exportRequest.IncludeQRCode
 	}
 
 	userID := server.getUserID(request)
@@ -752,10 +778,12 @@ func (server *Server) handleExportDocument(responseWriter http.ResponseWriter, r
 
 	// Enqueue export job
 	jobIdentifier, enqueuingError := server.jobQueue.Enqueue(userID, models.JobTypePublishMaterial, map[string]string{
-		"document_id":   exportRequest.DocumentID,
-		"lecture_id":    exportRequest.LectureID,
-		"language_code": lang,
-		"format":        exportRequest.Format,
+		"document_id":     exportRequest.DocumentID,
+		"lecture_id":      exportRequest.LectureID,
+		"language_code":   lang,
+		"format":          exportRequest.Format,
+		"include_images":  fmt.Sprintf("%v", includeImages),
+		"include_qr_code": fmt.Sprintf("%v", includeQRCode),
 	}, exportRequest.ExamID, exportRequest.LectureID)
 
 	if enqueuingError != nil {

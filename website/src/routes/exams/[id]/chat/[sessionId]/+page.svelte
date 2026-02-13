@@ -168,7 +168,14 @@
     ]} />
 
     <header class="page-header">
-        <h1 class="page-title">{session.title || 'AI Assistant'}</h1>
+        <div class="d-flex align-items-center gap-3">
+            <h1 class="page-title m-0">{session.title || 'AI Assistant'}</h1>
+            {#if session.estimated_cost > 0}
+                <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
+                    ${session.estimated_cost.toFixed(4)}
+                </span>
+            {/if}
+        </div>
     </header>
 
     <div class="container-fluid p-0">
@@ -211,9 +218,16 @@
                                                                             </span>
                                                                         {/if}
                                                                     </div>
-                                                                    <span class="text-muted small flex-shrink-0" style="font-size: 0.7rem;">
-                                                                        {new Date(msg.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                                    </span>
+                                                                    <div class="d-flex align-items-center gap-3">
+                                                                        {#if msg.estimated_cost > 0}
+                                                                            <span class="text-muted" style="font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;">
+                                                                                ${msg.estimated_cost.toFixed(4)}
+                                                                            </span>
+                                                                        {/if}
+                                                                        <span class="text-muted small flex-shrink-0" style="font-size: 0.7rem;">
+                                                                            {new Date(msg.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                        </span>
+                                                                    </div>
                                                                 </div>
                                                                 <div class="p-4 prose">
                                     

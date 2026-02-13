@@ -14,13 +14,14 @@ type User struct {
 
 // Exam represents a course or exam grouping
 type Exam struct {
-	ID          string    `json:"id"`
-	UserID      string    `json:"user_id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description,omitempty"`
-	Language    string    `json:"language,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID            string    `json:"id"`
+	UserID        string    `json:"user_id"`
+	Title         string    `json:"title"`
+	Description   string    `json:"description,omitempty"`
+	Language      string    `json:"language,omitempty"`
+	EstimatedCost float64   `json:"estimated_cost"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // Lecture represents a single lesson or session
@@ -32,6 +33,7 @@ type Lecture struct {
 	SpecifiedDate *time.Time `json:"specified_date,omitempty"`
 	Language      string     `json:"language,omitempty"`
 	Status        string     `json:"status"` // "processing", "ready", "failed"
+	EstimatedCost float64    `json:"estimated_cost"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 }
@@ -50,13 +52,14 @@ type LectureMedia struct {
 
 // Transcript represents a unified transcript from all media files
 type Transcript struct {
-	ID         string    `json:"id"`
-	LectureID  string    `json:"lecture_id"`
-	Language   string    `json:"language,omitempty"`
-	Status     string    `json:"status"`
-	Confidence float64   `json:"confidence"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID            string    `json:"id"`
+	LectureID     string    `json:"lecture_id"`
+	Language      string    `json:"language,omitempty"`
+	Status        string    `json:"status"`
+	Confidence    float64   `json:"confidence"`
+	EstimatedCost float64   `json:"estimated_cost"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // TranscriptSegment represents a segment of the transcript
@@ -82,6 +85,7 @@ type ReferenceDocument struct {
 	FilePath         string    `json:"file_path"`
 	PageCount        int       `json:"page_count"`
 	ExtractionStatus string    `json:"extraction_status"`
+	EstimatedCost    float64   `json:"estimated_cost"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
@@ -97,24 +101,26 @@ type ReferencePage struct {
 
 // Tool represents AI-generated study materials
 type Tool struct {
-	ID           string    `json:"id"`
-	ExamID       string    `json:"exam_id"`
-	LectureID    string    `json:"lecture_id,omitempty"`
-	Type         string    `json:"type"`
-	Title        string    `json:"title"`
-	LanguageCode string    `json:"language_code"`
-	Content      string    `json:"content"` // JSON string
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID            string    `json:"id"`
+	ExamID        string    `json:"exam_id"`
+	LectureID     string    `json:"lecture_id,omitempty"`
+	Type          string    `json:"type"`
+	Title         string    `json:"title"`
+	LanguageCode  string    `json:"language_code"`
+	Content       string    `json:"content"` // JSON string
+	EstimatedCost float64   `json:"estimated_cost"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // ChatSession represents a conversation scoped to an exam
 type ChatSession struct {
-	ID        string    `json:"id"`
-	ExamID    string    `json:"exam_id"`
-	Title     string    `json:"title,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID            string    `json:"id"`
+	ExamID        string    `json:"exam_id"`
+	Title         string    `json:"title,omitempty"`
+	EstimatedCost float64   `json:"estimated_cost"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // ChatMessage represents a single message in a chat session

@@ -13,6 +13,7 @@
         onclick?: (e: MouseEvent) => void;
         class?: string;
         disabled?: boolean;
+        cost?: number;
     }
 
     let { 
@@ -25,7 +26,8 @@
         actions,
         onclick, 
         class: className = '', 
-        disabled = false 
+        disabled = false,
+        cost
     }: Props = $props();
 
     let isHovered = $state(false);
@@ -55,6 +57,12 @@
                     {@render children()}
                 </div>
             {/if}
+
+            {#if cost && cost > 0}
+                <div class="tile-cost">
+                    ${cost.toFixed(4)}
+                </div>
+            {/if}
         </a>
     {:else}
         <button type="button" class="tile-button" {onclick} {disabled}>
@@ -73,6 +81,12 @@
             {#if children}
                 <div class="tile-extra-children">
                     {@render children()}
+                </div>
+            {/if}
+
+            {#if cost && cost > 0}
+                <div class="tile-cost">
+                    ${cost.toFixed(4)}
                 </div>
             {/if}
         </button>
@@ -172,5 +186,15 @@
         margin-top: auto;
         position: relative;
         z-index: 2;
+    }
+    .tile-cost {
+        position: absolute;
+        bottom: 12px;
+        left: 20px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: var(--gray-400);
+        font-family: 'JetBrains Mono', monospace;
+        pointer-events: none;
     }
 </style>

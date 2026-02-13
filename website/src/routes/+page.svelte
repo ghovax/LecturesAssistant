@@ -122,7 +122,7 @@
     .cozy-homepage {
         font-family: 'Manrope', sans-serif;
         color: var(--gray-800);
-        max-width: 800px;
+        max-width: 1000px;
         margin: 0 auto;
         padding-bottom: 80px;
         -webkit-font-smoothing: antialiased;
@@ -144,7 +144,7 @@
     }
 
     h1 {
-        font-size: 42px;
+        font-size: 2.25rem;
         font-weight: 500;
         margin-bottom: 20px;
         color: var(--gray-900);
@@ -158,7 +158,7 @@
     }
 
     .subtitle {
-        font-size: 17px;
+        font-size: 1rem;
         font-weight: 400;
         color: var(--gray-600);
         line-height: 1.6;

@@ -171,7 +171,7 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 
 	// Get messages
 	messageRows, databaseError := server.database.Query(`
-		SELECT id, session_id, role, content, model_used, input_tokens, output_tokens, estimated_cost, created_at
+		SELECT id, session_id, role, content, model_used, metadata, input_tokens, output_tokens, estimated_cost, created_at
 		FROM chat_messages
 		WHERE session_id = ?
 		ORDER BY created_at ASC
@@ -182,11 +182,22 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 	}
 	defer messageRows.Close()
 
+	// Fetch language code for the session
+	var languageCode string
+	err := server.database.QueryRow(`
+		SELECT exams.language FROM exams
+		JOIN chat_sessions ON exams.id = chat_sessions.exam_id
+		WHERE chat_sessions.id = ?
+	`, sessionID).Scan(&languageCode)
+	if err != nil || languageCode == "" {
+		languageCode = server.configuration.LLM.Language
+	}
+
 	var messages []models.ChatMessage
 	for messageRows.Next() {
 		var message models.ChatMessage
-		var modelUsed sql.NullString
-		if scanError := messageRows.Scan(&message.ID, &message.SessionID, &message.Role, &message.Content, &modelUsed, &message.InputTokens, &message.OutputTokens, &message.EstimatedCost, &message.CreatedAt); scanError != nil {
+		var modelUsed, metadataJSON sql.NullString
+		if scanError := messageRows.Scan(&message.ID, &message.SessionID, &message.Role, &message.Content, &modelUsed, &metadataJSON, &message.InputTokens, &message.OutputTokens, &message.EstimatedCost, &message.CreatedAt); scanError != nil {
 			slog.Error("Failed to scan chat message", "sessionID", sessionID, "error", scanError)
 			continue
 		}
@@ -194,14 +205,49 @@ func (server *Server) handleGetChatSession(responseWriter http.ResponseWriter, r
 		if modelUsed.Valid {
 			message.ModelUsed = modelUsed.String
 		}
+		if metadataJSON.Valid {
+			message.Metadata = metadataJSON.String
+		}
+
+		// Process content: convert RAW Markdown to final version at runtime
+		processedContent := message.Content
+		if message.Role == "assistant" && message.Content != "" {
+			markdownReconstructor := markdown.NewReconstructor()
+			markdownReconstructor.Language = languageCode
+
+			// 1. Convert triple braces to references
+			contentWithRefs, textCitations := markdownReconstructor.ParseCitations(message.Content)
+
+			// 2. Merge with improved metadata from DB if available
+			if message.Metadata != "" {
+				var improvedCitations []markdown.ParsedCitation
+				if json.Unmarshal([]byte(message.Metadata), &improvedCitations) == nil {
+					// Create a map for quick lookup
+					improvedMap := make(map[int]string)
+					for _, ic := range improvedCitations {
+						improvedMap[ic.Number] = ic.Description
+					}
+
+					// Apply improved descriptions
+					for i := range textCitations {
+						if desc, ok := improvedMap[textCitations[i].Number]; ok {
+							textCitations[i].Description = desc
+						}
+					}
+				}
+			}
+
+			// 3. Finalize markdown with footnote definitions
+			processedContent = markdownReconstructor.AppendCitations(contentWithRefs, textCitations)
+		}
 
 		// Convert content to HTML
-		if message.Content != "" {
-			convertedHTML, err := server.markdownConverter.MarkdownToHTML(message.Content)
+		if processedContent != "" {
+			convertedHTML, err := server.markdownConverter.MarkdownToHTML(processedContent)
 			if err == nil {
 				message.ContentHTML = convertedHTML
 			} else {
-				message.ContentHTML = message.Content
+				message.ContentHTML = processedContent
 			}
 		}
 
@@ -704,23 +750,20 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 
 	finalContent = markdownReconstructor.AppendCitations(finalContent, citations)
 
-	// Convert complete response to HTML
-	contentHTML, _ := server.markdownConverter.MarkdownToHTML(finalContent)
-
 	slog.Info("Chat AI response completed",
 		"sessionID", sessionID,
 		"input_tokens", totalMetrics.InputTokens,
 		"output_tokens", totalMetrics.OutputTokens,
 		"estimated_cost_usd", totalMetrics.EstimatedCost)
 
-	// Save complete response
+	// Save complete response (RAW version with triple braces)
+	metadataJSON, _ := json.Marshal(citations)
 	assistantMsgID, _ := gonanoid.New()
 	assistantMessage := models.ChatMessage{
 		ID:            assistantMsgID,
 		SessionID:     sessionID,
 		Role:          "assistant",
-		Content:       finalContent,
-		ContentHTML:   contentHTML,
+		Content:       completeResponseBuilder.String(), // RAW
 		ModelUsed:     model,
 		InputTokens:   totalMetrics.InputTokens,
 		OutputTokens:  totalMetrics.OutputTokens,
@@ -729,9 +772,9 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 	}
 
 	_, databaseError := server.database.Exec(`
-		INSERT INTO chat_messages (id, session_id, role, content, model_used, input_tokens, output_tokens, estimated_cost, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, assistantMessage.ID, assistantMessage.SessionID, assistantMessage.Role, assistantMessage.Content, assistantMessage.ModelUsed, assistantMessage.InputTokens, assistantMessage.OutputTokens, assistantMessage.EstimatedCost, assistantMessage.CreatedAt)
+		INSERT INTO chat_messages (id, session_id, role, content, model_used, metadata, input_tokens, output_tokens, estimated_cost, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, assistantMessage.ID, assistantMessage.SessionID, assistantMessage.Role, assistantMessage.Content, assistantMessage.ModelUsed, string(metadataJSON), assistantMessage.InputTokens, assistantMessage.OutputTokens, assistantMessage.EstimatedCost, assistantMessage.CreatedAt)
 
 	if databaseError != nil {
 		slog.Error("Failed to save assistant message", "error", databaseError)

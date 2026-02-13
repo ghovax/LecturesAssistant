@@ -203,19 +203,20 @@
                             {@const prevMsg = messages[i-1]}
                             <div class="bg-white p-0 overflow-hidden mb-4 border">
                                 <div class="standard-header">
-                                    <div class="header-title overflow-hidden">
-                                        <span class="header-text">Assistant</span>
-                                        {#if prevMsg && prevMsg.role === 'user'}
-                                            <span class="text-muted small text-truncate ms-3 fw-normal" style="opacity: 0.7; text-transform: none; font-style: italic;">
-                                                “{prevMsg.content}”
-                                            </span>
-                                        {/if}
-                                    </div>
-                                    <span class="text-muted small flex-shrink-0" style="font-size: 0.75rem;">
-                                        {new Date(msg.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                </div>
-                                <div class="p-4 prose">
+                                                                    <div class="header-title overflow-hidden">
+                                                                        <span class="header-text">Assistant</span>
+                                                                        {#if prevMsg && prevMsg.role === 'user'}
+                                                                            <span class="text-muted small text-truncate ms-3 fw-normal" style="opacity: 0.7; text-transform: none; font-style: italic;">
+                                                                                “{prevMsg.content}”
+                                                                            </span>
+                                                                        {/if}
+                                                                    </div>
+                                                                    <span class="text-muted small flex-shrink-0" style="font-size: 0.7rem;">
+                                                                        {new Date(msg.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                    </span>
+                                                                </div>
+                                                                <div class="p-4 prose">
+                                    
                                     {#if msg.content_html}
                                         {@html msg.content_html}
                                     {:else}
@@ -270,7 +271,7 @@
 <style lang="scss">
     .page-title {
         font-family: 'Manrope', sans-serif;
-        font-size: 32px;
+        font-size: 1.75rem;
         font-weight: 500;
         color: var(--gray-900);
         letter-spacing: -0.02em;
@@ -314,7 +315,7 @@
         border-radius: 0;
         border: 1px solid var(--gray-300) !important;
         font-family: 'Manrope', sans-serif;
-        font-size: 14px;
+        font-size: 0.85rem;
         padding: 12px;
         background: #fff;
         transition: all 0.2s ease;

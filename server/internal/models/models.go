@@ -125,6 +125,7 @@ type ChatMessage struct {
 	Content       string    `json:"content"`
 	ContentHTML   string    `json:"content_html,omitempty"`
 	ModelUsed     string    `json:"model_used,omitempty"`
+	Metadata      string    `json:"metadata,omitempty"`
 	InputTokens   int       `json:"input_tokens,omitempty"`
 	OutputTokens  int       `json:"output_tokens,omitempty"`
 	EstimatedCost float64   `json:"estimated_cost,omitempty"`

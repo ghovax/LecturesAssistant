@@ -152,7 +152,7 @@
 <style lang="scss">
     .page-title {
         font-family: 'Manrope', sans-serif;
-        font-size: 32px;
+        font-size: 1.75rem;
         font-weight: 500;
         color: var(--gray-900);
         letter-spacing: -0.02em;

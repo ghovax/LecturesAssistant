@@ -156,15 +156,15 @@
 <style lang="scss">
     .page-title {
         font-family: 'Manrope', sans-serif;
-        font-size: 32px;
+        font-size: 1.75rem;
         font-weight: 500;
         color: var(--gray-900);
         letter-spacing: -0.02em;
     }
 
-    .prose :global(h2) { font-size: 1.5rem; margin-top: 2rem; border-bottom: 1px solid var(--gray-300); padding-bottom: 0.5rem; color: var(--gray-900); }
-    .prose :global(h3) { font-size: 1.2rem; margin-top: 1.5rem; color: var(--gray-700); }
-    .prose :global(p) { line-height: 1.6; margin-bottom: 1rem; font-size: 1rem; }
+    .prose :global(h2) { font-size: 1.25rem; margin-top: 2rem; border-bottom: 1px solid var(--gray-300); padding-bottom: 0.5rem; color: var(--gray-900); }
+    .prose :global(h3) { font-size: 1.1rem; margin-top: 1.5rem; color: var(--gray-700); }
+    .prose :global(p) { line-height: 1.6; margin-bottom: 1rem; font-size: 0.85rem; }
     .prose :global(ul) { margin-bottom: 1rem; }
     .prose :global(li) { margin-bottom: 0.5rem; }
 

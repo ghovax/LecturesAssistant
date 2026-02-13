@@ -26,7 +26,7 @@
 
 <Modal {title} {isOpen} onClose={onCancel}>
     <div class="py-2">
-        <p class="mb-0" style="font-size: 1.1rem; line-height: 1.5;">{message}</p>
+        <p class="mb-0" style="font-size: 0.85rem; line-height: 1.5;">{message}</p>
     </div>
 
     {#snippet footer()}

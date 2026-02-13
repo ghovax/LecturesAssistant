@@ -131,8 +131,13 @@ func (server *Server) handleGetDocumentPages(responseWriter http.ResponseWriter,
 	var pages []pageResponse
 	for pageRows.Next() {
 		var page models.ReferencePage
-		if err := pageRows.Scan(&page.ID, &page.DocumentID, &page.PageNumber, &page.ImagePath, &page.ExtractedText); err != nil {
+		var extractedText sql.NullString
+		if err := pageRows.Scan(&page.ID, &page.DocumentID, &page.PageNumber, &page.ImagePath, &extractedText); err != nil {
 			continue
+		}
+
+		if extractedText.Valid {
+			page.ExtractedText = extractedText.String
 		}
 
 		// Convert extracted text to HTML
@@ -256,8 +261,8 @@ func (server *Server) handleDeleteDocument(responseWriter http.ResponseWriter, r
 
 	// Delete files
 	_ = os.Remove(filePath)
-	// Delete page images directory
-	pagesDir := filepath.Join(os.TempDir(), "lectures-documents", deleteRequest.DocumentID)
+	// Delete page images directory (stored in lecture's assets)
+	pagesDir := filepath.Join(server.configuration.Storage.DataDirectory, "files", "lectures", deleteRequest.LectureID, "documents", deleteRequest.DocumentID)
 	_ = os.RemoveAll(pagesDir)
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Document deleted successfully"})
@@ -296,7 +301,7 @@ func (server *Server) handleGetPageHTML(responseWriter http.ResponseWriter, requ
 
 	pageNumber, _ := strconv.Atoi(pageNumberString)
 
-	var extractedText string
+	var extractedText sql.NullString
 	err = server.database.QueryRow(`
 		SELECT extracted_text
 		FROM reference_pages
@@ -312,8 +317,13 @@ func (server *Server) handleGetPageHTML(responseWriter http.ResponseWriter, requ
 		return
 	}
 
+	text := ""
+	if extractedText.Valid {
+		text = extractedText.String
+	}
+
 	// Convert to HTML
-	markdownText := fmt.Sprintf("# %s - Page %d\n\n%s", docTitle, pageNumber, extractedText)
+	markdownText := fmt.Sprintf("# %s - Page %d\n\n%s", docTitle, pageNumber, text)
 	htmlContent, err := server.markdownConverter.MarkdownToHTML(markdownText)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "CONVERSION_ERROR", "Failed to convert page to HTML", nil)

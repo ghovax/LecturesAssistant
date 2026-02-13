@@ -108,9 +108,10 @@ func (converter *ExternalConverter) NormalizeMath(markdownText string) string {
 }
 
 func (converter *ExternalConverter) normalizeMathDelimiters(markdown string) string {
-	// 1. Convert raw ^ and _ notation to LaTeX
-	// We do this first so they are caught by the subsequent standard normalization
-	markdown = converter.convertSimpleSupersub(markdown)
+	// 1. Escape pre-existing dollar signs (e.g., currency) BEFORE converting LaTeX delimiters
+	// This ensures that actual math content wrapped in LaTeX delimiters isn't escaped,
+	// but standalone dollars are.
+	markdown = converter.escapeUnescapedDollars(markdown)
 
 	// 2. \(...\) -> $...$
 	inlineRegex := regexp.MustCompile(`(?s)\\\((.*?)\\\)`)
@@ -128,63 +129,19 @@ func (converter *ExternalConverter) normalizeMathDelimiters(markdown string) str
 		return "$$" + content + "$$"
 	})
 
-	// 4. Escape pre-existing dollar signs (e.g., currency) ONLY if they are NOT part of math blocks
-	markdown = converter.escapeUnescapedDollars(markdown)
-
-	// 5. Escape literal asterisks used in parentheses like (*) to prevent <em> tags
+	// 4. Escape literal asterisks used in parentheses like (*) to prevent <em> tags
 	// Biology often uses (*) for stop codons
 	markdown = strings.ReplaceAll(markdown, "(*)", "(\\*)")
 
 	return markdown
 }
 
-func (converter *ExternalConverter) convertSimpleSupersub(text string) string {
-	// We want to match word^something and word_something ONLY when NOT inside math delimiters.
-	// We match all types of math delimiters to skip them.
-
-	// Match:
-	// 1. $$...$$
-	// 2. $...$
-	// 3. \[...\]
-	// 4. \(...\)
-	// 5. \w+^... (target)
-	// 6. \w+_... (target)
-
-	combinedRegex := regexp.MustCompile(`(\$\$.*?\$\$)|(\$.*?\$)|(\\\(.*?\\\))|(\\\[.*?\\\])|((\w+)\^([a-zA-Z0-9]+|\{[^{}]+\}))|((\w+)_([a-zA-Z0-9]+|\{[^{}]+\}))`)
-
-	return combinedRegex.ReplaceAllStringFunc(text, func(match string) string {
-		// If it starts with any delimiter, skip it
-		if strings.HasPrefix(match, "$") || strings.HasPrefix(match, "\\(") || strings.HasPrefix(match, "\\[") {
-			return match
-		}
-
-		// Check for superscript
-		if strings.Contains(match, "^") {
-			parts := regexp.MustCompile(`(\w+)\^([a-zA-Z0-9]+|\{[^{}]+\})`).FindStringSubmatch(match)
-			if len(parts) > 2 {
-				content := strings.Trim(parts[2], "{}")
-				return parts[1] + "\\(^{" + content + "}\\)"
-			}
-		}
-
-		// Check for subscript
-		if strings.Contains(match, "_") {
-			parts := regexp.MustCompile(`(\w+)_([a-zA-Z0-9]+|\{[^{}]+\})`).FindStringSubmatch(match)
-			if len(parts) > 2 {
-				content := strings.Trim(parts[2], "{}")
-				return parts[1] + "\\(_{" + content + "}\\)"
-			}
-		}
-
-		return match
-	})
-}
-
 func (converter *ExternalConverter) escapeUnescapedDollars(text string) string {
 	// Match both double and single dollar math environments to skip them
 	// Double dollars: $$ ... $$
 	// Single dollars: $ ... $ (must not be empty and must not start/end with space)
-	combinedRegex := regexp.MustCompile(`(\$\$.*?\$\$)|(\$[^$\s][^$]*?[^$\s]\$)|(\$[^$\s]\$)|(\$)`)
+	// We use a more robust regex that handles multi-line for double dollars
+	combinedRegex := regexp.MustCompile(`(\$\$[\s\S]*?\$\$)|(\$[^\$\s][^\$]*?[^\$\s]\$)|(\$[^\$\s]\$)|(\$)`)
 
 	return combinedRegex.ReplaceAllStringFunc(text, func(match string) string {
 		// If it's a math block, return as is

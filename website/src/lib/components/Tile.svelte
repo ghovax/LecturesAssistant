@@ -142,17 +142,17 @@
         }
     }
     .tile-title {
-        font-size: 15px;
+        font-size: 0.9rem;
         font-weight: 600;
         margin: 0 0 8px;
         line-height: 1.2;
         &.font-monospace {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 13px;
+            font-size: 0.8rem;
         }
     }
     .tileContent {
-        font-size: 13px;
+        font-size: 0.8rem;
         color: var(--gray-500);
         line-height: 1.5;
         height: auto;

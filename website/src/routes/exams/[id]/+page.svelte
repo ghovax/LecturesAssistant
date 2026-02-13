@@ -251,7 +251,7 @@
 <style lang="scss">
     .page-title {
         font-family: 'Manrope', sans-serif;
-        font-size: 32px;
+        font-size: 1.75rem;
         font-weight: 500;
         color: var(--gray-900);
         letter-spacing: -0.02em;
@@ -259,7 +259,7 @@
 
     .page-description {
         font-family: 'Manrope', sans-serif;
-        font-size: 15px;
+        font-size: 0.85rem;
         line-height: 1.6;
         max-width: 600px;
         margin: 0;

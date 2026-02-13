@@ -167,6 +167,7 @@ func createSchema(database *sql.DB) error {
 		role TEXT CHECK(role IN ('user', 'assistant', 'system')) NOT NULL,
 		content TEXT NOT NULL,
 		model_used TEXT,
+		metadata JSON,
 		input_tokens INTEGER DEFAULT 0,
 		output_tokens INTEGER DEFAULT 0,
 		estimated_cost REAL DEFAULT 0,
@@ -258,6 +259,8 @@ func createSchema(database *sql.DB) error {
 		`ALTER TABLE lectures ADD COLUMN language TEXT`,
 		// Add lecture_id to tools
 		`ALTER TABLE tools ADD COLUMN lecture_id TEXT`,
+		// Add metadata to chat_messages
+		`ALTER TABLE chat_messages ADD COLUMN metadata JSON`,
 		// Add used_lecture_ids to chat context
 		`ALTER TABLE chat_context_configuration ADD COLUMN used_lecture_ids JSON`,
 		// Add included_tool_ids to chat context

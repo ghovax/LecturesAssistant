@@ -255,6 +255,8 @@ func Load(configurationPath string) (*Configuration, error) {
 		if saveError := Save(newConfiguration, configurationPath); saveError != nil {
 			return nil, saveError
 		}
+		// Expand paths after saving too, just in case
+		newConfiguration.Storage.DataDirectory = expandTilde(newConfiguration.Storage.DataDirectory)
 		return newConfiguration, nil
 	}
 
@@ -270,7 +272,18 @@ func Load(configurationPath string) (*Configuration, error) {
 	}
 
 	loadedConfiguration.ConfigurationPath = configurationPath
+	loadedConfiguration.Storage.DataDirectory = expandTilde(loadedConfiguration.Storage.DataDirectory)
 	return loadedConfiguration, nil
+}
+
+func expandTilde(path string) string {
+	if len(path) > 0 && path[0] == '~' {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			return filepath.Join(home, path[1:])
+		}
+	}
+	return path
 }
 
 // Save writes the configuration to a file

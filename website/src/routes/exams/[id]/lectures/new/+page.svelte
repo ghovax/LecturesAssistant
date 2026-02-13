@@ -93,6 +93,17 @@
 
     <div class="well border mb-3">
         <div class="p-4">
+            <!-- Instructions -->
+            <div class="mb-5" style="font-size: 0.85rem;">
+                <p class="mb-2"><strong>Step 1:</strong> Enter a descriptive title for this lesson.</p>
+                <p class="mb-2"><strong>Step 2:</strong> Provide any number of recordings or reference documents.</p>
+                <p class="mb-2"><strong>Step 3:</strong> Click the upload button in the title bar to begin processing.</p>
+                <div class="d-flex align-items-center text-muted mt-3 pt-3 border-top">
+                    <Info size={14} class="me-2 flex-shrink-0" />
+                    <div style="font-size: 0.75rem;">Multiple files will be combined into a single unified learning experience.</div>
+                </div>
+            </div>
+
             <!-- Prominent Search-style Title Input -->
             <form onsubmit={(e) => { e.preventDefault(); handleUpload(); }} class="mb-4">
                 <div class="input-group dictionary-style mb-3">
@@ -117,7 +128,7 @@
             <div class="container-fluid p-0">
                 <div class="row g-4">
                     <!-- Main Content: Description and Files -->
-                    <div class="col-lg-8 order-md-1">
+                    <div class="col-12">
                         <div class="bg-white border mb-4">
                             <div class="standard-header">
                                 <div class="header-title">
@@ -131,7 +142,7 @@
                                     placeholder="Add an optional summary of the lesson content..."
                                     bind:value={description}
                                     disabled={uploading}
-                                    style="font-size: 1.1rem; line-height: 1.5; resize: none;"
+                                    style="font-size: 0.85rem; line-height: 1.5; resize: none;"
                                 ></textarea>
                             </div>
                         </div>
@@ -144,7 +155,6 @@
                             </div>
                             <div class="p-4">
                                 <select class="form-select cozy-input" bind:value={language} disabled={uploading}>
-                                    <option value="">Default ({exam?.language || 'from settings'})</option>
                                     <option value="en-US">English (US)</option>
                                     <option value="it-IT">Italian</option>
                                     <option value="ja-JP">Japanese</option>
@@ -154,13 +164,13 @@
                                     <option value="zh-CN">Chinese (Simplified)</option>
                                     <option value="pt-BR">Portuguese (Brazilian)</option>
                                 </select>
-                                <div class="form-text small mt-2">Language for transcription and document processing.</div>
+                                <div class="form-text mt-2" style="font-size: 0.85rem;">Language for transcription and document processing.</div>
                             </div>
                         </div>
 
-                        <div class="row g-4">
+                        <div class="row">
                             <!-- Media Upload -->
-                            <div class="col-lg-6 mb-4">
+                            <div class="col-12 mb-4">
                                 <div class="bg-white border h-100">
                                     <div class="standard-header">
                                         <div class="header-title">
@@ -185,13 +195,36 @@
                                         {#if mediaFiles.length > 0}
                                             <div class="mt-3 border-top pt-2">
                                                 {#each mediaFiles as file, i}
-                                                    <div class="d-flex justify-content-between align-items-center mb-1 small bg-light p-2">
-                                                        <span class="text-truncate me-2 fw-bold" title={file.name}>{file.name}</span>
-                                                        <button class="btn btn-link btn-sm text-danger p-0 border-0 shadow-none" onclick={() => removeMedia(i)} disabled={uploading}>
+                                                    <div 
+                                                        class="d-flex justify-content-between align-items-center mb-1 small bg-light p-2"
+                                                        draggable={!uploading}
+                                                        ondragstart={(e: DragEvent) => !uploading && e.dataTransfer?.setData('text/plain', i.toString())}
+                                                        ondragover={(e: DragEvent) => { e.preventDefault(); if(!uploading && e.currentTarget instanceof HTMLElement) e.currentTarget.style.borderTop = '2px solid var(--orange)'; }}
+                                                        ondragleave={(e: DragEvent) => { if(e.currentTarget instanceof HTMLElement) e.currentTarget.style.borderTop = ''; }}
+                                                        ondrop={(e: DragEvent) => {
+                                                            e.preventDefault();
+                                                            if(e.currentTarget instanceof HTMLElement) e.currentTarget.style.borderTop = '';
+                                                            if (uploading) return;
+                                                            const fromIndex = parseInt(e.dataTransfer?.getData('text/plain') || '-1');
+                                                            if (fromIndex !== -1 && fromIndex !== i) {
+                                                                const files = [...mediaFiles];
+                                                                const [moved] = files.splice(fromIndex, 1);
+                                                                files.splice(i, 0, moved);
+                                                                mediaFiles = files;
+                                                            }
+                                                        }}
+                                                        style="cursor: {uploading ? 'default' : 'grab'}; transition: border 0.1s ease;"
+                                                    >
+                                                        <div class="d-flex align-items-center overflow-hidden">
+                                                            <span class="badge bg-secondary rounded-0 me-2" style="font-size: 0.6rem; min-width: 1.5em;">{i + 1}</span>
+                                                            <span class="text-truncate fw-bold" title={file.name}>{file.name}</span>
+                                                        </div>
+                                                        <button class="btn btn-link btn-sm text-danger p-0 border-0 shadow-none ms-2" onclick={() => removeMedia(i)} disabled={uploading}>
                                                             <X size={14} />
                                                         </button>
                                                     </div>
                                                 {/each}
+                                                <div class="form-text mt-2 text-center" style="font-size: 0.7rem; opacity: 0.7;">Drag to reorder recordings.</div>
                                             </div>
                                         {/if}
                                     </div>
@@ -199,7 +232,7 @@
                             </div>
 
                             <!-- Document Upload -->
-                            <div class="col-lg-6 mb-4">
+                            <div class="col-12 mb-4">
                                 <div class="bg-white border h-100">
                                     <div class="standard-header">
                                         <div class="header-title">
@@ -247,27 +280,6 @@
                             </div>
                         {/if}
                     </div>
-
-                    <!-- Sidebar: Instructions -->
-                    <div class="col-lg-4 order-md-2">
-                        <div class="bg-white border mb-4">
-                            <div class="standard-header">
-                                <div class="header-title">
-                                    <span class="header-text">Instructions</span>
-                                </div>
-                            </div>
-                            <div class="p-4 small">
-                                <p><strong>Step 1:</strong> Enter a descriptive title for this lesson.</p>
-                                <p><strong>Step 2:</strong> Provide any number of recordings or reference documents.</p>
-                                <p><strong>Step 3:</strong> Click the upload button in the title bar to begin processing.</p>
-                                <hr />
-                                <div class="d-flex text-muted">
-                                    <Info size={16} class="me-2 flex-shrink-0" />
-                                    <div>Multiple files will be combined into a single unified learning experience.</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -277,7 +289,7 @@
 <style lang="scss">
     .page-title {
         font-family: 'Manrope', sans-serif;
-        font-size: 32px;
+        font-size: 1.75rem;
         font-weight: 500;
         color: var(--gray-900);
         letter-spacing: -0.02em;
@@ -296,7 +308,7 @@
         border-radius: 0;
         border: 1px solid var(--gray-300) !important;
         font-family: 'Manrope', sans-serif;
-        font-size: 14px;
+        font-size: 0.85rem;
         padding: 12px;
         background: #fff;
         transition: all 0.2s ease;
@@ -310,7 +322,7 @@
 
     .cozy-label {
         font-family: 'Manrope', sans-serif;
-        font-size: 12px;
+        font-size: 0.75rem;
         font-weight: 600;
         color: var(--gray-500);
         text-transform: uppercase;

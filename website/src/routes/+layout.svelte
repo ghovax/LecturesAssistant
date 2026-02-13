@@ -35,7 +35,7 @@
         background: transparent !important;
         box-shadow: none !important;
         border: none !important;
-        max-width: 800px !important; /* Fixed width for better alignment */
+        max-width: 1000px !important; /* Increased width */
         margin: 0 auto;
         padding: 0 20px;
     }

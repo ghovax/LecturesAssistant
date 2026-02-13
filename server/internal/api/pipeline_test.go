@@ -142,7 +142,7 @@ func (documentConverter *MockDocumentConverter) ExtractPagesAsImages(pdfPath, ou
 		return nil, err
 	}
 
-	imagePath := filepath.Join(outputDirectory, "page_001.png")
+	imagePath := filepath.Join(outputDirectory, "001.png")
 	if err := os.WriteFile(imagePath, []byte("fake image"), 0644); err != nil {
 		return nil, err
 	}

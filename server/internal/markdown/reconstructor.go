@@ -27,9 +27,9 @@ func (reconstructor *Reconstructor) Reconstruct(node *Node) string {
 
 	result := strings.Join(markdownLines, "\n")
 
-	// Remove ONLY horizontal whitespace before footnote references: "text [^1]" -> "text[^1]"
-	// Using [ \t] ensures we don't accidentally remove newlines (\n) before footnote definitions.
-	result = regexp.MustCompile(`[ \t]+\[\^`).ReplaceAllString(result, "[^")
+	// Avoid double dots and handle whitespace before footnote references: "text. [^1]" or "text [^1]" -> "text[^1]"
+	// We match an optional period, followed by horizontal whitespace, followed by [^
+	result = regexp.MustCompile(`\.?[ \t]*\[\^`).ReplaceAllString(result, "[^")
 
 	return strings.TrimSpace(result) + "\n"
 }

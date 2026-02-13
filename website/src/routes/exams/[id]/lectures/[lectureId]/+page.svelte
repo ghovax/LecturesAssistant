@@ -145,7 +145,7 @@
             }
 
             // If there are active jobs, start polling
-            const hasActiveJobs = newJobs.some(j => j.status === 'PENDING' || j.status === 'RUNNING');
+            const hasActiveJobs = newJobs.some((j: any) => j.status === 'PENDING' || j.status === 'RUNNING');
             if (hasActiveJobs && !jobPollingInterval && browser) {
                 startJobPolling();
             } else if (!hasActiveJobs && jobPollingInterval) {
@@ -548,7 +548,7 @@
                                 class={transcriptJobRunning ? 'tile-processing' : (transcriptJobFailed ? 'tile-error' : '')}
                             >
                                 {#snippet actions()}
-                                        {#if transcriptJob.status === 'COMPLETED'}
+                                        {#if transcriptJob && transcriptJob.status === 'COMPLETED'}
                                             {@const res = JSON.parse(transcriptJob.result || '{}')}
                                             <button 
                                                 class="btn btn-link text-success p-0 border-0 shadow-none" 
@@ -797,7 +797,7 @@
                             <div class="p-4">
                                 <div class="transcript-nav mb-4 d-flex justify-content-between align-items-center p-2 border">
                                     <div class="d-flex align-items-center gap-3">
-                                        <StatusIndicator type="count" label="Segment" current={currentSegmentIndex + 1} total={transcript.segments.length} />
+                                        <StatusIndicator type="count" label="Segment" current={currentSegmentIndex + 1} total={transcript?.segments?.length || 0} />
                                         <StatusIndicator type="time" current={formatTime(seg.start_millisecond)} total={formatTime(seg.end_millisecond)} />
                                         {#if seg.media_filename}
                                             <span class="text-muted small border-start ps-3 d-none d-lg-inline" style="font-size: 0.75rem;">{seg.media_filename}</span>
@@ -806,7 +806,7 @@
                                     <div class="btn-group">
 
                                         <button class="btn btn-outline-success btn-sm p-1 d-flex align-items-center me-2" disabled={currentSegmentIndex === 0} onclick={prevSegment} title="Previous Segment"><ChevronLeft size={18} /></button>
-                                        <button class="btn btn-outline-success btn-sm p-1 d-flex align-items-center" disabled={currentSegmentIndex === transcript.segments.length - 1} onclick={nextSegment} title="Next Segment"><ChevronRight size={18} /></button>
+                                        <button class="btn btn-outline-success btn-sm p-1 d-flex align-items-center" disabled={currentSegmentIndex === (transcript?.segments?.length || 0) - 1} onclick={nextSegment} title="Next Segment"><ChevronRight size={18} /></button>
                                     </div>
                                 </div>
 
@@ -863,7 +863,7 @@
                             </div>
                         </div>
                         
-                        {#if selectedDocPages.length > 0}
+                        {#if selectedDocPages && selectedDocPages.length > 0}
                             {@const p = selectedDocPages[selectedDocPageIndex]}
                             <div class="p-4">
                                 <div class="document-nav mb-4 d-flex justify-content-between align-items-center p-2 border">
@@ -968,7 +968,7 @@
 <style lang="scss">
     .page-title {
         font-family: 'Manrope', sans-serif;
-        font-size: 32px;
+        font-size: 1.75rem;
         font-weight: 500;
         color: var(--gray-900);
         letter-spacing: -0.02em;
@@ -976,7 +976,7 @@
 
     .page-description {
         font-family: 'Manrope', sans-serif;
-        font-size: 15px;
+        font-size: 0.85rem;
         line-height: 1.6;
         max-width: 600px;
         margin: 0;
@@ -1005,7 +1005,7 @@
 
     .cozy-label {
         font-family: 'Manrope', sans-serif;
-        font-size: 12px;
+        font-size: 0.75rem;
         font-weight: 600;
         color: var(--gray-500);
         text-transform: uppercase;
@@ -1014,9 +1014,9 @@
         display: block;
     }
 
-    .prose :global(h2) { font-size: 1.5rem; margin-top: 2rem; border-bottom: 1px solid var(--gray-300); padding-bottom: 0.5rem; color: var(--gray-900); }
-    .prose :global(h3) { font-size: 1.2rem; margin-top: 1.5rem; color: var(--gray-700); }
-    .prose :global(p) { line-height: 1.6; margin-bottom: 1rem; font-size: 1rem; }
+    .prose :global(h2) { font-size: 1.25rem; margin-top: 2rem; border-bottom: 1px solid var(--gray-300); padding-bottom: 0.5rem; color: var(--gray-900); }
+    .prose :global(h3) { font-size: 1.1rem; margin-top: 1.5rem; color: var(--gray-700); }
+    .prose :global(p) { line-height: 1.6; margin-bottom: 1rem; font-size: 0.85rem; }
     .prose :global(ul) { margin-bottom: 1rem; }
     .prose :global(li) { margin-bottom: 0.5rem; }
 
@@ -1045,7 +1045,7 @@
         border: 1px solid var(--gray-300);
         padding: 1rem 1.5rem;
         margin-bottom: 2rem;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
     }
 
     .prose :global(#TOC::before) {

@@ -78,7 +78,7 @@ func (c *ExternalDocumentConverter) ExtractPagesAsImages(pdfPath string, outputD
 	if dpi <= 0 {
 		dpi = 150 // Fallback
 	}
-	outputPattern := filepath.Join(outputDirectory, "page_%03d.png")
+	outputPattern := filepath.Join(outputDirectory, "%03d.png")
 	command := exec.Command("gs", "-dSAFER", "-dBATCH", "-dNOPAUSE", "-sDEVICE=png16m", fmt.Sprintf("-r%d", dpi), fmt.Sprintf("-sOutputFile=%s", outputPattern), pdfPath)
 
 	var stderr strings.Builder
@@ -87,7 +87,7 @@ func (c *ExternalDocumentConverter) ExtractPagesAsImages(pdfPath string, outputD
 		return nil, fmt.Errorf("ghostscript page extraction failed: %v, stderr: %s", executionError, stderr.String())
 	}
 
-	imageFiles, globError := filepath.Glob(filepath.Join(outputDirectory, "page_*.png"))
+	imageFiles, globError := filepath.Glob(filepath.Join(outputDirectory, "[0-9][0-9][0-9].png"))
 	if globError != nil {
 		return nil, globError
 	}

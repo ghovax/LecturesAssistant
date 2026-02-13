@@ -195,7 +195,7 @@
 <style lang="scss">
     .page-title {
         font-family: 'Manrope', sans-serif;
-        font-size: 32px;
+        font-size: 1.75rem;
         font-weight: 500;
         color: var(--gray-900);
         letter-spacing: -0.02em;
@@ -219,7 +219,7 @@
 
     .cozy-label {
         font-family: 'Manrope', sans-serif;
-        font-size: 12px;
+        font-size: 0.75rem;
         font-weight: 600;
         color: var(--gray-500);
         text-transform: uppercase;
@@ -232,7 +232,7 @@
         border-radius: 0;
         border: 1px solid var(--gray-300) !important;
         font-family: 'Manrope', sans-serif;
-        font-size: 14px;
+        font-size: 0.85rem;
         padding: 12px;
         background: #fff;
         transition: all 0.2s ease;

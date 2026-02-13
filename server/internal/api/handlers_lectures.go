@@ -394,6 +394,11 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 		`, fileID, lectureID, mediaType, sequenceOrder, durationMs, destinationPath, metadata.Filename, time.Now())
 	} else {
 		documentType := cleanExtension
+		// Normalize document type to satisfy database constraints
+		if documentType != "pdf" && documentType != "pptx" && documentType != "docx" {
+			documentType = "other"
+		}
+
 		// Keep spaces for readability, but replace dashes with underscores
 		// to ensure the citation parser (which splits on dashes) works correctly.
 		normalizedTitle := strings.ReplaceAll(metadata.Filename, "-", "_")
@@ -444,11 +449,14 @@ func (server *Server) handleListLectures(responseWriter http.ResponseWriter, req
 	lectures := []models.Lecture{}
 	for lectureRows.Next() {
 		var lecture models.Lecture
+		var description, language sql.NullString
 		var specifiedDate sql.NullTime
-		var language sql.NullString
-		if err := lectureRows.Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &specifiedDate, &language, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt); err != nil {
+		if err := lectureRows.Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &description, &specifiedDate, &language, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt); err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to scan lecture", nil)
 			return
+		}
+		if description.Valid {
+			lecture.Description = description.String
 		}
 		if specifiedDate.Valid {
 			lecture.SpecifiedDate = &specifiedDate.Time
@@ -475,15 +483,18 @@ func (server *Server) handleGetLecture(responseWriter http.ResponseWriter, reque
 	userID := server.getUserID(request)
 
 	var lecture models.Lecture
+	var description, language sql.NullString
 	var specifiedDate sql.NullTime
-	var language sql.NullString
 	err := server.database.QueryRow(`
 		SELECT lectures.id, lectures.exam_id, lectures.title, lectures.description, lectures.specified_date, lectures.language, lectures.status, lectures.created_at, lectures.updated_at
 		FROM lectures
 		JOIN exams ON lectures.exam_id = exams.id
 		WHERE lectures.id = ? AND lectures.exam_id = ? AND exams.user_id = ?
-	`, lectureID, examID, userID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &specifiedDate, &language, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt)
+	`, lectureID, examID, userID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &description, &specifiedDate, &language, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt)
 
+	if description.Valid {
+		lecture.Description = description.String
+	}
 	if specifiedDate.Valid {
 		lecture.SpecifiedDate = &specifiedDate.Time
 	}
@@ -599,11 +610,16 @@ func (server *Server) handleUpdateLecture(responseWriter http.ResponseWriter, re
 
 	// Fetch updated lecture
 	var lecture models.Lecture
+	var description sql.NullString
 	err = server.database.QueryRow(`
 		SELECT id, exam_id, title, description, status, created_at, updated_at
 		FROM lectures
 		WHERE id = ?
-	`, updateRequest.LectureID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &lecture.Description, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt)
+	`, updateRequest.LectureID).Scan(&lecture.ID, &lecture.ExamID, &lecture.Title, &description, &lecture.Status, &lecture.CreatedAt, &lecture.UpdatedAt)
+
+	if description.Valid {
+		lecture.Description = description.String
+	}
 
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to fetch updated lecture", nil)

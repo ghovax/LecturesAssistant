@@ -7,17 +7,58 @@ import (
 	"time"
 )
 
-// StartStagingCleanupWorker runs a background task to clean up old staging directories
+// StartStagingCleanupWorker runs a background task to clean up old staging directories and exports
 func (server *Server) StartStagingCleanupWorker() {
 	ticker := time.NewTicker(1 * time.Hour)
 	go func() {
 		for range ticker.C {
 			server.cleanupOrphanedUploads()
 			server.cleanupOrphanedJobDirectories()
-			server.cleanupOrphanedDocumentDirectories()
+			server.cleanupOldExports()
 		}
 	}()
 	slog.Info("Staging cleanup worker started")
+}
+
+func (server *Server) cleanupOldExports() {
+	exportsDir := filepath.Join(server.configuration.Storage.DataDirectory, "files", "exports")
+
+	entries, err := os.ReadDir(exportsDir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			slog.Error("Failed to read exports directory for cleanup", "error", err)
+		}
+		return
+	}
+
+	currentTime := time.Now()
+	threshold := 24 * time.Hour
+	deletedCount := 0
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		// Delete if older than threshold
+		if currentTime.Sub(info.ModTime()) > threshold {
+			exportPath := filepath.Join(exportsDir, entry.Name())
+			if err := os.RemoveAll(exportPath); err == nil {
+				deletedCount++
+			} else {
+				slog.Error("Failed to delete old export directory", "path", exportPath, "error", err)
+			}
+		}
+	}
+
+	if deletedCount > 0 {
+		slog.Info("Old exports cleanup completed", "deleted_directories", deletedCount)
+	}
 }
 
 func (server *Server) cleanupOrphanedUploads() {

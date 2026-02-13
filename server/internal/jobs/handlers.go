@@ -269,8 +269,8 @@ func RegisterHandlers(
 				return fmt.Errorf("failed to update document status: %w", executionError)
 			}
 
-			// 3. Create output directory for pages in system temporary directory
-			outputDirectory := filepath.Join(os.TempDir(), "lectures-assistant", "pages", document.ID)
+			// 3. Create output directory for pages in lecture's assets directory
+			outputDirectory := filepath.Join(config.Storage.DataDirectory, "files", "lectures", payload.LectureID, "documents", document.ID, "pages")
 
 			// 4. Run document processing
 			pages, docMetrics, processingError := documentProcessor.ProcessDocument(jobContext, document, outputDirectory, payload.LanguageCode, func(progress int, message string) {
@@ -482,10 +482,8 @@ func RegisterHandlers(
 			return fmt.Errorf("tool generation failed: %w", generationError)
 		}
 
-		// Parse citations and convert to standard footnotes
-		slog.Debug("Before ParseCitations", "content_length", len(toolContent), "has_triple_braces", strings.Contains(toolContent, "{{{"))
-		finalToolContent, citations := markdownReconstructor.ParseCitations(toolContent)
-		slog.Debug("After ParseCitations", "citations_found", len(citations))
+		// Identify citations to populate tool_source_references, but we will store the RAW toolContent
+		_, citations := markdownReconstructor.ParseCitations(toolContent)
 
 		// Improve footnotes using AI if it's a guide and we have citations
 		if payload.Type == "guide" && len(citations) > 0 {
@@ -496,11 +494,6 @@ func RegisterHandlers(
 			if err == nil {
 				citations = updatedCitations
 			}
-		}
-
-		// If it's a guide, append the footnote definitions to the end
-		if payload.Type == "guide" {
-			finalToolContent = markdownReconstructor.AppendCitations(finalToolContent, citations)
 		}
 
 		updateProgress(95, "Finalizing tool...", nil, totalMetrics)
@@ -516,7 +509,7 @@ func RegisterHandlers(
 		_, executionError := transaction.Exec(`
 			INSERT INTO tools (id, exam_id, lecture_id, type, title, language_code, content, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, toolID, payload.ExamID, payload.LectureID, payload.Type, toolTitle, payload.LanguageCode, finalToolContent, time.Now(), time.Now())
+		`, toolID, payload.ExamID, payload.LectureID, payload.Type, toolTitle, payload.LanguageCode, toolContent, time.Now(), time.Now())
 		if executionError != nil {
 			return fmt.Errorf("failed to store tool: %w", executionError)
 		}
@@ -778,68 +771,44 @@ func RegisterHandlers(
 
 		// 3. Prepare content for PDF/Docx/MD (convert JSON to Markdown if needed)
 		contentToConvert := tool.Content
-		if tool.Type == "flashcard" || tool.Type == "quiz" {
+
+		// If it's a guide, transform raw citations to footnotes at runtime
+		if tool.Type == "guide" {
 			markdownReconstructor := markdown.NewReconstructor()
 			markdownReconstructor.Language = payload.LanguageCode
-			rootNode := &markdown.Node{Type: markdown.NodeDocument}
 
-			rootNode.Children = append(rootNode.Children, &markdown.Node{
-				Type:    markdown.NodeHeading,
-				Level:   1,
-				Content: tool.Title,
-			})
+			// 1. Convert triple braces to references
+			processedContent, textCitations := markdownReconstructor.ParseCitations(contentToConvert)
 
-			switch tool.Type {
-			case "flashcard":
-				var flashcards []map[string]string
-				if unmarshalingError := json.Unmarshal([]byte(tool.Content), &flashcards); unmarshalingError == nil {
-					for _, flashcard := range flashcards {
-						rootNode.Children = append(rootNode.Children, &markdown.Node{
-							Type:    markdown.NodeHeading,
-							Level:   2,
-							Content: flashcard["front"],
-						})
-						rootNode.Children = append(rootNode.Children, &markdown.Node{
-							Type:    markdown.NodeParagraph,
-							Content: flashcard["back"],
-						})
+			// 2. Fetch improved citations from database
+			rows, err := database.Query("SELECT metadata FROM tool_source_references WHERE tool_id = ?", tool.ID)
+			if err == nil {
+				improvedCitations := make(map[int]string)
+				for rows.Next() {
+					var metadataJSON string
+					if err := rows.Scan(&metadataJSON); err == nil {
+						var meta struct {
+							FootnoteNumber int    `json:"footnote_number"`
+							Description    string `json:"description"`
+						}
+						if json.Unmarshal([]byte(metadataJSON), &meta) == nil {
+							improvedCitations[meta.FootnoteNumber] = meta.Description
+						}
 					}
 				}
-			case "quiz":
-				var quiz []map[string]any
-				if unmarshalingError := json.Unmarshal([]byte(tool.Content), &quiz); unmarshalingError == nil {
-					for _, quizItem := range quiz {
-						rootNode.Children = append(rootNode.Children, &markdown.Node{
-							Type:    markdown.NodeHeading,
-							Level:   2,
-							Content: fmt.Sprintf("%v", quizItem["question"]),
-						})
+				rows.Close()
 
-						if options, ok := quizItem["options"].([]any); ok {
-							for _, option := range options {
-								rootNode.Children = append(rootNode.Children, &markdown.Node{
-									Type:     markdown.NodeListItem,
-									Content:  fmt.Sprintf("%v", option),
-									ListType: markdown.ListUnordered,
-								})
-							}
-						}
-
-						rootNode.Children = append(rootNode.Children, &markdown.Node{
-							Type:    markdown.NodeParagraph,
-							Content: fmt.Sprintf("**Correct Answer:** %v", quizItem["correct_answer"]),
-						})
-						rootNode.Children = append(rootNode.Children, &markdown.Node{
-							Type:    markdown.NodeParagraph,
-							Content: fmt.Sprintf("*Explanation:* %v", quizItem["explanation"]),
-						})
+				// 3. Apply improved descriptions
+				for i := range textCitations {
+					if desc, ok := improvedCitations[textCitations[i].Number]; ok {
+						textCitations[i].Description = desc
 					}
 				}
 			}
-			contentToConvert = markdownReconstructor.Reconstruct(rootNode)
-		}
 
-		if tool.Type == "guide" {
+			// 4. Finalize markdown with footnote definitions
+			contentToConvert = markdownReconstructor.AppendCitations(processedContent, textCitations)
+
 			slog.Info("Starting tool content parsing and enrichment", "toolID", tool.ID)
 			markdownParser := markdown.NewParser()
 			ast := markdownParser.Parse(contentToConvert)
@@ -897,11 +866,12 @@ func RegisterHandlers(
 				`, examID)
 				if err == nil {
 					for rows.Next() {
-						var originalFilename, title, imagePath string
+						var originalFilename sql.NullString
+						var title, imagePath string
 						var pageNumber int
 						if err := rows.Scan(&originalFilename, &title, &pageNumber, &imagePath); err == nil {
-							if originalFilename != "" {
-								pageMap[fmt.Sprintf("%s:%d", originalFilename, pageNumber)] = imagePath
+							if originalFilename.Valid && originalFilename.String != "" {
+								pageMap[fmt.Sprintf("%s:%d", originalFilename.String, pageNumber)] = imagePath
 							}
 							if title != "" {
 								pageMap[fmt.Sprintf("%s:%d", title, pageNumber)] = imagePath
@@ -914,7 +884,16 @@ func RegisterHandlers(
 
 				imageResolver := func(filename string, pageNumber int) string {
 					key := fmt.Sprintf("%s:%d", filename, pageNumber)
-					return pageMap[key]
+					absPath := pageMap[key]
+					if absPath == "" {
+						return ""
+					}
+					// Return path relative to data directory for Pandoc
+					relPath, err := filepath.Rel(config.Storage.DataDirectory, absPath)
+					if err != nil {
+						return absPath
+					}
+					return relPath
 				}
 
 				slog.Info("Starting AST enrichment with cited images")
@@ -922,8 +901,6 @@ func RegisterHandlers(
 				slog.Info("Finished AST enrichment with cited images")
 			}
 
-			markdownReconstructor := markdown.NewReconstructor()
-			markdownReconstructor.Language = payload.LanguageCode
 			contentToConvert = markdownReconstructor.Reconstruct(ast)
 			slog.Info("Finished tool content reconstruction", "contentLength", len(contentToConvert))
 		}
@@ -1169,7 +1146,7 @@ func RegisterHandlers(
 
 		var transcriptBuilder strings.Builder
 		transcriptBuilder.WriteString("# " + lecture.Title + " - Transcript\n\n")
-		
+
 		var segments []string
 		for rows.Next() {
 			var text string
@@ -1177,7 +1154,7 @@ func RegisterHandlers(
 				segments = append(segments, text)
 			}
 		}
-		
+
 		// Join segments with double newlines for better paragraph separation in PDF
 		content := transcriptBuilder.String() + strings.Join(segments, "\n\n")
 
@@ -1257,6 +1234,12 @@ func RegisterHandlers(
 			var pageNum int
 			var imagePath, text string
 			if err := rows.Scan(&pageNum, &imagePath, &text); err == nil {
+				// Convert to relative path for Pandoc
+				relPath, err := filepath.Rel(config.Storage.DataDirectory, imagePath)
+				if err == nil {
+					imagePath = relPath
+				}
+
 				rootNode.Children = append(rootNode.Children, &markdown.Node{
 					Type:    markdown.NodeHeading,
 					Level:   2,

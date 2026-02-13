@@ -93,10 +93,13 @@ func (server *Server) handleListExams(responseWriter http.ResponseWriter, reques
 	exams := []examResponse{}
 	for examRows.Next() {
 		var exam models.Exam
-		var language sql.NullString
-		if err := examRows.Scan(&exam.ID, &exam.UserID, &exam.Title, &exam.Description, &language, &exam.CreatedAt, &exam.UpdatedAt); err != nil {
+		var description, language sql.NullString
+		if err := examRows.Scan(&exam.ID, &exam.UserID, &exam.Title, &description, &language, &exam.CreatedAt, &exam.UpdatedAt); err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to scan exam", nil)
 			return
+		}
+		if description.Valid {
+			exam.Description = description.String
 		}
 		if language.Valid {
 			exam.Language = language.String
@@ -130,13 +133,16 @@ func (server *Server) handleGetExam(responseWriter http.ResponseWriter, request 
 	userID := server.getUserID(request)
 
 	var exam models.Exam
-	var language sql.NullString
+	var description, language sql.NullString
 	err := server.database.QueryRow(`
 		SELECT id, user_id, title, description, language, created_at, updated_at
 		FROM exams
 		WHERE id = ? AND user_id = ?
-	`, examID, userID).Scan(&exam.ID, &exam.UserID, &exam.Title, &exam.Description, &language, &exam.CreatedAt, &exam.UpdatedAt)
+	`, examID, userID).Scan(&exam.ID, &exam.UserID, &exam.Title, &description, &language, &exam.CreatedAt, &exam.UpdatedAt)
 
+	if description.Valid {
+		exam.Description = description.String
+	}
 	if language.Valid {
 		exam.Language = language.String
 	}
@@ -250,11 +256,16 @@ func (server *Server) handleUpdateExam(responseWriter http.ResponseWriter, reque
 
 	// Fetch updated exam
 	var exam models.Exam
+	var description sql.NullString
 	err = server.database.QueryRow(`
 		SELECT id, user_id, title, description, created_at, updated_at
 		FROM exams
 		WHERE id = ? AND user_id = ?
-	`, updateExamRequest.ExamID, userID).Scan(&exam.ID, &exam.UserID, &exam.Title, &exam.Description, &exam.CreatedAt, &exam.UpdatedAt)
+	`, updateExamRequest.ExamID, userID).Scan(&exam.ID, &exam.UserID, &exam.Title, &description, &exam.CreatedAt, &exam.UpdatedAt)
+
+	if description.Valid {
+		exam.Description = description.String
+	}
 
 	if err != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to fetch updated exam", nil)

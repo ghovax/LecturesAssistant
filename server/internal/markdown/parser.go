@@ -22,13 +22,6 @@ func NewParser() *Parser {
 
 // Parse converts markdown text into a hierarchical Document node
 func (parser *Parser) Parse(markdown string) *Node {
-	// STEP 1: Unwrap backtick-wrapped math expressions
-	markdown = parser.unwrapBacktickMath(markdown)
-
-	// STEP 2: Convert LaTeX-style math delimiters to markdown math
-	// Note: We do this BEFORE any other processing to have consistent $ delimiters
-	markdown = parser.convertLatexMathDelimiters(markdown)
-
 	lines := strings.Split(markdown, "\n")
 	parser.indentUnit = parser.detectIndentationPattern(lines)
 
@@ -65,13 +58,10 @@ func (parser *Parser) Parse(markdown string) *Node {
 		// Parse single-line elements
 		if element := parser.parseMarkdownElement(lines[lineIndex]); element != nil {
 			if element.Type == NodeParagraph {
-				// Split equations in paragraphs and then escape remaining dollars
+				// Split equations in paragraphs
 				splitElements := parser.splitParagraphEquations(element)
 				allElements = append(allElements, splitElements...)
 			} else {
-				if element.Type == NodeListItem {
-					element.Content = parser.escapeUnescapedDollars(element.Content)
-				}
 				allElements = append(allElements, element)
 			}
 		}
@@ -476,9 +466,6 @@ func (parser *Parser) parseTable(lines []string, startIndex int) (*Node, int) {
 	}
 
 	headerCells := parser.splitByPipesOutsideMath(headerLine)
-	for i, cell := range headerCells {
-		headerCells[i] = parser.escapeUnescapedDollars(cell)
-	}
 	var rows []*TableRow
 	rows = append(rows, &TableRow{Cells: headerCells, IsHeader: true})
 
@@ -489,9 +476,6 @@ func (parser *Parser) parseTable(lines []string, startIndex int) (*Node, int) {
 			break
 		}
 		cells := parser.splitByPipesOutsideMath(line)
-		for i, cell := range cells {
-			cells[i] = parser.escapeUnescapedDollars(cell)
-		}
 		rows = append(rows, &TableRow{Cells: cells, IsHeader: false})
 		currentIndex++
 	}
@@ -561,7 +545,6 @@ func (parser *Parser) splitParagraphEquations(paragraph *Node) []*Node {
 	matches := equationRegex.FindAllStringSubmatchIndex(content, -1)
 
 	if len(matches) == 0 {
-		paragraph.Content = parser.escapeUnescapedDollars(paragraph.Content)
 		return []*Node{paragraph}
 	}
 
@@ -571,7 +554,7 @@ func (parser *Parser) splitParagraphEquations(paragraph *Node) []*Node {
 		if textBefore != "" {
 			parts = append(parts, &Node{
 				Type:    NodeText,
-				Content: parser.escapeUnescapedDollars(textBefore),
+				Content: textBefore,
 			})
 		}
 
@@ -607,12 +590,11 @@ func (parser *Parser) splitParagraphEquations(paragraph *Node) []*Node {
 	if textAfter != "" {
 		parts = append(parts, &Node{
 			Type:    NodeText,
-			Content: parser.escapeUnescapedDollars(textAfter),
+			Content: textAfter,
 		})
 	}
 
 	if len(parts) == 0 {
-		paragraph.Content = parser.escapeUnescapedDollars(paragraph.Content)
 		return []*Node{paragraph}
 	}
 	return parts

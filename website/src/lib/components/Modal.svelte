@@ -44,13 +44,13 @@
                 </div>
 
                 <!-- Body -->
-                <div class="modal-body p-4 bg-light">
+                <div class="modal-body p-3 bg-light">
                     {@render children()}
                 </div>
 
                 <!-- Footer -->
                 {#if footer}
-                    <div class="px-4 py-3 bg-white border-top">
+                    <div class="px-3 py-2 bg-white border-top">
                         {@render footer()}
                     </div>
                 {/if}
@@ -60,10 +60,6 @@
 {/if}
 
 <style lang="scss">
-    .shadow-kakimashou {
-        box-shadow: .3125rem .3125rem .625rem rgba(0, 0, 0, .5) !important;
-    }
-
     .modal-content {
         border-radius: 0 !important;
     }

@@ -87,7 +87,7 @@
 {#if exam}
     <Breadcrumb items={[{ label: 'My Studies', href: '/exams' }, { label: exam.title, href: `/exams/${examId}` }, { label: 'Add Lesson', active: true }]} />
 
-    <div class="bg-white border mb-5">
+    <div class="bg-white border mb-3">
         <div class="standard-header">
             <div class="header-title">
                 <span class="header-glyph" lang="ja">新</span>
@@ -107,7 +107,7 @@
                         required
                         disabled={uploading}
                     />
-                    <button class="btn btn-primary" type="submit" disabled={uploading || !title || (mediaFiles.length === 0 && documentFiles.length === 0)}>
+                    <button class="btn btn-success" type="submit" disabled={uploading || !title || (mediaFiles.length === 0 && documentFiles.length === 0)}>
                         {#if uploading}
                             <span class="spinner-border spinner-border-sm" role="status"></span>
                         {:else}

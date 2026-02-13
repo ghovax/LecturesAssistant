@@ -167,8 +167,13 @@
         { label: session.title || 'Untitled Chat', active: true }
     ]} />
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>{session.title || 'AI Assistant'}</h2>
+    <div class="bg-white border mb-4">
+        <div class="standard-header">
+            <div class="header-title">
+                <span class="header-glyph" lang="ja">談</span>
+                <span class="header-text">{session.title || 'AI Assistant'}</span>
+            </div>
+        </div>
     </div>
 
     <div class="container-fluid p-0">
@@ -237,7 +242,7 @@
                                 <span class="header-text">Recent Chats</span>
                             </div>
                         </div>
-                        <div class="linkTiles tileSizeMd w-100 m-0 d-flex flex-column align-items-center p-2">
+                        <div class="linkTiles flex-column p-3">
                             {#each otherSessions as other}
                                 <Tile href="/exams/{examId}/chat/{other.id}" icon="談" title={other.title || 'Untitled Chat'}>
                                     {#snippet description()}
@@ -267,7 +272,7 @@
                     </div>
                 </form>
 
-                <div class="chat-viewport mb-5" bind:this={messageContainer}>
+                <div class="chat-viewport mb-3" bind:this={messageContainer}>
                     {#if (!messages || messages.length === 0) && !streamingMessage}
                         <div class="well bg-white text-center p-5 text-muted border shadow-sm">
                             <Bot size={48} class="mb-3 opacity-25" />
@@ -278,7 +283,7 @@
                     {#each messages ?? [] as msg, i}
                         {#if msg.role === 'assistant'}
                             {@const prevMsg = messages[i-1]}
-                            <div class="bg-white p-0 overflow-hidden mb-5 border shadow-none">
+                            <div class="bg-white p-0 overflow-hidden mb-3 border shadow-none">
                                 <div class="standard-header">
                                     <div class="header-title overflow-hidden">
                                         <span class="header-glyph" lang="ja">案</span>
@@ -305,7 +310,7 @@
                     {/each}
 
                     {#if streamingMessage}
-                        <div class="bg-white p-0 overflow-hidden mb-5 border shadow-none">
+                        <div class="bg-white p-0 overflow-hidden mb-3 border shadow-none">
                             <div class="standard-header">
                                 <div class="header-title overflow-hidden">
                                     <span class="header-glyph" lang="ja">案</span>

@@ -29,7 +29,7 @@
 
 <div class="row justify-content-center">
     <div class="col-lg-8">
-        <div class="bg-white border mb-5">
+        <div class="bg-white border mb-3">
             <div class="standard-header">
                 <div class="header-title">
                     <span class="header-glyph" lang="ja">始</span>
@@ -59,7 +59,7 @@
                         </div>
                     </div>
 
-                    <div class="mb-5">
+                    <div class="mb-3">
                         <label for="apiKey" class="form-label fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">OpenRouter API Key</label>
                         <input type="password" id="apiKey" class="form-control rounded-0 border shadow-none" bind:value={apiKey} required />
                         <small class="form-text text-muted mt-2 d-block">This key is required for all AI-powered transcription and generation features.</small>

@@ -100,7 +100,7 @@
     onCancel={() => confirmModal.isOpen = false}
 />
 
-<div class="bg-white border mb-5">
+<div class="bg-white border mb-3">
     <div class="standard-header">
         <div class="header-title">
             <span class="header-glyph" lang="ja">科</span>
@@ -135,7 +135,7 @@
 </div>
 
 {#if showCreate}
-    <div class="bg-white border mb-5 shadow-none">
+    <div class="bg-white border mb-3 shadow-none">
         <div class="standard-header">
             <div class="header-title">
                 <span class="header-glyph" lang="ja">新</span>
@@ -155,7 +155,7 @@
                         required
                     />
                 </div>
-                <div class="mb-5">
+                <div class="mb-3">
                     <label for="examLanguage" class="form-label fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Language (Optional)</label>
                     <select id="examLanguage" class="form-select rounded-0 border shadow-none" bind:value={newExamLanguage}>
                         <option value="">Default (from settings)</option>
@@ -170,7 +170,7 @@
                     </select>
                     <div class="form-text small">Lectures will inherit this language for transcription and document processing.</div>
                 </div>
-                <button type="submit" class="btn btn-primary px-5 rounded-0" disabled={creating}>
+                <button type="submit" class="btn btn-success px-5 rounded-0" disabled={creating}>
                     {#if creating}
                         <span class="spinner-border spinner-border-sm me-2" role="status"></span>
                     {/if}

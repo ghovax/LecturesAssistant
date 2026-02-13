@@ -681,6 +681,73 @@ func (server *Server) handleDeleteLecture(responseWriter http.ResponseWriter, re
 	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Lecture deleted successfully"})
 }
 
+// handleRetryLectureJob re-enqueues a failed base job (TRANSCRIBE_MEDIA or INGEST_DOCUMENTS)
+func (server *Server) handleRetryLectureJob(responseWriter http.ResponseWriter, request *http.Request) {
+	var retryRequest struct {
+		LectureID string `json:"lecture_id"`
+		ExamID    string `json:"exam_id"`
+		JobType   string `json:"job_type"`
+	}
+
+	if err := json.NewDecoder(request.Body).Decode(&retryRequest); err != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid body", nil)
+		return
+	}
+
+	if retryRequest.LectureID == "" || retryRequest.ExamID == "" || retryRequest.JobType == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id, exam_id and job_type are required", nil)
+		return
+	}
+
+	userID := server.getUserID(request)
+
+	// Verify ownership and get language
+	var language string
+	err := server.database.QueryRow(`
+		SELECT lectures.language FROM lectures 
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE lectures.id = ? AND lectures.exam_id = ? AND exams.user_id = ?
+	`, retryRequest.LectureID, retryRequest.ExamID, userID).Scan(&language)
+
+	if err == sql.ErrNoRows {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found", nil)
+		return
+	}
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to verify lecture", nil)
+		return
+	}
+
+	// Reset lecture status to processing
+	_, err = server.database.Exec("UPDATE lectures SET status = 'processing', updated_at = ? WHERE id = ?", time.Now(), retryRequest.LectureID)
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to update lecture status", nil)
+		return
+	}
+
+	// Enqueue job
+	var jobID string
+	switch retryRequest.JobType {
+	case models.JobTypeTranscribeMedia:
+		jobID, err = server.jobQueue.Enqueue(userID, models.JobTypeTranscribeMedia, map[string]string{"lecture_id": retryRequest.LectureID}, retryRequest.ExamID, retryRequest.LectureID)
+	case models.JobTypeIngestDocuments:
+		jobID, err = server.jobQueue.Enqueue(userID, models.JobTypeIngestDocuments, map[string]string{"lecture_id": retryRequest.LectureID, "language_code": language}, retryRequest.ExamID, retryRequest.LectureID)
+	default:
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Unsupported job type for lecture retry", nil)
+		return
+	}
+
+	if err != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "BACKGROUND_JOB_ERROR", "Failed to enqueue job", nil)
+		return
+	}
+
+	server.writeJSON(responseWriter, http.StatusAccepted, map[string]string{
+		"job_id":  jobID,
+		"message": "Retry job created",
+	})
+}
+
 // handleGetTranscript retrieves the unified transcript for a lecture
 func (server *Server) handleGetTranscript(responseWriter http.ResponseWriter, request *http.Request) {
 	lectureID := request.URL.Query().Get("lecture_id")

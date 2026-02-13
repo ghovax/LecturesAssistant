@@ -127,6 +127,7 @@ func (server *Server) setupRoutes() {
 	apiRouter.HandleFunc("/lectures/details", server.handleGetLecture).Methods("GET")
 	apiRouter.HandleFunc("/lectures", server.handleUpdateLecture).Methods("PATCH")
 	apiRouter.HandleFunc("/lectures", server.handleDeleteLecture).Methods("DELETE")
+	apiRouter.HandleFunc("/lectures/retry-job", server.handleRetryLectureJob).Methods("POST")
 
 	// Media (Listing/Ordering)
 	apiRouter.HandleFunc("/media", server.handleListMedia).Methods("GET")

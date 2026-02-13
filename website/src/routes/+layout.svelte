@@ -14,7 +14,6 @@
 
 <div class="container-xl main-page">
     <NotificationBanner />
-    <Navbar />
     <main class="content">
         {@render children()}
     </main>

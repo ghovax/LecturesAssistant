@@ -34,7 +34,7 @@
 
 <div class="row justify-content-center">
     <div class="col-lg-6">
-        <div class="bg-white border mb-5">
+        <div class="bg-white border mb-3">
             <div class="standard-header">
                 <div class="header-title">
                     <span class="header-glyph" lang="ja">新</span>
@@ -58,7 +58,7 @@
                         <input type="password" id="password" class="form-control rounded-0 border shadow-none" bind:value={password} required minlength="8" />
                     </div>
 
-                    <div class="mb-5">
+                    <div class="mb-3">
                         <label for="confirmPassword" class="form-label fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Confirm Password</label>
                         <input type="password" id="confirmPassword" class="form-control rounded-0 border shadow-none" bind:value={confirmPassword} required />
                     </div>

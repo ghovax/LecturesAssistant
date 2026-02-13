@@ -114,7 +114,7 @@
             <div class="col-lg-9 col-md-8 order-md-1">
                 {#if pages[currentPageIndex]}
                     {@const p = pages[currentPageIndex]}
-                    <div class="well bg-white mb-5 p-0 overflow-hidden border shadow-sm">
+                    <div class="well bg-white mb-3 p-0 overflow-hidden border shadow-sm">
                         <div class="standard-header">
                             <div class="header-title">
                                 <span class="header-glyph" lang="ja">資</span>

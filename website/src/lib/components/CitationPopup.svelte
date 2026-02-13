@@ -102,8 +102,7 @@
         margin: 0;
         pointer-events: auto;
         border-color: #e3e3e3 !important;
-        // EXACT Kakimashou shadow from app.scss
-        box-shadow: .3125rem .3125rem .625rem rgba(0, 0, 0, .5) !important;
+        @extend .shadow-kakimashou;
     }
 
     .citation-content {

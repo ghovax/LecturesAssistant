@@ -99,6 +99,7 @@ export class APIClient {
     async createLecture(formData: FormData) { return this.request('POST', '/lectures', formData); }
     async getLecture(lectureId: string, examId: string) { return this.request('GET', `/lectures/details?lecture_id=${lectureId}&exam_id=${examId}`); }
     async deleteLecture(lectureId: string, examId: string) { return this.request('DELETE', '/lectures', { lecture_id: lectureId, exam_id: examId }); }
+    async retryLectureJob(lectureId: string, examId: string, jobType: string) { return this.request('POST', '/lectures/retry-job', { lecture_id: lectureId, exam_id: examId, job_type: jobType }); }
 
     // Transcripts
     async getTranscript(lectureId: string) { return this.request('GET', `/transcripts?lecture_id=${lectureId}`); }

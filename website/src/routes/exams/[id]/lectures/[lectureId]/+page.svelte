@@ -33,6 +33,8 @@
     // Derived state for job status
     let transcriptJobRunning = $derived(jobs.some(j => j.type === 'TRANSCRIBE_MEDIA' && (j.status === 'PENDING' || j.status === 'RUNNING')));
     let documentsJobRunning = $derived(jobs.some(j => j.type === 'INGEST_DOCUMENTS' && (j.status === 'PENDING' || j.status === 'RUNNING')));
+    let transcriptJobFailed = $derived(jobs.some(j => j.type === 'TRANSCRIBE_MEDIA' && j.status === 'FAILED'));
+    let documentsJobFailed = $derived(jobs.some(j => j.type === 'INGEST_DOCUMENTS' && j.status === 'FAILED'));
     let transcriptJob = $derived(jobs.find(j => j.type === 'TRANSCRIBE_MEDIA'));
     let documentsJob = $derived(jobs.find(j => j.type === 'INGEST_DOCUMENTS'));
     
@@ -101,9 +103,9 @@
             const newJobs = rawJobs.map((j: any) => {
                 if (typeof j.payload === 'string') {
                     try {
-                        j.payload = JSON.parse(j.payload);
+                        j.payload = json.parse(j.payload);
                     } catch (e) {
-                        console.error('Failed to parse job payload', e);
+                        // ignore
                     }
                 }
                 return j;
@@ -142,6 +144,24 @@
             
             notifications.success(`Retrying ${job.payload.type} generation...`);
             await loadJobs();
+        } catch (e: any) {
+            notifications.error('Failed to retry: ' + e.message);
+        }
+    }
+
+    async function retryBaseJob(type: string) {
+        try {
+            // Find and delete the failed job record
+            const failedJob = jobs.find(j => j.type === type && j.status === 'FAILED');
+            if (failedJob) {
+                await api.request('POST', '/jobs/cancel', { job_id: failedJob.id, delete: true });
+            }
+            
+            await api.retryLectureJob(lectureId, examId, type);
+            notifications.success(`Retrying ${type === 'TRANSCRIBE_MEDIA' ? 'transcription' : 'document ingestion'}...`);
+            await loadJobs();
+            // Refresh lecture metadata too
+            await loadLectureData();
         } catch (e: any) {
             notifications.error('Failed to retry: ' + e.message);
         }
@@ -456,51 +476,65 @@
         }] : [])
     ]} />
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div class="d-flex align-items-center gap-3">
-            <h2 class="m-0">{lecture.title}</h2>
-            <button class="btn btn-link btn-sm text-muted p-0" onclick={() => showEditModal = true} title="Edit Lesson">
-                <Edit3 size={18} />
-            </button>
+    <div class="bg-white border mb-4">
+        <div class="standard-header">
+            <div class="header-title">
+                <span class="header-glyph" lang="ja">講</span>
+                <span class="header-text">{lecture.title}</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-link btn-sm text-muted p-0 border-0 shadow-none d-flex align-items-center me-2" onclick={() => showEditModal = true} title="Edit Lesson">
+                    <Edit3 size={18} />
+                </button>
+                <div class="btn-group">
+                    <button 
+                        class="btn btn-success btn-sm dropdown-toggle rounded-0" 
+                        data-bs-toggle="dropdown"
+                        disabled={lecture.status !== 'ready'}
+                    >
+                        Prepare Material
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end rounded-0 shadow-kakimashou">
+                        <li><button class="dropdown-item" onclick={() => createTool('guide')}>{hasGuide ? 'Recreate' : 'Create'} Study Guide</button></li>
+                        <li><button class="dropdown-item" onclick={() => createTool('flashcard')}>{hasFlashcards ? 'Recreate' : 'Create'} Flashcards</button></li>
+                        <li><button class="dropdown-item" onclick={() => createTool('quiz')}>{hasQuiz ? 'Recreate' : 'Create'} Practice Quiz</button></li>
+                    </ul>
+                </div>
+            </div>
         </div>
-        <div class="btn-group">
-            <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
-                <span class="glyphicon me-1"><Plus size={16} /></span> Prepare Material
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end">
-                <li><button class="dropdown-item" onclick={() => createTool('guide')}>{hasGuide ? 'Recreate' : 'Create'} Study Guide</button></li>
-                <li><button class="dropdown-item" onclick={() => createTool('flashcard')}>{hasFlashcards ? 'Recreate' : 'Create'} Flashcards</button></li>
-                <li><button class="dropdown-item" onclick={() => createTool('quiz')}>{hasQuiz ? 'Recreate' : 'Create'} Practice Quiz</button></li>
-            </ul>
-        </div>
+        {#if lecture.description}
+            <div class="p-4 prose border-top bg-light bg-opacity-10" style="font-size: 1.1rem;">
+                <p class="mb-0">{lecture.description}</p>
+            </div>
+        {/if}
     </div>
 
     <div class="container-fluid p-0">
         <div class="row">
-            <!-- Main Content Area (Left on Desktop) -->
-            <div class="col-lg-9 col-md-8 order-md-1">
+            <!-- Main Content Area -->
+            <div class={activeView === 'dashboard' ? 'col-12' : 'col-lg-9 col-md-8 order-md-1'}>
                 {#if activeView === 'dashboard'}
                     <div class="mb-4">
-                        <div class="bg-white border mb-5">
-                            <div class="standard-header">
-                                <div class="header-title">
-                                    <span class="header-glyph" lang="ja">解</span>
-                                    <span class="header-text">Description</span>
-                                </div>
-                            </div>
-                            <div class="p-4 prose" style="font-size: 1.1rem;">
-                                <p>{lecture.description || 'No summary available for this lesson.'}</p>
-                            </div>
-                        </div>
-
-                        <div class="linkTiles tileSizeMd">
+                        <div class="linkTiles">
                             <Tile
                                 icon="講"
                                 title="Dialogue"
                                 onclick={() => activeView = 'transcript'}
                                 disabled={transcriptJobRunning || !transcript || !transcript.segments}
-                                class={transcriptJobRunning ? 'tile-processing' : ''}
+                                class={transcriptJobRunning ? 'tile-processing' : (transcriptJobFailed ? 'tile-error' : '')}
                             >
+                                {#snippet actions()}
+                                    {#if transcriptJobFailed}
+                                        <button 
+                                            class="btn btn-link text-primary p-0 border-0 shadow-none" 
+                                            onclick={(e) => { e.preventDefault(); e.stopPropagation(); retryBaseJob('TRANSCRIBE_MEDIA'); }} 
+                                            title="Retry Transcription"
+                                        >
+                                            <RotateCcw size={16} />
+                                        </button>
+                                    {/if}
+                                {/snippet}
+
                                 {#snippet description()}
                                     {#if transcriptJobRunning}
                                         <div class="d-flex align-items-center gap-2">
@@ -509,6 +543,8 @@
                                             </div>
                                             <span>{transcriptJob?.progress || 0}%</span>
                                         </div>
+                                    {:else if transcriptJobFailed}
+                                        <span class="text-danger">Transcription failed. Click to retry.</span>
                                     {:else if !transcript || !transcript.segments}
                                         <span class="text-muted">Not yet available.</span>
                                     {:else}
@@ -517,20 +553,64 @@
                                 {/snippet}
                             </Tile>
 
-                            {#each documents as doc}
-                                <Tile href="javascript:void(0)" icon="資" title={doc.title} onclick={() => openDocument(doc.id)}>
+                            {#if guideTool}
+                                <Tile href="javascript:void(0)" icon="案" title="Study Guide" onclick={() => activeView = 'guide'}>
+                                    {#snippet description()}
+                                        Read the comprehensive study guide.
+                                    {/snippet}
+                                </Tile>
+                            {/if}
+
+                            {#each tools.filter(t => t.type !== 'guide') as tool}
+                                <Tile href="javascript:void(0)" 
+                                    icon={tool.type === 'flashcard' ? '札' : '問'} 
+                                    title={capitalize(tool.type)}
+                                    onclick={() => openTool(tool.id)}>
+                                    {#snippet description()}
+                                        Practice your knowledge.
+                                    {/snippet}
                                 </Tile>
                             {/each}
 
-                            {#if documentsJobRunning}
-                                <Tile icon="資" title="Reference Materials" class="tile-processing" disabled={true}>
+                            {#each documents as doc}
+                                <Tile href="javascript:void(0)" icon="資" title={doc.title} onclick={() => openDocument(doc.id)}>
                                     {#snippet description()}
-                                        <div class="d-flex align-items-center gap-2">
-                                            <div class="spinner-border spinner-border-sm text-success" role="status">
-                                                <span class="visually-hidden">Processing...</span>
+                                        Reference material.
+                                    {/snippet}
+                                </Tile>
+                            {/each}
+
+                            {#if documentsJobRunning || documentsJobFailed}
+                                <Tile 
+                                    icon="資" 
+                                    title="Reference Materials" 
+                                    class={documentsJobRunning ? 'tile-processing' : 'tile-error'} 
+                                    disabled={documentsJobRunning}
+                                    onclick={() => documentsJobFailed && retryBaseJob('INGEST_DOCUMENTS')}
+                                >
+                                    {#snippet actions()}
+                                        {#if documentsJobFailed}
+                                            <button 
+                                                class="btn btn-link text-primary p-0 border-0 shadow-none" 
+                                                onclick={(e) => { e.preventDefault(); e.stopPropagation(); retryBaseJob('INGEST_DOCUMENTS'); }} 
+                                                title="Retry Document Ingestion"
+                                            >
+                                                <RotateCcw size={16} />
+                                            </button>
+                                        {/if}
+                                    {/snippet}
+
+                                    {#snippet description()}
+                                        {#if documentsJobRunning}
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="spinner-border spinner-border-sm text-success" role="status">
+                                                    <span class="visually-hidden">Processing...</span>
+                                                </div>
+                                                <span>{documentsJob?.progress || 0}%</span>
                                             </div>
-                                            <span>{documentsJob?.progress || 0}%</span>
-                                        </div>
+                                        {:else if documentsJobFailed}
+                                            <span class="text-danger">Processing failed. Click to retry.</span>
+                                        {/if}
                                     {/snippet}
                                 </Tile>
                             {/if}
@@ -538,7 +618,7 @@
                     </div>
                 {:else if activeView === 'guide'}
                     <div 
-                        class="well bg-white p-0 overflow-hidden mb-5 border" 
+                        class="well bg-white p-0 overflow-hidden mb-3 border" 
                         onclick={handleCitationClick}
                         onkeydown={(e) => e.key === 'Enter' && handleCitationClick(e as any)}
                         role="article"
@@ -561,7 +641,7 @@
                         </div>
                     </div>
                 {:else if activeView === 'transcript'}
-                    <div class="well bg-white p-0 overflow-hidden mb-5 border">
+                    <div class="well bg-white p-0 overflow-hidden mb-3 border">
                         <div class="standard-header">
                             <div class="header-title">
                                 <span class="header-glyph" lang="ja">講</span>
@@ -622,7 +702,7 @@
                     </div>
                 {:else if activeView === 'doc'}
                     {@const doc = documents.find(d => d.id === selectedDocId)}
-                    <div class="well bg-white p-0 overflow-hidden mb-5 border">
+                    <div class="well bg-white p-0 overflow-hidden mb-3 border">
                         <div class="standard-header">
                             <div class="header-title">
                                 <span class="header-glyph" lang="ja">資</span>
@@ -672,7 +752,7 @@
                     </div>
                 {:else if activeView === 'tool'}
                     {@const tool = tools.find(t => t.id === selectedToolId)}
-                    <div class="well bg-white p-0 overflow-hidden mb-5 border">
+                    <div class="well bg-white p-0 overflow-hidden mb-3 border">
                         <div class="standard-header">
                             <div class="header-title">
                                 <span class="header-glyph" lang="ja">{tool?.type === 'flashcard' ? '札' : '問'}</span>
@@ -707,7 +787,7 @@
                                 {:then toolHTML}
                                     <div class="quiz-list">
                                         {#each toolHTML.content as item, i}
-                                            <div class="bg-white mb-5 border">
+                                            <div class="bg-white mb-3 border">
                                                 <div class="px-4 py-2 border-bottom bg-light d-flex justify-content-between align-items-center">
                                                     <span class="fw-bold small text-muted">Question {i + 1}</span>
                                                 </div>
@@ -740,10 +820,10 @@
                 {/if}
             </div>
 
-            <!-- Sidebar: Navigation Tiles ONLY (Right Side on Desktop) -->
-            <div class="col-lg-3 col-md-4 order-md-2">
-                {#if activeView !== 'dashboard'}
-                    <div class="linkTiles tileSizeMd w-100 m-0 d-flex flex-column align-items-center mb-4">
+            <!-- Sidebar: Navigation ONLY (Right Side on Desktop) -->
+            {#if activeView !== 'dashboard'}
+                <div class="col-lg-3 col-md-4 order-md-2">
+                    <div class="linkTiles flex-column mb-4">
                         <Tile icon="戻" 
                             title="Back to Hub" 
                             onclick={() => activeView = 'dashboard'}>
@@ -752,98 +832,8 @@
                             {/snippet}
                         </Tile>
                     </div>
-                {/if}
-
-                <div class="bg-white border mb-4">
-                    <div class="standard-header">
-                        <div class="header-title">
-                            <span class="header-glyph" lang="ja">案</span>
-                            <span class="header-text">Study Aids</span>
-                        </div>
-                    </div>
-                    
-                    {#if tools.length > 0}
-                        <div class="linkTiles tileSizeMd w-100 m-0 d-flex flex-column align-items-center p-2">
-                            {#if guideTool}
-                                <Tile href="javascript:void(0)" icon="案" title="Study Guide" onclick={() => activeView = 'guide'}>
-                                    {#snippet description()}
-                                        Read the comprehensive, carefully prepared guide.
-                                    {/snippet}
-                                </Tile>
-                            {/if}
-
-                            {#each tools.filter(t => t.type !== 'guide') as tool}
-                                <Tile href="javascript:void(0)" 
-                                    icon={tool.type === 'flashcard' ? '札' : '問'} 
-                                    title={capitalize(tool.type)}
-                                    onclick={() => openTool(tool.id)}>
-                                    {#snippet description()}
-                                        Practice your knowledge.
-                                    {/snippet}
-                                </Tile>
-                            {/each}
-                        </div>
-                    {:else}
-                        <div class="p-4 text-center">
-                            <p class="text-muted small mb-0">No materials prepared yet. Use the <strong>Prepare Material</strong> menu to generate aids.</p>
-                        </div>
-                    {/if}
                 </div>
-
-                {#if activeToolsJobs.length > 0}
-                    <div class="bg-white border mb-4">
-                        <div class="standard-header">
-                            <div class="header-title">
-                                <span class="header-glyph" lang="ja">作</span>
-                                <span class="header-text">Current Jobs</span>
-                            </div>
-                        </div>
-                        <div class="linkTiles tileSizeMd w-100 m-0 d-flex flex-column align-items-center p-2">
-                            {#each activeToolsJobs as job}
-                                <Tile
-                                    icon={job.status === 'FAILED' ? '疑' : '作'} 
-                                    title={job.status === 'FAILED' ? 'Failed Generation' : 'Preparing Aid'}
-                                    class={job.status === 'FAILED' ? 'tile-error' : 'tile-processing'}
-                                >
-                                    {#snippet description()}
-                                        {#if job.status === 'FAILED'}
-                                            <div class="text-danger small fw-bold">
-                                                <X size={14} class="me-1" /> Generation failed.
-                                            </div>
-                                        {:else}
-                                            <div class="d-flex align-items-center gap-2">
-                                                <div class="spinner-border spinner-border-sm text-success" role="status">
-                                                    <span class="visually-hidden">Processing...</span>
-                                                </div>
-                                                <span>{job.progress}%</span>
-                                            </div>
-                                        {/if}
-                                    {/snippet}
-
-                                    {#snippet actions()}
-                                        {#if job.status === 'FAILED'}
-                                            <button 
-                                                class="btn btn-link text-primary p-0 border-0 shadow-none me-2" 
-                                                onclick={(e) => { e.preventDefault(); e.stopPropagation(); retryJob(job); }}
-                                                title="Retry Generation"
-                                            >
-                                                <RotateCcw size={16} />
-                                            </button>
-                                            <button 
-                                                class="btn btn-link text-muted p-0 border-0 shadow-none" 
-                                                onclick={(e) => { e.preventDefault(); e.stopPropagation(); removeJob(job.id); }}
-                                                title="Clear Error"
-                                            >
-                                                <X size={16} />
-                                            </button>
-                                        {/if}
-                                    {/snippet}
-                                </Tile>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-            </div>
+            {/if}
         </div>
     </div>
 {:else if loading}

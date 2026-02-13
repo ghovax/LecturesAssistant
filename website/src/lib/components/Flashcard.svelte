@@ -62,8 +62,7 @@
 
     .tile-like {
         background: #fff;
-        // EXACT Tile shadow from app.scss
-        box-shadow: .3125rem .3125rem .625rem rgba(0, 0, 0, .5);
+        @extend .shadow-kakimashou;
         color: #000;
         border: 1px solid #eee;
         font-size: 1.05rem;

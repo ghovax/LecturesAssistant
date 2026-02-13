@@ -14,16 +14,37 @@
 </script>
 
 <nav aria-label="breadcrumb">
+
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="/">Home</a></li>
-        {#each items as item}
-            {#if item.active}
-                <li class="breadcrumb-item active" aria-current="page">{item.label}</li>
-            {:else}
-                <li class="breadcrumb-item">
-                    <a href={item.href} onclick={item.onclick}>{item.label}</a>
-                </li>
-            {/if}
-        {/each}
+
+        {#if items.length === 0}
+
+            <li class="breadcrumb-item active">Home</li>
+
+        {:else}
+
+            <li class="breadcrumb-item"><a href="/">Home</a></li>
+
+            {#each items as item}
+
+                {#if item.active}
+
+                    <li class="breadcrumb-item active" aria-current="page">{item.label}</li>
+
+                {:else}
+
+                    <li class="breadcrumb-item">
+
+                        <a href={item.href} onclick={item.onclick}>{item.label}</a>
+
+                    </li>
+
+                {/if}
+
+            {/each}
+
+        {/if}
+
     </ol>
+
 </nav>

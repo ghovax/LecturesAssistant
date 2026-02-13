@@ -94,94 +94,129 @@
         { label: tool.title, active: true }
     ]} />
 
-    <div class="d-flex justify-content-between align-items-start mb-3">
-        <div>
-            <h2 class="mb-1">{tool.title}</h2>
-            <span class="badge bg-dark">{capitalize(tool.type)} Material</span>
+    <div class="bg-white border mb-4">
+        <div class="standard-header">
+            <div class="header-title">
+                <span class="header-glyph" lang="ja">{tool.type === 'flashcard' ? '札' : '問'}</span>
+                <span class="header-text">{tool.title}</span>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary btn-sm dropdown-toggle rounded-0" data-bs-toggle="dropdown">
+                    Export
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end rounded-0 shadow-kakimashou">
+                    <li><button class="dropdown-item" onclick={() => handleExport('pdf')}>PDF Document</button></li>
+                    <li><button class="dropdown-item" onclick={() => handleExport('docx')}>Word Document</button></li>
+                    <li><button class="dropdown-item" onclick={() => handleExport('md')}>Markdown Source</button></li>
+                </ul>
+            </div>
         </div>
-        <div class="btn-group">
-            <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">
-                <span class="glyphicon me-1"><Download size={16} /></span> Export
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end">
-                <li><button class="dropdown-item" onclick={() => handleExport('pdf')}>PDF Document</button></li>
-                <li><button class="dropdown-item" onclick={() => handleExport('docx')}>Word Document</button></li>
-                <li><button class="dropdown-item" onclick={() => handleExport('md')}>Markdown Source</button></li>
-            </ul>
+        <div class="p-4 bg-light bg-opacity-10 border-bottom d-flex align-items-center gap-2">
+            <span class="badge bg-dark rounded-0">{capitalize(tool.type)} Material</span>
         </div>
     </div>
 
     <div class="container-fluid p-0">
         <div class="row">
-            <!-- Sidebar: Details & Navigation -->
+            <!-- Sidebar: Details & Navigation (Optional for standalone) -->
             <div class="col-lg-3 col-md-4 order-md-2">
-                <h3>Source Lesson</h3>
-                <div class="well small mb-4">
-                    <p>This material was generated from your lesson. You can find related resources and documents in the source lesson page.</p>
-                    {#if tool.lecture_id}
-                        <a href="/exams/{examId}/lectures/{tool.lecture_id}" class="btn btn-outline-primary btn-sm w-100">
-                            Back to Lesson
-                        </a>
-                    {/if}
+                <div class="bg-white border mb-4">
+                    <div class="standard-header">
+                        <div class="header-title">
+                            <span class="header-glyph" lang="ja">戻</span>
+                            <span class="header-text">Navigation</span>
+                        </div>
+                    </div>
+                    <div class="linkTiles flex-column p-3">
+                        {#if tool.lecture_id}
+                            <Tile href="/exams/{examId}/lectures/{tool.lecture_id}" icon="戻" title="Back to Lesson">
+                                {#snippet description()}
+                                    Return to the source lesson for more resources.
+                                {/snippet}
+                            </Tile>
+                        {/if}
+                    </div>
+                </div>
+
+                <div class="bg-white border mb-4">
+                    <div class="standard-header">
+                        <div class="header-title">
+                            <span class="header-glyph" lang="ja">説</span>
+                            <span class="header-text">Information</span>
+                        </div>
+                    </div>
+                    <div class="p-4 small">
+                        <p>This material was generated from your lesson. You can find related resources and documents in the source lesson page.</p>
+                        <div class="d-flex text-muted mt-3">
+                            <Clock size={14} class="me-2 flex-shrink-0" />
+                            <div>Created on {new Date(tool.created_at).toLocaleDateString()}</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Main Content: Tool Content -->
             <div class="col-lg-9 col-md-8 order-md-1">
-                <div class="well bg-white p-4 shadow-sm border mb-5">
-                    {#if tool.type === 'guide'}
+                {#if tool.type === 'guide'}
+                    <div class="bg-white border mb-3">
+                        <div class="standard-header">
+                            <div class="header-title">
+                                <span class="header-glyph" lang="ja">案</span>
+                                <span class="header-text">Study Guide</span>
+                            </div>
+                        </div>
                         <!-- svelte-ignore a11y_click_events_have_key_events -->
                         <!-- svelte-ignore a11y_no_static_element_interactions -->
                         <div 
-                            class="prose" 
+                            class="p-4 prose" 
                             bind:this={proseContainer}
                             onclick={handleProseClick}
                         >
                             {@html htmlContent}
                         </div>
-                    {:else if tool.type === 'flashcard'}
-                        <div class="row g-4">
-                            {#each htmlContent as card}
-                                <div class="col-12">
-                                    <div class="well bg-light border-start border-4 border-primary p-0 overflow-hidden shadow-none mb-3">
-                                        <div class="px-3 py-2 bg-dark text-white small fw-bold">Front</div>
-                                        <div class="p-3 bg-white wordBriefTitle" style="font-size: 1.1rem;">{@html card.front_html}</div>
-                                        <div class="px-3 py-2 bg-secondary text-white small fw-bold border-top">Back</div>
-                                        <div class="p-3 bg-white wordBriefContent">{@html card.back_html}</div>
-                                    </div>
+                    </div>
+                {:else if tool.type === 'flashcard'}
+                    <div class="row g-4 mb-3">
+                        {#each htmlContent as card}
+                            <div class="col-xl-4 col-lg-6 col-md-12">
+                                <Flashcard frontHTML={card.front_html} backHTML={card.back_html} />
+                            </div>
+                        {/each}
+                    </div>
+                {:else if tool.type === 'quiz'}
+                    <div class="quiz-list">
+                        {#each htmlContent as item, i}
+                            <div class="bg-white mb-3 border">
+                                <div class="px-4 py-2 border-bottom bg-light d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold small text-muted">Question {i + 1}</span>
                                 </div>
-                            {/each}
-                        </div>
-                    {:else if tool.type === 'quiz'}
-                        <div class="quiz-list">
-                            {#each htmlContent as item, i}
-                                <div class="well bg-white mb-4 p-4 border shadow-none">
-                                    <h4 class="border-bottom pb-2 mb-3">Question {i + 1}</h4>
-                                    <div class="mb-4 fs-5 fw-bold">{@html item.question_html}</div>
+                                <div class="p-4">
+                                    <div class="mb-4 fs-5 fw-bold" style="line-height: 1.4;">{@html item.question_html}</div>
                                     
-                                    <div class="list-group mb-4 shadow-sm">
+                                    <div class="list-group mb-4 rounded-0 shadow-none">
                                         {#each item.options_html as opt}
-                                            <div class="list-group-item py-3">{@html opt}</div>
+                                            <div class="list-group-item py-3 border-start-0 border-end-0">{@html opt}</div>
                                         {/each}
                                     </div>
                                     
-                                    <div class="well bg-success bg-opacity-10 border-success mb-3 p-3">
+                                    <div class="bg-success bg-opacity-10 border-start border-4 border-success mb-4 p-3">
                                         <strong class="text-success small d-block mb-1">Correct Answer</strong>
                                         <div class="fs-6 fw-bold">{@html item.correct_answer_html}</div>
                                     </div>
                                     
-                                    <div class="well bg-light border-0 m-0 p-3 small">
+                                    <div class="bg-light border-start border-4 border-secondary p-3 small">
                                         <strong class="text-muted d-block mb-1">Explanation</strong>
                                         <div class="text-muted" style="line-height: 1.5;">{@html item.explanation_html}</div>
                                     </div>
                                 </div>
-                            {/each}
-                        </div>
-                    {/if}
-                </div>
+                            </div>
+                        {/each}
+                    </div>
+                {/if}
             </div>
         </div>
     </div>
+{:else if loading}
 {:else if loading}
     <div class="text-center p-5">
         <div class="village-spinner mx-auto"></div>

@@ -28,7 +28,7 @@
 
 <div class="row justify-content-center">
     <div class="col-lg-6">
-        <div class="bg-white border mb-5">
+        <div class="bg-white border mb-3">
             <div class="standard-header">
                 <div class="header-title">
                     <span class="header-glyph" lang="ja">入</span>
@@ -47,13 +47,13 @@
                         <input type="text" id="username" class="form-control rounded-0 border shadow-none" bind:value={username} required />
                     </div>
 
-                    <div class="mb-5">
+                    <div class="mb-3">
                         <label for="password" class="form-label fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Password</label>
                         <input type="password" id="password" class="form-control rounded-0 border shadow-none" bind:value={password} required />
                     </div>
 
                     <div class="text-center">
-                        <button type="submit" class="btn btn-primary px-5 btn-lg rounded-0 w-100" disabled={loading}>
+                        <button type="submit" class="btn btn-success px-5 btn-lg rounded-0 w-100" disabled={loading}>
                             {#if loading}
                                 <div class="spinner-border spinner-border-sm me-2" role="status">
                                     <span class="visually-hidden">Loading...</span>

@@ -81,16 +81,16 @@ body {
     white-space: nowrap;
 }
 .navbar-nav .nav-link {
-    line-height: 2.5rem;
+    line-height: 2.25rem;
     padding-top: 0 !important;
     padding-bottom: 0 !important;
     padding-left: 0.75rem !important;
     padding-right: 0.75rem !important;
-    height: 2.5rem;
+    height: 2.25rem;
     display: flex;
     align-items: center;
     color: rgba(255,255,255,.5) !important;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
 }
 .navbar-nav .nav-link:hover {
     color: rgba(255,255,255,.75) !important;
@@ -100,11 +100,11 @@ body {
 }
 .cozy-label {
     font-family: 'Manrope', sans-serif !important;
-    font-size: 0.75rem !important;
+    font-size: 0.65rem !important;
     font-weight: 600 !important;
     color: var(--gray-500) !important;
     text-transform: uppercase !important;
-    letter-spacing: 0.05em !important;
+    letter-spacing: 0.08em !important;
     margin-bottom: 8px !important;
     display: block !important;
 }
@@ -113,11 +113,11 @@ body {
     border-radius: 0 !important;
     border: 1px solid var(--gray-300) !important;
     font-family: 'Manrope', sans-serif !important;
-    font-size: 0.85rem !important;
-    padding: 10px 12px !important;
+    font-size: 0.8rem !important;
+    padding: 8px 12px !important;
     background: #fff !important;
     transition: all 0.2s ease !important;
-    height: 2.75rem;
+    height: 2.5rem;
 
     &:focus {
         border-color: var(--orange) !important;
@@ -128,24 +128,24 @@ body {
 
 textarea.cozy-input {
     height: auto !important;
-    min-height: 2.75rem;
+    min-height: 2.5rem;
 }
 
 .form-select.cozy-input {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
-    line-height: 2.75rem !important;
+    line-height: 2.5rem !important;
     appearance: none;
 }
 
 /* Dictionary Search Style Input Group */
 .input-group.dictionary-style {
     .form-control, .form-select, .btn {
-        height: 2.75rem;
+        height: 2.5rem;
     }
     .form-control, .form-select {
         border-right: none;
-        font-size: 0.85rem;
+        font-size: 0.8rem;
     }
     .btn {
         border-radius: 0;
@@ -160,7 +160,7 @@ textarea.cozy-input {
     text-transform: uppercase;
     letter-spacing: 0.04em;
     font-size: 0.75rem;
-    height: 2.75rem; // Homogenous height for primary buttons
+    height: 2.5rem; // Homogenous height for primary buttons
     padding: 0 1.25rem;
     transition: all 0.15s ease;
     box-shadow: 0.125rem 0.125rem 0.25rem rgba(0, 0, 0, 0.05);
@@ -176,14 +176,14 @@ textarea.cozy-input {
 }
 
 .btn-sm {
-    height: 2rem;
+    height: 1.75rem;
     padding: 0 0.75rem;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
 }
 
 .btn-lg {
-    height: 3.25rem;
-    padding: 0 2.5rem;
+    height: 3rem;
+    padding: 0 2rem;
     font-size: 0.85rem;
 }
 
@@ -241,15 +241,15 @@ textarea.cozy-input {
     border: none !important;
     padding: 0;
     margin-bottom: 1.25rem;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
     .breadcrumb-item {
         display: flex;
         align-items: center;
         & + .breadcrumb-item::before {
             content: "/";
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             line-height: 1;
             padding: 0 0.5rem;
             color: var(--gray-300);
@@ -346,21 +346,21 @@ textarea.cozy-input {
     margin-bottom: 1.25em;
 }
 .prose h1 {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 600;
     margin-top: 1.5em;
     margin-bottom: 0.75em;
     color: var(--gray-900);
 }
 .prose h2 {
-    font-size: 1.25rem;
+    font-size: 1.15rem;
     font-weight: 600;
     margin-top: 1.5em;
     margin-bottom: 0.75em;
     color: var(--gray-900);
 }
 .prose h3 {
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 600;
     margin-top: 1.25em;
     margin-bottom: 0.5em;
@@ -368,13 +368,13 @@ textarea.cozy-input {
 }
 /* Standardized Section/Well Headers */
 .standard-header {
-    padding: 10px 16px;
+    padding: 8px 16px;
     border-bottom: 1px solid #d6d3d1;
     background-color: transparent;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    min-height: 2.25rem;
+    min-height: 2rem;
     margin-bottom: 0;
 
     .header-title {
@@ -386,7 +386,7 @@ textarea.cozy-input {
             font-weight: 600;
             letter-spacing: 0.02em;
             text-transform: none;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             color: #1c1917;
             margin: 0;
         }
@@ -398,8 +398,8 @@ textarea.cozy-input {
     100% { transform: rotate(360deg); }
 }
 .village-spinner {
-    width: 1.5rem;
-    height: 1.5rem;
+    width: 1.25rem;
+    height: 1.25rem;
     border: 2px solid var(--gray-200);
     border-top-color: var(--orange);
     border-radius: 50% !important;
@@ -420,12 +420,12 @@ textarea.cozy-input {
 
 .form-label {
     font-family: 'Manrope', sans-serif !important;
-    font-size: 0.7rem !important;
+    font-size: 0.65rem !important;
     font-weight: 600 !important;
     color: var(--gray-500) !important;
     text-transform: uppercase !important;
-    letter-spacing: 0.05em !important;
-    margin-bottom: 12px !important;
+    letter-spacing: 0.08em !important;
+    margin-bottom: 10px !important;
     display: block !important;
 }
 
@@ -443,7 +443,7 @@ textarea.cozy-input {
     font-size-adjust: 0.5;
     background-color: rgba(0, 0, 0, 0.03);
     padding: 0.1em 0.3em;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -467,9 +467,9 @@ math {
 
     .dropdown-item {
         font-family: 'Manrope', sans-serif;
-        font-size: 0.85rem;
+        font-size: 0.8rem;
         font-weight: 500;
-        padding: 10px 20px;
+        padding: 8px 16px;
         color: var(--gray-700);
         transition: all 0.2s ease;
 
@@ -482,4 +482,15 @@ math {
             background: var(--gray-200);
         }
     }
+}
+
+.page-title {
+    font-size: 1.25rem !important;
+    font-weight: 500;
+    color: var(--gray-900);
+    letter-spacing: -0.02em;
+}
+
+.page-header {
+    margin-bottom: 2.5rem !important;
 }

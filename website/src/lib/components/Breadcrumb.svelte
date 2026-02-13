@@ -35,11 +35,13 @@
 <style lang="scss">
     .breadcrumb {
         font-family: 'Manrope', sans-serif;
-        font-size: 12px;
+        font-size: 0.65rem;
         font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
         padding: 0;
-        margin-top: 32px;
-        margin-bottom: 32px;
+        margin-top: 1.5rem;
+        margin-bottom: 1.5rem;
         background: transparent;
         
         .breadcrumb-item {
@@ -50,7 +52,8 @@
             & + .breadcrumb-item::before {
                 content: "/";
                 color: var(--gray-300);
-                padding: 0 12px;
+                padding: 0 10px;
+                font-size: 0.8rem;
             }
 
             a {

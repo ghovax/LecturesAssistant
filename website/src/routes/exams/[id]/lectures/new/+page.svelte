@@ -87,7 +87,7 @@
 {#if exam}
     <Breadcrumb items={[{ label: 'My Studies', href: '/exams' }, { label: exam.title, href: `/exams/${examId}` }, { label: 'Add Lesson', active: true }]} />
 
-    <header class="page-header mb-5">
+    <header class="page-header">
         <h1 class="page-title">Add New Lesson</h1>
     </header>
 
@@ -287,14 +287,6 @@
 {/if}
 
 <style lang="scss">
-    .page-title {
-        font-family: 'Manrope', sans-serif;
-        font-size: 1.75rem;
-        font-weight: 500;
-        color: var(--gray-900);
-        letter-spacing: -0.02em;
-    }
-
     textarea:focus {
         outline: none;
         box-shadow: none;

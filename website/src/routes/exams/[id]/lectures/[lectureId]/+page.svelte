@@ -569,7 +569,7 @@
         }] : [])
     ]} />
 
-    <header class="page-header mb-5">
+    <header class="page-header">
         <div class="d-flex justify-content-between align-items-start mb-2">
             <h1 class="page-title m-0">{lecture.title}</h1>
             <div class="d-flex align-items-center gap-3">
@@ -1031,14 +1031,6 @@
 </Modal>
 
 <style lang="scss">
-    .page-title {
-        font-family: 'Manrope', sans-serif;
-        font-size: 1.75rem;
-        font-weight: 500;
-        color: var(--gray-900);
-        letter-spacing: -0.02em;
-    }
-
     .page-description {
         font-family: 'Manrope', sans-serif;
         font-size: 0.85rem;
@@ -1049,7 +1041,7 @@
 
     .linkTiles {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
         gap: 0;
         background: transparent;
         overflow: hidden;

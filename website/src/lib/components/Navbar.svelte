@@ -71,11 +71,11 @@
         font-family: 'Manrope', sans-serif;
         background: transparent;
         border-bottom: 1px solid var(--gray-300);
-        min-height: 70px;
+        min-height: 60px;
     }
 
     .navbar-brand {
-        font-size: 18px;
+        font-size: 16px;
         font-weight: 500;
         color: var(--gray-900) !important;
         letter-spacing: -0.02em;
@@ -89,14 +89,14 @@
     }
 
     .nav-link {
-        font-size: 0.85rem;
+        font-size: 0.8rem;
         font-weight: 500;
         color: var(--gray-600) !important;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         transition: all 0.2s ease;
-        height: 70px;
+        height: 60px;
         border-bottom: 2px solid transparent;
 
         &:hover {

@@ -152,7 +152,7 @@
 {#if exam}
     <Breadcrumb items={[{ label: 'My Studies', href: '/exams' }, { label: exam.title, active: true }]} />
 
-    <header class="page-header mb-5">
+    <header class="page-header">
         <div class="d-flex justify-content-between align-items-start mb-2">
             <h1 class="page-title m-0">{exam.title}</h1>
             <button class="btn btn-link btn-sm text-muted p-0 border-0 shadow-none d-flex align-items-center" onclick={() => showEditModal = true} title="Edit Subject">
@@ -249,14 +249,6 @@
 {/if}
 
 <style lang="scss">
-    .page-title {
-        font-family: 'Manrope', sans-serif;
-        font-size: 1.75rem;
-        font-weight: 500;
-        color: var(--gray-900);
-        letter-spacing: -0.02em;
-    }
-
     .page-description {
         font-family: 'Manrope', sans-serif;
         font-size: 0.85rem;
@@ -267,7 +259,7 @@
 
     .linkTiles {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
         gap: 0;
         background: transparent;
         overflow: hidden;

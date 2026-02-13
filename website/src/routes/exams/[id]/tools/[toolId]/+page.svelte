@@ -92,7 +92,7 @@
         { label: tool.title, active: true }
     ]} />
 
-    <header class="page-header mb-5">
+    <header class="page-header">
         <div class="d-flex justify-content-between align-items-start mb-2">
             <h1 class="page-title m-0">{tool.title}</h1>
             <div class="btn-group">
@@ -154,14 +154,6 @@
 {/if}
 
 <style lang="scss">
-    .page-title {
-        font-family: 'Manrope', sans-serif;
-        font-size: 1.75rem;
-        font-weight: 500;
-        color: var(--gray-900);
-        letter-spacing: -0.02em;
-    }
-
     .prose :global(h2) { font-size: 1.25rem; margin-top: 2rem; border-bottom: 1px solid var(--gray-300); padding-bottom: 0.5rem; color: var(--gray-900); }
     .prose :global(h3) { font-size: 1.1rem; margin-top: 1.5rem; color: var(--gray-700); }
     .prose :global(p) { line-height: 1.6; margin-bottom: 1rem; font-size: 0.85rem; }

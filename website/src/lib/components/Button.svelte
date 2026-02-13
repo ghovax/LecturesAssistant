@@ -55,14 +55,17 @@
         gap: 8px;
         font-family: 'Manrope', sans-serif;
         font-weight: 600;
-        font-size: 13px;
-        padding: 10px 20px;
-        border-radius: 0; /* Keeping it minimalist/flat but with better spacing */
+        font-size: 0.75rem;
+        padding: 0 1.25rem;
+        height: 2.5rem;
+        border-radius: 0;
         border: 1px solid transparent;
         transition: all 0.2s ease;
         cursor: pointer;
         text-decoration: none;
         line-height: 1;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
 
         &.disabled {
             opacity: 0.5;
@@ -71,13 +74,15 @@
         }
 
         &.btn-sm {
-            padding: 6px 12px;
-            font-size: 11px;
+            height: 1.75rem;
+            padding: 0 0.75rem;
+            font-size: 0.65rem;
         }
 
         &.btn-lg {
-            padding: 14px 28px;
-            font-size: 15px;
+            height: 3rem;
+            padding: 0 2rem;
+            font-size: 0.85rem;
         }
 
         &.btn-primary, &.btn-success {

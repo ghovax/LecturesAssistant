@@ -82,7 +82,7 @@
         { label: documentData.title, active: true }
     ]} />
 
-    <header class="page-header mb-5">
+    <header class="page-header">
         <h1 class="page-title mb-2">{documentData.title}</h1>
         <StatusIndicator type="page" current={currentPageIndex + 1} total={pages.length} />
     </header>
@@ -150,14 +150,6 @@
 {/if}
 
 <style lang="scss">
-    .page-title {
-        font-family: 'Manrope', sans-serif;
-        font-size: 1.75rem;
-        font-weight: 500;
-        color: var(--gray-900);
-        letter-spacing: -0.02em;
-    }
-
     .transcript-text {
         font-family: inherit;
         color: var(--gray-800);

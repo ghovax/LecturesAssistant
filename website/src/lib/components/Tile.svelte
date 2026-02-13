@@ -122,9 +122,9 @@
         color: var(--gray-900);
         display: flex;
         flex-direction: column;
-        height: 140px;
-        width: 240px;
-        padding: 24px;
+        height: 130px;
+        width: 220px;
+        padding: 20px;
         text-decoration: none;
         text-align: left;
         position: relative;

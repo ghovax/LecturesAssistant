@@ -167,7 +167,7 @@
         { label: session.title || 'Untitled Chat', active: true }
     ]} />
 
-    <header class="page-header mb-5">
+    <header class="page-header">
         <h1 class="page-title">{session.title || 'AI Assistant'}</h1>
     </header>
 
@@ -269,14 +269,6 @@
 {/if}
 
 <style lang="scss">
-    .page-title {
-        font-family: 'Manrope', sans-serif;
-        font-size: 1.75rem;
-        font-weight: 500;
-        color: var(--gray-900);
-        letter-spacing: -0.02em;
-    }
-
     .no-shift-bold {
         display: inline-grid;
         text-align: left;

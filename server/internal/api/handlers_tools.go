@@ -580,6 +580,137 @@ func (server *Server) handleExportTool(responseWriter http.ResponseWriter, reque
 	})
 }
 
+// handleExportTranscript triggers an export job for a lecture transcript
+func (server *Server) handleExportTranscript(responseWriter http.ResponseWriter, request *http.Request) {
+	var exportRequest struct {
+		LectureID string `json:"lecture_id"`
+		ExamID    string `json:"exam_id"`
+		Format    string `json:"format"` // "pdf", "docx", "md"
+	}
+
+	if decodingError := json.NewDecoder(request.Body).Decode(&exportRequest); decodingError != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
+		return
+	}
+
+	if exportRequest.LectureID == "" || exportRequest.ExamID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "lecture_id and exam_id are required", nil)
+		return
+	}
+
+	if exportRequest.Format == "" {
+		exportRequest.Format = "pdf"
+	}
+
+	userID := server.getUserID(request)
+
+	// Verify lecture exists and belongs to the user
+	var lectureTitle, languageCode string
+	queryError := server.database.QueryRow(`
+		SELECT lectures.title, lectures.language
+		FROM lectures
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE lectures.id = ? AND lectures.exam_id = ? AND exams.user_id = ?
+	`, exportRequest.LectureID, exportRequest.ExamID, userID).Scan(&lectureTitle, &languageCode)
+
+	if queryError == sql.ErrNoRows {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found in this exam", nil)
+		return
+	}
+	if queryError != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to verify lecture", nil)
+		return
+	}
+
+	if languageCode == "" {
+		languageCode = server.configuration.LLM.Language
+	}
+
+	// Enqueue export job
+	jobIdentifier, enqueuingError := server.jobQueue.Enqueue(userID, models.JobTypePublishTranscript, map[string]string{
+		"lecture_id":    exportRequest.LectureID,
+		"language_code": languageCode,
+		"format":         exportRequest.Format,
+	}, exportRequest.ExamID, exportRequest.LectureID)
+
+	if enqueuingError != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "BACKGROUND_JOB_ERROR", "Failed to create export job", nil)
+		return
+	}
+
+	server.writeJSON(responseWriter, http.StatusAccepted, map[string]string{
+		"job_id":  jobIdentifier,
+		"message": "Transcript export job created",
+	})
+}
+
+// handleExportDocument triggers an export job for a reference document (images + interpretations)
+func (server *Server) handleExportDocument(responseWriter http.ResponseWriter, request *http.Request) {
+	var exportRequest struct {
+		DocumentID string `json:"document_id"`
+		LectureID  string `json:"lecture_id"`
+		ExamID     string `json:"exam_id"`
+		Format     string `json:"format"` // "pdf", "docx", "md"
+	}
+
+	if decodingError := json.NewDecoder(request.Body).Decode(&exportRequest); decodingError != nil {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "Invalid request body", nil)
+		return
+	}
+
+	if exportRequest.DocumentID == "" || exportRequest.LectureID == "" || exportRequest.ExamID == "" {
+		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id, lecture_id and exam_id are required", nil)
+		return
+	}
+
+	if exportRequest.Format == "" {
+		exportRequest.Format = "pdf"
+	}
+
+	userID := server.getUserID(request)
+
+	// Verify document exists and belongs to the user
+	var docTitle, languageCode string
+	queryError := server.database.QueryRow(`
+		SELECT reference_documents.title, lectures.language
+		FROM reference_documents
+		JOIN lectures ON reference_documents.lecture_id = lectures.id
+		JOIN exams ON lectures.exam_id = exams.id
+		WHERE reference_documents.id = ? AND reference_documents.lecture_id = ? AND exams.user_id = ?
+	`, exportRequest.DocumentID, exportRequest.LectureID, userID).Scan(&docTitle, &languageCode)
+
+	if queryError == sql.ErrNoRows {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Document not found in this lecture", nil)
+		return
+	}
+	if queryError != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to verify document", nil)
+		return
+	}
+
+	if languageCode == "" {
+		languageCode = server.configuration.LLM.Language
+	}
+
+	// Enqueue export job
+	jobIdentifier, enqueuingError := server.jobQueue.Enqueue(userID, models.JobTypePublishDocument, map[string]string{
+		"document_id":   exportRequest.DocumentID,
+		"lecture_id":    exportRequest.LectureID,
+		"language_code": languageCode,
+		"format":        exportRequest.Format,
+	}, exportRequest.ExamID, exportRequest.LectureID)
+
+	if enqueuingError != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "BACKGROUND_JOB_ERROR", "Failed to create export job", nil)
+		return
+	}
+
+	server.writeJSON(responseWriter, http.StatusAccepted, map[string]string{
+		"job_id":  jobIdentifier,
+		"message": "Document export job created",
+	})
+}
+
 // handleDownloadExport serves the generated export file
 func (server *Server) handleDownloadExport(responseWriter http.ResponseWriter, request *http.Request) {
 	filePath := request.URL.Query().Get("path")

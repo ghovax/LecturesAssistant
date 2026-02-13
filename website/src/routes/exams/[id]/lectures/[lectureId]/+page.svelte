@@ -12,7 +12,7 @@
     import Modal from '$lib/components/Modal.svelte';
     import ConfirmModal from '$lib/components/ConfirmModal.svelte';
     import StatusIndicator from '$lib/components/StatusIndicator.svelte';
-    import { FileText, Clock, ChevronLeft, ChevronRight, Volume2, Plus, X, Edit3, Loader2, Trash2, RotateCcw } from 'lucide-svelte';
+    import { FileText, Clock, ChevronLeft, ChevronRight, Volume2, Plus, X, Edit3, Loader2, Trash2, RotateCcw, Download } from 'lucide-svelte';
 
     let { id: examId, lectureId } = $derived(page.params);
     let exam = $state<any>(null);
@@ -29,6 +29,8 @@
     let currentSegmentIndex = $state(0);
     let audioElement: HTMLAudioElement | null = $state(null);
     let jobPollingInterval: number | null = null;
+    let handledJobIds = new Set<string>(); // Prevent duplicate auto-downloads
+    let isInitialJobsLoad = true;
 
     // Derived state for job status
     let transcriptJobRunning = $derived(jobs.some(j => j.type === 'TRANSCRIBE_MEDIA' && (j.status === 'PENDING' || j.status === 'RUNNING')));
@@ -115,8 +117,29 @@
                 if (newJob.status === 'FAILED' && (!oldJob || oldJob.status !== 'FAILED')) {
                     notifications.error(`${newJob.error || 'Unknown error'}`);
                 }
+
+                // Auto-download completed exports (only if not the very first load of the page)
+                if (newJob.status === 'COMPLETED' && !handledJobIds.has(newJob.id)) {
+                    if (newJob.type === 'PUBLISH_MATERIAL' || newJob.type === 'PUBLISH_TRANSCRIPT' || newJob.type === 'PUBLISH_DOCUMENT') {
+                        if (!isInitialJobsLoad) {
+                            let resultData: any;
+                            try {
+                                resultData = JSON.parse(newJob.result);
+                            } catch (e) {
+                                // ignore
+                            }
+                            
+                            if (resultData?.file_path) {
+                                api.downloadExport(resultData.file_path);
+                                notifications.success('Download started.');
+                            }
+                        }
+                        handledJobIds.add(newJob.id);
+                    }
+                }
             }
 
+            isInitialJobsLoad = false;
             jobs = newJobs;
 
             // If there are active jobs, start polling
@@ -384,6 +407,36 @@
         }
     }
 
+    async function handleExportTranscript(format: string) {
+        try {
+            await api.exportTranscript({ lecture_id: lectureId, exam_id: examId, format });
+            notifications.success(`We are preparing your transcript export. You can see the progress here.`);
+            await loadJobs();
+        } catch (e: any) {
+            notifications.error(e.message || e);
+        }
+    }
+
+    async function handleExportDocument(docId: string, format: string) {
+        try {
+            await api.exportDocument({ document_id: docId, lecture_id: lectureId, exam_id: examId, format });
+            notifications.success(`We are preparing your document analysis export. You can see the progress here.`);
+            await loadJobs();
+        } catch (e: any) {
+            notifications.error(e.message || e);
+        }
+    }
+
+    async function handleExportTool(toolId: string, format: string) {
+        try {
+            await api.exportTool({ tool_id: toolId, exam_id: examId, format });
+            notifications.success(`We are preparing your study guide export. You can see the progress here.`);
+            await loadJobs();
+        } catch (e: any) {
+            notifications.error(e.message || e);
+        }
+    }
+
     $effect(() => {
         if (audioElement && transcript?.segments[currentSegmentIndex]) {
             audioElement.load();
@@ -495,6 +548,16 @@
                                         >
                                             <RotateCcw size={16} />
                                         </button>
+                                    {:else if transcript && transcript.segments}
+                                        <div class="dropdown" onclick={(e) => e.stopPropagation()}>
+                                            <button class="btn btn-link text-muted p-0 border-0 shadow-none dropdown-toggle no-caret" data-bs-toggle="dropdown" title="Export">
+                                                <Download size={16} />
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                <li><button class="dropdown-item" onclick={() => handleExportTranscript('pdf')}>Export PDF</button></li>
+                                                <li><button class="dropdown-item" onclick={() => handleExportTranscript('docx')}>Export Word</button></li>
+                                            </ul>
+                                        </div>
                                     {/if}
                                 {/snippet}
 
@@ -518,6 +581,17 @@
 
                             {#if guideTool}
                                 <Tile href="javascript:void(0)" icon="" title="Study Guide" onclick={() => activeView = 'guide'}>
+                                    {#snippet actions()}
+                                        <div class="dropdown" onclick={(e) => e.stopPropagation()}>
+                                            <button class="btn btn-link text-muted p-0 border-0 shadow-none dropdown-toggle no-caret" data-bs-toggle="dropdown" title="Export">
+                                                <Download size={16} />
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                <li><button class="dropdown-item" onclick={() => handleExportTool(guideTool.id, 'pdf')}>Export PDF</button></li>
+                                                <li><button class="dropdown-item" onclick={() => handleExportTool(guideTool.id, 'docx')}>Export Word</button></li>
+                                            </ul>
+                                        </div>
+                                    {/snippet}
                                     {#snippet description()}
                                         Read the comprehensive study guide.
                                     {/snippet}
@@ -556,6 +630,17 @@
 
                             {#each documents as doc}
                                 <Tile href="javascript:void(0)" icon="" title={doc.title} onclick={() => openDocument(doc.id)}>
+                                    {#snippet actions()}
+                                        <div class="dropdown" onclick={(e) => e.stopPropagation()}>
+                                            <button class="btn btn-link text-muted p-0 border-0 shadow-none dropdown-toggle no-caret" data-bs-toggle="dropdown" title="Export">
+                                                <Download size={16} />
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                <li><button class="dropdown-item" onclick={() => handleExportDocument(doc.id, 'pdf')}>Export PDF</button></li>
+                                                <li><button class="dropdown-item" onclick={() => handleExportDocument(doc.id, 'docx')}>Export Word</button></li>
+                                            </ul>
+                                        </div>
+                                    {/snippet}
                                     {#snippet description()}
                                         Reference material.
                                     {/snippet}
@@ -650,6 +735,15 @@
                                 <span class="header-text">Study Guide</span>
                             </div>
                             <div class="d-flex align-items-center gap-2">
+                                <div class="dropdown">
+                                    <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0 dropdown-toggle no-caret" data-bs-toggle="dropdown" title="Export">
+                                        <Download size={18} />
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><button class="dropdown-item" onclick={() => handleExportTool(guideTool?.id || '', 'pdf')}>Export PDF</button></li>
+                                        <li><button class="dropdown-item" onclick={() => handleExportTool(guideTool?.id || '', 'docx')}>Export Word</button></li>
+                                    </ul>
+                                </div>
                                 <button class="btn btn-link btn-sm text-danger p-0 d-flex align-items-center shadow-none border-0" title="Delete Guide" onclick={() => deleteTool(guideTool?.id || '')}>
                                     <Trash2 size={18} />
                                 </button>
@@ -667,7 +761,18 @@
                             <div class="header-title">
                                 <span class="header-text">Dialogue</span>
                             </div>
-                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="dropdown">
+                                    <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0 dropdown-toggle no-caret" data-bs-toggle="dropdown" title="Export">
+                                        <Download size={18} />
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><button class="dropdown-item" onclick={() => handleExportTranscript('pdf')}>Export PDF</button></li>
+                                        <li><button class="dropdown-item" onclick={() => handleExportTranscript('docx')}>Export Word</button></li>
+                                    </ul>
+                                </div>
+                                <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                            </div>
                         </div>
                         
                         {#if transcript && transcript.segments}
@@ -727,7 +832,18 @@
                             <div class="header-title">
                                 <span class="header-text">{doc?.title || 'Study Resource'}</span>
                             </div>
-                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="dropdown">
+                                    <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0 dropdown-toggle no-caret" data-bs-toggle="dropdown" title="Export">
+                                        <Download size={18} />
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><button class="dropdown-item" onclick={() => handleExportDocument(selectedDocId || '', 'pdf')}>Export PDF</button></li>
+                                        <li><button class="dropdown-item" onclick={() => handleExportDocument(selectedDocId || '', 'docx')}>Export Word</button></li>
+                                    </ul>
+                                </div>
+                                <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                            </div>
                         </div>
                         
                         {#if selectedDocPages.length > 0}

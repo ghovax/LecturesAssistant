@@ -122,6 +122,20 @@ export class APIClient {
     async createTool(payload: any) { return this.request('POST', '/tools', payload); }
     async getToolHTML(toolId: string, examId: string) { return this.request('GET', `/tools/html?tool_id=${toolId}&exam_id=${examId}`); }
     async exportTool(payload: any) { return this.request('POST', '/tools/export', payload); }
+    async exportTranscript(payload: any) { return this.request('POST', '/transcripts/export', payload); }
+    async exportDocument(payload: any) { return this.request('POST', '/documents/export', payload); }
+
+    async downloadExport(path: string) {
+        if (typeof window !== 'undefined') {
+            const url = `${this.baseUrl}/exports/download?path=${encodeURIComponent(path)}&session_token=${this.sessionToken}`;
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', ''); // Although Content-Disposition handles it, this is a good safety
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    }
 
     // Jobs
     async listJobs() { return this.request('GET', '/jobs'); }

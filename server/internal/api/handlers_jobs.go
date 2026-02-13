@@ -14,7 +14,7 @@ func (server *Server) handleListJobs(responseWriter http.ResponseWriter, request
 	lectureIDParam := request.URL.Query().Get("lecture_id")
 
 	query := `
-		SELECT id, type, status, progress, progress_message_text, payload, course_id, lecture_id, input_tokens, output_tokens, estimated_cost, created_at
+		SELECT id, type, status, progress, progress_message_text, payload, result, course_id, lecture_id, input_tokens, output_tokens, estimated_cost, created_at
 		FROM jobs
 		WHERE user_id = ?
 	`
@@ -40,13 +40,13 @@ func (server *Server) handleListJobs(responseWriter http.ResponseWriter, request
 
 	var jobsList = []map[string]any{}
 	for jobRows.Next() {
-		var id, jobType, status, progressMsg, payload string
+		var id, jobType, status, progressMsg, payload, result string
 		var courseID, lectureID sql.NullString
 		var progress, inputTokens, outputTokens int
 		var estimatedCost float64
 		var createdAt string
 
-		if err := jobRows.Scan(&id, &jobType, &status, &progress, &progressMsg, &payload, &courseID, &lectureID, &inputTokens, &outputTokens, &estimatedCost, &createdAt); err != nil {
+		if err := jobRows.Scan(&id, &jobType, &status, &progress, &progressMsg, &payload, &result, &courseID, &lectureID, &inputTokens, &outputTokens, &estimatedCost, &createdAt); err != nil {
 			continue
 		}
 
@@ -57,6 +57,7 @@ func (server *Server) handleListJobs(responseWriter http.ResponseWriter, request
 			"progress":              progress,
 			"progress_message_text": progressMsg,
 			"payload":               payload,
+			"result":                result,
 			"input_tokens":          inputTokens,
 			"output_tokens":         outputTokens,
 			"estimated_cost":        estimatedCost,

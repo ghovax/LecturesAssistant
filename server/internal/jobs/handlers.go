@@ -1133,6 +1133,179 @@ func RegisterHandlers(
 		job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
 		return nil
 	})
+
+	queue.RegisterHandler(models.JobTypePublishTranscript, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, models.JobMetrics)) error {
+		var payload struct {
+			LectureID    string `json:"lecture_id"`
+			LanguageCode string `json:"language_code"`
+			Format       string `json:"format"`
+		}
+		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
+			return err
+		}
+
+		// 1. Get lecture and transcript
+		var lecture models.Lecture
+		var examID string
+		err := database.QueryRow(`
+			SELECT id, exam_id, title, description FROM lectures WHERE id = ?
+		`, payload.LectureID).Scan(&lecture.ID, &examID, &lecture.Title, &lecture.Description)
+		if err != nil {
+			return err
+		}
+
+		var examTitle string
+		database.QueryRow("SELECT title FROM exams WHERE id = ?", examID).Scan(&examTitle)
+
+		rows, err := database.Query(`
+			SELECT text FROM transcript_segments 
+			WHERE transcript_id = (SELECT id FROM transcripts WHERE lecture_id = ?)
+			ORDER BY start_millisecond ASC
+		`, payload.LectureID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		var transcriptBuilder strings.Builder
+		transcriptBuilder.WriteString("# " + lecture.Title + " - Transcript\n\n")
+		
+		var segments []string
+		for rows.Next() {
+			var text string
+			if err := rows.Scan(&text); err == nil {
+				segments = append(segments, text)
+			}
+		}
+		
+		// Join segments with double newlines for better paragraph separation in PDF
+		content := transcriptBuilder.String() + strings.Join(segments, "\n\n")
+
+		// 2. Setup export directory
+		exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", job.ID)
+		os.MkdirAll(exportDirectory, 0755)
+		safeFilename := sanitizeFilename(lecture.Title) + "_Transcript." + payload.Format
+		outputPath := filepath.Join(exportDirectory, safeFilename)
+
+		// 3. Convert
+		updateProgress(50, "Generating transcript PDF...", nil, models.JobMetrics{})
+		options := markdown.ConversionOptions{
+			Language:    payload.LanguageCode,
+			CourseTitle: examTitle,
+		}
+
+		if payload.Format == "pdf" {
+			html, _ := markdownConverter.MarkdownToHTML(content)
+			err = markdownConverter.HTMLToPDF(html, outputPath, options)
+		} else if payload.Format == "docx" {
+			html, _ := markdownConverter.MarkdownToHTML(content)
+			err = markdownConverter.HTMLToDocx(html, outputPath, options)
+		} else {
+			err = markdownConverter.SaveMarkdown(content, outputPath)
+		}
+
+		if err != nil {
+			return err
+		}
+
+		updateProgress(100, "Export completed", map[string]string{"file_path": outputPath}, models.JobMetrics{})
+		job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
+		return nil
+	})
+
+	queue.RegisterHandler(models.JobTypePublishDocument, func(jobContext context.Context, job *models.Job, updateProgress func(int, string, any, models.JobMetrics)) error {
+		var payload struct {
+			DocumentID   string `json:"document_id"`
+			LectureID    string `json:"lecture_id"`
+			LanguageCode string `json:"language_code"`
+			Format       string `json:"format"`
+		}
+		if err := json.Unmarshal([]byte(job.Payload), &payload); err != nil {
+			return err
+		}
+
+		// 1. Get document and pages
+		var doc models.ReferenceDocument
+		var examID string
+		err := database.QueryRow(`
+			SELECT rd.id, rd.title, l.exam_id FROM reference_documents rd
+			JOIN lectures l ON rd.lecture_id = l.id
+			WHERE rd.id = ?
+		`, payload.DocumentID).Scan(&doc.ID, &doc.Title, &examID)
+		if err != nil {
+			return err
+		}
+
+		var examTitle string
+		database.QueryRow("SELECT title FROM exams WHERE id = ?", examID).Scan(&examTitle)
+
+		rows, err := database.Query(`
+			SELECT page_number, image_path, extracted_text FROM reference_pages
+			WHERE document_id = ? ORDER BY page_number ASC
+		`, payload.DocumentID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		markdownReconstructor := markdown.NewReconstructor()
+		markdownReconstructor.Language = payload.LanguageCode
+		rootNode := &markdown.Node{Type: markdown.NodeDocument}
+		rootNode.Children = append(rootNode.Children, &markdown.Node{Type: markdown.NodeHeading, Level: 1, Content: doc.Title})
+
+		for rows.Next() {
+			var pageNum int
+			var imagePath, text string
+			if err := rows.Scan(&pageNum, &imagePath, &text); err == nil {
+				rootNode.Children = append(rootNode.Children, &markdown.Node{
+					Type:    markdown.NodeHeading,
+					Level:   2,
+					Content: fmt.Sprintf("Page %d", pageNum),
+				})
+				rootNode.Children = append(rootNode.Children, &markdown.Node{
+					Type:    markdown.NodeImage,
+					Content: imagePath,
+				})
+				rootNode.Children = append(rootNode.Children, &markdown.Node{
+					Type:    markdown.NodeParagraph,
+					Content: text,
+				})
+			}
+		}
+
+		content := markdownReconstructor.Reconstruct(rootNode)
+
+		// 2. Setup export directory
+		exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", job.ID)
+		os.MkdirAll(exportDirectory, 0755)
+		safeFilename := sanitizeFilename(doc.Title) + "_Analysis." + payload.Format
+		outputPath := filepath.Join(exportDirectory, safeFilename)
+
+		// 3. Convert
+		updateProgress(50, "Generating document analysis PDF...", nil, models.JobMetrics{})
+		options := markdown.ConversionOptions{
+			Language:    payload.LanguageCode,
+			CourseTitle: examTitle,
+		}
+
+		if payload.Format == "pdf" {
+			html, _ := markdownConverter.MarkdownToHTML(content)
+			err = markdownConverter.HTMLToPDF(html, outputPath, options)
+		} else if payload.Format == "docx" {
+			html, _ := markdownConverter.MarkdownToHTML(content)
+			err = markdownConverter.HTMLToDocx(html, outputPath, options)
+		} else {
+			err = markdownConverter.SaveMarkdown(content, outputPath)
+		}
+
+		if err != nil {
+			return err
+		}
+
+		updateProgress(100, "Export completed", map[string]string{"file_path": outputPath}, models.JobMetrics{})
+		job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
+		return nil
+	})
 }
 
 func uploadToTmpFiles(filePath string) (string, error) {

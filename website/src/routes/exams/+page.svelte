@@ -100,14 +100,18 @@
     onCancel={() => confirmModal.isOpen = false}
 />
 
+<header class="page-header mb-5">
+    <h1 class="page-title">My Studies</h1>
+</header>
+
 <div class="bg-white border mb-3">
     <div class="standard-header">
         <div class="header-title">
-            <span class="header-text">My Studies</span>
+            <span class="header-text">Workspace</span>
         </div>
     </div>
 
-    <div class="linkTiles p-4">
+    <div class="linkTiles">
         <Tile href="javascript:void(0)" icon="" title="New Subject" onclick={() => showCreate = !showCreate}>
             {#snippet description()}
                 Add a new subject to your hub.
@@ -168,7 +172,7 @@
                     </select>
                     <div class="form-text small">Lectures will inherit this language for transcription and document processing.</div>
                 </div>
-                <button type="submit" class="btn btn-success px-5 rounded-0" disabled={creating}>
+                <button type="submit" class="btn btn-success btn-sm px-4 rounded-0" disabled={creating}>
                     {#if creating}
                         <span class="spinner-border spinner-border-sm me-2" role="status"></span>
                     {/if}
@@ -189,16 +193,22 @@
 {/if}
 
 <style lang="scss">
+    .page-title {
+        font-family: 'Manrope', sans-serif;
+        font-size: 32px;
+        font-weight: 500;
+        color: var(--gray-900);
+        letter-spacing: -0.02em;
+    }
+
     .linkTiles {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-        gap: 1px;
-        background: var(--gray-300);
-        border: 1px solid var(--gray-300);
+        gap: 0;
+        background: transparent;
+        overflow: hidden;
         
         :global(.tile-wrapper) {
-            margin: 0;
-            border: none;
             width: 100%;
             
             :global(a), :global(button) {
@@ -220,7 +230,7 @@
 
     .cozy-input {
         border-radius: 0;
-        border: 1px solid var(--gray-300);
+        border: 1px solid var(--gray-300) !important;
         font-family: 'Manrope', sans-serif;
         font-size: 14px;
         padding: 12px;
@@ -228,7 +238,7 @@
         transition: all 0.2s ease;
 
         &:focus {
-            border-color: var(--orange);
+            border-color: var(--orange) !important;
             box-shadow: none;
             background: #fafaf9;
         }

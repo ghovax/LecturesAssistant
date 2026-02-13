@@ -48,7 +48,7 @@
 
                 <!-- Footer -->
                 {#if footer}
-                    <div class="px-3 py-2 bg-white border-top">
+                    <div class="px-4 py-3 bg-white border-top">
                         {@render footer()}
                     </div>
                 {/if}
@@ -60,16 +60,18 @@
 <style lang="scss">
     .modal-content {
         border-radius: 0 !important;
+        border-color: var(--gray-300) !important;
     }
 
     :global(.modal-body) {
         .form-label {
-            font-size: 0.75rem;
-            font-weight: 700;
-            color: #6c757d;
+            font-family: 'Manrope', sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-500);
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            margin-bottom: 0.5rem;
+            margin-bottom: 8px;
             display: block;
         }
     }

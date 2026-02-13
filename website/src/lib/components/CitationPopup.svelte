@@ -56,7 +56,7 @@
     class="citation-popup well bg-white border p-0 overflow-hidden"
     style="left: {adjustedX}px; top: {adjustedY}px;"
 >
-    <div class="standard-header px-3">
+    <div class="standard-header">
         <div class="header-title">
             <span class="header-text" style="font-size: 0.75rem;">{title}</span>
         </div>

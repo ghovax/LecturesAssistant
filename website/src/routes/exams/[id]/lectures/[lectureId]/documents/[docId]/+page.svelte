@@ -82,12 +82,10 @@
         { label: documentData.title, active: true }
     ]} />
 
-    <div class="d-flex justify-content-between align-items-start mb-3">
-        <div>
-            <h2 class="mb-1">{documentData.title}</h2>
-            <StatusIndicator type="page" current={currentPageIndex + 1} total={pages.length} />
-        </div>
-    </div>
+    <header class="page-header mb-5">
+        <h1 class="page-title mb-2">{documentData.title}</h1>
+        <StatusIndicator type="page" current={currentPageIndex + 1} total={pages.length} />
+    </header>
 
     <div class="container-fluid p-0">
         <div class="row">
@@ -111,13 +109,12 @@
             </div>
 
             <!-- Main Content: Single Page Viewer -->
-            <div class="col-lg-9 col-md-8 order-md-1">
+            <div class="col-lg-8 order-md-1">
                 {#if pages[currentPageIndex]}
                     {@const p = pages[currentPageIndex]}
-                    <div class="well bg-white mb-3 p-0 overflow-hidden border shadow-sm">
+                    <div class="well bg-white mb-3 p-0 overflow-hidden border shadow-none">
                         <div class="standard-header">
                             <div class="header-title">
-                                <span class="header-glyph" lang="ja">資</span>
                                 <span class="header-text">Page {p.page_number} / {pages.length}</span>
                             </div>
                             <div class="btn-group">
@@ -171,27 +168,43 @@
     </div>
 {/if}
 
-<style>
+<style lang="scss">
+    .page-title {
+        font-family: 'Manrope', sans-serif;
+        font-size: 32px;
+        font-weight: 500;
+        color: var(--gray-900);
+        letter-spacing: -0.02em;
+    }
+
     .transcript-text {
         font-family: inherit;
-        color: #333;
+        color: var(--gray-800);
     }
     
     .cursor-pointer {
         cursor: pointer;
     }
 
-    .list-group-item.active {
-        background-color: #568f27;
-        border-color: #568f27;
+    .list-group-item {
+        border-radius: 0;
+        border-color: var(--gray-300);
+        font-family: 'Manrope', sans-serif;
+        font-size: 14px;
+        color: var(--gray-700);
+
+        &.active {
+            background-color: var(--orange);
+            border-color: var(--orange);
+        }
     }
 
     kbd {
-        background-color: #eee;
-        border-radius: 3px;
-        border: 1px solid #b4b4b4;
-        box-shadow: 0 1px 1px rgba(0,0,0,.2),0 2px 0 0 rgba(255,255,255,.7) inset;
-        color: #333;
+        background-color: var(--cream);
+        border-radius: 0;
+        border: 1px solid var(--gray-300);
+        box-shadow: none;
+        color: var(--gray-700);
         display: inline-block;
         font-size: .85em;
         font-weight: 700;

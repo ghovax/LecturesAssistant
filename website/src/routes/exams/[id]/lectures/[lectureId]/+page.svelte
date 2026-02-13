@@ -138,7 +138,7 @@
         if (!job.payload) return;
         try {
             // Remove the failed job record first to clean up UI
-            await api.request('POST', '/jobs/cancel', { job_id: job.id, delete: true });
+            await api.request('DELETE', '/jobs', { job_id: job.id, delete: true });
             
             // Re-trigger the tool creation with the same payload
             await api.createTool(job.payload);
@@ -155,7 +155,7 @@
             // Find and delete the failed job record
             const failedJob = jobs.find(j => j.type === type && j.status === 'FAILED');
             if (failedJob) {
-                await api.request('POST', '/jobs/cancel', { job_id: failedJob.id, delete: true });
+                await api.request('DELETE', '/jobs', { job_id: failedJob.id, delete: true });
             }
             
             await api.retryLectureJob(lectureId!, examId!, type);
@@ -170,7 +170,7 @@
 
     async function removeJob(jobId: string) {
         try {
-            await api.request('POST', '/jobs/cancel', { job_id: jobId, delete: true });
+            await api.request('DELETE', '/jobs', { job_id: jobId, delete: true });
             await loadJobs();
         } catch (e: any) {
             notifications.error('Failed to remove job record: ' + e.message);
@@ -479,15 +479,12 @@
         }] : [])
     ]} />
 
-    <div class="bg-white border mb-4">
-        <div class="standard-header">
-            <div class="header-title">
-                <span class="header-glyph" lang="ja">講</span>
-                <span class="header-text">{lecture.title}</span>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-                <button class="btn btn-link btn-sm text-muted p-0 border-0 shadow-none d-flex align-items-center me-2" onclick={() => showEditModal = true} title="Edit Lesson">
-                    <Edit3 size={18} />
+    <header class="page-header mb-5">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <h1 class="page-title m-0">{lecture.title}</h1>
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-link btn-sm text-muted p-0 border-0 shadow-none d-flex align-items-center" onclick={() => showEditModal = true} title="Edit Lesson">
+                    <Edit3 size={16} />
                 </button>
                 <div class="btn-group">
                     <button 
@@ -497,7 +494,7 @@
                     >
                         Prepare Material
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end rounded-0 shadow-kakimashou">
+                    <ul class="dropdown-menu dropdown-menu-end">
                         <li><button class="dropdown-item" onclick={() => createTool('guide')}>{hasGuide ? 'Recreate' : 'Create'} Study Guide</button></li>
                         <li><button class="dropdown-item" onclick={() => createTool('flashcard')}>{hasFlashcards ? 'Recreate' : 'Create'} Flashcards</button></li>
                         <li><button class="dropdown-item" onclick={() => createTool('quiz')}>{hasQuiz ? 'Recreate' : 'Create'} Practice Quiz</button></li>
@@ -506,21 +503,19 @@
             </div>
         </div>
         {#if lecture.description}
-            <div class="p-4 prose border-top bg-light bg-opacity-10" style="font-size: 1.1rem;">
-                <p class="mb-0">{lecture.description}</p>
-            </div>
+            <p class="page-description text-muted">{lecture.description}</p>
         {/if}
-    </div>
+    </header>
 
     <div class="container-fluid p-0">
-        <div class="row">
+        <div class="row g-4">
             <!-- Main Content Area -->
-            <div class={activeView === 'dashboard' ? 'col-12' : 'col-lg-9 col-md-8 order-md-1'}>
+            <div class={activeView === 'dashboard' ? 'col-12' : 'col-lg-8 order-md-1'}>
                 {#if activeView === 'dashboard'}
                     <div class="mb-4">
                         <div class="linkTiles">
                             <Tile
-                                icon="講"
+                                icon=""
                                 title="Dialogue"
                                 onclick={() => activeView = 'transcript'}
                                 disabled={transcriptJobRunning || !transcript || !transcript.segments}
@@ -557,7 +552,7 @@
                             </Tile>
 
                             {#if guideTool}
-                                <Tile href="javascript:void(0)" icon="案" title="Study Guide" onclick={() => activeView = 'guide'}>
+                                <Tile href="javascript:void(0)" icon="" title="Study Guide" onclick={() => activeView = 'guide'}>
                                     {#snippet description()}
                                         Read the comprehensive study guide.
                                     {/snippet}
@@ -566,7 +561,7 @@
 
                             {#each tools.filter(t => t.type !== 'guide') as tool}
                                 <Tile href="javascript:void(0)" 
-                                    icon={tool.type === 'flashcard' ? '札' : '問'} 
+                                    icon="" 
                                     title={capitalize(tool.type)}
                                     onclick={() => openTool(tool.id)}>
                                     {#snippet description()}
@@ -576,7 +571,7 @@
                             {/each}
 
                             {#each documents as doc}
-                                <Tile href="javascript:void(0)" icon="資" title={doc.title} onclick={() => openDocument(doc.id)}>
+                                <Tile href="javascript:void(0)" icon="" title={doc.title} onclick={() => openDocument(doc.id)}>
                                     {#snippet description()}
                                         Reference material.
                                     {/snippet}
@@ -585,7 +580,7 @@
 
                             {#if documentsJobRunning || documentsJobFailed}
                                 <Tile 
-                                    icon="資" 
+                                    icon="" 
                                     title="Reference Materials" 
                                     class={documentsJobRunning ? 'tile-processing' : 'tile-error'} 
                                     disabled={documentsJobRunning}
@@ -622,18 +617,17 @@
                         <div class="bg-white border mt-4">
                             <div class="standard-header">
                                 <div class="header-title">
-                                    <span class="header-glyph" lang="ja">源</span>
                                     <span class="header-text">Source Assets</span>
                                 </div>
                             </div>
-                            <div class="p-3">
-                                <div class="row g-3">
+                            <div class="p-4">
+                                <div class="row g-4">
                                     {#if mediaFiles.length > 0}
                                         <div class="col-md-6">
-                                            <div class="fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.65rem; letter-spacing: 0.05em;">Recordings</div>
+                                            <div class="cozy-label">Recordings</div>
                                             <ul class="list-unstyled mb-0">
                                                 {#each mediaFiles as media}
-                                                    <li class="mb-1">
+                                                    <li class="mb-2">
                                                         <span class="filename">{media.original_filename || 'Unknown recording'}</span>
                                                     </li>
                                                 {/each}
@@ -642,10 +636,10 @@
                                     {/if}
                                     {#if documents.length > 0}
                                         <div class="col-md-6">
-                                            <div class="fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.65rem; letter-spacing: 0.05em;">Reference Files</div>
+                                            <div class="cozy-label">Reference Files</div>
                                             <ul class="list-unstyled mb-0">
                                                 {#each documents as doc}
-                                                    <li class="mb-1">
+                                                    <li class="mb-2">
                                                         <span class="filename">{doc.original_filename || doc.title}</span>
                                                     </li>
                                                 {/each}
@@ -669,26 +663,24 @@
                     >
                         <div class="standard-header">
                             <div class="header-title">
-                                <span class="header-glyph" lang="ja">案</span>
                                 <span class="header-text">Study Guide</span>
                             </div>
-                                            <div class="d-flex align-items-center gap-2">
-                                                <button class="btn btn-link btn-sm text-danger p-0 d-flex align-items-center shadow-none border-0" title="Delete Guide" onclick={() => deleteTool(guideTool?.id || '')}>
-                                                    <Trash2 size={18} />
-                                                </button>
-                                                <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
-                                            </div>
-                                        </div>
-                                        <div class="p-4 prose">
-                                            {@html guideHTML}
-                                        </div>
-                                    </div>
-                                {:else if activeView === 'transcript'}
+                            <div class="d-flex align-items-center gap-2">
+                                <button class="btn btn-link btn-sm text-danger p-0 d-flex align-items-center shadow-none border-0" title="Delete Guide" onclick={() => deleteTool(guideTool?.id || '')}>
+                                    <Trash2 size={18} />
+                                </button>
+                                <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                            </div>
+                        </div>
+                        <div class="p-4 prose">
+                            {@html guideHTML}
+                        </div>
+                    </div>
+                {:else if activeView === 'transcript'}
                             
                     <div class="well bg-white p-0 overflow-hidden mb-3 border">
                         <div class="standard-header">
                             <div class="header-title">
-                                <span class="header-glyph" lang="ja">講</span>
                                 <span class="header-text">Dialogue</span>
                             </div>
                             <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
@@ -749,7 +741,6 @@
                     <div class="well bg-white p-0 overflow-hidden mb-3 border">
                         <div class="standard-header">
                             <div class="header-title">
-                                <span class="header-glyph" lang="ja">資</span>
                                 <span class="header-text">{doc?.title || 'Study Resource'}</span>
                             </div>
                             <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
@@ -799,7 +790,6 @@
                     <div class="well bg-white p-0 overflow-hidden mb-3 border">
                         <div class="standard-header">
                             <div class="header-title">
-                                <span class="header-glyph" lang="ja">{tool?.type === 'flashcard' ? '札' : '問'}</span>
                                 <span class="header-text">{tool?.title || 'Practice Mode'}</span>
                             </div>
                             <div class="d-flex align-items-center gap-2">
@@ -866,9 +856,9 @@
 
             <!-- Sidebar: Navigation ONLY (Right Side on Desktop) -->
             {#if activeView !== 'dashboard'}
-                <div class="col-lg-3 col-md-4 order-md-2">
-                    <div class="linkTiles flex-column mb-4">
-                        <Tile icon="戻" 
+                <div class="col-lg-4 order-md-2">
+                    <div class="linkTiles flex-column mb-4 p-4">
+                        <Tile icon="" 
                             title="Back to Hub" 
                             onclick={() => activeView = 'dashboard'}>
                             {#snippet description()}
@@ -902,7 +892,6 @@
 
 <Modal 
     title="Customize {capitalize(pendingToolType)}" 
-    glyph="作" 
     isOpen={showCreateModal} 
     onClose={() => showCreateModal = false}
 >
@@ -940,9 +929,57 @@
     {/snippet}
 </Modal>
 
-<style>
-    .prose :global(h2) { font-size: 1.5rem; margin-top: 2rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; color: #2c4529; }
-    .prose :global(h3) { font-size: 1.2rem; margin-top: 1.5rem; color: #555; }
+<style lang="scss">
+    .page-title {
+        font-family: 'Manrope', sans-serif;
+        font-size: 32px;
+        font-weight: 500;
+        color: var(--gray-900);
+        letter-spacing: -0.02em;
+    }
+
+    .page-description {
+        font-family: 'Manrope', sans-serif;
+        font-size: 15px;
+        line-height: 1.6;
+        max-width: 600px;
+        margin: 0;
+    }
+
+    .linkTiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 0;
+        background: transparent;
+        overflow: hidden;
+        
+        &.flex-column {
+            grid-template-columns: 1fr;
+            overflow: visible;
+        }
+
+        :global(.tile-wrapper) {
+            width: 100%;
+            
+            :global(a), :global(button) {
+                width: 100%;
+            }
+        }
+    }
+
+    .cozy-label {
+        font-family: 'Manrope', sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 8px;
+        display: block;
+    }
+
+    .prose :global(h2) { font-size: 1.5rem; margin-top: 2rem; border-bottom: 1px solid var(--gray-300); padding-bottom: 0.5rem; color: var(--gray-900); }
+    .prose :global(h3) { font-size: 1.2rem; margin-top: 1.5rem; color: var(--gray-700); }
     .prose :global(p) { line-height: 1.6; margin-bottom: 1rem; font-size: 1rem; }
     .prose :global(ul) { margin-bottom: 1rem; }
     .prose :global(li) { margin-bottom: 0.5rem; }
@@ -955,21 +992,21 @@
     .prose :global(.footnote-ref) {
         text-decoration: none;
         font-weight: bold;
-        color: #568f27;
+        color: var(--orange);
         padding: 0 0.125rem;
         transition: all 0.15s ease;
     }
 
     .prose :global(.footnote-ref:hover) {
-        background-color: #568f27;
+        background-color: var(--orange);
         color: #fff !important;
         text-decoration: none;
     }
 
     /* Table of Contents Styling */
     .prose :global(#TOC) {
-        background-color: #fcfcfc;
-        border: 1px solid #eee;
+        background-color: #fff;
+        border: 1px solid var(--gray-300);
         padding: 1rem 1.5rem;
         margin-bottom: 2rem;
         font-size: 0.9rem;
@@ -981,7 +1018,7 @@
         font-weight: bold;
         text-transform: uppercase;
         font-size: 0.75rem;
-        color: #666;
+        color: var(--gray-500);
         margin-bottom: 0.75rem;
         letter-spacing: 0.05em;
     }
@@ -1002,16 +1039,17 @@
     }
 
     .prose :global(#TOC a) {
-        color: #568f27;
+        color: var(--gray-700);
         text-decoration: none;
     }
 
     .prose :global(#TOC a:hover) {
+        color: var(--orange);
         text-decoration: underline;
     }
 
     audio::-webkit-media-controls-enclosure {
         border-radius: 0;
-        background-color: #f8f9fa;
+        background-color: #fff;
     }
 </style>

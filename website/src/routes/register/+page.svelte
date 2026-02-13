@@ -37,7 +37,6 @@
         <div class="bg-white border mb-3">
             <div class="standard-header">
                 <div class="header-title">
-                    <span class="header-glyph" lang="ja">新</span>
                     <span class="header-text">Sign Up</span>
                 </div>
             </div>
@@ -49,18 +48,19 @@
                     {/if}
                     
                     <div class="mb-4">
-                        <label for="username" class="form-label fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Desired Username</label>
-                        <input type="text" id="username" class="form-control rounded-0 border shadow-none" bind:value={username} required />
+                        <label for="username" class="cozy-label">Desired Username</label>
+                        <input type="text" id="username" class="form-control cozy-input" bind:value={username} required />
                     </div>
 
                     <div class="mb-4">
-                        <label for="password" class="form-label fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Password (minimum 8 letters)</label>
-                        <input type="password" id="password" class="form-control rounded-0 border shadow-none" bind:value={password} required minlength="8" />
+                        <label for="password" class="cozy-label">Password</label>
+                        <input type="password" id="password" class="form-control cozy-input" bind:value={password} required minlength="8" />
+                        <small class="form-text text-muted mt-2 d-block">Minimum 8 characters.</small>
                     </div>
 
-                    <div class="mb-3">
-                        <label for="confirmPassword" class="form-label fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Confirm Password</label>
-                        <input type="password" id="confirmPassword" class="form-control rounded-0 border shadow-none" bind:value={confirmPassword} required />
+                    <div class="mb-4">
+                        <label for="confirmPassword" class="cozy-label">Confirm Password</label>
+                        <input type="password" id="confirmPassword" class="form-control cozy-input" bind:value={confirmPassword} required />
                     </div>
 
                     <div class="text-center">
@@ -76,6 +76,35 @@
                 </form>
             </div>
         </div>
+
+<style lang="scss">
+    .cozy-label {
+        font-family: 'Manrope', sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 8px;
+        display: block;
+    }
+
+    .cozy-input {
+        border-radius: 0;
+        border: 1px solid var(--gray-300) !important;
+        font-family: 'Manrope', sans-serif;
+        font-size: 14px;
+        padding: 12px;
+        background: #fff;
+        transition: all 0.2s ease;
+
+        &:focus {
+            border-color: var(--orange) !important;
+            box-shadow: none;
+            background: #fafaf9;
+        }
+    }
+</style>
         
         <div class="mt-4 text-center">
             <p class="text-muted small">Already have an account? <a href="/login">Log in here</a>.</p>

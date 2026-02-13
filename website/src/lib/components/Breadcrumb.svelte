@@ -38,6 +38,7 @@
         font-size: 12px;
         font-weight: 500;
         padding: 0;
+        margin-top: 32px;
         margin-bottom: 32px;
         background: transparent;
         

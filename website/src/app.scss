@@ -3,6 +3,16 @@ $enable-rounded: false;
 @import "bootstrap/scss/bootstrap";
 /* EXACT Kakimashou Style Reconstruction from provided CSS and inspector data */
 :root {
+    --cream: #f5f3f0;
+    --gray-200: #e7e5e4;
+    --gray-300: #d6d3d1;
+    --gray-400: #a8a29e;
+    --gray-500: #78716c;
+    --gray-600: #57534e;
+    --gray-700: #44403c;
+    --gray-800: #292524;
+    --gray-900: #1c1917;
+    --orange: #ea580c;
     --blue: #007bff;
     --indigo: #6610f2;
     --purple: #6f42c1;
@@ -48,7 +58,8 @@ body {
     display: flex;
     flex-wrap: wrap;
     gap: 0;
-    margin: -0.25rem;
+    margin: 0;
+    overflow: hidden;
     &.flex-column {
         margin: 0;
         gap: 0.75rem;
@@ -346,8 +357,41 @@ body {
 
 .filename {
     font-family: "JetBrains Mono", monospace;
-    font-size-adjust: 0.5; /* Makes x-height consistent with surrounding text */
+    font-size-adjust: 0.5;
     background-color: rgba(0, 0, 0, 0.03);
     padding: 0.1em 0.3em;
     font-size: 0.9em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: bottom;
+}
+
+/* Dropdown / Pop-up refinements */
+.dropdown-menu {
+    border-radius: 0;
+    border: 1px solid var(--gray-300);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    padding: 8px 0;
+    background: #fff;
+
+    .dropdown-item {
+        font-family: 'Manrope', sans-serif;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 8px 20px;
+        color: var(--gray-700);
+        transition: all 0.2s ease;
+
+        &:hover {
+            background: #fafaf9;
+            color: var(--orange);
+        }
+
+        &:active {
+            background: var(--gray-200);
+        }
+    }
 }

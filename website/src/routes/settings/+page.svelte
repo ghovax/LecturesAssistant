@@ -187,7 +187,7 @@
 
     .cozy-input {
         border-radius: 0;
-        border: 1px solid var(--gray-300);
+        border: 1px solid var(--gray-300) !important;
         font-family: 'Manrope', sans-serif;
         font-size: 14px;
         padding: 12px;
@@ -195,7 +195,7 @@
         transition: all 0.2s ease;
 
         &:focus {
-            border-color: var(--orange);
+            border-color: var(--orange) !important;
             box-shadow: none;
             background: #fafaf9;
         }

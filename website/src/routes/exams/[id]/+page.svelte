@@ -149,33 +149,32 @@
     onCancel={() => confirmModal.isOpen = false}
 />
 
-    <div class="bg-white border mb-4">
-        <div class="standard-header px-3">
-            <div class="header-title">
-                <span class="header-text">{exam.title}</span>
-            </div>
+{#if exam}
+    <Breadcrumb items={[{ label: 'My Studies', href: '/exams' }, { label: exam.title, active: true }]} />
+
+    <header class="page-header mb-5">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <h1 class="page-title m-0">{exam.title}</h1>
             <button class="btn btn-link btn-sm text-muted p-0 border-0 shadow-none d-flex align-items-center" onclick={() => showEditModal = true} title="Edit Subject">
-                <Edit3 size={18} />
+                <Edit3 size={16} />
             </button>
         </div>
         {#if exam.description}
-            <div class="p-4 prose border-top bg-light bg-opacity-10" style="font-size: 1.1rem; padding-left: 20px !important; padding-right: 20px !important;">
-                <p class="mb-0">{exam.description}</p>
-            </div>
+            <p class="page-description text-muted">{exam.description}</p>
         {/if}
-    </div>
+    </header>
 
     <div class="container-fluid p-0">
         <div class="row g-4">
             <!-- Sidebar / Tile Style for Tools & Chats -->
             <div class="col-lg-4 order-md-2">
                 <div class="bg-white border mb-4">
-                    <div class="standard-header px-3">
+                    <div class="standard-header">
                         <div class="header-title">
                             <span class="header-text">Study Chats</span>
                         </div>
                     </div>
-                    <div class="linkTiles flex-column p-4">
+                    <div class="linkTiles flex-column">
                         <Tile href="javascript:void(0)" icon="" title="New Chat" onclick={(e) => { e.preventDefault(); createChat(); }}>
                             {#snippet description()}
                                 Start a fresh conversation with me about your studies.
@@ -205,13 +204,13 @@
             <!-- Main Content / Tile Style for Lessons -->
             <div class="col-lg-8 order-md-1">
                 <div class="bg-white border mb-3">
-                    <div class="standard-header px-3">
+                    <div class="standard-header">
                         <div class="header-title">
                             <span class="header-text">Lessons</span>
                         </div>
                     </div>
 
-                    <div class="linkTiles p-4">
+                    <div class="linkTiles">
                         <Tile href="/exams/{examId}/lectures/new" icon="" title="Add Lesson">
                             {#snippet description()}
                                 Upload recordings and reference materials for a new lesson.
@@ -250,20 +249,35 @@
 {/if}
 
 <style lang="scss">
+    .page-title {
+        font-family: 'Manrope', sans-serif;
+        font-size: 32px;
+        font-weight: 500;
+        color: var(--gray-900);
+        letter-spacing: -0.02em;
+    }
+
+    .page-description {
+        font-family: 'Manrope', sans-serif;
+        font-size: 15px;
+        line-height: 1.6;
+        max-width: 600px;
+        margin: 0;
+    }
+
     .linkTiles {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-        gap: 1px;
-        background: var(--gray-300);
-        border: 1px solid var(--gray-300);
+        gap: 0;
+        background: transparent;
+        overflow: hidden;
         
         &.flex-column {
             grid-template-columns: 1fr;
+            overflow: visible;
         }
 
         :global(.tile-wrapper) {
-            margin: 0;
-            border: none;
             width: 100%;
             
             :global(a), :global(button) {
@@ -272,11 +286,3 @@
         }
     }
 </style>
-{:else if loading}
-    <div class="p-5 text-center">
-        <div class="d-flex flex-column align-items-center gap-3">
-            <div class="village-spinner mx-auto" role="status"></div>
-            <p class="text-muted mb-0">Loading project details...</p>
-        </div>
-    </div>
-{/if}

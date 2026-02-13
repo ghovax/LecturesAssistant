@@ -167,27 +167,21 @@
         { label: session.title || 'Untitled Chat', active: true }
     ]} />
 
-    <div class="bg-white border mb-4">
-        <div class="standard-header">
-            <div class="header-title">
-                <span class="header-glyph" lang="ja">談</span>
-                <span class="header-text">{session.title || 'AI Assistant'}</span>
-            </div>
-        </div>
-    </div>
+    <header class="page-header mb-5">
+        <h1 class="page-title">{session.title || 'AI Assistant'}</h1>
+    </header>
 
     <div class="container-fluid p-0">
-        <div class="row">
+        <div class="row g-4">
             <!-- Sidebar: Context Selection & Other Sessions -->
-            <div class="col-lg-3 col-md-4 order-md-2">
+            <div class="col-lg-4 order-md-2">
                 <div class="bg-white border mb-4">
                     <div class="standard-header">
                         <div class="header-title">
-                            <span class="header-glyph" lang="ja">基</span>
                             <span class="header-text">Knowledge Base</span>
                         </div>
                         {#if updatingContext}
-                            <div class="spinner-border spinner-border-sm text-success" role="status">
+                            <div class="spinner-border spinner-border-sm text-orange" role="status">
                                 <span class="visually-hidden">Syncing...</span>
                             </div>
                         {/if}
@@ -203,7 +197,7 @@
                             <button 
                                 onclick={() => !isLocked && toggleLecture(lecture.id)}
                                 class="w-100 border-0 border-bottom last-child-border-0 p-3 text-start d-flex align-items-center gap-3"
-                                style="background: {isIncluded ? 'rgba(86, 143, 39, 0.05)' : 'transparent'}; 
+                                style="background: {isIncluded ? 'rgba(234, 88, 12, 0.05)' : 'transparent'}; 
                                     transition: all 0.15s ease; 
                                     cursor: {isLocked ? 'not-allowed' : 'pointer'};
                                     opacity: {isLocked ? 0.8 : 1};"
@@ -222,7 +216,7 @@
                                     style="line-height: 1.2;"
                                     data-text={lecture.title}
                                 >
-                                    <span class={isIncluded || isLocked ? 'fw-bold text-success' : 'text-dark'}>
+                                    <span class={isIncluded || isLocked ? 'fw-bold text-orange' : 'text-dark'}>
                                         {lecture.title}
                                     </span>
                                 </div>
@@ -238,13 +232,12 @@
                     <div class="bg-white border mb-4">
                         <div class="standard-header">
                             <div class="header-title">
-                                <span class="header-glyph" lang="ja">談</span>
                                 <span class="header-text">Recent Chats</span>
                             </div>
                         </div>
-                        <div class="linkTiles flex-column p-3">
+                        <div class="linkTiles flex-column p-4">
                             {#each otherSessions as other}
-                                <Tile href="/exams/{examId}/chat/{other.id}" icon="談" title={other.title || 'Untitled Chat'}>
+                                <Tile href="/exams/{examId}/chat/{other.id}" icon="" title={other.title || 'Untitled Chat'}>
                                     {#snippet description()}
                                         Switch to this study session.
                                     {/snippet}
@@ -256,25 +249,25 @@
             </div>
 
             <!-- Main Content: Chat History -->
-            <div class="col-lg-9 col-md-8 order-md-1">
+            <div class="col-lg-8 order-md-1">
                 <form onsubmit={(e) => { e.preventDefault(); sendMessage(); }} class="mb-4">
-                    <div class="input-group dictionary-style mb-3 shadow-sm">
+                    <div class="input-group dictionary-style mb-3">
                         <input 
                             type="text" 
-                            class="form-control" 
+                            class="form-control cozy-input" 
                             placeholder="Ask about your lectures or reference documents..." 
                             bind:value={input}
                             disabled={sending}
                         />
                         <button class="btn btn-success" type="submit" disabled={sending || !input.trim()}>
-                            <span class="glyphicon m-0"><Search size={18} /></span>
+                            <Search size={18} />
                         </button>
                     </div>
                 </form>
 
                 <div class="chat-viewport mb-3" bind:this={messageContainer}>
                     {#if (!messages || messages.length === 0) && !streamingMessage}
-                        <div class="well bg-white text-center p-5 text-muted border shadow-sm">
+                        <div class="well text-center p-5 text-muted border">
                             <Bot size={48} class="mb-3 opacity-25" />
                             <p>Select lessons from your Knowledge Base and start a conversation.</p>
                         </div>
@@ -283,10 +276,9 @@
                     {#each messages ?? [] as msg, i}
                         {#if msg.role === 'assistant'}
                             {@const prevMsg = messages[i-1]}
-                            <div class="bg-white p-0 overflow-hidden mb-3 border shadow-none">
+                            <div class="bg-white p-0 overflow-hidden mb-4 border">
                                 <div class="standard-header">
                                     <div class="header-title overflow-hidden">
-                                        <span class="header-glyph" lang="ja">案</span>
                                         <span class="header-text">Assistant</span>
                                         {#if prevMsg && prevMsg.role === 'user'}
                                             <span class="text-muted small text-truncate ms-3 fw-normal" style="opacity: 0.7; text-transform: none; font-style: italic;">
@@ -310,10 +302,9 @@
                     {/each}
 
                     {#if streamingMessage}
-                        <div class="bg-white p-0 overflow-hidden mb-3 border shadow-none">
+                        <div class="bg-white p-0 overflow-hidden mb-4 border">
                             <div class="standard-header">
                                 <div class="header-title overflow-hidden">
-                                    <span class="header-glyph" lang="ja">案</span>
                                     <span class="header-text">Assistant</span>
                                     {#if messages.length > 0 && messages[messages.length-1].role === 'user'}
                                         <span class="text-muted small text-truncate ms-3 fw-normal" style="opacity: 0.7; text-transform: none; font-style: italic;">
@@ -321,7 +312,7 @@
                                         </span>
                                     {/if}
                                 </div>
-                                <div class="spinner-border spinner-border-sm text-success" role="status">
+                                <div class="spinner-border spinner-border-sm text-orange" role="status">
                                     <span class="visually-hidden">Thinking...</span>
                                 </div>
                             </div>
@@ -351,7 +342,15 @@
     </div>
 {/if}
 
-<style>
+<style lang="scss">
+    .page-title {
+        font-family: 'Manrope', sans-serif;
+        font-size: 32px;
+        font-weight: 500;
+        color: var(--gray-900);
+        letter-spacing: -0.02em;
+    }
+
     .no-shift-bold {
         display: inline-grid;
         text-align: left;
@@ -367,6 +366,39 @@
 
     .no-shift-bold > span {
         grid-area: 1 / 1;
+    }
+
+    .linkTiles {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0;
+        background: transparent;
+        
+        :global(.tile-wrapper) {
+            margin: 0;
+            border: 1px solid var(--gray-300);
+            width: 100%;
+            
+            :global(a), :global(button) {
+                width: 100%;
+            }
+        }
+    }
+
+    .cozy-input {
+        border-radius: 0;
+        border: 1px solid var(--gray-300) !important;
+        font-family: 'Manrope', sans-serif;
+        font-size: 14px;
+        padding: 12px;
+        background: #fff;
+        transition: all 0.2s ease;
+
+        &:focus {
+            border-color: var(--orange) !important;
+            box-shadow: none;
+            background: #fafaf9;
+        }
     }
 
     /* Kakimashou Toggle Switch */
@@ -393,8 +425,8 @@
     }
 
     .village-toggle.is-active {
-        background: #568f27;
-        border-color: #4a7a20;
+        background: var(--orange);
+        border-color: var(--orange);
     }
 
     .village-toggle.is-active::after {
@@ -402,9 +434,8 @@
     }
 
     .village-toggle.is-locked.is-active {
-        background: #568f27;
-        filter: grayscale(40%) opacity(0.6);
-        border-color: #4a7a20;
+        background: var(--gray-400);
+        border-color: var(--gray-400);
         cursor: not-allowed;
     }
 

@@ -50,7 +50,15 @@ export class APIClient {
         };
 
         const response = await fetch(`${this.baseUrl}${path}`, options);
-        const data = await response.json();
+        
+        let data: any;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+        } else {
+            const text = await response.text();
+            data = { error: { message: text || `Request failed with status ${response.status}` } };
+        }
 
         if (!response.ok) {
             if (response.status === 401) {

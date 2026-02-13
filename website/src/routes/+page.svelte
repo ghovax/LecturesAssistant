@@ -119,19 +119,6 @@
 </div>
 
 <style lang="scss">
-    :global(:root) {
-        --cream: #f5f3f0;
-        --gray-200: #e7e5e4;
-        --gray-300: #d6d3d1;
-        --gray-400: #a8a29e;
-        --gray-500: #78716c;
-        --gray-600: #57534e;
-        --gray-700: #44403c;
-        --gray-800: #292524;
-        --gray-900: #1c1917;
-        --orange: #ea580c;
-    }
-
     .cozy-homepage {
         font-family: 'Manrope', sans-serif;
         color: var(--gray-800);
@@ -196,14 +183,12 @@
     .linkTiles {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-        gap: 1px;
-        background: var(--gray-300);
-        border: 1px solid var(--gray-300);
+        gap: 0;
+        background: transparent;
         margin-bottom: 2rem;
+        overflow: hidden;
         
         :global(.tile-wrapper) {
-            margin: 0;
-            border: none;
             width: 100%;
             
             :global(a), :global(button) {

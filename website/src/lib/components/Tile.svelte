@@ -87,16 +87,14 @@
 <style lang="scss">
     .tile-wrapper {
         display: inline-block;
-        margin: 0;
         position: relative;
         vertical-align: top;
         background: #fff;
-        border: 1px solid var(--gray-300);
         transition: all 0.2s ease;
         
         &:hover {
-            border-color: var(--orange);
             background: #fafaf9;
+            z-index: 10;
         }
     }
     /* Common styles for both a and button */

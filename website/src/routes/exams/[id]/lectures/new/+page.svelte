@@ -87,21 +87,18 @@
 {#if exam}
     <Breadcrumb items={[{ label: 'My Studies', href: '/exams' }, { label: exam.title, href: `/exams/${examId}` }, { label: 'Add Lesson', active: true }]} />
 
-    <div class="bg-white border mb-3">
-        <div class="standard-header">
-            <div class="header-title">
-                <span class="header-glyph" lang="ja">新</span>
-                <span class="header-text">Add New Lesson</span>
-            </div>
-        </div>
+    <header class="page-header mb-5">
+        <h1 class="page-title">Add New Lesson</h1>
+    </header>
 
+    <div class="well border mb-3">
         <div class="p-4">
             <!-- Prominent Search-style Title Input -->
             <form onsubmit={(e) => { e.preventDefault(); handleUpload(); }} class="mb-4">
                 <div class="input-group dictionary-style mb-3">
                     <input 
                         type="text" 
-                        class="form-control" 
+                        class="form-control cozy-input" 
                         placeholder="Enter Lesson Title (e.g., Cellular Respiration)..." 
                         bind:value={title}
                         required
@@ -111,20 +108,19 @@
                         {#if uploading}
                             <span class="spinner-border spinner-border-sm" role="status"></span>
                         {:else}
-                            <span class="glyphicon m-0"><Upload size={18} /></span>
+                            <Upload size={18} />
                         {/if}
                     </button>
                 </div>
             </form>
 
             <div class="container-fluid p-0">
-                <div class="row">
+                <div class="row g-4">
                     <!-- Main Content: Description and Files -->
-                    <div class="col-lg-9 col-md-8 order-md-1">
+                    <div class="col-lg-8 order-md-1">
                         <div class="bg-white border mb-4">
                             <div class="standard-header">
                                 <div class="header-title">
-                                    <span class="header-glyph" lang="ja">解</span>
                                     <span class="header-text">Description</span>
                                 </div>
                             </div>
@@ -143,12 +139,11 @@
                         <div class="bg-white border mb-4">
                             <div class="standard-header">
                                 <div class="header-title">
-                                    <span class="header-glyph" lang="ja">言</span>
                                     <span class="header-text">Language</span>
                                 </div>
                             </div>
                             <div class="p-4">
-                                <select class="form-select" bind:value={language} disabled={uploading}>
+                                <select class="form-select cozy-input" bind:value={language} disabled={uploading}>
                                     <option value="">Default ({exam?.language || 'from settings'})</option>
                                     <option value="en-US">English (US)</option>
                                     <option value="it-IT">Italian</option>
@@ -163,13 +158,12 @@
                             </div>
                         </div>
 
-                        <div class="row">
+                        <div class="row g-4">
                             <!-- Media Upload -->
                             <div class="col-lg-6 mb-4">
                                 <div class="bg-white border h-100">
                                     <div class="standard-header">
                                         <div class="header-title">
-                                            <span class="header-glyph" lang="ja">音</span>
                                             <span class="header-text">Recordings</span>
                                         </div>
                                     </div>
@@ -184,17 +178,17 @@
                                             onchange={addMediaFiles} 
                                             disabled={uploading}
                                         />
-                                        <label for="media" class="btn btn-outline-secondary btn-sm w-100">
+                                        <label for="media" class="btn btn-outline-primary btn-sm w-100">
                                             Select Files
                                         </label>
                                         
                                         {#if mediaFiles.length > 0}
                                             <div class="mt-3 border-top pt-2">
                                                 {#each mediaFiles as file, i}
-                                                    <div class="d-flex justify-content-between align-items-center mb-1 small bg-light p-1">
+                                                    <div class="d-flex justify-content-between align-items-center mb-1 small bg-light p-2">
                                                         <span class="text-truncate me-2 fw-bold" title={file.name}>{file.name}</span>
                                                         <button class="btn btn-link btn-sm text-danger p-0 border-0 shadow-none" onclick={() => removeMedia(i)} disabled={uploading}>
-                                                            <span class="glyphicon m-0"><X size={14} /></span>
+                                                            <X size={14} />
                                                         </button>
                                                     </div>
                                                 {/each}
@@ -209,7 +203,6 @@
                                 <div class="bg-white border h-100">
                                     <div class="standard-header">
                                         <div class="header-title">
-                                            <span class="header-glyph" lang="ja">資</span>
                                             <span class="header-text">References</span>
                                         </div>
                                     </div>
@@ -224,17 +217,17 @@
                                             onchange={addDocumentFiles} 
                                             disabled={uploading}
                                         />
-                                        <label for="docs" class="btn btn-outline-secondary btn-sm w-100">
+                                        <label for="docs" class="btn btn-outline-primary btn-sm w-100">
                                             Select Files
                                         </label>
 
                                         {#if documentFiles.length > 0}
                                             <div class="mt-3 border-top pt-2">
                                                 {#each documentFiles as file, i}
-                                                    <div class="d-flex justify-content-between align-items-center mb-1 small bg-light p-1">
+                                                    <div class="d-flex justify-content-between align-items-center mb-1 small bg-light p-2">
                                                         <span class="text-truncate me-2 fw-bold" title={file.name}>{file.name}</span>
                                                         <button class="btn btn-link btn-sm text-danger p-0 border-0 shadow-none" onclick={() => removeDocument(i)} disabled={uploading}>
-                                                            <span class="glyphicon m-0"><X size={14} /></span>
+                                                            <X size={14} />
                                                         </button>
                                                     </div>
                                                 {/each}
@@ -256,11 +249,10 @@
                     </div>
 
                     <!-- Sidebar: Instructions -->
-                    <div class="col-lg-3 col-md-4 order-md-2">
+                    <div class="col-lg-4 order-md-2">
                         <div class="bg-white border mb-4">
                             <div class="standard-header">
                                 <div class="header-title">
-                                    <span class="header-glyph" lang="ja">説</span>
                                     <span class="header-text">Instructions</span>
                                 </div>
                             </div>
@@ -282,7 +274,15 @@
     </div>
 {/if}
 
-<style>
+<style lang="scss">
+    .page-title {
+        font-family: 'Manrope', sans-serif;
+        font-size: 32px;
+        font-weight: 500;
+        color: var(--gray-900);
+        letter-spacing: -0.02em;
+    }
+
     textarea:focus {
         outline: none;
         box-shadow: none;
@@ -292,12 +292,30 @@
         cursor: pointer;
     }
 
-    h4 {
-        margin-bottom: 0.25rem;
-        font-weight: bold;
+    .cozy-input {
+        border-radius: 0;
+        border: 1px solid var(--gray-300) !important;
+        font-family: 'Manrope', sans-serif;
+        font-size: 14px;
+        padding: 12px;
+        background: #fff;
+        transition: all 0.2s ease;
+
+        &:focus {
+            border-color: var(--orange) !important;
+            box-shadow: none;
+            background: #fafaf9;
+        }
     }
 
-    .border-dashed {
-        border-style: dashed !important;
+    .cozy-label {
+        font-family: 'Manrope', sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 8px;
+        display: block;
     }
 </style>

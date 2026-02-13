@@ -56,9 +56,8 @@
     class="citation-popup well bg-white border p-0 overflow-hidden"
     style="left: {adjustedX}px; top: {adjustedY}px;"
 >
-    <div class="standard-header">
+    <div class="standard-header px-3">
         <div class="header-title">
-            <span class="header-glyph" lang="ja">資</span>
             <span class="header-text" style="font-size: 0.75rem;">{title}</span>
         </div>
         <button class="btn btn-link btn-sm p-0 text-muted border-0 shadow-none" onclick={onClose}>
@@ -101,8 +100,8 @@
         min-width: 280px;
         margin: 0;
         pointer-events: auto;
-        border-color: #e3e3e3 !important;
-        @extend .shadow-kakimashou;
+        border-color: var(--gray-300) !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }
 
     .citation-content {

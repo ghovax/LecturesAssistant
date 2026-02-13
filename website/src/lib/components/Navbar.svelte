@@ -1,6 +1,6 @@
 <script lang="ts">
     import { auth } from '$lib/auth.svelte';
-    import { Book, Activity, Settings, User, LogIn, LogOut } from 'lucide-svelte';
+    import { Book, Settings, User, LogIn, LogOut, Sparkles } from 'lucide-svelte';
     import { goto } from '$app/navigation';
     let isMenuOpen = $state(false);
     async function handleLogout() {
@@ -9,10 +9,10 @@
         goto('/');
     }
 </script>
-<nav class="navbar navbar-expand-md navbar-dark bg-dark p-0 border-bottom border-dark-subtle">
+<nav class="navbar navbar-expand-md cozy-navbar p-0">
     <!-- Brand and toggle get grouped for better mobile display -->
-    <a class="navbar-brand px-3 py-0 me-0" href="/">
-        <span lang="ja" aria-hidden="true">書</span> Assistant
+    <a class="navbar-brand px-0 py-0 me-4" href="/">
+        Lectures<span class="text-orange">Assistant</span>
     </a>
     <button 
         class="navbar-toggler border-0 shadow-none" 
@@ -25,69 +25,107 @@
         <span class="navbar-toggler-icon"></span>
     </button>
     <!-- Collect the nav links, forms, and other content for toggling -->
-    <div class="collapse navbar-collapse pl-3 pl-md-0 {isMenuOpen ? 'show' : ''}" id="navbarSupportedContent">
+    <div class="collapse navbar-collapse {isMenuOpen ? 'show' : ''}" id="navbarSupportedContent">
         <ul class="navbar-nav me-auto">
             <li class="nav-item">
-                <a class="nav-link px-3" href="/exams" onclick={() => isMenuOpen = false}>
-                    <span class="glyphicon" aria-hidden="true"><Book size={14} strokeWidth={3} /></span> 
-                    <span class="no-shift-bold" data-text="My Studies"><span>My Studies</span></span>
+                <a class="nav-link px-2" href="/exams" onclick={() => isMenuOpen = false}>
+                    <span class="nav-icon" aria-hidden="true"><Book size={16} /></span> 
+                    <span class="nav-text">My Studies</span>
                 </a>
             </li>
         </ul>
-        <ul id="rightNav" class="navbar-nav me-3">
+        <ul id="rightNav" class="navbar-nav ms-auto">
             <li class="nav-item">
-                <a class="nav-link px-3" href="/settings" onclick={() => isMenuOpen = false}>
-                    <span class="glyphicon" aria-hidden="true"><Settings size={14} strokeWidth={3} /></span> 
-                    <span class="no-shift-bold" data-text="Preferences"><span>Preferences</span></span>
+                <a class="nav-link px-2" href="/settings" onclick={() => isMenuOpen = false}>
+                    <span class="nav-icon" aria-hidden="true"><Settings size={16} /></span> 
+                    <span class="nav-text">Preferences</span>
                 </a>
             </li>
             {#if auth.user}
                 <li class="nav-item">
-                    <a class="nav-link px-3" href="/profile" onclick={() => isMenuOpen = false}>
-                        <span class="glyphicon" aria-hidden="true"><User size={14} strokeWidth={3} /></span> 
-                        <span class="no-shift-bold" data-text="Profile"><span>Profile</span></span>
+                    <a class="nav-link px-2" href="/profile" onclick={() => isMenuOpen = false}>
+                        <span class="nav-icon" aria-hidden="true"><User size={16} /></span> 
+                        <span class="nav-text">Profile</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <button class="nav-link btn btn-link border-0 shadow-none px-3 w-100 justify-content-start" onclick={handleLogout}>
-                        <span class="glyphicon" aria-hidden="true"><LogOut size={14} strokeWidth={3} /></span> 
-                        <span class="no-shift-bold" data-text="Logout"><span>Logout</span></span>
+                    <button class="nav-link btn btn-link border-0 shadow-none px-2 w-100 justify-content-start" onclick={handleLogout}>
+                        <span class="nav-icon" aria-hidden="true"><LogOut size={16} /></span> 
+                        <span class="nav-text">Logout</span>
                     </button>
                 </li>
             {:else}
                 <li class="nav-item">
-                    <a class="nav-link px-3" href="/login" onclick={() => isMenuOpen = false}>
-                        <span class="glyphicon" aria-hidden="true"><LogIn size={14} strokeWidth={3} /></span> 
-                        <span class="no-shift-bold" data-text="Login"><span>Login</span></span>
+                    <a class="nav-link px-2" href="/login" onclick={() => isMenuOpen = false}>
+                        <span class="nav-icon" aria-hidden="true"><LogIn size={16} /></span> 
+                        <span class="nav-text">Login</span>
                     </a>
                 </li>
             {/if}
         </ul>
     </div>
 </nav>
+
 <style lang="scss">
-    .nav-link {
-        transition: color 0.15s ease, background-color 0.15s ease;
-        &:hover {
-            background-color: rgba(255, 255, 255, 0.05);
-            color: #fff !important;
-            .no-shift-bold span {
-                font-weight: bold;
-            }
+    .cozy-navbar {
+        font-family: 'Manrope', sans-serif;
+        background: transparent;
+        border-bottom: 1px solid var(--gray-300);
+        min-height: 70px;
+    }
+
+    .navbar-brand {
+        font-size: 18px;
+        font-weight: 500;
+        color: var(--gray-900) !important;
+        letter-spacing: -0.02em;
+        display: flex;
+        align-items: center;
+
+        .text-orange {
+            color: var(--orange);
+            font-weight: 600;
         }
     }
-    .no-shift-bold {
-        display: inline-grid;
-        text-align: left;
+
+    .nav-link {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--gray-600) !important;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+        height: 70px;
+        border-bottom: 2px solid transparent;
+
+        &:hover {
+            color: var(--gray-900) !important;
+            border-bottom-color: var(--orange);
+        }
+
+        .nav-icon {
+            display: flex;
+            align-items: center;
+            color: var(--gray-400);
+            transition: color 0.2s ease;
+        }
+
+        &:hover .nav-icon {
+            color: var(--orange);
+        }
     }
-    .no-shift-bold::after {
-        content: attr(data-text);
-        grid-area: 1 / 1;
-        font-weight: bold;
-        visibility: hidden;
-        height: 0;
-    }
-    .no-shift-bold > span {
-        grid-area: 1 / 1;
+
+    @media (max-width: 768px) {
+        .nav-link {
+            height: auto;
+            padding: 12px 0;
+            border-bottom: none;
+            
+            &:hover {
+                border-bottom: none;
+                padding-left: 8px;
+            }
+        }
     }
 </style>

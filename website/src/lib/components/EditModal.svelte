@@ -17,7 +17,6 @@
 
 <Modal 
     {title} 
-    glyph="変" 
     isOpen={true} 
     onClose={onCancel}
 >

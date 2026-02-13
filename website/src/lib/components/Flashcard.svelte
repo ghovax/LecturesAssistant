@@ -21,7 +21,7 @@
 
         <!-- Back -->
         <div class="flashcard-face back">
-            <div class="tile-like bg-white p-4 d-flex align-items-center justify-content-center text-center h-100 border-top-green">
+            <div class="tile-like bg-white p-4 d-flex align-items-center justify-content-center text-center h-100 border-top-orange">
                 <div class="content">{@html backHTML}</div>
             </div>
         </div>
@@ -62,9 +62,10 @@
 
     .tile-like {
         background: #fff;
-        @extend .shadow-kakimashou;
-        color: #000;
-        border: 1px solid #eee;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        color: var(--gray-900);
+        border: 1px solid var(--gray-300);
+        font-family: 'Manrope', sans-serif;
         font-size: 1.05rem;
         line-height: 1.4;
         overflow-y: auto; /* Handle overflow */
@@ -77,8 +78,8 @@
         }
     }
 
-    .border-top-green {
-        border-top: 4px solid #568f27 !important;
+    .border-top-orange {
+        border-top: 4px solid var(--orange) !important;
     }
 
     .content {

@@ -39,11 +39,12 @@
         align-items: center;
         gap: 0.5rem;
         padding: 0.25rem 0.75rem;
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        font-size: 0.75rem;
-        font-weight: 700;
-        color: #495057;
+        background-color: var(--cream);
+        border: 1px solid var(--gray-300);
+        font-family: 'Manrope', sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--gray-600);
         letter-spacing: 0.02em;
         text-transform: uppercase;
         height: 1.75rem;
@@ -52,7 +53,7 @@
     .indicator-icon {
         display: flex;
         align-items: center;
-        color: #568f27;
+        color: var(--orange);
     }
 
     .indicator-text {
@@ -62,11 +63,11 @@
     }
 
     .current {
-        color: #000;
+        color: var(--gray-900);
     }
 
     .separator {
-        color: #6c757d;
+        color: var(--gray-400);
         font-weight: 400;
         text-transform: lowercase;
         font-style: italic;
@@ -74,16 +75,12 @@
     }
 
     .total {
-        color: #6c757d;
+        color: var(--gray-500);
     }
 
-    :global(.transcript-nav) .status-indicator {
-        background-color: #fff;
-        border-color: #5cb85c;
-    }
-
+    :global(.transcript-nav) .status-indicator,
     :global(.document-nav) .status-indicator {
         background-color: #fff;
-        border-color: #007bff;
+        border-color: var(--gray-300);
     }
 </style>

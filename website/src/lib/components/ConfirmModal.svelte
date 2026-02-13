@@ -4,7 +4,6 @@
     interface Props {
         title?: string;
         message: string;
-        glyph?: string;
         confirmText?: string;
         cancelText?: string;
         isOpen: boolean;
@@ -16,7 +15,6 @@
     let { 
         title = 'Confirmation', 
         message, 
-        glyph = '確', 
         confirmText = 'Confirm', 
         cancelText = 'Cancel', 
         isOpen, 
@@ -26,7 +24,7 @@
     }: Props = $props();
 </script>
 
-<Modal {title} {glyph} {isOpen} onClose={onCancel}>
+<Modal {title} {isOpen} onClose={onCancel}>
     <div class="py-2">
         <p class="mb-0" style="font-size: 1.1rem; line-height: 1.5;">{message}</p>
     </div>

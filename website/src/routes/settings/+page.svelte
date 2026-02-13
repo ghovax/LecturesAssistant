@@ -58,26 +58,25 @@
     </div>
 {:else if settings}
     <form onsubmit={(e) => { e.preventDefault(); saveSettings(); }}>
-        <div class="bg-white border mb-3">
+        <div class="bg-white border mb-4">
             <div class="standard-header">
                 <div class="header-title">
-                    <span class="header-glyph" lang="ja">脳</span>
                     <span class="header-text">AI Assistant Settings</span>
                 </div>
             </div>
-            <div class="p-3">
-                <div class="row g-3">
+            <div class="p-4">
+                <div class="row g-4">
                     <div class="col-md-6">
-                        <label for="provider" class="form-label fw-bold small text-muted text-uppercase mb-1" style="font-size: 0.65rem; letter-spacing: 0.05em;">AI Service Provider</label>
-                        <select id="provider" class="form-select form-select-sm rounded-0 border shadow-none" bind:value={settings.llm.provider}>
+                        <label for="provider" class="cozy-label">AI Service Provider</label>
+                        <select id="provider" class="form-select cozy-input" bind:value={settings.llm.provider}>
                             <option value="openrouter">OpenRouter (Cloud)</option>
                             <option value="ollama">Ollama (Local)</option>
                         </select>
                     </div>
 
                     <div class="col-md-6">
-                        <label for="language" class="form-label fw-bold small text-muted text-uppercase mb-1" style="font-size: 0.65rem; letter-spacing: 0.05em;">Preferred Language</label>
-                        <select id="language" class="form-select form-select-sm rounded-0 border shadow-none" bind:value={settings.llm.language}>
+                        <label for="language" class="cozy-label">Preferred Language</label>
+                        <select id="language" class="form-select cozy-input" bind:value={settings.llm.language}>
                             <option value="en-US">{getLanguageName('en-US')}</option>
                             <option value="it-IT">{getLanguageName('it-IT')}</option>
                             <option value="ja-JP">{getLanguageName('ja-JP')}</option>
@@ -88,24 +87,23 @@
                     </div>
 
                     <div class="col-12">
-                        <label for="model" class="form-label fw-bold small text-muted text-uppercase mb-1" style="font-size: 0.65rem; letter-spacing: 0.05em;">Global Default Model</label>
-                        <input type="text" id="model" class="form-control form-control-sm rounded-0 border shadow-none" bind:value={settings.llm.model} />
-                        <div class="form-text mt-1" style="font-size: 0.75rem;">Used for all tasks unless overridden below. Example: <code>anthropic/claude-3.5-sonnet</code></div>
+                        <label for="model" class="cozy-label">Global Default Model</label>
+                        <input type="text" id="model" class="form-control cozy-input" bind:value={settings.llm.model} />
+                        <div class="form-text mt-2" style="font-size: 12px;">Used for all tasks unless overridden below. Example: <code>anthropic/claude-3.5-sonnet</code></div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="bg-white border mb-3">
+        <div class="bg-white border mb-4">
             <div class="standard-header">
                 <div class="header-title">
-                    <span class="header-glyph" lang="ja">路</span>
                     <span class="header-text">Advanced Task Model Routing</span>
                 </div>
             </div>
-            <div class="p-3">
-                <p class="text-muted small mb-3">Optional: Specify different models for specific processing steps. Leave empty to use the global default.</p>
-                <div class="row g-3">
+            <div class="p-4">
+                <p class="text-muted small mb-4">Optional: Specify different models for specific processing steps. Leave empty to use the global default.</p>
+                <div class="row g-4">
                     {#each [
                         { key: 'recording_transcription', label: 'Transcription Cleanup' },
                         { key: 'documents_ingestion', label: 'Document Analysis (OCR)' },
@@ -116,11 +114,11 @@
                         { key: 'content_polishing', label: 'Footnote Polishing' }
                     ] as task}
                         <div class="col-md-6">
-                            <label for="model-{task.key}" class="form-label fw-bold small text-muted text-uppercase mb-1" style="font-size: 0.6rem; letter-spacing: 0.05em;">{task.label}</label>
+                            <label for="model-{task.key}" class="cozy-label">{task.label}</label>
                             <input 
                                 type="text" 
                                 id="model-{task.key}" 
-                                class="form-control form-control-sm rounded-0 border shadow-none" 
+                                class="form-control cozy-input" 
                                 placeholder="Default"
                                 bind:value={settings.llm.models[task.key].model} 
                             />
@@ -130,44 +128,42 @@
             </div>
         </div>
 
-        <div class="bg-white border mb-3">
+        <div class="bg-white border mb-4">
             <div class="standard-header">
                 <div class="header-title">
-                    <span class="header-glyph" lang="ja">鍵</span>
                     <span class="header-text">Service Credentials</span>
                 </div>
             </div>
-            <div class="p-3">
+            <div class="p-4">
                 <div class="mb-0">
-                    <label for="openrouterApiKey" class="form-label fw-bold small text-muted text-uppercase mb-1" style="font-size: 0.65rem; letter-spacing: 0.05em;">OpenRouter API Key</label>
-                    <input type="password" id="openrouterApiKey" class="form-control form-control-sm rounded-0 border shadow-none" bind:value={settings.providers.openrouter.api_key} />
+                    <label for="openrouterApiKey" class="cozy-label">OpenRouter API Key</label>
+                    <input type="password" id="openrouterApiKey" class="form-control cozy-input" bind:value={settings.providers.openrouter.api_key} />
                 </div>
             </div>
         </div>
 
-        <div class="bg-white border mb-3">
+        <div class="bg-white border mb-4">
             <div class="standard-header">
                 <div class="header-title">
-                    <span class="header-glyph" lang="ja">守</span>
                     <span class="header-text">Safety & Budget</span>
                 </div>
             </div>
-            <div class="p-3">
-                <div class="row g-3">
+            <div class="p-4">
+                <div class="row g-4">
                     <div class="col-md-6">
-                        <label for="maxCost" class="form-label fw-bold small text-muted text-uppercase mb-1" style="font-size: 0.65rem; letter-spacing: 0.05em;">Max Cost Per Job (USD)</label>
-                        <input type="number" id="maxCost" step="0.01" class="form-control form-control-sm rounded-0 border shadow-none" bind:value={settings.safety.maximum_cost_per_job} />
+                        <label for="maxCost" class="cozy-label">Max Cost Per Job (USD)</label>
+                        <input type="number" id="maxCost" step="0.01" class="form-control cozy-input" bind:value={settings.safety.maximum_cost_per_job} />
                     </div>
                     <div class="col-md-6">
-                        <label for="maxRetries" class="form-label fw-bold small text-muted text-uppercase mb-1" style="font-size: 0.65rem; letter-spacing: 0.05em;">Maximum Retries</label>
-                        <input type="number" id="maxRetries" class="form-control form-control-sm rounded-0 border shadow-none" bind:value={settings.safety.maximum_retries} />
+                        <label for="maxRetries" class="cozy-label">Maximum Retries</label>
+                        <input type="number" id="maxRetries" class="form-control cozy-input" bind:value={settings.safety.maximum_retries} />
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="text-center mt-4">
-            <button type="submit" class="btn btn-success px-5 rounded-0" disabled={saving}>
+        <div class="text-center mt-5">
+            <button type="submit" class="btn btn-success px-5 rounded-0 btn-lg" disabled={saving}>
                 {#if saving}
                     <span class="spinner-border spinner-border-sm me-2"></span>
                 {/if}
@@ -176,3 +172,32 @@
         </div>
     </form>
 {/if}
+
+<style lang="scss">
+    .cozy-label {
+        font-family: 'Manrope', sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 8px;
+        display: block;
+    }
+
+    .cozy-input {
+        border-radius: 0;
+        border: 1px solid var(--gray-300);
+        font-family: 'Manrope', sans-serif;
+        font-size: 14px;
+        padding: 12px;
+        background: #fff;
+        transition: all 0.2s ease;
+
+        &:focus {
+            border-color: var(--orange);
+            box-shadow: none;
+            background: #fafaf9;
+        }
+    }
+</style>

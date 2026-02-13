@@ -38,12 +38,10 @@
 >
     {#if href}
         <a {href} {onclick}>
-            <div lang="ja" class="tile-glyph">{icon}</div>
             <p class="tile-title" class:font-monospace={monospaceTitle}>
                 <Highlighter show={isHovered} padding={0} offsetY={2}>
                     <strong>{title}</strong>
                 </Highlighter>
-                <br />
             </p>
             
             {#if description}
@@ -60,12 +58,10 @@
         </a>
     {:else}
         <button type="button" class="tile-button" {onclick} {disabled}>
-            <div lang="ja" class="tile-glyph">{icon}</div>
             <p class="tile-title" class:font-monospace={monospaceTitle}>
                 <Highlighter show={isHovered} padding={0} offsetY={2}>
                     <strong>{title}</strong>
                 </Highlighter>
-                <br />
             </p>
             
             {#if description}
@@ -91,103 +87,75 @@
 <style lang="scss">
     .tile-wrapper {
         display: inline-block;
-        margin: .4rem;
+        margin: 0;
         position: relative;
         vertical-align: top;
         background: #fff;
-        border: 1px solid #eee;
-        @extend .shadow-kakimashou;
-        transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.1s ease;
+        border: 1px solid var(--gray-300);
+        transition: all 0.2s ease;
+        
         &:hover {
-            border-color: #568f27;
-        }
-        &:active {
-            box-shadow: .1rem .1rem .3rem rgba(0, 0, 0, .2) !important;
-            transform: translateY(1px);
+            border-color: var(--orange);
+            background: #fafaf9;
         }
     }
     /* Common styles for both a and button */
     a, button.tile-button {
         appearance: none;
         border: none;
-        background: #fff;
-        color: #000;
-        display: block;
-        height: 7rem; /* Increased for better text fitting */
-        width: 14.5rem; /* Increased for better text fitting */
+        background: transparent;
+        color: var(--gray-900);
+        display: flex;
+        flex-direction: column;
+        height: 140px;
+        width: 240px;
         overflow: hidden;
-        padding: .85rem;
+        padding: 24px;
         text-decoration: none;
         text-align: left;
-        transition: background-color 0.1s ease;
         position: relative;
         z-index: 1;
-        &:hover:not(:disabled) {
-            background: #fcfcfc;
-        }
+        font-family: 'Manrope', sans-serif;
+
         &:focus-visible {
-            outline: 2px solid #568f27;
+            outline: 2px solid var(--orange);
             outline-offset: -2px;
         }
         &:disabled {
             opacity: 0.6;
             cursor: not-allowed;
-            background: #f5f5f5;
         }
     }
-    .tile-glyph {
-        color: #f0f1e8;
-        font-family: "ＭＳ Ｐゴシック", "MS PGothic", "メイリオ", Meiryo, sans-serif;
-        font-size: 12rem; /* Slightly larger glyph */
-        left: 5.5rem;
-        line-height: 7rem;
-        position: absolute;
-        top: 2.2rem;
-        z-index: 1;
-        pointer-events: none;
-    }
     .tile-title {
-        bottom: .85rem !important;
-        font-size: 1.1rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        position: absolute;
-        left: .85rem;
-        right: .85rem;
-        z-index: 2;
-        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+        margin: 0 0 8px;
         line-height: 1.2;
         &.font-monospace {
-            font-family: monospace;
-            font-size: 0.95rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
         }
     }
     .tileContent {
-        bottom: 2.3rem !important;
-        font-size: 0.9rem;
-        color: #555;
-        line-height: 1.35;
-        height: 2.7rem;
+        font-size: 13px;
+        color: var(--gray-500);
+        line-height: 1.5;
+        height: auto;
         overflow: hidden;
         display: -webkit-box;
-        -webkit-line-clamp: 2;
+        -webkit-line-clamp: 3;
         -webkit-box-orient: vertical;
-        text-overflow: ellipsis;
-        position: absolute;
-        left: .85rem;
-        right: .85rem;
-        z-index: 2;
     }
     .tile-actions {
         position: absolute;
-        top: 0.5rem;
-        right: 0.5rem;
+        top: 12px;
+        right: 12px;
         z-index: 10;
         display: flex;
-        gap: 0.25rem;
+        gap: 8px;
     }
     .tile-extra-children {
+        margin-top: auto;
         position: relative;
         z-index: 2;
     }

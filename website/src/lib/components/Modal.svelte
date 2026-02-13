@@ -4,7 +4,6 @@
 
     interface Props {
         title: string;
-        glyph: string;
         isOpen: boolean;
         onClose: () => void;
         children: Snippet;
@@ -12,7 +11,7 @@
         maxWidth?: string;
     }
 
-    let { title, glyph, isOpen, onClose, children, footer, maxWidth = '500px' }: Props = $props();
+    let { title, isOpen, onClose, children, footer, maxWidth = '500px' }: Props = $props();
 
     function handleBackdropClick(e: MouseEvent) {
         if (e.target === e.currentTarget) {
@@ -31,11 +30,10 @@
         onclick={handleBackdropClick}
     >
         <div class="modal-dialog modal-dialog-centered" style="max-width: {maxWidth};">
-            <div class="modal-content border-0 rounded-0 shadow-kakimashou">
+            <div class="modal-content border-0 rounded-0 shadow-none border border-light">
                 <!-- Header -->
-                <div class="standard-header">
+                <div class="standard-header px-3">
                     <div class="header-title">
-                        <span class="header-glyph" lang="ja">{glyph}</span>
                         <span class="header-text">{title}</span>
                     </div>
                     <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={onClose}>
@@ -44,7 +42,7 @@
                 </div>
 
                 <!-- Body -->
-                <div class="modal-body p-3 bg-light">
+                <div class="modal-body p-4 bg-white">
                     {@render children()}
                 </div>
 

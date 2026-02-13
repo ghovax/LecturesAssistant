@@ -149,13 +149,9 @@
     onCancel={() => confirmModal.isOpen = false}
 />
 
-{#if exam}
-    <Breadcrumb items={[{ label: 'My Studies', href: '/exams' }, { label: exam.title, active: true }]} />
-
     <div class="bg-white border mb-4">
-        <div class="standard-header">
+        <div class="standard-header px-3">
             <div class="header-title">
-                <span class="header-glyph" lang="ja">科</span>
                 <span class="header-text">{exam.title}</span>
             </div>
             <button class="btn btn-link btn-sm text-muted p-0 border-0 shadow-none d-flex align-items-center" onclick={() => showEditModal = true} title="Edit Subject">
@@ -163,31 +159,30 @@
             </button>
         </div>
         {#if exam.description}
-            <div class="p-4 prose border-top bg-light bg-opacity-10" style="font-size: 1.1rem;">
+            <div class="p-4 prose border-top bg-light bg-opacity-10" style="font-size: 1.1rem; padding-left: 20px !important; padding-right: 20px !important;">
                 <p class="mb-0">{exam.description}</p>
             </div>
         {/if}
     </div>
 
     <div class="container-fluid p-0">
-        <div class="row">
+        <div class="row g-4">
             <!-- Sidebar / Tile Style for Tools & Chats -->
-            <div class="col-lg-3 col-md-4 order-md-2">
+            <div class="col-lg-4 order-md-2">
                 <div class="bg-white border mb-4">
-                    <div class="standard-header">
+                    <div class="standard-header px-3">
                         <div class="header-title">
-                            <span class="header-glyph" lang="ja">談</span>
                             <span class="header-text">Study Chats</span>
                         </div>
                     </div>
-                    <div class="linkTiles flex-column p-3">
-                        <Tile href="javascript:void(0)" icon="談" title="New Chat" onclick={(e) => { e.preventDefault(); createChat(); }}>
+                    <div class="linkTiles flex-column p-4">
+                        <Tile href="javascript:void(0)" icon="" title="New Chat" onclick={(e) => { e.preventDefault(); createChat(); }}>
                             {#snippet description()}
                                 Start a fresh conversation with me about your studies.
                             {/snippet}
                         </Tile>
                         {#each chatSessions as session}
-                            <Tile href="/exams/{examId}/chat/{session.id}" icon="談" title={session.title || 'Untitled Chat'}>
+                            <Tile href="/exams/{examId}/chat/{session.id}" icon="" title={session.title || 'Untitled Chat'}>
                                 {#snippet description()}
                                     Opened {new Date(session.created_at).toLocaleDateString()}
                                 {/snippet}
@@ -208,24 +203,23 @@
             </div>
 
             <!-- Main Content / Tile Style for Lessons -->
-            <div class="col-lg-9 col-md-8 order-md-1">
+            <div class="col-lg-8 order-md-1">
                 <div class="bg-white border mb-3">
-                    <div class="standard-header">
+                    <div class="standard-header px-3">
                         <div class="header-title">
-                            <span class="header-glyph" lang="ja">講</span>
                             <span class="header-text">Lessons</span>
                         </div>
                     </div>
 
-                    <div class="linkTiles tileSizeMd p-2">
-                        <Tile href="/exams/{examId}/lectures/new" icon="新" title="Add Lesson">
+                    <div class="linkTiles p-4">
+                        <Tile href="/exams/{examId}/lectures/new" icon="" title="Add Lesson">
                             {#snippet description()}
                                 Upload recordings and reference materials for a new lesson.
                             {/snippet}
                         </Tile>
 
                         {#each lectures as lecture}
-                            <Tile href="/exams/{examId}/lectures/{lecture.id}" icon={lecture.status === 'ready' ? '講' : '作'} title={lecture.title}>
+                            <Tile href="/exams/{examId}/lectures/{lecture.id}" icon="" title={lecture.title}>
                                 {#snippet description()}
                                     {lecture.description || 'Access lesson materials and study aids.'}
                                 {/snippet}
@@ -246,6 +240,38 @@
             </div>
         </div>
     </div>
+{:else if loading}
+    <div class="p-5 text-center">
+        <div class="d-flex flex-column align-items-center gap-3">
+            <div class="village-spinner mx-auto" role="status"></div>
+            <p class="text-muted mb-0">Loading project details...</p>
+        </div>
+    </div>
+{/if}
+
+<style lang="scss">
+    .linkTiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 1px;
+        background: var(--gray-300);
+        border: 1px solid var(--gray-300);
+        
+        &.flex-column {
+            grid-template-columns: 1fr;
+        }
+
+        :global(.tile-wrapper) {
+            margin: 0;
+            border: none;
+            width: 100%;
+            
+            :global(a), :global(button) {
+                width: 100%;
+            }
+        }
+    }
+</style>
 {:else if loading}
     <div class="p-5 text-center">
         <div class="d-flex flex-column align-items-center gap-3">

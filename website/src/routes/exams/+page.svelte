@@ -103,19 +103,18 @@
 <div class="bg-white border mb-3">
     <div class="standard-header">
         <div class="header-title">
-            <span class="header-glyph" lang="ja">科</span>
             <span class="header-text">My Studies</span>
         </div>
     </div>
 
-    <div class="linkTiles tileSizeMd p-2">
-        <Tile href="javascript:void(0)" icon="新" title="New Subject" onclick={() => showCreate = !showCreate}>
+    <div class="linkTiles p-4">
+        <Tile href="javascript:void(0)" icon="" title="New Subject" onclick={() => showCreate = !showCreate}>
             {#snippet description()}
                 Add a new subject to your hub.
             {/snippet}
         </Tile>
         {#each exams as exam}
-            <Tile href="/exams/{exam.id}" icon="科" title={exam.title}>
+            <Tile href="/exams/{exam.id}" icon="" title={exam.title}>
                 {#snippet description()}
                     {exam.description || 'Access your lessons and study materials.'}
                 {/snippet}
@@ -138,26 +137,25 @@
     <div class="bg-white border mb-3 shadow-none">
         <div class="standard-header">
             <div class="header-title">
-                <span class="header-glyph" lang="ja">新</span>
                 <span class="header-text">Create a New Subject</span>
             </div>
         </div>
         <div class="p-4">
             <form onsubmit={(e) => { e.preventDefault(); createExam(); }}>
                 <div class="mb-4">
-                    <label for="examTitle" class="form-label fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Subject Name</label>
+                    <label for="examTitle" class="cozy-label">Subject Name</label>
                     <input
                         id="examTitle"
                         type="text"
-                        class="form-control rounded-0 border shadow-none"
+                        class="form-control cozy-input"
                         placeholder="e.g. History, Science, Mathematics..."
                         bind:value={newExamTitle}
                         required
                     />
                 </div>
-                <div class="mb-3">
-                    <label for="examLanguage" class="form-label fw-bold small text-muted text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 0.05em;">Language (Optional)</label>
-                    <select id="examLanguage" class="form-select rounded-0 border shadow-none" bind:value={newExamLanguage}>
+                <div class="mb-4">
+                    <label for="examLanguage" class="cozy-label">Language (Optional)</label>
+                    <select id="examLanguage" class="form-select cozy-input" bind:value={newExamLanguage}>
                         <option value="">Default (from settings)</option>
                         <option value="en-US">English (US)</option>
                         <option value="it-IT">Italian</option>
@@ -189,3 +187,50 @@
         </div>
     </div>
 {/if}
+
+<style lang="scss">
+    .linkTiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 1px;
+        background: var(--gray-300);
+        border: 1px solid var(--gray-300);
+        
+        :global(.tile-wrapper) {
+            margin: 0;
+            border: none;
+            width: 100%;
+            
+            :global(a), :global(button) {
+                width: 100%;
+            }
+        }
+    }
+
+    .cozy-label {
+        font-family: 'Manrope', sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--gray-500);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 8px;
+        display: block;
+    }
+
+    .cozy-input {
+        border-radius: 0;
+        border: 1px solid var(--gray-300);
+        font-family: 'Manrope', sans-serif;
+        font-size: 14px;
+        padding: 12px;
+        background: #fff;
+        transition: all 0.2s ease;
+
+        &:focus {
+            border-color: var(--orange);
+            box-shadow: none;
+            background: #fafaf9;
+        }
+    }
+</style>

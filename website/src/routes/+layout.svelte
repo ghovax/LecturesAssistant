@@ -12,16 +12,39 @@
     });
 </script>
 
-<div class="container-xl main-page">
+<div class="main-layout container-xl shadow-none">
+    <Navbar />
     <NotificationBanner />
-    <main class="content">
-        {@render children()}
-    </main>
+    <div class="content-wrapper">
+        <main class="content">
+            {@render children()}
+        </main>
+    </div>
 </div>
 
-<style>
+<style lang="scss">
     :global(html, body) {
         height: 100%;
         margin: 0;
+        background: #f5f3f0 !important;
+        font-family: 'Manrope', sans-serif !important;
+        color: #292524 !important;
+    }
+
+    .main-layout {
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+        max-width: 800px !important; /* Fixed width for better alignment */
+        margin: 0 auto;
+        padding: 0 20px;
+    }
+
+    .content-wrapper {
+        width: 100%;
+    }
+
+    .content {
+        padding: 0;
     }
 </style>

@@ -38,8 +38,6 @@
             if (tool.type === 'guide') {
                 htmlContent = htmlRes.content_html;
                 citations = htmlRes.citations ?? [];
-            } else {
-                htmlContent = htmlRes.content; // Array for flash/quiz
             }
         } catch (e) {
             console.error(e);
@@ -115,43 +113,8 @@
 
     <div class="container-fluid p-0">
         <div class="row g-4">
-            <!-- Sidebar: Details & Navigation (Optional for standalone) -->
-            <div class="col-lg-4 order-md-2">
-                <div class="bg-white border mb-4">
-                    <div class="standard-header">
-                        <div class="header-title">
-                            <span class="header-text">Navigation</span>
-                        </div>
-                    </div>
-                    <div class="linkTiles flex-column p-4">
-                        {#if tool.lecture_id}
-                            <Tile href="/exams/{examId}/lectures/{tool.lecture_id}" icon="" title="Back to Lesson">
-                                {#snippet description()}
-                                    Return to the source lesson for more resources.
-                                {/snippet}
-                            </Tile>
-                        {/if}
-                    </div>
-                </div>
-
-                <div class="bg-white border mb-4">
-                    <div class="standard-header">
-                        <div class="header-title">
-                            <span class="header-text">Information</span>
-                        </div>
-                    </div>
-                    <div class="p-4 small">
-                        <p>This material was generated from your lesson. You can find related resources and documents in the source lesson page.</p>
-                        <div class="d-flex text-muted mt-3">
-                            <Clock size={14} class="me-2 flex-shrink-0" />
-                            <div>Created on {new Date(tool.created_at).toLocaleDateString()}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Main Content: Tool Content -->
-            <div class="col-lg-8 order-md-1">
+            <div class="col-12">
                 {#if tool.type === 'guide'}
                     <div class="bg-white border mb-3">
                         <div class="standard-header">
@@ -168,43 +131,6 @@
                         >
                             {@html htmlContent}
                         </div>
-                    </div>
-                {:else if tool.type === 'flashcard'}
-                    <div class="row g-4 mb-3">
-                        {#each htmlContent as card}
-                            <div class="col-xl-6 col-md-12">
-                                <Flashcard frontHTML={card.front_html} backHTML={card.back_html} />
-                            </div>
-                        {/each}
-                    </div>
-                {:else if tool.type === 'quiz'}
-                    <div class="quiz-list">
-                        {#each htmlContent as item, i}
-                            <div class="bg-white mb-4 border">
-                                <div class="px-4 py-2 border-bottom bg-light bg-opacity-10 d-flex justify-content-between align-items-center">
-                                    <span class="fw-bold small text-muted">Question {i + 1}</span>
-                                </div>
-                                <div class="p-4">
-                                    <div class="mb-4 fs-5 fw-bold" style="line-height: 1.4;">{@html item.question_html}</div>
-                                    
-                                    <div class="list-group mb-4 rounded-0 shadow-none">
-                                        {#each item.options_html as opt}
-                                            <div class="list-group-item py-3 border-start-0 border-end-0">{@html opt}</div>
-                                        {/each}
-                                    </div>
-                                    
-                                    <div class="bg-orange bg-opacity-10 border-start border-4 border-orange mb-4 p-3">
-                                        <strong class="text-orange small d-block mb-1">Correct Answer</strong>
-                                        <div class="fs-6 fw-bold">{@html item.correct_answer_html}</div>
-                                    </div>
-                                    
-                                    <div class="bg-light border-start border-4 border-secondary p-3 small">
-                                        <strong class="text-muted d-block mb-1">Explanation</strong>
-                                        <div class="text-muted" style="line-height: 1.5;">{@html item.explanation_html}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        {/each}
                     </div>
                 {/if}
             </div>

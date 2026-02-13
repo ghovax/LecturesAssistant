@@ -53,7 +53,7 @@
 
 <div 
     bind:this={popupElement}
-    class="citation-popup well bg-white border p-0 overflow-hidden"
+    class="citation-popup well bg-white p-0 overflow-hidden"
     style="left: {adjustedX}px; top: {adjustedY}px;"
 >
     <div class="standard-header">
@@ -100,8 +100,8 @@
         min-width: 280px;
         margin: 0;
         pointer-events: auto;
-        border-color: var(--gray-300) !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        border: none !important;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1), 0 4px 10px rgba(0,0,0,0.05);
     }
 
     .citation-content {

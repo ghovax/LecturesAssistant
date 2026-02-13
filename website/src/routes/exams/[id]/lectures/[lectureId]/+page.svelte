@@ -8,7 +8,6 @@
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
     import CitationPopup from '$lib/components/CitationPopup.svelte';
-    import Flashcard from '$lib/components/Flashcard.svelte';
     import EditModal from '$lib/components/EditModal.svelte';
     import Modal from '$lib/components/Modal.svelte';
     import ConfirmModal from '$lib/components/ConfirmModal.svelte';
@@ -43,8 +42,6 @@
     let activeToolsJobs = $derived(jobs.filter(j => j.type === 'BUILD_MATERIAL' && (j.status === 'PENDING' || j.status === 'RUNNING' || j.status === 'FAILED')));
 
     let hasGuide = $derived(tools.some(t => t.type === 'guide') || activeToolsJobs.some(j => j.payload?.type === 'guide'));
-    let hasFlashcards = $derived(tools.some(t => t.type === 'flashcard') || activeToolsJobs.some(j => j.payload?.type === 'flashcard'));
-    let hasQuiz = $derived(tools.some(t => t.type === 'quiz') || activeToolsJobs.some(j => j.payload?.type === 'quiz'));
 
     // View State
     let activeView = $state<'dashboard' | 'guide' | 'transcript' | 'doc' | 'tool'>('dashboard');
@@ -346,31 +343,6 @@
     }
 
     async function createTool(type: string) {
-        // Check if tool already exists or is being built
-        const existing = tools.find(t => t.type === type);
-        if (existing) {
-            showConfirm({
-                title: `Recreate ${capitalize(type)}`,
-                message: `A ${type} already exists. Do you want to delete it and create a new one?`,
-                confirmText: 'Recreate',
-                onConfirm: async () => {
-                    try {
-                        await api.request('DELETE', '/tools', { tool_id: existing.id, exam_id: examId });
-                        await loadLectureData();
-                        // Proceed to show creation modal
-                        pendingToolType = type;
-                        if (lecture?.language) {
-                            toolOptions.language_code = lecture.language;
-                        }
-                        showCreateModal = true;
-                    } catch (e: any) {
-                        notifications.error('Failed to remove old material: ' + e.message);
-                    }
-                }
-            });
-            return;
-        }
-
         pendingToolType = type;
         if (lecture?.language) {
             toolOptions.language_code = lecture.language;
@@ -388,7 +360,7 @@
                 length: toolOptions.length,
                 language_code: toolOptions.language_code
             });
-            notifications.success(`We are preparing your ${pendingToolType}. It will appear in the study aids list once ready.`);
+            notifications.success(`We are preparing your study guide. It will appear in the dashboard once ready.`);
         } catch (e: any) {
             notifications.error(e.message || e);
         }
@@ -486,20 +458,13 @@
                 <button class="btn btn-link btn-sm text-muted p-0 border-0 shadow-none d-flex align-items-center" onclick={() => showEditModal = true} title="Edit Lesson">
                     <Edit3 size={16} />
                 </button>
-                <div class="btn-group">
-                    <button 
-                        class="btn btn-success btn-sm dropdown-toggle rounded-0" 
-                        data-bs-toggle="dropdown"
-                        disabled={lecture.status !== 'ready'}
-                    >
-                        Prepare Material
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li><button class="dropdown-item" onclick={() => createTool('guide')}>{hasGuide ? 'Recreate' : 'Create'} Study Guide</button></li>
-                        <li><button class="dropdown-item" onclick={() => createTool('flashcard')}>{hasFlashcards ? 'Recreate' : 'Create'} Flashcards</button></li>
-                        <li><button class="dropdown-item" onclick={() => createTool('quiz')}>{hasQuiz ? 'Recreate' : 'Create'} Practice Quiz</button></li>
-                    </ul>
-                </div>
+                <button 
+                    class="btn btn-success btn-sm rounded-0" 
+                    onclick={() => createTool('guide')}
+                    disabled={lecture.status !== 'ready'}
+                >
+                    {hasGuide ? 'Recreate' : 'Create'} Study Guide
+                </button>
             </div>
         </div>
         {#if lecture.description}
@@ -510,7 +475,7 @@
     <div class="container-fluid p-0">
         <div class="row g-4">
             <!-- Main Content Area -->
-            <div class={activeView === 'dashboard' ? 'col-12' : 'col-lg-8 order-md-1'}>
+            <div class="col-12">
                 {#if activeView === 'dashboard'}
                     <div class="mb-4">
                         <div class="linkTiles">
@@ -536,7 +501,7 @@
                                 {#snippet description()}
                                     {#if transcriptJobRunning}
                                         <div class="d-flex align-items-center gap-2">
-                                            <div class="spinner-border spinner-border-sm text-success" role="status">
+                                            <div class="spinner-border spinner-border-sm" role="status">
                                                 <span class="visually-hidden">Processing...</span>
                                             </div>
                                             <span>{transcriptJob?.progress || 0}%</span>
@@ -557,18 +522,37 @@
                                         Read the comprehensive study guide.
                                     {/snippet}
                                 </Tile>
+                            {:else}
+                                {@const guideJob = activeToolsJobs.find(j => j.payload?.type === 'guide')}
+                                {#if guideJob}
+                                    <Tile
+                                        icon=""
+                                        title="Study Guide"
+                                        disabled={guideJob.status !== 'FAILED'}
+                                        onclick={() => guideJob.status === 'FAILED' && retryJob(guideJob)}
+                                        class={guideJob.status === 'FAILED' ? 'tile-error' : 'tile-processing'}
+                                    >
+                                        {#snippet actions()}
+                                            {#if guideJob.status === 'FAILED'}
+                                                <button class="btn btn-link text-primary p-0 border-0 shadow-none" onclick={(e) => { e.preventDefault(); e.stopPropagation(); retryJob(guideJob); }} title="Retry">
+                                                    <RotateCcw size={16} />
+                                                </button>
+                                            {/if}
+                                        {/snippet}
+                                        {#snippet description()}
+                                            {#if guideJob.status === 'FAILED'}
+                                                <span class="text-danger">Generation failed. Click to retry.</span>
+                                            {:else}
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                                                    <span>{guideJob.progress || 0}%</span>
+                                                </div>
+                                                <div class="small mt-1 text-truncate">{guideJob.progress_message_text || 'Preparing...'}</div>
+                                            {/if}
+                                        {/snippet}
+                                    </Tile>
+                                {/if}
                             {/if}
-
-                            {#each tools.filter(t => t.type !== 'guide') as tool}
-                                <Tile href="javascript:void(0)" 
-                                    icon="" 
-                                    title={capitalize(tool.type)}
-                                    onclick={() => openTool(tool.id)}>
-                                    {#snippet description()}
-                                        Practice your knowledge.
-                                    {/snippet}
-                                </Tile>
-                            {/each}
 
                             {#each documents as doc}
                                 <Tile href="javascript:void(0)" icon="" title={doc.title} onclick={() => openDocument(doc.id)}>
@@ -601,7 +585,7 @@
                                     {#snippet description()}
                                         {#if documentsJobRunning}
                                             <div class="d-flex align-items-center gap-2">
-                                                <div class="spinner-border spinner-border-sm text-success" role="status">
+                                                <div class="spinner-border spinner-border-sm" role="status">
                                                     <span class="visually-hidden">Processing...</span>
                                                 </div>
                                                 <span>{documentsJob?.progress || 0}%</span>
@@ -722,7 +706,7 @@
                             <div class="p-5 text-center">
                                 {#if transcriptJobRunning}
                                     <div class="d-flex flex-column align-items-center gap-3">
-                                        <div class="spinner-border text-success" role="status">
+                                        <div class="spinner-border" role="status">
                                             <span class="visually-hidden">Processing...</span>
                                         </div>
                                         <p class="text-muted mb-0">Transcribing audio... {transcriptJob?.progress || 0}%</p>
@@ -778,96 +762,15 @@
                         {:else}
                             <div class="p-5 text-center text-muted">
                                 <div class="d-flex flex-column align-items-center gap-3">
-                                    <div class="spinner-border text-success" role="status">
+                                    <div class="spinner-border" role="status">
                                         <span class="visually-hidden">Loading...</span>
                                     </div>
                                 </div>
                             </div>
                         {/if}
                     </div>
-                {:else if activeView === 'tool'}
-                    {@const tool = tools.find(t => t.id === selectedToolId)}
-                    <div class="well bg-white p-0 overflow-hidden mb-3 border">
-                        <div class="standard-header">
-                            <div class="header-title">
-                                <span class="header-text">{tool?.title || 'Practice Mode'}</span>
-                            </div>
-                            <div class="d-flex align-items-center gap-2">
-                                {#if tool}
-                                    <button class="btn btn-link btn-sm text-danger p-0 d-flex align-items-center shadow-none border-0" title="Delete {capitalize(tool.type)}" onclick={() => deleteTool(tool.id)}>
-                                        <Trash2 size={18} />
-                                    </button>
-                                {/if}
-                                <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
-                            </div>
-                        </div>
-                        
-                        <div class="p-4">
-                            {#if tool?.type === 'flashcard'}
-                                {#await api.getToolHTML(tool.id, examId!)}
-                                    <div class="text-center p-5"><div class="village-spinner mx-auto"></div></div>
-                                {:then toolHTML}
-                                    <div class="row g-4">
-                                        {#each toolHTML.content as card}
-                                            <div class="col-xl-4 col-lg-6 col-md-12">
-                                                <Flashcard frontHTML={card.front_html} backHTML={card.back_html} />
-                                            </div>
-                                        {/each}
-                                    </div>
-                                {/await}
-                            {:else if tool?.type === 'quiz'}
-                                {#await api.getToolHTML(tool.id, examId!)}
-                                    <div class="text-center p-5"><div class="village-spinner mx-auto"></div></div>
-                                {:then toolHTML}
-                                    <div class="quiz-list">
-                                        {#each toolHTML.content as item, i}
-                                            <div class="bg-white mb-3 border">
-                                                <div class="px-4 py-2 border-bottom bg-light d-flex justify-content-between align-items-center">
-                                                    <span class="fw-bold small text-muted">Question {i + 1}</span>
-                                                </div>
-                                                <div class="p-4">
-                                                    <div class="mb-4 fs-5 fw-bold" style="line-height: 1.4;">{@html item.question_html}</div>
-                                                    
-                                                    <div class="list-group mb-4 rounded-0 shadow-none">
-                                                        {#each item.options_html as opt}
-                                                            <div class="list-group-item py-3 border-start-0 border-end-0">{@html opt}</div>
-                                                        {/each}
-                                                    </div>
-                                                    
-                                                    <div class="bg-success bg-opacity-10 border-start border-4 border-success mb-4 p-3">
-                                                        <strong class="text-success small d-block mb-1">Correct Answer</strong>
-                                                        <div class="fs-6 fw-bold">{@html item.correct_answer_html}</div>
-                                                    </div>
-                                                    
-                                                    <div class="bg-light border-start border-4 border-secondary p-3 small">
-                                                        <strong class="text-muted d-block mb-1">Explanation</strong>
-                                                        <div class="text-muted" style="line-height: 1.5;">{@html item.explanation_html}</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        {/each}
-                                    </div>
-                                {/await}
-                            {/if}
-                        </div>
-                    </div>
                 {/if}
             </div>
-
-            <!-- Sidebar: Navigation ONLY (Right Side on Desktop) -->
-            {#if activeView !== 'dashboard'}
-                <div class="col-lg-4 order-md-2">
-                    <div class="linkTiles flex-column mb-4 p-4">
-                        <Tile icon="" 
-                            title="Back to Hub" 
-                            onclick={() => activeView = 'dashboard'}>
-                            {#snippet description()}
-                                Return to the lesson dashboard.
-                            {/snippet}
-                        </Tile>
-                    </div>
-                </div>
-            {/if}
         </div>
     </div>
 {:else if loading}
@@ -891,7 +794,7 @@
 {/if}
 
 <Modal 
-    title="Customize {capitalize(pendingToolType)}" 
+    title="Configure Study Guide" 
     isOpen={showCreateModal} 
     onClose={() => showCreateModal = false}
 >
@@ -905,12 +808,12 @@
             <option value="fr-FR">Français</option>
             <option value="ja-JP">日本語</option>
         </select>
-        <div class="form-text mt-1" style="font-size: 0.7rem;">The assistant will translate and prepare content in this language.</div>
+        <div class="form-text mt-1 mb-4" style="font-size: 0.7rem;">The assistant will translate and prepare content in this language.</div>
     </div>
 
     <div class="mb-0">
         <span class="form-label">Level of Detail</span>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 mt-3">
             {#each ['short', 'medium', 'long', 'comprehensive'] as len}
                 <button 
                     class="btn flex-grow-1 rounded-0 border transition-all {toolOptions.length === len ? 'btn-primary' : 'btn-white bg-white text-dark'}"
@@ -924,7 +827,7 @@
 
     {#snippet footer()}
         <button class="btn btn-success w-100" onclick={confirmCreateTool}>
-            Create Material
+            Generate Guide
         </button>
     {/snippet}
 </Modal>

@@ -96,6 +96,23 @@
             background: #fafaf9;
             z-index: 10;
         }
+
+        &.tile-processing {
+            background: #fafaf9;
+            opacity: 0.8;
+            
+            .tile-title {
+                color: var(--gray-500);
+            }
+        }
+
+        &.tile-error {
+            background: #fffafa;
+            
+            .tile-title {
+                color: #b91c1c;
+            }
+        }
     }
     /* Common styles for both a and button */
     a, button.tile-button {

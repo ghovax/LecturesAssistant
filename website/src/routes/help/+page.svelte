@@ -32,7 +32,7 @@
             <div class="p-4">
                 <div class="d-flex align-items-start gap-3">
                     <BookOpen class="text-orange mt-1 flex-shrink-0" size={24} />
-                    <p class="mb-0 text-muted">Automatically generate comprehensive study guides, flashcards, and practice quizzes. Every resource is deeply grounded in your specific lesson materials and reference files.</p>
+                    <p class="mb-0 text-muted">Automatically generate comprehensive study guides deeply grounded in your specific lesson materials and reference files.</p>
                 </div>
             </div>
         </div>

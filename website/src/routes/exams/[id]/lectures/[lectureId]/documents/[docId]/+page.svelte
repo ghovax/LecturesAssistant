@@ -89,27 +89,8 @@
 
     <div class="container-fluid p-0">
         <div class="row">
-            <!-- Sidebar: Navigation -->
-            <div class="col-lg-3 col-md-4 order-md-2">
-                <h3>Navigation</h3>
-                <div class="list-group shadow-sm small overflow-auto" style="max-height: 50vh;">
-                    {#each pages as p, i}
-                        <button 
-                            onclick={() => currentPageIndex = i} 
-                            class="list-group-item list-group-item-action d-flex justify-content-between align-items-center text-start {currentPageIndex === i ? 'active' : ''}"
-                        >
-                            Page {p.page_number}
-                            <span class={currentPageIndex === i ? 'text-white' : 'text-muted'}><Search size={12} /></span>
-                        </button>
-                    {/each}
-                </div>
-                <div class="mt-3 text-muted small">
-                    <p><kbd>←</kbd> <kbd>→</kbd> Use arrow keys to navigate</p>
-                </div>
-            </div>
-
             <!-- Main Content: Single Page Viewer -->
-            <div class="col-lg-8 order-md-1">
+            <div class="col-12">
                 {#if pages[currentPageIndex]}
                     {@const p = pages[currentPageIndex]}
                     <div class="well bg-white mb-3 p-0 overflow-hidden border shadow-none">

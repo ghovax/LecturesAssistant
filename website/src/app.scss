@@ -341,18 +341,43 @@ body {
 /* Spinner Animation */
 @keyframes village-spinner-rotation {
     0% { transform: rotate(0deg); }
-    100% { transform: rotate(359deg); }
+    100% { transform: rotate(360deg); }
 }
 .village-spinner {
-    width: 2.5rem;
-    height: 2.5rem;
-    border: 3px solid var(--gray-300);
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 2px solid var(--gray-200);
     border-top-color: var(--orange);
     border-radius: 50% !important;
-    animation: village-spinner-rotation 0.8s infinite linear;
+    animation: village-spinner-rotation 0.8s infinite cubic-bezier(0.6, 0.2, 0.4, 0.8);
 }
 .shadow-kakimashou {
     box-shadow: none !important;
+}
+
+.spinner-border {
+    border-width: 2px !important;
+    color: var(--orange);
+}
+
+.text-orange {
+    color: var(--orange) !important;
+}
+
+.form-label {
+    font-family: 'Manrope', sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: var(--gray-500) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    margin-bottom: 16px !important;
+    display: block !important;
+}
+
+.form-text {
+    margin-bottom: 20px !important;
+    display: block !important;
 }
 
 .filename {
@@ -372,8 +397,8 @@ body {
 /* Dropdown / Pop-up refinements */
 .dropdown-menu {
     border-radius: 0;
-    border: 1px solid var(--gray-300);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    border: none !important;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
     padding: 8px 0;
     background: #fff;
 

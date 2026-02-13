@@ -30,7 +30,7 @@
         onclick={handleBackdropClick}
     >
         <div class="modal-dialog modal-dialog-centered" style="max-width: {maxWidth};">
-            <div class="modal-content border-0 rounded-0 shadow-none border border-light">
+            <div class="modal-content border-0 rounded-0 shadow-lg">
                 <!-- Header -->
                 <div class="standard-header px-3">
                     <div class="header-title">
@@ -60,19 +60,6 @@
 <style lang="scss">
     .modal-content {
         border-radius: 0 !important;
-        border-color: var(--gray-300) !important;
-    }
-
-    :global(.modal-body) {
-        .form-label {
-            font-family: 'Manrope', sans-serif;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--gray-500);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 8px;
-            display: block;
-        }
+        border: none !important;
     }
 </style>

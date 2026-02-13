@@ -173,83 +173,8 @@
 
     <div class="container-fluid p-0">
         <div class="row g-4">
-            <!-- Sidebar: Context Selection & Other Sessions -->
-            <div class="col-lg-4 order-md-2">
-                <div class="bg-white border mb-4">
-                    <div class="standard-header">
-                        <div class="header-title">
-                            <span class="header-text">Knowledge Base</span>
-                        </div>
-                        {#if updatingContext}
-                            <div class="spinner-border spinner-border-sm text-orange" role="status">
-                                <span class="visually-hidden">Syncing...</span>
-                            </div>
-                        {/if}
-                    </div>
-                    <div class="p-3 bg-light border-bottom">
-                        <p class="text-muted small mb-0">Choose the lessons I should use to answer your questions.</p>
-                    </div>
-                    
-                    <div class="bg-white p-0 overflow-auto" style="max-height: 40vh;">
-                        {#each allLectures as lecture}
-                            {@const isLocked = usedLectureIds.includes(lecture.id)}
-                            {@const isIncluded = includedLectureIds.includes(lecture.id)}
-                            <button 
-                                onclick={() => !isLocked && toggleLecture(lecture.id)}
-                                class="w-100 border-0 border-bottom last-child-border-0 p-3 text-start d-flex align-items-center gap-3"
-                                style="background: {isIncluded ? 'rgba(234, 88, 12, 0.05)' : 'transparent'}; 
-                                    transition: all 0.15s ease; 
-                                    cursor: {isLocked ? 'not-allowed' : 'pointer'};
-                                    opacity: {isLocked ? 0.8 : 1};"
-                                disabled={updatingContext || isLocked}
-                                title={isLocked ? 'This context is locked because it was already used in this chat.' : ''}
-                            >
-                                <div class="flex-shrink-0">
-                                    {#if isLocked}
-                                        <div class="village-toggle is-locked is-active"></div>
-                                    {:else}
-                                        <div class="village-toggle" class:is-active={isIncluded}></div>
-                                    {/if}
-                                </div>
-                                <div 
-                                    class="small no-shift-bold" 
-                                    style="line-height: 1.2;"
-                                    data-text={lecture.title}
-                                >
-                                    <span class={isIncluded || isLocked ? 'fw-bold text-orange' : 'text-dark'}>
-                                        {lecture.title}
-                                    </span>
-                                </div>
-                            </button>
-                        {/each}
-                        {#if allLectures.length === 0}
-                            <div class="p-4 text-center"><p class="text-muted mb-0">No lessons available yet.</p></div>
-                        {/if}
-                    </div>
-                </div>
-
-                {#if otherSessions.length > 0}
-                    <div class="bg-white border mb-4">
-                        <div class="standard-header">
-                            <div class="header-title">
-                                <span class="header-text">Recent Chats</span>
-                            </div>
-                        </div>
-                        <div class="linkTiles flex-column p-4">
-                            {#each otherSessions as other}
-                                <Tile href="/exams/{examId}/chat/{other.id}" icon="" title={other.title || 'Untitled Chat'}>
-                                    {#snippet description()}
-                                        Switch to this study session.
-                                    {/snippet}
-                                </Tile>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-            </div>
-
             <!-- Main Content: Chat History -->
-            <div class="col-lg-8 order-md-1">
+            <div class="col-12">
                 <form onsubmit={(e) => { e.preventDefault(); sendMessage(); }} class="mb-4">
                     <div class="input-group dictionary-style mb-3">
                         <input 
@@ -312,7 +237,7 @@
                                         </span>
                                     {/if}
                                 </div>
-                                <div class="spinner-border spinner-border-sm text-orange" role="status">
+                                <div class="spinner-border spinner-border-sm" role="status">
                                     <span class="visually-hidden">Thinking...</span>
                                 </div>
                             </div>

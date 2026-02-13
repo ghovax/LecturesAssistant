@@ -77,11 +77,6 @@
                             {/snippet}
                         </Tile>
                     {:else}
-                        <Tile href="/profile" icon="" title="My Profile">
-                            {#snippet description()}
-                                View and manage account details.
-                            {/snippet}
-                        </Tile>
                         <Tile onclick={handleLogout} icon="" title="Logout">
                             {#snippet description()}
                                 Securely sign out of your session.

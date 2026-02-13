@@ -97,11 +97,12 @@
         }
 
         &.btn-danger {
-            background: #ef4444;
+            background: #b91c1c;
             color: white;
-            border-color: #ef4444;
+            border-color: #b91c1c;
             &:hover {
-                background: #dc2626;
+                background: #991b1b;
+                border-color: #991b1b;
             }
         }
 

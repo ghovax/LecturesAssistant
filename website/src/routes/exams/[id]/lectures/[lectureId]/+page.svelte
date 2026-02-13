@@ -577,7 +577,7 @@
                     <Edit3 size={16} />
                 </button>
                 <button 
-                    class="btn btn-success btn-sm rounded-0" 
+                    class="btn btn-success rounded-0" 
                     onclick={() => createTool('guide')}
                     disabled={lecture.status !== 'ready'}
                 >
@@ -1024,9 +1024,11 @@
     </div>
 
     {#snippet footer()}
-        <button class="btn btn-success w-100" onclick={confirmCreateTool}>
-            Generate Guide
-        </button>
+        <div class="d-flex justify-content-end">
+            <button class="btn btn-success px-4" onclick={confirmCreateTool}>
+                Generate Guide
+            </button>
+        </div>
     {/snippet}
 </Modal>
 

@@ -117,7 +117,7 @@ body {
     padding: 8px 12px !important;
     background: #fff !important;
     transition: all 0.2s ease !important;
-    height: 2.5rem;
+    height: 2.25rem;
 
     &:focus {
         border-color: var(--orange) !important;
@@ -128,20 +128,20 @@ body {
 
 textarea.cozy-input {
     height: auto !important;
-    min-height: 2.5rem;
+    min-height: 2.25rem;
 }
 
 .form-select.cozy-input {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
-    line-height: 2.5rem !important;
+    line-height: 2.25rem !important;
     appearance: none;
 }
 
 /* Dictionary Search Style Input Group */
 .input-group.dictionary-style {
     .form-control, .form-select, .btn {
-        height: 2.5rem;
+        height: 2.25rem;
     }
     .form-control, .form-select {
         border-right: none;
@@ -160,7 +160,7 @@ textarea.cozy-input {
     text-transform: uppercase;
     letter-spacing: 0.04em;
     font-size: 0.75rem;
-    height: 2.5rem; // Homogenous height for primary buttons
+    height: 2.25rem; // Homogenous height for primary buttons
     padding: 0 1.25rem;
     transition: all 0.15s ease;
     box-shadow: 0.125rem 0.125rem 0.25rem rgba(0, 0, 0, 0.05);
@@ -182,7 +182,7 @@ textarea.cozy-input {
 }
 
 .btn-lg {
-    height: 3rem;
+    height: 2.75rem;
     padding: 0 2rem;
     font-size: 0.85rem;
 }
@@ -228,11 +228,12 @@ textarea.cozy-input {
 }
 
 .btn-danger {
-    background-color: #ef4444 !important;
-    border-color: #ef4444 !important;
+    background-color: #b91c1c !important;
+    border-color: #b91c1c !important;
+    color: #fff !important;
     &:hover {
-        background-color: #dc2626 !important;
-        border-color: #dc2626 !important;
+        background-color: #991b1b !important;
+        border-color: #991b1b !important;
     }
 }
 

@@ -42,13 +42,13 @@
                 </div>
 
                 <!-- Body -->
-                <div class="modal-body p-4 bg-white">
+                <div class="modal-body p-3 bg-white">
                     {@render children()}
                 </div>
 
                 <!-- Footer -->
                 {#if footer}
-                    <div class="px-4 py-3 bg-white border-top">
+                    <div class="px-3 py-3 bg-white border-top">
                         {@render footer()}
                     </div>
                 {/if}

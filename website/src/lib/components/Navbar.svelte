@@ -43,12 +43,6 @@
             </li>
             {#if auth.user}
                 <li class="nav-item">
-                    <a class="nav-link px-2" href="/profile" onclick={() => isMenuOpen = false}>
-                        <span class="nav-icon" aria-hidden="true"><User size={16} /></span> 
-                        <span class="nav-text">Profile</span>
-                    </a>
-                </li>
-                <li class="nav-item">
                     <button class="nav-link btn btn-link border-0 shadow-none px-2 w-100 justify-content-start" onclick={handleLogout}>
                         <span class="nav-icon" aria-hidden="true"><LogOut size={16} /></span> 
                         <span class="nav-text">Logout</span>

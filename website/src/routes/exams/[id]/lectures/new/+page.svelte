@@ -5,7 +5,7 @@
     import { notifications } from '$lib/stores/notifications.svelte';
     import { goto } from '$app/navigation';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
-    import { Upload, File, Video, CheckCircle2, Search, Info, Trash2, X } from 'lucide-svelte';
+    import { Upload, FileText, Info, X, Music, GripVertical, FileUp } from 'lucide-svelte';
 
     let examId = $derived(page.params.id);
     let exam = $state<any>(null);
@@ -16,19 +16,40 @@
     let documentFiles = $state<File[]>([]);
     let uploading = $state(false);
     let status = $state('');
+    let isDragging = $state(false);
 
-    function addMediaFiles(e: Event) {
-        const input = e.target as HTMLInputElement;
-        if (input.files) {
-            mediaFiles = [...mediaFiles, ...Array.from(input.files)];
-        }
+    const mediaExtensions = ['mp4', 'mkv', 'mov', 'webm', 'mp3', 'wav', 'm4a', 'flac'];
+    const docExtensions = ['pdf', 'pptx', 'docx'];
+
+    function handleFiles(files: FileList | File[]) {
+        const selected = Array.from(files);
+        const newMedia: File[] = [];
+        const newDocs: File[] = [];
+
+        selected.forEach(file => {
+            const ext = file.name.split('.').pop()?.toLowerCase() || '';
+            if (mediaExtensions.includes(ext)) {
+                newMedia.push(file);
+            } else if (docExtensions.includes(ext)) {
+                newDocs.push(file);
+            } else {
+                notifications.info(`Skipped unsupported file: ${file.name}`);
+            }
+        });
+
+        mediaFiles = [...mediaFiles, ...newMedia];
+        documentFiles = [...documentFiles, ...newDocs];
     }
 
-    function addDocumentFiles(e: Event) {
+    function onFileSelect(e: Event) {
         const input = e.target as HTMLInputElement;
-        if (input.files) {
-            documentFiles = [...documentFiles, ...Array.from(input.files)];
-        }
+        if (input.files) handleFiles(input.files);
+    }
+
+    function onDrop(e: DragEvent) {
+        e.preventDefault();
+        isDragging = false;
+        if (e.dataTransfer?.files) handleFiles(e.dataTransfer.files);
     }
 
     function removeMedia(index: number) {
@@ -75,7 +96,6 @@
         ]);
         exam = examData;
 
-        // Default to exam language, then settings language
         if (exam?.language) {
             language = exam.language;
         } else if (settings?.llm?.language) {
@@ -88,211 +108,234 @@
     <Breadcrumb items={[{ label: 'My Studies', href: '/exams' }, { label: exam.title, href: `/exams/${examId}` }, { label: 'Add Lesson', active: true }]} />
 
     <header class="page-header">
-        <h1 class="page-title">Add New Lesson</h1>
+        <h1 class="page-title">Create New Lesson</h1>
     </header>
 
-    <div class="well border mb-3">
-        <div class="p-4">
-            <!-- Instructions -->
-            <div class="mb-5" style="font-size: 0.85rem;">
-                <p class="mb-2"><strong>Step 1:</strong> Enter a descriptive title for this lesson.</p>
-                <p class="mb-2"><strong>Step 2:</strong> Provide any number of recordings or reference documents.</p>
-                <p class="mb-2"><strong>Step 3:</strong> Click the upload button in the title bar to begin processing.</p>
-                <div class="d-flex align-items-center text-muted mt-3 pt-3 border-top">
-                    <Info size={14} class="me-2 flex-shrink-0" />
-                    <div style="font-size: 0.75rem;">Multiple files will be combined into a single unified learning experience.</div>
+    <div class="row g-4">
+        <!-- Metadata Column -->
+        <div class="col-lg-5">
+            <div class="bg-white border h-100">
+                <div class="standard-header">
+                    <div class="header-title">
+                        <span class="header-text">Lesson Details</span>
+                    </div>
                 </div>
-            </div>
+                <div class="p-4">
+                    <div class="mb-4">
+                        <label for="lesson-title" class="cozy-label">Title</label>
+                        <input 
+                            id="lesson-title"
+                            type="text" 
+                            class="form-control cozy-input" 
+                            placeholder="e.g. Cellular Respiration" 
+                            bind:value={title}
+                            required
+                            disabled={uploading}
+                        />
+                    </div>
 
-            <!-- Prominent Search-style Title Input -->
-            <form onsubmit={(e) => { e.preventDefault(); handleUpload(); }} class="mb-4">
-                <div class="input-group dictionary-style mb-3">
-                    <input 
-                        type="text" 
-                        class="form-control cozy-input" 
-                        placeholder="Enter Lesson Title (e.g., Cellular Respiration)..." 
-                        bind:value={title}
-                        required
-                        disabled={uploading}
-                    />
-                    <button class="btn btn-success" type="submit" disabled={uploading || !title || (mediaFiles.length === 0 && documentFiles.length === 0)}>
-                        {#if uploading}
-                            <span class="spinner-border spinner-border-sm" role="status"></span>
-                        {:else}
-                            <Upload size={18} />
-                        {/if}
-                    </button>
-                </div>
-            </form>
+                    <div class="mb-4">
+                        <label for="lesson-desc" class="cozy-label">Description (Optional)</label>
+                        <textarea
+                            id="lesson-desc"
+                            class="form-control cozy-input"
+                            rows="4"
+                            placeholder="What is this lesson about?"
+                            bind:value={description}
+                            disabled={uploading}
+                            style="height: auto !important;"
+                        ></textarea>
+                    </div>
 
-            <div class="container-fluid p-0">
-                <div class="row g-4">
-                    <!-- Main Content: Description and Files -->
-                    <div class="col-12">
-                        <div class="bg-white border mb-4">
-                            <div class="standard-header">
-                                <div class="header-title">
-                                    <span class="header-text">Description</span>
-                                </div>
-                            </div>
-                            <div class="p-4 prose">
-                                <textarea
-                                    class="form-control bg-transparent border-0 p-0 shadow-none"
-                                    rows="3"
-                                    placeholder="Add an optional summary of the lesson content..."
-                                    bind:value={description}
-                                    disabled={uploading}
-                                    style="font-size: 0.85rem; line-height: 1.5; resize: none;"
-                                ></textarea>
-                            </div>
-                        </div>
-
-                        <div class="bg-white border mb-4">
-                            <div class="standard-header">
-                                <div class="header-title">
-                                    <span class="header-text">Language</span>
-                                </div>
-                            </div>
-                            <div class="p-4">
-                                <select class="form-select cozy-input" bind:value={language} disabled={uploading}>
-                                    <option value="en-US">English (US)</option>
-                                    <option value="it-IT">Italian</option>
-                                    <option value="ja-JP">Japanese</option>
-                                    <option value="es-ES">Spanish</option>
-                                    <option value="fr-FR">French</option>
-                                    <option value="de-DE">German</option>
-                                    <option value="zh-CN">Chinese (Simplified)</option>
-                                    <option value="pt-BR">Portuguese (Brazilian)</option>
-                                </select>
-                                <div class="form-text mt-2" style="font-size: 0.85rem;">Language for transcription and document processing.</div>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <!-- Media Upload -->
-                            <div class="col-12 mb-4">
-                                <div class="bg-white border h-100">
-                                    <div class="standard-header">
-                                        <div class="header-title">
-                                            <span class="header-text">Recordings</span>
-                                        </div>
-                                    </div>
-                                    <div class="p-4">
-                                        <p class="small text-muted mb-3">Upload the lecture's audio or video recordings. We support common formats like MP4, MKV, MP3, WAV, and M4A. You can upload multiple files, and they will be automatically unified into a single chronological transcript.</p>
-                                        <input 
-                                            type="file" 
-                                            id="media" 
-                                            class="d-none" 
-                                            accept="video/*,audio/*" 
-                                            multiple
-                                            onchange={addMediaFiles} 
-                                            disabled={uploading}
-                                        />
-                                        <label for="media" class="btn btn-outline-primary btn-sm w-100">
-                                            Select Files
-                                        </label>
-                                        
-                                        {#if mediaFiles.length > 0}
-                                            <div class="mt-3 border-top pt-2">
-                                                {#each mediaFiles as file, i}
-                                                    <div 
-                                                        class="d-flex justify-content-between align-items-center mb-1 small bg-light p-2"
-                                                        draggable={!uploading}
-                                                        ondragstart={(e: DragEvent) => !uploading && e.dataTransfer?.setData('text/plain', i.toString())}
-                                                        ondragover={(e: DragEvent) => { e.preventDefault(); if(!uploading && e.currentTarget instanceof HTMLElement) e.currentTarget.style.borderTop = '2px solid var(--orange)'; }}
-                                                        ondragleave={(e: DragEvent) => { if(e.currentTarget instanceof HTMLElement) e.currentTarget.style.borderTop = ''; }}
-                                                        ondrop={(e: DragEvent) => {
-                                                            e.preventDefault();
-                                                            if(e.currentTarget instanceof HTMLElement) e.currentTarget.style.borderTop = '';
-                                                            if (uploading) return;
-                                                            const fromIndex = parseInt(e.dataTransfer?.getData('text/plain') || '-1');
-                                                            if (fromIndex !== -1 && fromIndex !== i) {
-                                                                const files = [...mediaFiles];
-                                                                const [moved] = files.splice(fromIndex, 1);
-                                                                files.splice(i, 0, moved);
-                                                                mediaFiles = files;
-                                                            }
-                                                        }}
-                                                        style="cursor: {uploading ? 'default' : 'grab'}; transition: border 0.1s ease;"
-                                                    >
-                                                        <div class="d-flex align-items-center overflow-hidden">
-                                                            <span class="badge bg-secondary rounded-0 me-2" style="font-size: 0.6rem; min-width: 1.5em;">{i + 1}</span>
-                                                            <span class="text-truncate fw-bold" title={file.name}>{file.name}</span>
-                                                        </div>
-                                                        <button class="btn btn-link btn-sm text-danger p-0 border-0 shadow-none ms-2" onclick={() => removeMedia(i)} disabled={uploading}>
-                                                            <X size={14} />
-                                                        </button>
-                                                    </div>
-                                                {/each}
-                                                <div class="form-text mt-2 text-center" style="font-size: 0.7rem; opacity: 0.7;">Drag to reorder recordings.</div>
-                                            </div>
-                                        {/if}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Document Upload -->
-                            <div class="col-12 mb-4">
-                                <div class="bg-white border h-100">
-                                    <div class="standard-header">
-                                        <div class="header-title">
-                                            <span class="header-text">References</span>
-                                        </div>
-                                    </div>
-                                    <div class="p-4">
-                                        <p class="small text-muted mb-3">Provide any accompanying materials like slides, research papers, or textbooks (PDF, PPTX, DOCX). These will be analyzed to enrich the lecture content with precise terminology and citations in your study aids.</p>
-                                        <input 
-                                            type="file" 
-                                            id="docs" 
-                                            class="d-none" 
-                                            accept=".pdf,.pptx,.docx" 
-                                            multiple
-                                            onchange={addDocumentFiles} 
-                                            disabled={uploading}
-                                        />
-                                        <label for="docs" class="btn btn-outline-primary btn-sm w-100">
-                                            Select Files
-                                        </label>
-
-                                        {#if documentFiles.length > 0}
-                                            <div class="mt-3 border-top pt-2">
-                                                {#each documentFiles as file, i}
-                                                    <div class="d-flex justify-content-between align-items-center mb-1 small bg-light p-2">
-                                                        <span class="text-truncate me-2 fw-bold" title={file.name}>{file.name}</span>
-                                                        <button class="btn btn-link btn-sm text-danger p-0 border-0 shadow-none" onclick={() => removeDocument(i)} disabled={uploading}>
-                                                            <X size={14} />
-                                                        </button>
-                                                    </div>
-                                                {/each}
-                                            </div>
-                                        {/if}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {#if uploading}
-                            <div class="text-center p-4">
-                                <div class="d-flex flex-column align-items-center gap-3">
-                                    <div class="village-spinner mx-auto" role="status"></div>
-                                    <p class="text-muted mb-0">{status}</p>
-                                </div>
-                            </div>
-                        {/if}
+                    <div class="mb-0">
+                        <label for="lesson-lang" class="cozy-label">Processing Language</label>
+                        <select id="lesson-lang" class="form-select cozy-input" bind:value={language} disabled={uploading}>
+                            <option value="en-US">English (US)</option>
+                            <option value="it-IT">Italian</option>
+                            <option value="ja-JP">Japanese</option>
+                            <option value="es-ES">Spanish</option>
+                            <option value="fr-FR">French</option>
+                            <option value="de-DE">German</option>
+                            <option value="zh-CN">Chinese (Simplified)</option>
+                            <option value="pt-BR">Portuguese (Brazilian)</option>
+                        </select>
+                        <div class="form-text mt-2 small opacity-75">Transcripts and analysis will use this language.</div>
                     </div>
                 </div>
             </div>
         </div>
+
+        <!-- Unified Files Column -->
+        <div class="col-lg-7">
+            <div class="bg-white border h-100 d-flex flex-column">
+                <div class="standard-header">
+                    <div class="header-title">
+                        <span class="header-text">Lesson Materials</span>
+                    </div>
+                </div>
+                
+                <div class="p-4 flex-grow-1">
+                    <!-- Dropzone -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <div 
+                        class="dropzone mb-4 {isDragging ? 'is-dragging' : ''}"
+                        ondragover={(e) => { e.preventDefault(); isDragging = true; }}
+                        ondragleave={() => isDragging = false}
+                        {onDrop}
+                    >
+                        <input 
+                            type="file" 
+                            id="file-input" 
+                            class="d-none" 
+                            multiple
+                            onchange={onFileSelect}
+                            disabled={uploading}
+                        />
+                        <label for="file-input" class="dropzone-label">
+                            <FileUp size={32} class="mb-2 text-orange opacity-75" />
+                            <div class="fw-bold small mb-1">Click or drag files here</div>
+                            <div class="text-muted" style="font-size: 0.7rem;">Recordings (MP4, MP3...) and References (PDF, PPTX...)</div>
+                        </label>
+                    </div>
+
+                    {#if mediaFiles.length > 0 || documentFiles.length > 0}
+                        <div class="file-list">
+                            <!-- Group: Recordings -->
+                            {#if mediaFiles.length > 0}
+                                <div class="mb-4">
+                                    <div class="cozy-label mb-2 opacity-75" style="font-size: 0.6rem;">Recordings (Ordered)</div>
+                                    {#each mediaFiles as file, i}
+                                        <div 
+                                            class="file-item recording"
+                                            draggable={!uploading}
+                                            ondragstart={(e: DragEvent) => !uploading && e.dataTransfer?.setData('text/plain', i.toString())}
+                                            ondragover={(e: DragEvent) => { e.preventDefault(); if(!uploading && e.currentTarget instanceof HTMLElement) e.currentTarget.style.borderTop = '2px solid var(--orange)'; }}
+                                            ondragleave={(e: DragEvent) => { if(e.currentTarget instanceof HTMLElement) e.currentTarget.style.borderTop = ''; }}
+                                            ondrop={(e: DragEvent) => {
+                                                e.preventDefault();
+                                                if(e.currentTarget instanceof HTMLElement) e.currentTarget.style.borderTop = '';
+                                                if (uploading) return;
+                                                const fromIndex = parseInt(e.dataTransfer?.getData('text/plain') || '-1');
+                                                if (fromIndex !== -1 && fromIndex !== i) {
+                                                    const files = [...mediaFiles];
+                                                    const [moved] = files.splice(fromIndex, 1);
+                                                    files.splice(i, 0, moved);
+                                                    mediaFiles = files;
+                                                }
+                                            }}
+                                        >
+                                            <div class="d-flex align-items-center gap-3 overflow-hidden">
+                                                <GripVertical size={14} class="text-muted flex-shrink-0" />
+                                                <Music size={16} class="text-orange flex-shrink-0" />
+                                                <span class="text-truncate small fw-bold" title={file.name}>{file.name}</span>
+                                            </div>
+                                            <button class="btn btn-link btn-sm text-danger p-0 border-0 shadow-none ms-2" onclick={() => removeMedia(i)} disabled={uploading}>
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    {/each}
+                                </div>
+                            {/if}
+
+                            <!-- Group: References -->
+                            {#if documentFiles.length > 0}
+                                <div>
+                                    <div class="cozy-label mb-2 opacity-75" style="font-size: 0.6rem;">Reference Documents</div>
+                                    {#each documentFiles as file, i}
+                                        <div class="file-item reference">
+                                            <div class="d-flex align-items-center gap-3 overflow-hidden">
+                                                <div style="width: 14px;"></div> <!-- Spacer to align with media grip -->
+                                                <FileText size={16} class="text-primary flex-shrink-0" />
+                                                <span class="text-truncate small fw-bold" title={file.name}>{file.name}</span>
+                                            </div>
+                                            <button class="btn btn-link btn-sm text-danger p-0 border-0 shadow-none ms-2" onclick={() => removeDocument(i)} disabled={uploading}>
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    {/each}
+                                </div>
+                            {/if}
+                        </div>
+                    {:else}
+                        <div class="empty-state-files text-center py-5 opacity-25">
+                            <Info size={48} class="mb-3 mx-auto" />
+                            <p class="small">No files selected yet.</p>
+                        </div>
+                    {/if}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Section -->
+    <div class="mt-5 pb-5">
+        {#if uploading}
+            <div class="text-center">
+                <div class="village-spinner mx-auto mb-3"></div>
+                <p class="text-muted fw-bold small uppercase letter-spacing-05">{status}</p>
+            </div>
+        {:else}
+            <div class="d-flex flex-column align-items-center gap-3">
+                <button 
+                    class="btn btn-success btn-lg px-5 rounded-0" 
+                    onclick={handleUpload}
+                    disabled={!title || (mediaFiles.length === 0 && documentFiles.length === 0)}
+                >
+                    <Upload size={18} />
+                    Start Processing Lesson
+                </button>
+                <div class="d-flex align-items-center text-muted gap-2 small opacity-75">
+                    <Info size={14} />
+                    <span>Multiple files will be combined into a single learning experience.</span>
+                </div>
+            </div>
+        {/if}
     </div>
 {/if}
 
 <style lang="scss">
+    .dropzone {
+        border: 2px dashed transparent;
+        padding: 40px 20px;
+        text-align: center;
+        transition: all 0.2s ease;
+        background: transparent;
+        
+        &.is-dragging {
+            border-color: var(--orange);
+            background: #fff;
+        }
+
+        .dropzone-label {
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+        }
+    }
+
+    .file-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        background: #fff;
+        border: 1px solid var(--gray-200);
+        margin-bottom: 4px;
+        transition: border-color 0.1s ease;
+
+        &.recording {
+            cursor: grab;
+            &:active { cursor: grabbing; }
+        }
+    }
+
+    .uppercase { text-transform: uppercase; }
+    .letter-spacing-05 { letter-spacing: 0.05em; }
+
     textarea:focus {
         outline: none;
         box-shadow: none;
-    }
-    
-    label {
-        cursor: pointer;
     }
 </style>

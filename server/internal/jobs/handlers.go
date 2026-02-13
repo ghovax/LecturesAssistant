@@ -630,7 +630,7 @@ func RegisterHandlers(
 					if fileMetadata.Size > 0 {
 						downloadProgress = int(float64(totalDownloadedBytes) / float64(fileMetadata.Size) * 100)
 					}
-					updateProgress(downloadProgress, fmt.Sprintf("Downloading from Google Drive: %d/%d bytes", totalDownloadedBytes, fileMetadata.Size), map[string]any{
+					updateProgress(downloadProgress, fmt.Sprintf("Downloading from Google Drive..."), map[string]any{
 						"bytes_downloaded": totalDownloadedBytes,
 						"total_bytes":      fileMetadata.Size,
 						"upload_id":        uploadID,
@@ -761,7 +761,7 @@ func RegisterHandlers(
 			defer rows.Close()
 
 			var transcriptBuilder strings.Builder
-			transcriptBuilder.WriteString("# \"" + lecture.Title + "\" -- Transcript\n\n")
+			transcriptBuilder.WriteString("# Transcript of \"" + lecture.Title + "\"\n\n")
 
 			// 1. First pass: Organize segments by media file
 			type segment struct {
@@ -794,7 +794,7 @@ func RegisterHandlers(
 			}
 
 			// 2. Build TOC (Índice)
-			transcriptBuilder.WriteString("## Índice\n\n")
+			transcriptBuilder.WriteString("## Table of Contents\n\n")
 			for _, name := range mediaOrder {
 				transcriptBuilder.WriteString(fmt.Sprintf("- [%s](#%s)\n", name, strings.ToLower(strings.ReplaceAll(name, " ", "-"))))
 			}
@@ -812,7 +812,7 @@ func RegisterHandlers(
 			// Setup export directory
 			exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", job.ID)
 			os.MkdirAll(exportDirectory, 0755)
-			safeFilename := sanitizeFilename(lecture.Title) + " Transcript." + payload.Format
+			safeFilename := "Transcript of \"" + sanitizeFilename(lecture.Title) + "\"." + payload.Format
 			outputPath := filepath.Join(exportDirectory, safeFilename)
 
 			// Convert

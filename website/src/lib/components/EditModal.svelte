@@ -42,8 +42,10 @@
     </div>
 
     {#snippet footer()}
-        <button class="btn btn-success w-100 rounded-0" onclick={() => onConfirm(newTitle, newDescription)}>
-            Save Changes
-        </button>
+        <div class="d-flex justify-content-end">
+            <button class="btn btn-success px-4" onclick={() => onConfirm(newTitle, newDescription)}>
+                Save Changes
+            </button>
+        </div>
     {/snippet}
 </Modal>

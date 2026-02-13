@@ -155,9 +155,17 @@
     <header class="page-header">
         <div class="d-flex justify-content-between align-items-start mb-2">
             <h1 class="page-title m-0">{exam.title}</h1>
-            <button class="btn btn-link btn-sm text-muted p-0 border-0 shadow-none d-flex align-items-center" onclick={() => showEditModal = true} title="Edit Subject">
-                <Edit3 size={16} />
-            </button>
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn btn-link btn-sm text-muted p-0 border-0 shadow-none d-flex align-items-center" onclick={() => showEditModal = true} title="Edit Subject">
+                    <Edit3 size={16} />
+                </button>
+                <a href="/exams/{examId}/lectures/new" class="btn btn-primary rounded-0">
+                    <Plus size={16} /> Add Lesson
+                </a>
+                <button class="btn btn-success rounded-0" onclick={createChat}>
+                    <Plus size={16} /> New Chat
+                </button>
+            </div>
         </div>
         {#if exam.description}
             <p class="page-description text-muted">{exam.description}</p>
@@ -175,11 +183,6 @@
                         </div>
                     </div>
                     <div class="linkTiles flex-column">
-                        <Tile href="javascript:void(0)" icon="" title="New Chat" onclick={(e) => { e.preventDefault(); createChat(); }}>
-                            {#snippet description()}
-                                Start a fresh conversation with me about your studies.
-                            {/snippet}
-                        </Tile>
                         {#each chatSessions as session}
                             <Tile href="/exams/{examId}/chat/{session.id}" icon="" title={session.title || 'Untitled Chat'}>
                                 {#snippet description()}
@@ -211,12 +214,6 @@
                     </div>
 
                     <div class="linkTiles">
-                        <Tile href="/exams/{examId}/lectures/new" icon="" title="Add Lesson">
-                            {#snippet description()}
-                                Upload recordings and reference materials for a new lesson.
-                            {/snippet}
-                        </Tile>
-
                         {#each lectures as lecture}
                             <Tile href="/exams/{examId}/lectures/{lecture.id}" icon="" title={lecture.title}>
                                 {#snippet description()}

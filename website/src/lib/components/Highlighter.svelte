@@ -20,7 +20,7 @@
     let { 
         children, 
         show = false, 
-        color = '#eef2d8bb', // Warmer, more earthy light green
+        color = '#fd7e1433', // Light semi-transparent version of the project's orange
         strokeWidth = 1.5,
         animationDuration = 600,
         iterations = 1,

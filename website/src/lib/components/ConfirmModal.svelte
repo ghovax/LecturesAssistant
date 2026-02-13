@@ -30,11 +30,11 @@
     </div>
 
     {#snippet footer()}
-        <div class="d-flex gap-3">
-            <button class="btn btn-white bg-white text-dark border flex-grow-1 rounded-0" onclick={onCancel}>
+        <div class="d-flex gap-2 justify-content-end">
+            <button class="btn btn-white" onclick={onCancel}>
                 {cancelText}
             </button>
-            <button class="btn {isDanger ? 'btn-danger' : 'btn-primary'} flex-grow-1 rounded-0" onclick={onConfirm}>
+            <button class="btn {isDanger ? 'btn-danger' : 'btn-primary'}" onclick={onConfirm}>
                 {confirmText}
             </button>
         </div>

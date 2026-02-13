@@ -1,6 +1,6 @@
 <script lang="ts">
     import { auth } from '$lib/auth.svelte';
-    import { Book, Settings, User, LogIn, LogOut, Sparkles } from 'lucide-svelte';
+    import { Book, Settings, User, LogIn, LogOut, Sparkles, HelpCircle } from 'lucide-svelte';
     import { goto } from '$app/navigation';
     let isMenuOpen = $state(false);
     async function handleLogout() {
@@ -31,6 +31,12 @@
                 <a class="nav-link px-2" href="/exams" onclick={() => isMenuOpen = false}>
                     <span class="nav-icon" aria-hidden="true"><Book size={16} /></span> 
                     <span class="nav-text">My Studies</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link px-2" href="/help" onclick={() => isMenuOpen = false}>
+                    <span class="nav-icon" aria-hidden="true"><HelpCircle size={16} /></span> 
+                    <span class="nav-text">Guide</span>
                 </a>
             </li>
         </ul>

@@ -95,8 +95,23 @@
                     {@const p = pages[currentPageIndex]}
                     <div class="well bg-white mb-3 p-0 overflow-hidden border shadow-none">
                         <div class="standard-header">
-                            <div class="header-title">
+                            <div class="header-title d-flex align-items-center gap-3">
                                 <span class="header-text">Page {p.page_number} / {pages.length}</span>
+                                <input 
+                                    type="number" 
+                                    min="1" 
+                                    max={pages.length} 
+                                    class="form-control cozy-input p-1 text-center" 
+                                    style="width: 60px; height: 1.75rem; font-size: 0.75rem;"
+                                    placeholder="Jump..."
+                                    onchange={(e) => {
+                                        const val = parseInt(e.currentTarget.value);
+                                        if (!isNaN(val) && val >= 1 && val <= pages.length) {
+                                            currentPageIndex = val - 1;
+                                        }
+                                        e.currentTarget.value = ""; 
+                                    }}
+                                />
                             </div>
                             <div class="btn-group">
                                 <button 

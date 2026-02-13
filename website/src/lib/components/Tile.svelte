@@ -184,12 +184,13 @@
     }
     .tile-extra-children {
         margin-top: auto;
+        margin-bottom: 10px;
         position: relative;
         z-index: 2;
     }
     .tile-cost {
         position: absolute;
-        bottom: 12px;
+        bottom: 8px;
         left: 20px;
         font-size: 0.65rem;
         font-weight: 600;

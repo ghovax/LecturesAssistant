@@ -40,6 +40,11 @@
         <p class="subtitle scroll-blur-light visible">
             A minimalist, cozy space to organize your studies, transcribe recordings, and generate smart materials for your exams.
         </p>
+        <div class="mt-4 scroll-blur-light visible">
+            <a href="/exams" class="btn btn-primary btn-lg rounded-0 px-5">
+                Start My Studies
+            </a>
+        </div>
     </header>
 
     <section class="scroll-blur">
@@ -177,18 +182,14 @@
 
     .linkTiles {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        grid-template-columns: repeat(auto-fill, 220px);
         gap: 0;
         background: transparent;
         margin-bottom: 2rem;
         overflow: hidden;
         
         :global(.tile-wrapper) {
-            width: 100%;
-            
-            :global(a), :global(button) {
-                width: 100%;
-            }
+            width: 220px;
         }
     }
 

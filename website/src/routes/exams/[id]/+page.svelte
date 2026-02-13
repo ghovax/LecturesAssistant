@@ -208,7 +208,11 @@
                             </Tile>
                         {:else}
                             <div class="p-4 text-center text-muted">
-                                <p class="mb-0 small">No conversations started yet. Click "New Chat" to begin.</p>
+                                <MessageCircle size={32} class="mb-3 opacity-25" />
+                                <p class="small mb-3">Ask questions across all your lessons.</p>
+                                <button class="btn btn-success btn-sm rounded-0" onclick={createChat}>
+                                    <Plus size={14} /> Start New Chat
+                                </button>
                             </div>
                         {/each}
                     </div>
@@ -242,8 +246,13 @@
                                 {/snippet}
                             </Tile>
                         {:else}
-                            <div class="p-4 text-center text-muted w-100">
-                                <p class="mb-0 small">No lessons added to this subject. Click "Add Lesson" to get started.</p>
+                            <div class="p-5 text-center text-muted w-100">
+                                <FileText size={48} class="mb-3 opacity-25" />
+                                <h3 class="text-dark h6 mb-2">No lessons yet</h3>
+                                <p class="small mb-4">Add your first lesson by uploading a recording or a PDF document.</p>
+                                <a href="/exams/{examId}/lectures/new" class="btn btn-primary btn-sm rounded-0">
+                                    <Plus size={14} /> Add Your First Lesson
+                                </a>
                             </div>
                         {/each}
                     </div>
@@ -271,22 +280,18 @@
 
     .linkTiles {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        grid-template-columns: repeat(auto-fill, 220px);
         gap: 0;
         background: transparent;
         overflow: hidden;
         
         &.flex-column {
-            grid-template-columns: 1fr;
+            grid-template-columns: 220px;
             overflow: visible;
         }
 
         :global(.tile-wrapper) {
-            width: 100%;
-            
-            :global(a), :global(button) {
-                width: 100%;
-            }
+            width: 220px;
         }
     }
 </style>

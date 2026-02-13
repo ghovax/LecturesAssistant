@@ -959,7 +959,24 @@
                             {@const p = selectedDocPages[selectedDocPageIndex]}
                             <div class="p-4">
                                 <div class="document-nav mb-4 d-flex justify-content-between align-items-center p-2 border">
-                                    <StatusIndicator type="page" label="Page" current={p.page_number} total={selectedDocPages.length} />
+                                    <div class="d-flex align-items-center gap-2">
+                                        <StatusIndicator type="page" label="Page" current={p.page_number} total={selectedDocPages.length} />
+                                        <input 
+                                            type="number" 
+                                            min="1" 
+                                            max={selectedDocPages.length} 
+                                            class="form-control cozy-input p-1 text-center" 
+                                            style="width: 60px; height: 1.75rem; font-size: 0.75rem;"
+                                            placeholder="Go to..."
+                                            onchange={(e) => {
+                                                const val = parseInt(e.currentTarget.value);
+                                                if (!isNaN(val) && val >= 1 && val <= selectedDocPages.length) {
+                                                    selectedDocPageIndex = val - 1;
+                                                }
+                                                e.currentTarget.value = ""; // Clear after jump
+                                            }}
+                                        />
+                                    </div>
                                     <div class="btn-group">
 
                                         <button class="btn btn-outline-primary btn-sm p-1 d-flex align-items-center me-2" disabled={selectedDocPageIndex === 0} onclick={prevDocPage} title="Previous Page"><ChevronLeft size={18} /></button>
@@ -1070,22 +1087,18 @@
 
     .linkTiles {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        grid-template-columns: repeat(auto-fill, 220px);
         gap: 0;
         background: transparent;
         overflow: hidden;
         
         &.flex-column {
-            grid-template-columns: 1fr;
+            grid-template-columns: 220px;
             overflow: visible;
         }
 
         :global(.tile-wrapper) {
-            width: 100%;
-            
-            :global(a), :global(button) {
-                width: 100%;
-            }
+            width: 220px;
         }
     }
 

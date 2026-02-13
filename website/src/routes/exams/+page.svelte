@@ -133,6 +133,19 @@
                     </button>
                 {/snippet}
             </Tile>
+        {:else}
+            {#if !loading}
+                <div class="p-5 text-center text-muted w-100">
+                    <div class="max-width-500 mx-auto">
+                        <Plus size={48} class="mb-3 opacity-25" />
+                        <h3 class="text-dark h5 mb-3">Welcome to your Study Hub</h3>
+                        <p class="small mb-4">Get started by creating your first subject. You can then add lessons, upload recordings, and generate AI-powered study guides.</p>
+                        <button class="btn btn-success rounded-0" onclick={() => showCreate = true}>
+                            Create My First Subject
+                        </button>
+                    </div>
+                </div>
+            {/if}
         {/each}
     </div>
 </div>
@@ -193,19 +206,18 @@
 {/if}
 
 <style lang="scss">
+    .max-width-500 {
+        max-width: 500px;
+    }
     .linkTiles {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        grid-template-columns: repeat(auto-fill, 220px);
         gap: 0;
         background: transparent;
         overflow: hidden;
         
         :global(.tile-wrapper) {
-            width: 100%;
-            
-            :global(a), :global(button) {
-                width: 100%;
-            }
+            width: 220px;
         }
     }
 </style>

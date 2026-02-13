@@ -127,13 +127,85 @@ export class APIClient {
 
     async downloadExport(path: string) {
         if (typeof window !== 'undefined') {
-            const url = `${this.baseUrl}/exports/download?path=${encodeURIComponent(path)}&session_token=${this.sessionToken}`;
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', ''); // Although Content-Disposition handles it, this is a good safety
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            try {
+                const url = `${this.baseUrl}/exports/download?path=${encodeURIComponent(path)}`;
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${this.sessionToken}`,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    cache: 'no-store'
+                });
+
+                if (!response.ok) {
+                    let errorMsg = 'Download failed';
+                    try {
+                        const errorData = await response.json();
+                        errorMsg = errorData.error?.message || errorMsg;
+                    } catch (e) {}
+                    throw new Error(errorMsg);
+                }
+
+                const blob = await response.blob();
+                
+                if (blob.size === 0) {
+                    throw new Error('Received empty file from server');
+                }
+
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                
+                // Filename detection
+                let fileName = path.split('/').pop() || 'export.pdf';
+                const disposition = response.headers.get('Content-Disposition');
+                
+                if (disposition) {
+                    const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+                    if (utf8Match && utf8Match[1]) {
+                        fileName = decodeURIComponent(utf8Match[1]);
+                    } else {
+                        const standardMatch = /filename="?([^";]+)"?/i.exec(disposition);
+                        if (standardMatch && standardMatch[1]) fileName = standardMatch[1];
+                    }
+                }
+                
+                link.setAttribute('download', fileName);
+                
+                // Ensure link is in DOM and "visible" enough for browser to allow click
+                link.style.display = 'block';
+                link.style.position = 'fixed';
+                link.style.top = '-100px';
+                link.style.left = '-100px';
+                link.style.width = '1px';
+                link.style.height = '1px';
+                link.style.opacity = '0.01';
+                
+                document.body.appendChild(link);
+                link.click();
+                
+                setTimeout(() => {
+                    if (link.parentNode) {
+                        document.body.removeChild(link);
+                    }
+                    window.URL.revokeObjectURL(downloadUrl);
+                }, 5000); 
+            } catch (error) {
+                // LAST RESORT FALLBACK: Direct link if fetch/blob approach failed
+                const fallbackUrl = `${this.baseUrl}/exports/download?path=${encodeURIComponent(path)}&session_token=${this.sessionToken}`;
+                const fallbackLink = document.createElement('a');
+                fallbackLink.href = fallbackUrl;
+                fallbackLink.setAttribute('download', '');
+                document.body.appendChild(fallbackLink);
+                fallbackLink.click();
+                setTimeout(() => {
+                    if (fallbackLink.parentNode) {
+                        document.body.removeChild(fallbackLink);
+                    }
+                }, 1000);
+            }
         }
     }
 

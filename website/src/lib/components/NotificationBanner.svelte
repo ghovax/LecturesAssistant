@@ -18,6 +18,15 @@
                 </div>
                 <div class="message flex-grow-1 fw-bold small">
                     {n.message}
+                    {#if n.action}
+                        <button 
+                            class="btn btn-link btn-sm p-0 ms-2 text-decoration-underline fw-bold" 
+                            style="color: inherit; font-size: inherit;"
+                            onclick={() => { n.action?.callback(); notifications.remove(n.id); }}
+                        >
+                            {n.action.label}
+                        </button>
+                    {/if}
                 </div>
                 <button class="btn-close-custom d-flex align-items-center" onclick={() => notifications.remove(n.id)}>
                     <X size={14} />

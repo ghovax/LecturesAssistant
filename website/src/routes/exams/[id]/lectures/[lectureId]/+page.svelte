@@ -130,8 +130,13 @@
                             }
                             
                             if (resultData?.file_path) {
-                                api.downloadExport(resultData.file_path);
-                                notifications.success('Download started.');
+                                const filePath = resultData.file_path;
+                                // Attempt automatic download
+                                api.downloadExport(filePath).catch(err => {
+                                    // ignore silently in production
+                                });
+                                
+                                notifications.success('Your export is ready.');
                             }
                         }
                         handledJobIds.add(newJob.id);
@@ -139,16 +144,19 @@
                 }
             }
 
-            isInitialJobsLoad = false;
-            jobs = newJobs;
-
             // If there are active jobs, start polling
-            const hasActiveJobs = jobs.some(j => j.status === 'PENDING' || j.status === 'RUNNING');
+            const hasActiveJobs = newJobs.some(j => j.status === 'PENDING' || j.status === 'RUNNING');
             if (hasActiveJobs && !jobPollingInterval && browser) {
                 startJobPolling();
             } else if (!hasActiveJobs && jobPollingInterval) {
                 stopJobPolling();
             }
+
+            // Important: we mark initial load as done AFTER the first loop 
+            // so that if a job was ALREADY finished when page loaded, it's marked as handled.
+            // But we must do it before the next tick where jobs is assigned.
+            isInitialJobsLoad = false;
+            jobs = newJobs;
         } catch (e) {
             console.error('Failed to load jobs:', e);
         }
@@ -540,15 +548,24 @@
                                 class={transcriptJobRunning ? 'tile-processing' : (transcriptJobFailed ? 'tile-error' : '')}
                             >
                                 {#snippet actions()}
-                                    {#if transcriptJobFailed}
-                                        <button 
-                                            class="btn btn-link text-primary p-0 border-0 shadow-none" 
-                                            onclick={(e) => { e.preventDefault(); e.stopPropagation(); retryBaseJob('TRANSCRIBE_MEDIA'); }} 
-                                            title="Retry Transcription"
-                                        >
-                                            <RotateCcw size={16} />
-                                        </button>
-                                    {:else if transcript && transcript.segments}
+                                        {#if transcriptJob.status === 'COMPLETED'}
+                                            {@const res = JSON.parse(transcriptJob.result || '{}')}
+                                            <button 
+                                                class="btn btn-link text-success p-0 border-0 shadow-none" 
+                                                onclick={(e) => { e.preventDefault(); e.stopPropagation(); api.downloadExport(res.file_path); }} 
+                                                title="Download Again"
+                                            >
+                                                <Download size={16} />
+                                            </button>
+                                        {:else if transcriptJobFailed}
+                                            <button 
+                                                class="btn btn-link text-primary p-0 border-0 shadow-none" 
+                                                onclick={(e) => { e.preventDefault(); e.stopPropagation(); retryBaseJob('TRANSCRIBE_MEDIA'); }} 
+                                                title="Retry Transcription"
+                                            >
+                                                <RotateCcw size={16} />
+                                            </button>
+                                        {:else if transcript && transcript.segments}
                                         <div class="dropdown" onclick={(e) => e.stopPropagation()}>
                                             <button class="btn btn-link text-muted p-0 border-0 shadow-none dropdown-toggle no-caret" data-bs-toggle="dropdown" title="Export">
                                                 <Download size={16} />

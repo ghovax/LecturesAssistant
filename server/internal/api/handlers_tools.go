@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -723,19 +724,34 @@ func (server *Server) handleDownloadExport(responseWriter http.ResponseWriter, r
 	absoluteDataDir, _ := filepath.Abs(server.configuration.Storage.DataDirectory)
 	absoluteFilePath, _ := filepath.Abs(filePath)
 
-	if !filepath.HasPrefix(absoluteFilePath, absoluteDataDir) {
+	// Robust prefix check using Rel
+	rel, err := filepath.Rel(absoluteDataDir, absoluteFilePath)
+	if err != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
 		server.writeError(responseWriter, http.StatusForbidden, "ACCESS_DENIED", "Access to this file is forbidden", nil)
 		return
 	}
 
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+	if _, err := os.Stat(absoluteFilePath); os.IsNotExist(err) {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "File not found", nil)
 		return
 	}
 
 	// Set content-disposition to force download with original filename
-	fileName := filepath.Base(filePath)
-	responseWriter.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
+	fileName := filepath.Base(absoluteFilePath)
+	// Properly escape filename for Content-Disposition
+	encodedFileName := url.PathEscape(fileName)
+	responseWriter.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"; filename*=UTF-8''%s", fileName, encodedFileName))
 
-	http.ServeFile(responseWriter, request, filePath)
+	// Set Content-Type based on extension for better blob handling
+	ext := strings.ToLower(filepath.Ext(fileName))
+	switch ext {
+	case ".pdf":
+		responseWriter.Header().Set("Content-Type", "application/pdf")
+	case ".docx":
+		responseWriter.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+	case ".md":
+		responseWriter.Header().Set("Content-Type", "text/markdown")
+	}
+
+	http.ServeFile(responseWriter, request, absoluteFilePath)
 }

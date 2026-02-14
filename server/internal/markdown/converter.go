@@ -223,6 +223,14 @@ func (converter *ExternalConverter) HTMLToPDF(htmlContent string, outputPath str
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
 
+	// Create a temporary, unique cache directory for this Tectonic run
+	// This ensures we have permissions and that it is cleaned up after use
+	tempCacheDir, err := os.MkdirTemp("", "tectonic-cache-*")
+	if err == nil {
+		defer os.RemoveAll(tempCacheDir)
+		command.Env = append(os.Environ(), "TECTONIC_CACHE="+tempCacheDir)
+	}
+
 	if executionError := command.Run(); executionError != nil {
 		return fmt.Errorf("pandoc pdf conversion failed: %v, stderr: %s", executionError, stderr.String())
 	}

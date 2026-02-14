@@ -862,7 +862,7 @@ func RegisterHandlers(
 			// Setup export directory
 			exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", job.ID)
 			os.MkdirAll(exportDirectory, 0755)
-			safeFilename := "Transcript of \"" + sanitizeFilename(lecture.Title) + "\"." + payload.Format
+			safeFilename := "Transcript of " + sanitizeFilename(lecture.Title) + "." + payload.Format
 			outputPath := filepath.Join(exportDirectory, safeFilename)
 
 			// Convert

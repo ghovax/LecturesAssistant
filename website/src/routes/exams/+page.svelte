@@ -140,7 +140,7 @@
                         <Plus size={48} class="mb-3 opacity-25" />
                         <h3 class="text-dark h5 mb-3">Welcome to your Study Hub</h3>
                         <p class="small mb-4">Get started by creating your first subject. You can then add lessons, upload recordings, and generate AI-powered study guides.</p>
-                        <button class="btn btn-success rounded-0" onclick={() => showCreate = true}>
+                        <button class="btn btn-success btn-lg rounded-0 px-5" onclick={() => showCreate = true}>
                             Create My First Subject
                         </button>
                     </div>

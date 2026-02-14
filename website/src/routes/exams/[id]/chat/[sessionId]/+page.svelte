@@ -180,8 +180,73 @@
 
     <div class="container-fluid p-0">
         <div class="row g-4">
+            <!-- Sidebar: Context & Selection -->
+            <div class="col-lg-4 order-lg-2">
+                <div class="bg-white border mb-4">
+                    <div class="standard-header">
+                        <div class="header-title">
+                            <span class="header-text">Knowledge Base</span>
+                        </div>
+                        {#if updatingContext}
+                            <div class="spinner-border spinner-border-sm text-orange" role="status"></div>
+                        {/if}
+                    </div>
+                    <div class="p-3">
+                        <p class="text-muted small mb-3">Select which lessons to include in this conversation's context.</p>
+                        <div class="linkTiles">
+                            {#each allLectures as lecture}
+                                {@const isUsed = usedLectureIds.includes(lecture.id)}
+                                {@const isIncluded = includedLectureIds.includes(lecture.id)}
+                                <div class="tile-wrapper border">
+                                    <div class="p-3 d-flex align-items-center justify-content-between">
+                                        <div class="overflow-hidden me-3">
+                                            <div class="fw-bold small text-truncate" title={lecture.title}>{lecture.title}</div>
+                                            {#if isUsed}
+                                                <div class="text-muted" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em;">
+                                                    <Lock size={10} class="me-1" /> Locked in History
+                                                </div>
+                                            {/if}
+                                        </div>
+                                        
+                                        <!-- svelte-ignore a11y_click_events_have_key_events -->
+                                        <!-- svelte-ignore a11y_no_static_element_interactions -->
+                                        <div 
+                                            class="village-toggle {isIncluded || isUsed ? 'is-active' : ''} {isUsed ? 'is-locked' : 'cursor-pointer'}"
+                                            onclick={() => !isUsed && toggleLecture(lecture.id)}
+                                        ></div>
+                                    </div>
+                                </div>
+                            {:else}
+                                <div class="p-4 text-center text-muted small border">
+                                    No lessons found in this subject.
+                                </div>
+                            {/each}
+                        </div>
+                    </div>
+                </div>
+
+                {#if otherSessions.length > 0}
+                    <div class="bg-white border d-none d-lg-block">
+                        <div class="standard-header">
+                            <div class="header-title">
+                                <span class="header-text">Recent Chats</span>
+                            </div>
+                        </div>
+                        <div class="linkTiles flex-column">
+                            {#each otherSessions as s}
+                                <Tile href="/exams/{examId}/chat/{s.id}" icon="" title={s.title || 'Untitled Chat'}>
+                                    {#snippet description()}
+                                        Opened {new Date(s.created_at).toLocaleDateString()}
+                                    {/snippet}
+                                </Tile>
+                            {/each}
+                        </div>
+                    </div>
+                {/if}
+            </div>
+
             <!-- Main Content: Chat History -->
-            <div class="col-12">
+            <div class="col-lg-8 order-lg-1">
                 <form onsubmit={(e) => { e.preventDefault(); sendMessage(); }} class="mb-4">
                     <div class="input-group dictionary-style mb-3">
                         <input 

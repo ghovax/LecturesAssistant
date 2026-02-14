@@ -105,7 +105,7 @@
     }
 
     .citation-content {
-        font-size: 0.95rem;
+        font-size: 0.8rem;
         line-height: 1.5;
         color: #000;
         

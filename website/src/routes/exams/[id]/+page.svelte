@@ -210,7 +210,7 @@
                             <div class="p-4 text-center text-muted">
                                 <MessageCircle size={32} class="mb-3 opacity-25" />
                                 <p class="small mb-3">Ask questions across all your lessons.</p>
-                                <button class="btn btn-success btn-sm rounded-0" onclick={createChat}>
+                                <button class="btn btn-success btn-lg rounded-0 px-4" onclick={createChat}>
                                     <Plus size={14} /> Start New Chat
                                 </button>
                             </div>
@@ -250,7 +250,7 @@
                                 <FileText size={48} class="mb-3 opacity-25" />
                                 <h3 class="text-dark h6 mb-2">No lessons yet</h3>
                                 <p class="small mb-4">Add your first lesson by uploading a recording or a PDF document.</p>
-                                <a href="/exams/{examId}/lectures/new" class="btn btn-primary btn-sm rounded-0">
+                                <a href="/exams/{examId}/lectures/new" class="btn btn-primary btn-lg rounded-0 px-4">
                                     <Plus size={14} /> Add Your First Lesson
                                 </a>
                             </div>

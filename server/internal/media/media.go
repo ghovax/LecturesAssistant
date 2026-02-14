@@ -40,10 +40,8 @@ func ResolveBinaryPath(binName, configuredBinDir string) string {
 }
 
 // GetDurationMilliseconds extracts the duration of a media file using ffprobe
-func GetDurationMilliseconds(filePath string) (int64, error) {
-	// We use a dummy dir here as this static call doesn't have config context
-	// In the real service, we'll use the resolved path.
-	binPath := ResolveBinaryPath("ffprobe", "")
+func GetDurationMilliseconds(filePath string, binDir string) (int64, error) {
+	binPath := ResolveBinaryPath("ffprobe", binDir)
 
 	// Use ffprobe to get duration in seconds with decimal precision
 	cmd := exec.Command(binPath,

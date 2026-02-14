@@ -132,14 +132,10 @@
                             if (resultData?.file_path) {
                                 const filePath = resultData.file_path;
                                 // Attempt automatic download immediately
-                                
-                                // First attempt: Standard fetch-based blob download
                                 api.downloadExport(filePath).catch(err => {
-                                    // Fallback: Direct authenticated window.open (more likely to bypass certain blocks if fetch failed)
                                     const directUrl = api.getAuthenticatedMediaUrl(`/exports/download?path=${encodeURIComponent(filePath)}`);
                                     window.open(directUrl, '_blank');
                                 });
-                                
                                 notifications.success('Your export has been downloaded.');
                             }
                         }
@@ -148,7 +144,7 @@
                 }
             }
 
-            // If there are active jobs, start polling
+            // Decide whether to continue polling
             const hasActiveJobs = newJobs.some((j: any) => j.status === 'PENDING' || j.status === 'RUNNING');
             if (hasActiveJobs && !jobPollingInterval && browser) {
                 startJobPolling();
@@ -156,9 +152,6 @@
                 stopJobPolling();
             }
 
-            // Important: we mark initial load as done AFTER the first loop 
-            // so that if a job was ALREADY finished when page loaded, it's marked as handled.
-            // But we must do it before the next tick where jobs is assigned.
             isInitialJobsLoad = false;
             jobs = newJobs;
         } catch (e) {
@@ -166,55 +159,14 @@
         }
     }
 
-    async function retryJob(job: any) {
-        if (!job.payload) return;
-        try {
-            // Remove the failed job record first to clean up UI
-            await api.request('DELETE', '/jobs', { job_id: job.id, delete: true });
-            
-            // Re-trigger the tool creation with the same payload
-            await api.createTool(job.payload);
-            
-            notifications.success(`Retrying ${job.payload.type} generation...`);
-            await loadJobs();
-        } catch (e: any) {
-            notifications.error('Failed to retry: ' + e.message);
-        }
-    }
-
-    async function retryBaseJob(type: string) {
-        try {
-            // Find and delete the failed job record
-            const failedJob = jobs.find(j => j.type === type && j.status === 'FAILED');
-            if (failedJob) {
-                await api.request('DELETE', '/jobs', { job_id: failedJob.id, delete: true });
-            }
-            
-            await api.retryLectureJob(lectureId!, examId!, type);
-            notifications.success(`Retrying ${type === 'TRANSCRIBE_MEDIA' ? 'transcription' : 'document ingestion'}...`);
-            await loadJobs();
-            // Refresh lecture metadata too
-            await loadLectureData();
-        } catch (e: any) {
-            notifications.error('Failed to retry: ' + e.message);
-        }
-    }
-
-    async function removeJob(jobId: string) {
-        try {
-            await api.request('DELETE', '/jobs', { job_id: jobId, delete: true });
-            await loadJobs();
-        } catch (e: any) {
-            notifications.error('Failed to remove job record: ' + e.message);
-        }
-    }
-
     function startJobPolling() {
         if (jobPollingInterval) return;
-        jobPollingInterval = window.setInterval(() => {
-            loadJobs();
-            // Reload lecture data to get updated transcript/documents
-            loadLectureData();
+        // The loadJobs call above already started this, we just need to set the interval
+        jobPollingInterval = window.setInterval(async () => {
+            await Promise.all([
+                loadJobs(),
+                loadLectureData()
+            ]);
         }, 3000); // Poll every 3 seconds
     }
 
@@ -396,6 +348,8 @@
                 language_code: toolOptions.language_code
             });
             notifications.success(`We are preparing your study guide. It will appear in the dashboard once ready.`);
+            // Refresh jobs to start polling immediately
+            loadJobs();
         } catch (e: any) {
             notifications.error(e.message || e);
         }
@@ -518,6 +472,33 @@
             await loadJobs();
         } catch (e: any) {
             notifications.error(e.message || e);
+        }
+    }
+
+    async function retryJob(job: any) {
+        if (!job.payload) return;
+        try {
+            await api.request('DELETE', '/jobs', { job_id: job.id, delete: true });
+            await api.createTool(job.payload);
+            notifications.success(`Retrying ${job.payload.type} generation...`);
+            loadJobs();
+        } catch (e: any) {
+            notifications.error('Failed to retry: ' + e.message);
+        }
+    }
+
+    async function retryBaseJob(type: string) {
+        try {
+            const failedJob = jobs.find(j => j.type === type && j.status === 'FAILED');
+            if (failedJob) {
+                await api.request('DELETE', '/jobs', { job_id: failedJob.id, delete: true });
+            }
+            await api.retryLectureJob(lectureId!, examId!, type);
+            notifications.success(`Retrying ${type === 'TRANSCRIBE_MEDIA' ? 'transcription' : 'document ingestion'}...`);
+            loadJobs();
+            loadLectureData();
+        } catch (e: any) {
+            notifications.error('Failed to retry: ' + e.message);
         }
     }
 
@@ -683,13 +664,40 @@
                                 {/snippet}
                             </Tile>
 
-                            {#if guideTool}
+                            {#if activeToolsJobs.find(j => j.payload?.type === 'guide')}
+                                {@const guideJob = activeToolsJobs.find(j => j.payload?.type === 'guide')}
+                                <Tile
+                                    icon=""
+                                    title="Study Guide"
+                                    disabled={guideJob.status !== 'FAILED'}
+                                    onclick={() => guideJob.status === 'FAILED' && retryJob(guideJob)}
+                                    class={guideJob.status === 'FAILED' ? 'tile-error' : 'tile-processing'}
+                                >
+                                    {#snippet actions()}
+                                        {#if guideJob.status === 'FAILED'}
+                                            <button class="btn btn-link text-primary p-0 border-0 shadow-none" onclick={(e) => { e.preventDefault(); e.stopPropagation(); retryJob(guideJob); }} title="Retry">
+                                                <RotateCcw size={16} />
+                                            </button>
+                                        {/if}
+                                    {/snippet}
+                                    {#snippet description()}
+                                        {#if guideJob.status === 'FAILED'}
+                                            <span class="text-danger">Generation failed. Click to retry.</span>
+                                        {:else}
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                                <span>{guideJob.progress || 0}%</span>
+                                            </div>
+                                            <div class="small mt-1 text-truncate">{guideJob.progress_message_text || 'Preparing...'}</div>
+                                        {/if}
+                                    {/snippet}
+                                </Tile>
+                            {:else if guideTool}
                                 <Tile href="javascript:void(0)" icon="" title="Study Guide" onclick={() => activeView = 'guide'} cost={guideTool.estimated_cost}>
                                     {#snippet actions()}
-                                        {@const guideExportJob = jobs.find(j => j.type === 'PUBLISH_MATERIAL' && j.status === 'COMPLETED' && j.payload?.tool_id === guideTool.id)}
                                         <div class="dropdown" onclick={(e) => e.stopPropagation()}>
                                             <button 
-                                                class="btn btn-link {guideExportJob ? 'text-orange' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
+                                                class="btn btn-link text-orange p-0 border-0 shadow-none dropdown-toggle no-caret" 
                                                 data-bs-toggle="dropdown" 
                                                 title="Export Options"
                                             >
@@ -705,45 +713,22 @@
                                         Read the comprehensive study guide.
                                     {/snippet}
                                 </Tile>
-                            {:else}
-                                {@const guideJob = activeToolsJobs.find(j => j.payload?.type === 'guide')}
-                                {#if guideJob}
-                                    <Tile
-                                        icon=""
-                                        title="Study Guide"
-                                        disabled={guideJob.status !== 'FAILED'}
-                                        onclick={() => guideJob.status === 'FAILED' && retryJob(guideJob)}
-                                        class={guideJob.status === 'FAILED' ? 'tile-error' : 'tile-processing'}
-                                    >
-                                        {#snippet actions()}
-                                            {#if guideJob.status === 'FAILED'}
-                                                <button class="btn btn-link text-primary p-0 border-0 shadow-none" onclick={(e) => { e.preventDefault(); e.stopPropagation(); retryJob(guideJob); }} title="Retry">
-                                                    <RotateCcw size={16} />
-                                                </button>
-                                            {/if}
-                                        {/snippet}
-                                        {#snippet description()}
-                                            {#if guideJob.status === 'FAILED'}
-                                                <span class="text-danger">Generation failed. Click to retry.</span>
-                                            {:else}
-                                                <div class="d-flex align-items-center gap-2">
-                                                    <div class="spinner-border spinner-border-sm" role="status"></div>
-                                                    <span>{guideJob.progress || 0}%</span>
-                                                </div>
-                                                <div class="small mt-1 text-truncate">{guideJob.progress_message_text || 'Preparing...'}</div>
-                                            {/if}
-                                        {/snippet}
-                                    </Tile>
-                                {/if}
                             {/if}
 
                             {#each documents as doc}
-                                <Tile href="javascript:void(0)" icon="" title={doc.title} onclick={() => openDocument(doc.id)} cost={doc.estimated_cost}>
+                                <Tile 
+                                    href="javascript:void(0)" 
+                                    icon="" 
+                                    title={doc.title} 
+                                    onclick={() => openDocument(doc.id)} 
+                                    cost={doc.estimated_cost}
+                                    disabled={doc.extraction_status !== 'completed'}
+                                    class={doc.extraction_status !== 'completed' ? 'tile-processing' : ''}
+                                >
                                     {#snippet actions()}
-                                        {@const docExportJob = jobs.find(j => j.type === 'PUBLISH_MATERIAL' && j.status === 'COMPLETED' && j.payload?.document_id === doc.id)}
                                         <div class="dropdown" onclick={(e) => e.stopPropagation()}>
                                             <button 
-                                                class="btn btn-link {docExportJob ? 'text-orange' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
+                                                class="btn btn-link {doc.extraction_status === 'completed' ? 'text-orange' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
                                                 data-bs-toggle="dropdown" 
                                                 title="Export Options"
                                             >

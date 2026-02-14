@@ -28,11 +28,12 @@ cp -r server/prompts "$PACKAGE_DIR/"
 cp server/xelatex-template.tex "$PACKAGE_DIR/"
 
 # Bundling Dependencies
-echo "Bundling dependencies (FFmpeg, Pandoc, Tectonic)..."
+echo "Bundling dependencies (FFmpeg, Pandoc, Tectonic, Ghostscript)..."
 
 PANDOC_URL="https://github.com/jgm/pandoc/releases/download/3.9/pandoc-3.9-windows-x86_64.zip"
 TECTONIC_URL="https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.15.0/tectonic-0.15.0-x86_64-pc-windows-msvc.zip"
 FFMPEG_URL="https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+GHOSTSCRIPT_URL="https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10040/gs10040w64.zip"
 
 download_and_extract() {
     local url=$1
@@ -57,6 +58,9 @@ find . -name "tectonic.exe" -type f -exec cp {} "$BIN_DEST/" \;
 download_and_extract "$FFMPEG_URL" "ffmpeg"
 find . -name "ffmpeg.exe" -type f -exec cp {} "$BIN_DEST/" \;
 find . -name "ffprobe.exe" -type f -exec cp {} "$BIN_DEST/" \;
+
+download_and_extract "$GHOSTSCRIPT_URL" "ghostscript"
+find . -name "gswin64c.exe" -type f -exec cp {} "$BIN_DEST/gs.exe" \;
 
 cd ..
 rm -rf temp_build

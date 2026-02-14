@@ -388,7 +388,7 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 
 		// Extract duration using ffprobe
 		durationMs := int64(0)
-		if extractedDuration, err := media.GetDurationMilliseconds(destinationPath); err == nil {
+		if extractedDuration, err := media.GetDurationMilliseconds(destinationPath, server.configuration.Storage.BinDirectory); err == nil {
 			durationMs = extractedDuration
 			slog.Info("Extracted media duration", "file_id", fileID, "duration_milliseconds", durationMs, "duration_seconds", durationMs/1000)
 		} else {

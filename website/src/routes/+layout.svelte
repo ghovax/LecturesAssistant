@@ -1,5 +1,8 @@
 <script lang="ts">
     import { onMount } from 'svelte';
+    import { page } from '$app/state';
+    import { goto } from '$app/navigation';
+    import { auth } from '$lib/auth.svelte';
     import "../app.scss";
     import Navbar from '$lib/components/Navbar.svelte';
     import NotificationBanner from '$lib/components/NotificationBanner.svelte';
@@ -9,6 +12,15 @@
     onMount(async () => {
         // @ts-ignore
         await import('bootstrap');
+
+        if (auth.loading) {
+            await auth.check();
+        }
+
+        // If not initialized and not already on the setup page, force redirect to setup
+        if (!auth.initialized && page.url.pathname !== '/setup') {
+            goto('/setup');
+        }
     });
 </script>
 
@@ -35,7 +47,7 @@
         background: transparent !important;
         box-shadow: none !important;
         border: none !important;
-        max-width: 1000px !important; /* Increased width */
+        max-width: 1300px !important; /* Increased width */
         margin: 0 auto;
         padding: 0 20px;
     }

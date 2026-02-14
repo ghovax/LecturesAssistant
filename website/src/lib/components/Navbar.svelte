@@ -75,12 +75,14 @@
     }
 
     .navbar-brand {
-        font-size: 16px;
+        font-size: 20px;
         font-weight: 500;
         color: var(--gray-900) !important;
         letter-spacing: -0.02em;
         display: flex;
         align-items: center;
+        height: 60px;
+        margin: 0;
 
         .text-orange {
             color: var(--orange);

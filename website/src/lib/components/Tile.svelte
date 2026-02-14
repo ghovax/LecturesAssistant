@@ -136,8 +136,8 @@
         color: var(--gray-900);
         display: flex;
         flex-direction: column;
-        height: 130px;
-        width: 220px;
+        height: 150px;
+        width: 250px;
         padding: 20px;
         text-decoration: none;
         text-align: left;
@@ -173,6 +173,7 @@
         display: -webkit-box;
         -webkit-line-clamp: 3;
         -webkit-box-orient: vertical;
+        margin-bottom: 15px;
     }
     .tile-actions {
         position: absolute;
@@ -184,13 +185,13 @@
     }
     .tile-extra-children {
         margin-top: auto;
-        margin-bottom: 10px;
+        margin-bottom: 20px;
         position: relative;
         z-index: 2;
     }
     .tile-cost {
         position: absolute;
-        bottom: 8px;
+        bottom: 12px;
         left: 20px;
         font-size: 0.65rem;
         font-weight: 600;

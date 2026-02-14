@@ -217,7 +217,7 @@
         overflow: hidden;
         
         :global(.tile-wrapper) {
-            width: 220px;
+            width: 250px;
         }
     }
 </style>

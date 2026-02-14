@@ -122,7 +122,7 @@
     .cozy-homepage {
         font-family: 'Manrope', sans-serif;
         color: var(--gray-800);
-        max-width: 1000px;
+        max-width: 1300px;
         margin: 0 auto;
         padding-bottom: 80px;
         -webkit-font-smoothing: antialiased;
@@ -189,7 +189,7 @@
         overflow: hidden;
         
         :global(.tile-wrapper) {
-            width: 220px;
+            width: 250px;
         }
     }
 

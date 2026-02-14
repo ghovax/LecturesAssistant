@@ -182,8 +182,8 @@
     <div class="container-fluid p-0">
         <div class="row g-4">
             <!-- Sidebar / Tile Style for Tools & Chats -->
-            <div class="col-lg-4 order-md-2">
-                <div class="bg-white border mb-4">
+            <div class="col-lg-auto order-md-2">
+                <div class="bg-white border mb-4" style="width: fit-content;">
                     <div class="standard-header">
                         <div class="header-title">
                             <span class="header-text">Study Chats</span>
@@ -220,8 +220,8 @@
             </div>
 
             <!-- Main Content / Tile Style for Lessons -->
-            <div class="col-lg-8 order-md-1">
-                <div class="bg-white border mb-3">
+            <div class="col order-md-1">
+                <div class="bg-white border mb-3" style="width: fit-content; max-width: 100%;">
                     <div class="standard-header">
                         <div class="header-title">
                             <span class="header-text">Lessons</span>
@@ -279,14 +279,14 @@
     }
 
     .linkTiles {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, 220px);
+        display: flex;
+        flex-wrap: wrap;
         gap: 0;
         background: transparent;
         overflow: hidden;
         
         &.flex-column {
-            grid-template-columns: 220px;
+            flex-direction: column;
             overflow: visible;
         }
 

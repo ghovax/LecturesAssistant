@@ -621,7 +621,12 @@
             <!-- Main Content Area -->
             <div class="col-12">
                 {#if activeView === 'dashboard'}
-                    <div class="mb-4">
+                    <div class="mb-4 bg-white border" style="width: fit-content; max-width: 100%;">
+                        <div class="standard-header">
+                            <div class="header-title">
+                                <span class="header-text">Workspace</span>
+                            </div>
+                        </div>
                         <div class="linkTiles">
                             <Tile
                                 icon=""
@@ -791,40 +796,40 @@
                                 </Tile>
                             {/if}
                         </div>
+                    </div>
 
-                        <div class="bg-white border mt-4">
-                            <div class="standard-header">
-                                <div class="header-title">
-                                    <span class="header-text">Source Assets</span>
-                                </div>
+                    <div class="bg-white border mt-4">
+                        <div class="standard-header">
+                            <div class="header-title">
+                                <span class="header-text">Source Assets</span>
                             </div>
-                            <div class="p-4">
-                                <div class="row g-4">
-                                    {#if mediaFiles.length > 0}
-                                        <div class="col-md-6">
-                                            <div class="cozy-label">Recordings</div>
-                                            <ul class="list-unstyled mb-0">
-                                                {#each mediaFiles as media}
-                                                    <li class="mb-2">
-                                                        <span class="filename">{media.original_filename || 'Unknown recording'}</span>
-                                                    </li>
-                                                {/each}
-                                            </ul>
-                                        </div>
-                                    {/if}
-                                    {#if documents.length > 0}
-                                        <div class="col-md-6">
-                                            <div class="cozy-label">Reference Files</div>
-                                            <ul class="list-unstyled mb-0">
-                                                {#each documents as doc}
-                                                    <li class="mb-2">
-                                                        <span class="filename">{doc.original_filename || doc.title}</span>
-                                                    </li>
-                                                {/each}
-                                            </ul>
-                                        </div>
-                                    {/if}
-                                </div>
+                        </div>
+                        <div class="p-4">
+                            <div class="row g-4">
+                                {#if mediaFiles.length > 0}
+                                    <div class="col-md-6">
+                                        <div class="cozy-label">Recordings</div>
+                                        <ul class="list-unstyled mb-0">
+                                            {#each mediaFiles as media}
+                                                <li class="mb-2">
+                                                    <span class="filename">{media.original_filename || 'Unknown recording'}</span>
+                                                </li>
+                                            {/each}
+                                        </ul>
+                                    </div>
+                                {/if}
+                                {#if documents.length > 0}
+                                    <div class="col-md-6">
+                                        <div class="cozy-label">Reference Files</div>
+                                        <ul class="list-unstyled mb-0">
+                                            {#each documents as doc}
+                                                <li class="mb-2">
+                                                    <span class="filename">{doc.original_filename || doc.title}</span>
+                                                </li>
+                                            {/each}
+                                        </ul>
+                                    </div>
+                                {/if}
                             </div>
                         </div>
                     </div>
@@ -959,23 +964,26 @@
                             {@const p = selectedDocPages[selectedDocPageIndex]}
                             <div class="p-4">
                                 <div class="document-nav mb-4 d-flex justify-content-between align-items-center p-2 border">
-                                    <div class="d-flex align-items-center gap-2">
+                                    <div class="d-flex align-items-center gap-4">
                                         <StatusIndicator type="page" label="Page" current={p.page_number} total={selectedDocPages.length} />
-                                        <input 
-                                            type="number" 
-                                            min="1" 
-                                            max={selectedDocPages.length} 
-                                            class="form-control cozy-input p-1 text-center" 
-                                            style="width: 60px; height: 1.75rem; font-size: 0.75rem;"
-                                            placeholder="Go to..."
-                                            onchange={(e) => {
-                                                const val = parseInt(e.currentTarget.value);
-                                                if (!isNaN(val) && val >= 1 && val <= selectedDocPages.length) {
-                                                    selectedDocPageIndex = val - 1;
-                                                }
-                                                e.currentTarget.value = ""; // Clear after jump
-                                            }}
-                                        />
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="text-muted" style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;">Go to page:</span>
+                                            <input 
+                                                type="number" 
+                                                min="1" 
+                                                max={selectedDocPages.length} 
+                                                class="form-control cozy-input p-1 text-center no-spinner" 
+                                                style="width: 50px; height: 1.75rem; font-size: 0.75rem;"
+                                                placeholder=""
+                                                oninput={(e) => {
+                                                    const val = parseInt(e.currentTarget.value);
+                                                    if (!isNaN(val) && val >= 1 && val <= selectedDocPages.length) {
+                                                        selectedDocPageIndex = val - 1;
+                                                    }
+                                                }}
+                                                onblur={(e) => e.currentTarget.value = ""}
+                                            />
+                                        </div>
                                     </div>
                                     <div class="btn-group">
 
@@ -1086,14 +1094,14 @@
     }
 
     .linkTiles {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, 220px);
+        display: flex;
+        flex-wrap: wrap;
         gap: 0;
         background: transparent;
         overflow: hidden;
         
         &.flex-column {
-            grid-template-columns: 220px;
+            flex-direction: column;
             overflow: visible;
         }
 

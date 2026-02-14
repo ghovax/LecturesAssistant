@@ -109,7 +109,7 @@
     </div>
 </header>
 
-<div class="bg-white border mb-3">
+<div class="bg-white border mb-3" style="width: fit-content; max-width: 100%;">
     <div class="standard-header">
         <div class="header-title">
             <span class="header-text">Workspace</span>
@@ -210,8 +210,8 @@
         max-width: 500px;
     }
     .linkTiles {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, 220px);
+        display: flex;
+        flex-wrap: wrap;
         gap: 0;
         background: transparent;
         overflow: hidden;

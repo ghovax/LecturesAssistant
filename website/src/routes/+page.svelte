@@ -181,8 +181,8 @@
     }
 
     .linkTiles {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, 220px);
+        display: flex;
+        flex-wrap: wrap;
         gap: 0;
         background: transparent;
         margin-bottom: 2rem;

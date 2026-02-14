@@ -4,12 +4,12 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // Initialize creates and initializes the SQLite database
 func Initialize(path string) (*sql.DB, error) {
-	database, err := sql.Open("sqlite3", path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=10000&_synchronous=NORMAL&_cache_size=1000000000&_locking_mode=NORMAL&_temp_store=memory&_datetime_format=rfc3339")
+	database, err := sql.Open("sqlite", path+"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(10000)&_pragma=synchronous(NORMAL)&_pragma=cache_size(1000000000)&_pragma=locking_mode(NORMAL)&_pragma=temp_store(memory)&_pragma=datetime_format(rfc3339)")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

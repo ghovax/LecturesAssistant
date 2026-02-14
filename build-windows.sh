@@ -12,7 +12,7 @@ cp -r website/build/* server/internal/api/web/dist/
 
 cd server
 mkdir -p dist
-GOOS=windows GOARCH=amd64 go build -o "dist/Lectures Assistant.exe" ./cmd/server
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o "dist/Lectures Assistant.exe" ./cmd/server
 cd ..
 
 PACKAGE_DIR="Lectures Assistant"
@@ -65,19 +65,3 @@ rm -rf temp_build
 echo "Generating Windows icon..."
 ICON_SVG="website/src/lib/assets/favicon.svg"
 convert -background none "$ICON_SVG" -define icon:auto-resize=256,128,64,48,32,16 "$PACKAGE_DIR/icon.ico"
-
-cat > "$PACKAGE_DIR/README.txt" << 'EOF'
-Lectures Assistant for Windows
-
-To start the application:
-1. Double-click "Lectures Assistant.exe"
-2. Your browser will open automatically to http://localhost:3000
-3. On first run, you'll be prompted to set up your account and API key
-
-To stop the server:
-- Close the command window or press Ctrl+C
-
-All data is stored in the "data" folder.
-Configuration is stored in "configuration.yaml".
-An application icon "icon.ico" is provided in the folder.
-EOF

@@ -14,10 +14,10 @@ cd server
 mkdir -p dist
 ARCH=$(uname -m)
 if [ "$ARCH" = "arm64" ]; then
-    GOOS=darwin GOARCH=arm64 go build -o dist/lectures-mac-arm64 ./cmd/server
+    CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o dist/lectures-mac-arm64 ./cmd/server
     BINARY="dist/lectures-mac-arm64"
 else
-    GOOS=darwin GOARCH=amd64 go build -o dist/lectures-mac-amd64 ./cmd/server
+    CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o dist/lectures-mac-amd64 ./cmd/server
     BINARY="dist/lectures-mac-amd64"
 fi
 cd ..

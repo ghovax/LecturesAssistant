@@ -21,13 +21,13 @@ The latest pre-built packages for macOS and Windows are available in the **[Rele
 
 #### macOS
 
-1. Download the `Lectures.Assistant.mac.zip` from Releases.
+1. Download the `Lectures-Assistant_macOS.zip` from Releases.
 2. Extract the archive and move `Lectures Assistant.app` to your Applications folder.
 3. Double-click the app to start. It will open a terminal window and your default browser at `http://localhost:3000`.
 
 #### Windows
 
-1. Download the `Lectures.Assistant.windows.zip` from Releases.
+1. Download the `Lectures-Assistant_Windows.zip` from Releases.
 2. Extract the folder.
 3. Double-click `start.bat` to launch the application.
 

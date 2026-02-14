@@ -27,15 +27,75 @@ APP_DIR="$APP_NAME.app"
 CONTENTS="$APP_DIR/Contents"
 MACOS="$CONTENTS/MacOS"
 RESOURCES="$CONTENTS/Resources"
+BIN_DEST_RELATIVE="$RESOURCES/bin"
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS"
 mkdir -p "$RESOURCES"
+mkdir -p "$BIN_DEST_RELATIVE"
+
+# Get absolute path for BIN_DEST
+BIN_DEST="$(pwd)/$BIN_DEST_RELATIVE"
 
 # Copy binary and resources
 cp "server/$BINARY" "$MACOS/lectures"
 cp -r server/prompts "$RESOURCES/"
 cp server/xelatex-template.tex "$RESOURCES/"
+
+# Bundling Dependencies
+echo "Bundling dependencies (FFmpeg, Pandoc, Tectonic)..."
+
+# Determine URLs based on architecture
+if [ "$ARCH" = "arm64" ]; then
+    PANDOC_URL="https://github.com/jgm/pandoc/releases/download/3.9/pandoc-3.9-arm64-macOS.zip"
+    TECTONIC_URL="https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.15.0/tectonic-0.15.0-aarch64-apple-darwin.tar.gz"
+    FFMPEG_URL="https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip"
+    FFPROBE_URL="https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip"
+else
+    PANDOC_URL="https://github.com/jgm/pandoc/releases/download/3.9/pandoc-3.9-x86_64-macOS.zip"
+    TECTONIC_URL="https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.15.0/tectonic-0.15.0-x86_64-apple-darwin.tar.gz"
+    FFMPEG_URL="https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip"
+    FFPROBE_URL="https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip"
+fi
+
+download_and_extract() {
+    local url=$1
+    local name=$2
+    local output_file="temp_$name"
+    if [[ "$url" == *"/zip" ]]; then output_file="temp_$name.zip"; fi
+    if [[ "$url" == *".zip" ]]; then output_file="temp_$name.zip"; fi
+    if [[ "$url" == *".tar.gz" ]]; then output_file="temp_$name.tar.gz"; fi
+    
+    echo "Downloading $name from $url..."
+    curl -L "$url" -o "$output_file"
+    
+    if [[ "$output_file" == *".tar.gz" ]]; then
+        tar -xzf "$output_file"
+    elif [[ "$output_file" == *".zip" ]]; then
+        unzip -q -o "$output_file"
+    fi
+    rm "$output_file"
+}
+
+# Download and move to bin folder
+mkdir -p temp_build
+cd temp_build
+
+download_and_extract "$PANDOC_URL" "pandoc"
+find . -name "pandoc" -type f -exec cp {} "$BIN_DEST/" \;
+
+download_and_extract "$TECTONIC_URL" "tectonic"
+find . -name "tectonic" -type f -exec cp {} "$BIN_DEST/" \;
+
+download_and_extract "$FFMPEG_URL" "ffmpeg"
+find . -name "ffmpeg" -type f -exec cp {} "$BIN_DEST/" \;
+
+download_and_extract "$FFPROBE_URL" "ffprobe"
+find . -name "ffprobe" -type f -exec cp {} "$BIN_DEST/" \;
+
+cd ..
+rm -rf temp_build
+chmod +x "$BIN_DEST"/*
 
 # Generate Icon
 echo "Generating macOS icon..."
@@ -43,7 +103,6 @@ ICON_SVG="website/src/lib/assets/favicon.svg"
 ICONSET_DIR="icon.iconset"
 mkdir -p "$ICONSET_DIR"
 
-# helper to generate png from svg
 gen_png() {
     rsvg-convert -w "$1" -h "$1" "$ICON_SVG" -o "$ICONSET_DIR/icon_$2.png"
 }
@@ -81,6 +140,7 @@ server:
     port: 3000
 storage:
     data_directory: ./data
+    bin_directory: ./bin
 security:
     auth:
         type: session

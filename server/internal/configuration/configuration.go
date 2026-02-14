@@ -33,6 +33,7 @@ type ServerConfiguration struct {
 
 type StorageConfiguration struct {
 	DataDirectory string `yaml:"data_directory" json:"data_directory"`
+	BinDirectory  string `yaml:"bin_directory,omitempty" json:"bin_directory,omitempty"`
 }
 
 type SecurityConfiguration struct {

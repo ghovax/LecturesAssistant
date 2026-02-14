@@ -10,6 +10,7 @@ server:
     port: 3000
 storage:
     data_directory: ./data
+    bin_directory: ./bin
 security:
     auth:
         type: session

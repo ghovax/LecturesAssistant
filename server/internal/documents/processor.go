@@ -19,15 +19,17 @@ type Processor struct {
 	promptManager *prompts.Manager
 	converter     DocumentConverter
 	dpi           int
+	binDir        string
 }
 
-func NewProcessor(llmProvider llm.Provider, llmModel string, promptManager *prompts.Manager, dpi int) *Processor {
+func NewProcessor(llmProvider llm.Provider, llmModel string, promptManager *prompts.Manager, dpi int, binDir string) *Processor {
 	return &Processor{
 		llmProvider:   llmProvider,
 		llmModel:      llmModel,
 		promptManager: promptManager,
-		converter:     &ExternalDocumentConverter{},
+		converter:     &ExternalDocumentConverter{binDir: binDir},
 		dpi:           dpi,
+		binDir:        binDir,
 	}
 }
 

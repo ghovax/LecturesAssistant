@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"lectures/internal/media"
 )
 
 // DocumentConverter defines the interface for document processing operations
@@ -16,15 +18,23 @@ type DocumentConverter interface {
 }
 
 // ExternalDocumentConverter implementation that uses Ghostscript and LibreOffice
-type ExternalDocumentConverter struct{}
+type ExternalDocumentConverter struct {
+	binDir string
+}
 
 func (c *ExternalDocumentConverter) resolveSofficePath() (string, error) {
-	// 1. Check PATH
+	// 1. Check local bin
+	local := media.ResolveBinaryPath("soffice", c.binDir)
+	if _, err := os.Stat(local); err == nil {
+		return local, nil
+	}
+
+	// 2. Check PATH
 	if path, err := exec.LookPath("soffice"); err == nil {
 		return path, nil
 	}
 
-	// 2. Check common macOS location
+	// 3. Check common macOS location
 	macOSPath := "/Applications/LibreOffice.app/Contents/MacOS/soffice"
 	if _, err := os.Stat(macOSPath); err == nil {
 		return macOSPath, nil
@@ -34,8 +44,9 @@ func (c *ExternalDocumentConverter) resolveSofficePath() (string, error) {
 }
 
 func (c *ExternalDocumentConverter) CheckDependencies() error {
-	if _, lookError := exec.LookPath("gs"); lookError != nil {
-		return fmt.Errorf("ghostscript (gs) not found in PATH")
+	gs := media.ResolveBinaryPath("gs", c.binDir)
+	if _, lookError := exec.LookPath(gs); lookError != nil {
+		return fmt.Errorf("ghostscript (gs) not found")
 	}
 	if _, err := c.resolveSofficePath(); err != nil {
 		return err
@@ -79,7 +90,8 @@ func (c *ExternalDocumentConverter) ExtractPagesAsImages(pdfPath string, outputD
 		dpi = 150 // Fallback
 	}
 	outputPattern := filepath.Join(outputDirectory, "%03d.png")
-	command := exec.Command("gs", "-dSAFER", "-dBATCH", "-dNOPAUSE", "-sDEVICE=png16m", fmt.Sprintf("-r%d", dpi), fmt.Sprintf("-sOutputFile=%s", outputPattern), pdfPath)
+	gs := media.ResolveBinaryPath("gs", c.binDir)
+	command := exec.Command(gs, "-dSAFER", "-dBATCH", "-dNOPAUSE", "-sDEVICE=png16m", fmt.Sprintf("-r%d", dpi), fmt.Sprintf("-sOutputFile=%s", outputPattern), pdfPath)
 
 	var stderr strings.Builder
 	command.Stderr = &stderr

@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	"lectures/internal/api"
 	"lectures/internal/configuration"
@@ -28,10 +30,26 @@ func main() {
 	configurationPath := flag.String("configuration", "", "Path to configuration file")
 	flag.Parse()
 
+	// 1. Auto-detect configuration if not provided
+	finalConfigPath := *configurationPath
+	if finalConfigPath == "" {
+		if _, err := os.Stat("configuration.yaml"); err == nil {
+			finalConfigPath = "configuration.yaml"
+		}
+	}
+
 	// Load configuration
-	loadedConfiguration, loadingError := configuration.Load(*configurationPath)
+	loadedConfiguration, loadingError := configuration.Load(finalConfigPath)
 	if loadingError != nil {
 		log.Fatalf("Failed to load configuration: %v", loadingError)
+	}
+
+	// 2. Auto-detect bundled binaries if not configured
+	if loadedConfiguration.Storage.BinDirectory == "" {
+		if _, err := os.Stat("bin"); err == nil {
+			loadedConfiguration.Storage.BinDirectory = "./bin"
+			slog.Info("Auto-detected bundled binaries in ./bin")
+		}
 	}
 
 	// Ensure data directory exists
@@ -113,27 +131,27 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("Document processor initialized", "model", ingestionModel)
-	documentProcessor := documents.NewProcessor(llmProvider, ingestionModel, promptManager, loadedConfiguration.Documents.RenderDPI)
+	documentProcessor := documents.NewProcessor(llmProvider, ingestionModel, promptManager, loadedConfiguration.Documents.RenderDPI, loadedConfiguration.Storage.BinDirectory)
 
 	// Initialize markdown converter
-	markdownConverter := markdown.NewConverter(loadedConfiguration.Storage.DataDirectory)
+	markdownConverter := markdown.NewConverter(loadedConfiguration.Storage.DataDirectory, loadedConfiguration.Storage.BinDirectory)
 
 	// Check dependencies
 	if transcriptionError := transcriptionService.CheckDependencies(); transcriptionError != nil {
 		slog.Error("Transcription dependencies check failed", "error", transcriptionError)
-		os.Exit(1)
+		// os.Exit(1) // Don't exit, allow UI to show error or user to fix config
 	}
 	if processorError := documentProcessor.CheckDependencies(); processorError != nil {
 		slog.Error("Document processor dependencies check failed", "error", processorError)
-		os.Exit(1)
+		// os.Exit(1)
 	}
 	if converterError := markdownConverter.CheckDependencies(); converterError != nil {
 		slog.Error("Markdown converter dependencies check failed", "error", converterError)
-		os.Exit(1)
+		// os.Exit(1)
 	}
-	if mediaError := media.CheckDependencies(); mediaError != nil {
+	if mediaError := media.CheckDependencies(loadedConfiguration.Storage.BinDirectory); mediaError != nil {
 		slog.Error("Media dependencies check failed", "error", mediaError)
-		os.Exit(1)
+		// os.Exit(1)
 	}
 
 	// Initialize tool generator
@@ -166,6 +184,27 @@ func main() {
 	serverAddress := fmt.Sprintf("%s:%d", loadedConfiguration.Server.Host, loadedConfiguration.Server.Port)
 	slog.Info("Server starting", "address", serverAddress)
 	slog.Info("Data directory", "directory", loadedConfiguration.Storage.DataDirectory)
+
+	// Auto-open browser
+	go func() {
+		url := fmt.Sprintf("http://localhost:%d", loadedConfiguration.Server.Port)
+		if loadedConfiguration.Server.Host != "0.0.0.0" && loadedConfiguration.Server.Host != "" {
+			url = fmt.Sprintf("http://%s:%d", loadedConfiguration.Server.Host, loadedConfiguration.Server.Port)
+		}
+		
+		var err error
+		switch runtime.GOOS {
+		case "linux":
+			err = exec.Command("xdg-open", url).Start()
+		case "windows":
+			err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+		case "darwin":
+			err = exec.Command("open", url).Start()
+		}
+		if err != nil {
+			slog.Warn("Failed to open browser automatically", "error", err)
+		}
+	}()
 
 	if serverError := http.ListenAndServe(serverAddress, apiServer.Handler()); serverError != nil {
 		slog.Error("Server failed", "error", serverError)

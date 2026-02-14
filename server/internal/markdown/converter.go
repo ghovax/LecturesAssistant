@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"lectures/internal/media"
 )
 
 // MarkdownConverter defines the interface for document format conversions
@@ -31,22 +33,26 @@ type MarkdownConverter interface {
 // ExternalConverter handles document format conversions using Pandoc
 type ExternalConverter struct {
 	dataDirectory string
+	binDir        string
 }
 
 // NewConverter creates a new document converter
-func NewConverter(dataDirectory string) MarkdownConverter {
+func NewConverter(dataDirectory string, binDir string) MarkdownConverter {
 	return &ExternalConverter{
 		dataDirectory: dataDirectory,
+		binDir:        binDir,
 	}
 }
 
 // CheckDependencies verifies that pandoc and tectonic are installed
 func (converter *ExternalConverter) CheckDependencies() error {
-	if _, err := exec.LookPath("pandoc"); err != nil {
-		return fmt.Errorf("pandoc not found in PATH")
+	p := media.ResolveBinaryPath("pandoc", converter.binDir)
+	if _, err := exec.LookPath(p); err != nil {
+		return fmt.Errorf("pandoc not found")
 	}
-	if _, err := exec.LookPath("tectonic"); err != nil {
-		return fmt.Errorf("tectonic not found in PATH")
+	t := media.ResolveBinaryPath("tectonic", converter.binDir)
+	if _, err := exec.LookPath(t); err != nil {
+		return fmt.Errorf("tectonic not found")
 	}
 	return nil
 }
@@ -80,7 +86,8 @@ func (converter *ExternalConverter) MarkdownToHTML(markdownText string) (string,
 	// Normalize LaTeX delimiters before passing to pandoc
 	markdownText = converter.normalizeMathDelimiters(markdownText)
 
-	command := exec.Command("pandoc",
+	bin := media.ResolveBinaryPath("pandoc", converter.binDir)
+	command := exec.Command(bin,
 		"-f", "gfm+smart+tex_math_dollars",
 		"-t", "html",
 		"--standalone=false",
@@ -167,12 +174,15 @@ func (converter *ExternalConverter) HTMLToPDF(htmlContent string, outputPath str
 
 	slog.Debug("Using XeLaTeX template", "path", templatePath, "exists", fileExists(templatePath))
 
+	pandoc := media.ResolveBinaryPath("pandoc", converter.binDir)
+	tectonic := media.ResolveBinaryPath("tectonic", converter.binDir)
+
 	arguments := []string{
 		"-f", "html",
 		"-t", "pdf",
 		"--resource-path", converter.dataDirectory,
 		"--pdf-engine-opt=-Zcontinue-on-errors",
-		"--pdf-engine=tectonic",
+		"--pdf-engine=" + tectonic,
 		"--template", templatePath,
 		"--toc",
 		"--shift-heading-level-by=-1",
@@ -208,7 +218,7 @@ func (converter *ExternalConverter) HTMLToPDF(htmlContent string, outputPath str
 		}
 	}
 
-	command := exec.Command("pandoc", arguments...)
+	command := exec.Command(pandoc, arguments...)
 	command.Stdin = strings.NewReader(htmlContent)
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
@@ -222,6 +232,7 @@ func (converter *ExternalConverter) HTMLToPDF(htmlContent string, outputPath str
 
 // HTMLToDocx converts HTML content to a Docx file
 func (converter *ExternalConverter) HTMLToDocx(htmlContent string, outputPath string, options ConversionOptions) error {
+	bin := media.ResolveBinaryPath("pandoc", converter.binDir)
 	arguments := []string{
 		"-f", "html",
 		"-t", "docx",
@@ -238,7 +249,7 @@ func (converter *ExternalConverter) HTMLToDocx(htmlContent string, outputPath st
 		arguments = append(arguments, "--metadata", "course-title-label="+getI18nLabel(options.Language, "course_label"))
 	}
 
-	command := exec.Command("pandoc", arguments...)
+	command := exec.Command(bin, arguments...)
 	command.Stdin = strings.NewReader(htmlContent)
 	var stderr bytes.Buffer
 	command.Stderr = &stderr

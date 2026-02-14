@@ -25,7 +25,7 @@ type Service struct {
 func NewService(configuration *configuration.Configuration, provider Provider, llmProvider llm.Provider, promptManager *prompts.Manager) *Service {
 	return &Service{
 		configuration:  configuration,
-		mediaProcessor: NewFFmpeg(),
+		mediaProcessor: NewFFmpeg(configuration.Storage.BinDirectory),
 		provider:       provider,
 		llmProvider:    llmProvider,
 		promptManager:  promptManager,

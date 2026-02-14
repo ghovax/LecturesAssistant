@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"lectures/internal/media"
 )
 
 // MediaProcessor defines the interface for media processing operations
@@ -19,28 +21,33 @@ type MediaProcessor interface {
 }
 
 // FFmpeg handles media processing using the ffmpeg CLI tool
-type FFmpeg struct{}
+type FFmpeg struct {
+	binDir string
+}
 
 // NewFFmpeg creates a new FFmpeg handler
-func NewFFmpeg() *FFmpeg {
-	return &FFmpeg{}
+func NewFFmpeg(binDir string) *FFmpeg {
+	return &FFmpeg{binDir: binDir}
 }
 
 // CheckDependencies verifies that ffmpeg and ffprobe are installed
 func (ffmpeg *FFmpeg) CheckDependencies() error {
-	if _, lookError := exec.LookPath("ffmpeg"); lookError != nil {
-		return fmt.Errorf("ffmpeg not found in PATH")
+	ff := media.ResolveBinaryPath("ffmpeg", ffmpeg.binDir)
+	if _, lookError := exec.LookPath(ff); lookError != nil {
+		return fmt.Errorf("ffmpeg not found")
 	}
-	if _, lookError := exec.LookPath("ffprobe"); lookError != nil {
-		return fmt.Errorf("ffprobe not found in PATH")
+	fp := media.ResolveBinaryPath("ffprobe", ffmpeg.binDir)
+	if _, lookError := exec.LookPath(fp); lookError != nil {
+		return fmt.Errorf("ffprobe not found")
 	}
 	return nil
 }
 
 // ExtractAudio extracts the audio track from a video file to an audio file (mp3)
 func (ffmpeg *FFmpeg) ExtractAudio(inputPath string, outputPath string) error {
+	bin := media.ResolveBinaryPath("ffmpeg", ffmpeg.binDir)
 	// ffmpeg -y -i input.mp4 -vn -acodec libmp3lame -q:a 2 output.mp3
-	command := exec.Command("ffmpeg", "-y", "-i", inputPath, "-vn", "-acodec", "libmp3lame", "-q:a", "2", outputPath)
+	command := exec.Command(bin, "-y", "-i", inputPath, "-vn", "-acodec", "libmp3lame", "-q:a", "2", outputPath)
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
 	if executionError := command.Run(); executionError != nil {
@@ -60,8 +67,9 @@ func (ffmpeg *FFmpeg) SplitAudio(inputPath string, outputDirectory string, segme
 	// Output pattern: segment_001.mp3
 	outputPattern := filepath.Join(outputDirectory, "segment_%03d.mp3")
 
+	bin := media.ResolveBinaryPath("ffmpeg", ffmpeg.binDir)
 	// ffmpeg -y -i input.mp3 -f segment -segment_time 600 -c copy output_%03d.mp3
-	command := exec.Command("ffmpeg", "-y", "-i", inputPath, "-f", "segment", "-segment_time", strconv.Itoa(segmentDuration), "-c", "copy", outputPattern)
+	command := exec.Command(bin, "-y", "-i", inputPath, "-f", "segment", "-segment_time", strconv.Itoa(segmentDuration), "-c", "copy", outputPattern)
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
 	if executionError := command.Run(); executionError != nil {
@@ -78,8 +86,9 @@ func (ffmpeg *FFmpeg) SplitAudio(inputPath string, outputDirectory string, segme
 
 // GetDuration returns the duration of the media file in seconds
 func (ffmpeg *FFmpeg) GetDuration(inputPath string) (float64, error) {
+	bin := media.ResolveBinaryPath("ffprobe", ffmpeg.binDir)
 	// ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 [file]
-	command := exec.Command("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", inputPath)
+	command := exec.Command(bin, "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", inputPath)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	command.Stdout = &stdout
@@ -91,7 +100,7 @@ func (ffmpeg *FFmpeg) GetDuration(inputPath string) (float64, error) {
 	durationString := strings.TrimSpace(stdout.String())
 	if durationString == "" || durationString == "N/A" {
 		// Fallback: try stream duration
-		command = exec.Command("ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=duration", "-of", "default=noprint_wrappers=1:nokey=1", inputPath)
+		command = exec.Command(bin, "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=duration", "-of", "default=noprint_wrappers=1:nokey=1", inputPath)
 		stdout.Reset()
 		stderr.Reset()
 		command.Stdout = &stdout

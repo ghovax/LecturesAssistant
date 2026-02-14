@@ -1,85 +1,110 @@
 # Lectures Assistant
 
-An AI-powered application to transcribe and process lecture recordings. Upload audio, video, or PDF files and generate transcripts, notes, and exports with minimal effort.
+Lectures Assistant is a high-fidelity, AI-powered platform designed to transform lecture recordings and reference materials into structured, pedagogical study documents. By leveraging frontier LLMs via OpenRouter or secure local models via Ollama, it provides an immersive and organized learning experience.
 
-## Quick Start
+## ✨ Core Features
 
-The easiest way to run this application is with Docker, which packages all dependencies (ffmpeg, PDF tools, etc.) in one container. If you prefer not to use Docker, you can build native binaries instead.
+- **Multi-modal AI Ingestion**: High-precision transcription of audio/video recordings and intelligent interpretation of PDF, PPTX, and DOCX documents.
+- **Smart Study Aids**: Automatically generate comprehensive study guides, flashcard sets, and multiple-choice quizzes grounded deeply in your materials.
+- **AI Reading Assistant**: An integrated chat interface that lets you ask questions, clarify concepts, and explore connections across all your lessons simultaneously.
+- **Professional Exports**: Export your materials to beautifully formatted PDF (via XeLaTeX), Word (Docx), or Markdown, complete with embedded cited images and QR codes for easy sharing.
+- **Cost Tracking**: Transparent monitoring of token usage and estimated USD costs for every AI-powered operation.
+- **Local & Cloud Privacy**: Choose between powerful cloud models (Claude, GPT, Gemini) or fully private local inference using Ollama.
 
-**1. Run the Application**
+---
 
-Mac/Linux: Open terminal and run `./start.sh`
-Windows: Double-click `start.bat`
-With packaged apps: Double-click `Lectures Assistant.app` (Mac) or `Lectures Assistant.bat` (Windows)
+## 🚀 Getting Started
 
-The application will automatically create a configuration file with defaults and start the server.
+The latest pre-built packages for macOS and Windows are available in the **[Releases](https://github.com/user/LecturesAssistant/releases)** section.
 
-**2. Configure in Browser**
+### Packaged Applications (Recommended)
 
-The app will start at http://localhost:3000. Configure your API key and preferences through the web interface.
+#### macOS
 
-To get an API key, visit https://openrouter.ai/ and create a free account. The key will start with `sk-or-v1-`.
+1. Download the `Lectures.Assistant.mac.zip` from Releases.
+2. Extract the archive and move `Lectures Assistant.app` to your Applications folder.
+3. Double-click the app to start. It will open a terminal window and your default browser at `http://localhost:3000`.
 
-## What This Does
+#### Windows
 
-- Upload audio or video files to get AI-generated transcripts
-- Upload PDF documents to extract and process content
-- Generate comprehensive lecture notes from recordings
-- Export your work to PDF or Markdown format
+1. Download the `Lectures.Assistant.windows.zip` from Releases.
+2. Extract the folder.
+3. Double-click `start.bat` to launch the application.
 
-All files are stored locally in the `data/` folder.
+### Running with Docker
 
-## Troubleshooting
+If you have Docker installed, you can run the entire environment (including all system dependencies like FFmpeg and XeLaTeX) with a single command:
 
-**Port already in use**
-Another application is using port 8080. Open `configuration.yaml` and change `port: 8080` to `port: 8081`, then update the same port in `docker-compose.yml`.
+```bash
+docker-compose up --build -d
+```
 
-**Stop the application**
-Press `Ctrl+C` in the terminal window.
+Access the interface at `http://localhost:3000`.
 
-## Distributable Packages
+---
 
-For users who want a simple double-click experience:
+## 🛠️ Configuration
 
-**Mac:**
-Run `./package-mac.sh` to create `Lectures Assistant.app`
+On your first run, you will be guided through a **Setup** process:
 
-Users double-click the app, which starts the server and opens the browser automatically.
+1. **Create an Admin Account**: Secure your local instance.
+2. **AI Provider**:
+   - **OpenRouter (Cloud)**: Provide your API key from [openrouter.ai](https://openrouter.ai/).
+   - **Ollama (Local)**: Ensure Ollama is running locally.
+3. **Language**: Set your primary study language (transcripts and guides will default to this).
 
-**Windows:**
-Run `./package-windows.sh` to create `Lectures Assistant/`
+---
 
-Users double-click `Lectures Assistant.bat`, which starts the server and opens the browser automatically.
+## 🏗️ Building from Source
 
-## Building Without Docker
+### Prerequisites
 
-If you prefer to build from source without Docker:
+- **Go** (1.23+)
+- **Node.js** (20+) & **npm**
+- **System Tools**: FFmpeg, Ghostscript, Pandoc, and Tectonic (for PDF exports).
 
-**Install dependencies**
+### Build Scripts
 
-Mac: `brew install ffmpeg poppler go node`
-Linux: `sudo apt install ffmpeg poppler-utils golang nodejs npm`
-Windows: Install Go, Node.js, ffmpeg, and poppler from their websites
+We provide automated build scripts in the root directory:
 
-**Build and run**
+- **macOS**: `./build-mac.sh` (Generates a native `.app` bundle with icons)
+- **Windows**: `./build-windows.sh` (Generates a distribution folder with `.exe` and `start.bat`)
 
-Run `./build.sh` to create native binaries in `server/dist/`
-Run `./start.sh` (or `start.bat`) which auto-detects and uses your built binary
+### Manual Development Flow
 
-## For Developers
+**Backend:**
 
-**Project structure**
+```bash
+cd server
+go run ./cmd/server -configuration ../configuration.yaml
+```
 
-- `server/` - Go backend server
-- `website/` - SvelteKit frontend
-- `Dockerfile` - Multi-stage build (frontend + backend + dependencies)
+**Frontend:**
 
-**Development mode**
+```bash
+cd website
+npm install
+npm run dev
+```
 
-Backend: `cd server && go run ./cmd/server -configuration ../configuration.yaml`
-Frontend: `cd website && npm run dev`
+---
 
-**Production builds**
+## 📂 Project Structure
 
-Native binaries: `./build.sh` (outputs to `server/dist/`)
-Docker: `docker-compose up --build`
+- `server/`: Go backend handles API, job queue, LLM routing, and file processing.
+- `website/`: SvelteKit frontend providing a minimalist, "craft" inspired user interface.
+- `prompts/`: A centralized repository of system prompts used for AI orchestration.
+
+---
+
+## 📝 Troubleshooting
+
+**Port Conflicts:**
+By default, the server uses port `3000`. If this port is occupied, update `server.port` in `configuration.yaml`.
+
+**Dependency Errors:**
+If exports fail, ensure `pandoc` and `tectonic` are available in your system PATH. Packaged apps and Docker versions include these automatically.
+
+---
+
+Built with focus and care for students who value clarity and depth in their learning journey.

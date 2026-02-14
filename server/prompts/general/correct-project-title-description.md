@@ -7,8 +7,8 @@ Your task is to correct and improve a user's proposed project title and descript
 Return only a valid JSON object with "title" and "description" fields, with no additional text, explanations, or formatting outside the JSON as follows:
 
 {
-  "title": "Improved project title",
-  "description": "Improved project description"
+"title": "Improved project title",
+"description": "Improved project description"
 }
 
 {{latex_instructions}}
@@ -24,8 +24,8 @@ Return only a valid JSON object with "title" and "description" fields, with no a
 **Corrected Output:**
 
 {
-  "title": "Advanced Mathematics Study Notes",
-  "description": "Comprehensive collection of mathematical concepts, theorems, and problem-solving techniques for advanced studies."
+"title": "Advanced Mathematics Study Notes",
+"description": "Comprehensive collection of mathematical concepts, theorems, and problem-solving techniques for advanced studies."
 }
 
 ### Example 2
@@ -37,8 +37,8 @@ Return only a valid JSON object with "title" and "description" fields, with no a
 **Corrected Output:**
 
 {
-  "title": "React Todo Application",
-  "description": "A modern React-based task management application with features for creating, editing, and organizing todo items."
+"title": "React Todo Application",
+"description": "A modern React-based task management application with features for creating, editing, and organizing todo items."
 }
 
 ### Example 3
@@ -50,8 +50,8 @@ Return only a valid JSON object with "title" and "description" fields, with no a
 **Corrected Output:**
 
 {
-  "title": "Scientific Research Project",
-  "description": "An in-depth exploration of scientific concepts, methodologies, and discoveries in various fields of study."
+"title": "Scientific Research Project",
+"description": "An in-depth exploration of scientific concepts, methodologies, and discoveries in various fields of study."
 }
 
 ---
@@ -67,8 +67,8 @@ Return only a valid JSON object with "title" and "description" fields, with no a
 **Corrected Output:**
 
 {
-  "title": "Joe's Project",
-  "description": "This is a project created by Joe."
+"title": "Joe's Project",
+"description": "This is a project created by Joe."
 }
 
 # User's Input Project Title and Description

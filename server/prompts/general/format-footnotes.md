@@ -3,6 +3,7 @@
 The footnote must be fixed to be a standalone piece of content detailing what has been referenced, without any reference to files or pages. Each footnote must be a complete, grammatically correct sentence or phrase that stands alone as a complete thought, being formed into a normal sentence, with correct grammar, syntax and punctuation. It is absolutely critical that even the shortest or most fragmented input is transformed into a full, coherent, and polished sentence.
 
 **Strict Negative Constraints (Extremely Critical):**
+
 - **Do not** mention the source filename (e.g., "document.pdf").
 - **Do not** mention page numbers or ranges (e.g., "on page 1", "S. 1", "pp. 5-10").
 - **Do not** mention the title of the resource or document.
@@ -11,7 +12,7 @@ The footnote must be fixed to be a standalone piece of content detailing what ha
 
 Focus exclusively on the factual or conceptual information being cited. The goal is to produce a natural sentence that conveys the information as if it were part of the main text, but placed in a footnote for detail. Every footnote **must** be a perfect, high-quality sentence regardless of the input quality.
 
-Footnotes must not be short fragments, lowercase phrases, or incomplete thoughts. If a footnote is a broken fragment or incomplete sentence, it needs to be made into a proper sentence. They must clearly state the cited information in a way that makes the reasoning behind the citation clear and unambiguous, while remaining concise, taking from the available context of the footnote itself, avoiding to insert information that wasn't originally present. 
+Footnotes must not be short fragments, lowercase phrases, or incomplete thoughts. If a footnote is a broken fragment or incomplete sentence, it needs to be made into a proper sentence. They must clearly state the cited information in a way that makes the reasoning behind the citation clear and unambiguous, while remaining concise, taking from the available context of the footnote itself, avoiding to insert information that wasn't originally present.
 
 Footnotes should be maximum one or two sentences; only if a footnote exceeds two or three sentences, summarize it into one or two sentences. Respect the formatting. All footnotes must be accounted for in your response. You must not forget any individual footnote. Return just the footnotes, without any other message before it or after it. Preserve the LaTeX \(...\) terms, and fix it if malformed or include it if missing and necessary. The language of the footnotes and their conventions or styles must be preserved, taking the following example of a proper footnote just as a reference.
 

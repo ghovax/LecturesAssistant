@@ -17,9 +17,9 @@ Your task is to generate exactly 3 thoughtful questions about the provided docum
 Return only a valid JSON object with a "questions" field containing an array of exactly 3 strings, with no additional text, explanations, or formatting outside the JSON as follows:
 
 {
-  "questions": [
-    "First question here?",
-    "Second question here?",
-    "Third question here?"
-  ]
+"questions": [
+"First question here?",
+"Second question here?",
+"Third question here?"
+]
 }

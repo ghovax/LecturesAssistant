@@ -12,16 +12,21 @@ cp -r website/build/* server/internal/api/web/dist/
 
 cd server
 mkdir -p dist
-GOOS=windows GOARCH=amd64 go build -o dist/lectures-windows.exe ./cmd/server
+GOOS=windows GOARCH=amd64 go build -o "dist/Lectures Assistant.exe" ./cmd/server
 cd ..
 
 PACKAGE_DIR="Lectures Assistant"
 rm -rf "$PACKAGE_DIR"
 mkdir -p "$PACKAGE_DIR"
 
-cp server/dist/lectures-windows.exe "$PACKAGE_DIR/"
+cp "server/dist/Lectures Assistant.exe" "$PACKAGE_DIR/"
 cp -r server/prompts "$PACKAGE_DIR/"
 cp server/xelatex-template.tex "$PACKAGE_DIR/"
+
+# Generate Windows Icon
+echo "Generating Windows icon..."
+ICON_SVG="website/src/lib/assets/favicon.svg"
+convert -background none "$ICON_SVG" -define icon:auto-resize=256,128,64,48,32,16 "$PACKAGE_DIR/icon.ico"
 
 cat > "$PACKAGE_DIR/start.bat" << 'EOF'
 @echo off
@@ -117,7 +122,7 @@ if not exist "data" mkdir data
 timeout /t 2 /nobreak >nul
 start http://localhost:3000
 
-lectures-windows.exe -configuration "%CONFIGURATION_FILE%"
+"Lectures Assistant.exe" -configuration "%CONFIGURATION_FILE%"
 EOF
 
 cat > "$PACKAGE_DIR/README.txt" << 'EOF'
@@ -133,4 +138,5 @@ To stop the server:
 
 All data is stored in the "data" folder.
 Configuration is stored in "configuration.yaml".
+An application icon "icon.ico" is provided in the folder.
 EOF

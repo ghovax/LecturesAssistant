@@ -37,6 +37,31 @@ cp "server/$BINARY" "$MACOS/lectures"
 cp -r server/prompts "$RESOURCES/"
 cp server/xelatex-template.tex "$RESOURCES/"
 
+# Generate Icon
+echo "Generating macOS icon..."
+ICON_SVG="website/src/lib/assets/favicon.svg"
+ICONSET_DIR="icon.iconset"
+mkdir -p "$ICONSET_DIR"
+
+# helper to generate png from svg
+gen_png() {
+    rsvg-convert -w "$1" -h "$1" "$ICON_SVG" -o "$ICONSET_DIR/icon_$2.png"
+}
+
+gen_png 16 "16x16"
+gen_png 32 "16x16@2x"
+gen_png 32 "32x32"
+gen_png 64 "32x32@2x"
+gen_png 128 "128x128"
+gen_png 256 "128x128@2x"
+gen_png 256 "256x256"
+gen_png 512 "256x256@2x"
+gen_png 512 "512x512"
+gen_png 1024 "512x512@2x"
+
+iconutil -c icns "$ICONSET_DIR" -o "$RESOURCES/icon.icns"
+rm -rf "$ICONSET_DIR"
+
 # Create launcher script
 cat > "$MACOS/launch.sh" << 'EOF'
 #!/bin/bash
@@ -156,6 +181,8 @@ cat > "$CONTENTS/Info.plist" << 'EOF'
 <dict>
     <key>CFBundleExecutable</key>
     <string>launch.sh</string>
+    <key>CFBundleIconFile</key>
+    <string>icon.icns</string>
     <key>CFBundleIdentifier</key>
     <string>com.lectures.assistant</string>
     <key>CFBundleName</key>

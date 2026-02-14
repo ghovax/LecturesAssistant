@@ -11,8 +11,6 @@ Lectures Assistant is a high-fidelity, AI-powered platform designed to transform
 - **Cost Tracking**: Transparent monitoring of token usage and estimated USD costs for every AI-powered operation.
 - **Local & Cloud Privacy**: Choose between powerful cloud models (Claude, GPT, Gemini) or fully private local inference using Ollama.
 
----
-
 ## 🚀 Getting Started
 
 The latest pre-built packages for macOS and Windows are available in the **[Releases](https://github.com/user/LecturesAssistant/releases)** section.
@@ -41,8 +39,6 @@ docker-compose up --build -d
 
 Access the interface at `http://localhost:3000`.
 
----
-
 ## 🛠️ Configuration
 
 On your first run, you will be guided through a **Setup** process:
@@ -52,8 +48,6 @@ On your first run, you will be guided through a **Setup** process:
    - **OpenRouter (Cloud)**: Provide your API key from [openrouter.ai](https://openrouter.ai/).
    - **Ollama (Local)**: Ensure Ollama is running locally.
 3. **Language**: Set your primary study language (transcripts and guides will default to this).
-
----
 
 ## 🏗️ Building from Source
 
@@ -87,15 +81,11 @@ npm install
 npm run dev
 ```
 
----
-
 ## 📂 Project Structure
 
 - `server/`: Go backend handles API, job queue, LLM routing, and file processing.
 - `website/`: SvelteKit frontend providing a minimalist, "craft" inspired user interface.
 - `prompts/`: A centralized repository of system prompts used for AI orchestration.
-
----
 
 ## 📝 Troubleshooting
 
@@ -104,7 +94,5 @@ By default, the server uses port `3000`. If this port is occupied, update `serve
 
 **Dependency Errors:**
 If exports fail, ensure `pandoc` and `tectonic` are available in your system PATH. Packaged apps and Docker versions include these automatically.
-
----
 
 Built with focus and care for students who value clarity and depth in their learning journey.

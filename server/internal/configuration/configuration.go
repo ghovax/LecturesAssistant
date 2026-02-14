@@ -3,6 +3,7 @@ package configuration
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -233,22 +234,43 @@ type DocumentUploadConfiguration struct {
 
 // Load reads the configuration from a file or creates a default one
 func Load(configurationPath string) (*Configuration, error) {
+	useLocalDefaults := false
+
 	if configurationPath == "" {
-		dataDirectory := os.Getenv("STORAGE_DATA_DIRECTORY")
-		if dataDirectory == "" {
-			homeDirectory, homeDirError := os.UserHomeDir()
-			if homeDirError != nil {
-				return nil, homeDirError
+		// 1. Check for existing local config
+		if _, err := os.Stat("configuration.yaml"); err == nil {
+			configurationPath = "configuration.yaml"
+			useLocalDefaults = true
+		} else {
+			// 2. Check if we appear to be in a bundled/portable environment
+			// If 'bin' or 'prompts' exist, we should default to local config/data
+			_, errBin := os.Stat("bin")
+			_, errPrompts := os.Stat("prompts")
+			if errBin == nil || errPrompts == nil {
+				configurationPath = "configuration.yaml"
+				useLocalDefaults = true
+			} else {
+				// 3. Fallback to standard home directory location
+				dataDirectory := os.Getenv("STORAGE_DATA_DIRECTORY")
+				if dataDirectory == "" {
+					homeDirectory, homeDirError := os.UserHomeDir()
+					if homeDirError != nil {
+						return nil, homeDirError
+					}
+					dataDirectory = filepath.Join(homeDirectory, ".lectures")
+				}
+				configurationPath = filepath.Join(dataDirectory, "configuration.yaml")
 			}
-			dataDirectory = filepath.Join(homeDirectory, ".lectures")
 		}
-		configurationPath = filepath.Join(dataDirectory, "configuration.yaml")
+	} else if !filepath.IsAbs(configurationPath) && (configurationPath == "configuration.yaml" || strings.HasPrefix(configurationPath, "./")) {
+		// If explicitly told to use a local path, assume local defaults for creation
+		useLocalDefaults = true
 	}
 
 	// Check if file exists
 	if _, statError := os.Stat(configurationPath); os.IsNotExist(statError) {
 		// Create default config
-		newConfiguration := defaultConfiguration()
+		newConfiguration := defaultConfiguration(useLocalDefaults)
 		newConfiguration.ConfigurationPath = configurationPath
 		if mkdirError := os.MkdirAll(filepath.Dir(configurationPath), 0755); mkdirError != nil {
 			return nil, mkdirError
@@ -297,15 +319,22 @@ func Save(configuration *Configuration, configurationPath string) error {
 }
 
 // defaultConfiguration returns a configuration with sensible defaults
-func defaultConfiguration() *Configuration {
-	home, _ := os.UserHomeDir()
+func defaultConfiguration(isLocal bool) *Configuration {
+	var dataDir string
+	if isLocal {
+		dataDir = "./data"
+	} else {
+		home, _ := os.UserHomeDir()
+		dataDir = filepath.Join(home, ".lectures", "data")
+	}
+
 	return &Configuration{
 		Server: ServerConfiguration{
 			Host: "0.0.0.0",
 			Port: 3000,
 		},
 		Storage: StorageConfiguration{
-			DataDirectory: filepath.Join(home, ".lectures", "data"),
+			DataDirectory: dataDir,
 		},
 		Security: SecurityConfiguration{
 			Auth: AuthConfiguration{

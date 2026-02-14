@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"lectures/internal/api"
 	"lectures/internal/configuration"
@@ -187,17 +188,21 @@ func main() {
 
 	// Auto-open browser
 	go func() {
+		// Wait a moment for the server to actually start listening
+		time.Sleep(2 * time.Second)
+
 		url := fmt.Sprintf("http://localhost:%d", loadedConfiguration.Server.Port)
 		if loadedConfiguration.Server.Host != "0.0.0.0" && loadedConfiguration.Server.Host != "" {
 			url = fmt.Sprintf("http://%s:%d", loadedConfiguration.Server.Host, loadedConfiguration.Server.Port)
 		}
-		
+
 		var err error
 		switch runtime.GOOS {
 		case "linux":
 			err = exec.Command("xdg-open", url).Start()
 		case "windows":
-			err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+			// cmd /c start is more robust for opening URLs on Windows
+			err = exec.Command("cmd", "/c", "start", url).Start()
 		case "darwin":
 			err = exec.Command("open", url).Start()
 		}

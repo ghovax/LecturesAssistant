@@ -161,11 +161,11 @@
         line-height: 1.2;
         &.font-monospace {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.8rem;
+            font-size: 0.85rem;
         }
     }
     .tileContent {
-        font-size: 0.8rem;
+        font-size: 0.85rem;
         color: var(--gray-500);
         line-height: 1.5;
         height: auto;
@@ -193,7 +193,7 @@
         position: absolute;
         bottom: 12px;
         left: 20px;
-        font-size: 0.65rem;
+        font-size: 0.7rem;
         font-weight: 600;
         color: var(--gray-400);
         font-family: 'JetBrains Mono', monospace;

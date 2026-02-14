@@ -91,7 +91,7 @@
     }
 
     .nav-link {
-        font-size: 0.8rem;
+        font-size: 0.85rem;
         font-weight: 500;
         color: var(--gray-600) !important;
         display: flex;

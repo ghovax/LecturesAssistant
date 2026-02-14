@@ -194,7 +194,7 @@
                         <label for="file-input" class="dropzone-label">
                             <FileUp size={32} class="mb-2 text-orange opacity-75" />
                             <div class="fw-bold small mb-1">Click or drag files here</div>
-                            <div class="text-muted" style="font-size: 0.7rem;">Recordings (MP4, MP3...) and References (PDF, PPTX...)</div>
+                            <div class="text-muted" style="font-size: 0.75rem;">Recordings (MP4, MP3...) and References (PDF, PPTX...)</div>
                         </label>
                     </div>
 
@@ -203,7 +203,7 @@
                             <!-- Group: Recordings -->
                             {#if mediaFiles.length > 0}
                                 <div class="mb-4">
-                                    <div class="cozy-label mb-2 opacity-75" style="font-size: 0.6rem;">Recordings (Ordered)</div>
+                                    <div class="cozy-label mb-2 opacity-75" style="font-size: 0.65rem;">Recordings (Ordered)</div>
                                     {#each mediaFiles as file, i}
                                         <div 
                                             class="file-item recording"
@@ -240,7 +240,7 @@
                             <!-- Group: References -->
                             {#if documentFiles.length > 0}
                                 <div>
-                                    <div class="cozy-label mb-2 opacity-75" style="font-size: 0.6rem;">Reference Documents</div>
+                                    <div class="cozy-label mb-2 opacity-75" style="font-size: 0.65rem;">Reference Documents</div>
                                     {#each documentFiles as file, i}
                                         <div class="file-item reference">
                                             <div class="d-flex align-items-center gap-3 overflow-hidden">

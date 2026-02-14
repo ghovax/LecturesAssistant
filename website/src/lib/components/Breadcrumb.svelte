@@ -35,7 +35,7 @@
 <style lang="scss">
     .breadcrumb {
         font-family: 'Manrope', sans-serif;
-        font-size: 0.65rem;
+        font-size: 0.7rem;
         font-weight: 500;
         text-transform: uppercase;
         letter-spacing: 0.08em;
@@ -53,7 +53,7 @@
                 content: "/";
                 color: var(--gray-300);
                 padding: 0 10px;
-                font-size: 0.8rem;
+                font-size: 0.85rem;
             }
 
             a {

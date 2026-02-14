@@ -89,7 +89,7 @@ func TestJob_PublishMaterial_PuppetData(t *testing.T) {
 	realGenerator := tools.NewToolGenerator(config, mockLLM, nil)
 
 	// Use REAL converter
-	realConverter := markdown.NewConverter(dataDir)
+	realConverter := markdown.NewConverter(dataDir, "")
 
 	// Change working directory to server root so template is found
 	originalWd, _ := os.Getwd()

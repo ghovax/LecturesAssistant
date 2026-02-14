@@ -131,10 +131,12 @@
         scrollToBottom();
 
         try {
-            await api.request('POST', '/chat/messages', {
+            const serverMsg = await api.request('POST', '/chat/messages', {
                 session_id: sessionId,
                 content
             });
+            // Update the message in the list with the server-side version (containing metadata)
+            messages = messages.map(m => m === userMsg ? serverMsg : m);
         } catch (e: any) {
             notifications.error(e.message || e);
             sending = false;
@@ -171,7 +173,7 @@
         <div class="d-flex align-items-center gap-3">
             <h1 class="page-title m-0">{session.title || 'AI Assistant'}</h1>
             {#if session.estimated_cost > 0}
-                <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
+                <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;">
                     ${session.estimated_cost.toFixed(4)}
                 </span>
             {/if}
@@ -193,29 +195,33 @@
                     </div>
                     <div class="p-3">
                         <p class="text-muted small mb-3">Select which lessons to include in this conversation's context.</p>
-                        <div class="linkTiles">
+                        <div class="linkTiles flex-column">
                             {#each allLectures as lecture}
                                 {@const isUsed = usedLectureIds.includes(lecture.id)}
                                 {@const isIncluded = includedLectureIds.includes(lecture.id)}
-                                <div class="tile-wrapper border">
-                                    <div class="p-3 d-flex align-items-center justify-content-between">
-                                        <div class="overflow-hidden me-3">
-                                            <div class="fw-bold small text-truncate" title={lecture.title}>{lecture.title}</div>
-                                            {#if isUsed}
-                                                <div class="text-muted" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em;">
-                                                    <Lock size={10} class="me-1" /> Locked in History
-                                                </div>
-                                            {/if}
-                                        </div>
-                                        
-                                        <!-- svelte-ignore a11y_click_events_have_key_events -->
-                                        <!-- svelte-ignore a11y_no_static_element_interactions -->
+                                <Tile 
+                                    icon="" 
+                                    title={lecture.title}
+                                    onclick={() => !isUsed && toggleLecture(lecture.id)}
+                                    disabled={isUsed}
+                                    class="w-100 mb-0 border {isUsed ? 'tile-locked' : ''}"
+                                >
+                                    {#snippet description()}
+                                                                                    {#if isUsed}
+                                                                                        <div class="text-muted" style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;">
+                                                                                            <Lock size={10} class="me-1" /> Already used
+                                                                                        </div>
+                                                                                    {:else}                                            {lecture.description || 'Lesson materials.'}
+                                        {/if}
+                                    {/snippet}
+
+                                    {#snippet actions()}
                                         <div 
                                             class="village-toggle {isIncluded || isUsed ? 'is-active' : ''} {isUsed ? 'is-locked' : 'cursor-pointer'}"
-                                            onclick={() => !isUsed && toggleLecture(lecture.id)}
+                                            onclick={(e) => { e.stopPropagation(); !isUsed && toggleLecture(lecture.id); }}
                                         ></div>
-                                    </div>
-                                </div>
+                                    {/snippet}
+                                </Tile>
                             {:else}
                                 <div class="p-4 text-center text-muted small border">
                                     No lessons found in this subject.
@@ -224,25 +230,6 @@
                         </div>
                     </div>
                 </div>
-
-                {#if otherSessions.length > 0}
-                    <div class="bg-white border d-none d-lg-block">
-                        <div class="standard-header">
-                            <div class="header-title">
-                                <span class="header-text">Recent Chats</span>
-                            </div>
-                        </div>
-                        <div class="linkTiles flex-column">
-                            {#each otherSessions as s}
-                                <Tile href="/exams/{examId}/chat/{s.id}" icon="" title={s.title || 'Untitled Chat'}>
-                                    {#snippet description()}
-                                        Opened {new Date(s.created_at).toLocaleDateString()}
-                                    {/snippet}
-                                </Tile>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
             </div>
 
             <!-- Main Content: Chat History -->
@@ -285,11 +272,18 @@
                                                                     </div>
                                                                     <div class="d-flex align-items-center gap-3">
                                                                         {#if msg.estimated_cost > 0}
-                                                                            <span class="text-muted" style="font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;">
+                                                                            {@const userMsg = messages[i-1]}
+                                                                            {@const metadata = userMsg?.metadata ? (typeof userMsg.metadata === 'string' ? JSON.parse(userMsg.metadata) : userMsg.metadata) : null}
+                                                                            {#if metadata?.new_lecture_titles?.length > 0}
+                                                                                <span class="text-muted small" style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;">
+                                                                                    Associated new lessons: {metadata.new_lecture_titles.join(', ')}
+                                                                                </span>
+                                                                            {/if}
+                                                                            <span class="text-muted" style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
                                                                                 ${msg.estimated_cost.toFixed(4)}
                                                                             </span>
                                                                         {/if}
-                                                                        <span class="text-muted small flex-shrink-0" style="font-size: 0.7rem;">
+                                                                        <span class="text-muted small flex-shrink-0" style="font-size: 0.75rem;">
                                                                             {new Date(msg.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                         </span>
                                                                     </div>
@@ -299,7 +293,7 @@
                                     {#if msg.content_html}
                                         {@html msg.content_html}
                                     {:else}
-                                        <p>{msg.content}</p>
+                                        <p style="white-space: pre-wrap;">{msg.content}</p>
                                     {/if}
                                 </div>
                             </div>
@@ -317,12 +311,23 @@
                                         </span>
                                     {/if}
                                 </div>
-                                <div class="spinner-border spinner-border-sm" role="status">
-                                    <span class="visually-hidden">Thinking...</span>
+                                <div class="d-flex align-items-center gap-3">
+                                    {#if messages.length > 0 && messages[messages.length-1].role === 'user'}
+                                        {@const lastUserMsg = messages[messages.length-1]}
+                                        {@const metadata = lastUserMsg.metadata ? (typeof lastUserMsg.metadata === 'string' ? JSON.parse(lastUserMsg.metadata) : lastUserMsg.metadata) : null}
+                                        {#if metadata?.new_lecture_titles?.length > 0}
+                                            <span class="text-muted small" style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;">
+                                                Associating: {metadata.new_lecture_titles.join(', ')}
+                                            </span>
+                                        {/if}
+                                    {/if}
+                                    <div class="spinner-border spinner-border-sm" role="status">
+                                        <span class="visually-hidden">Thinking...</span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="p-4 prose">
-                                <p>{streamingMessage}</p>
+                                <p style="white-space: pre-wrap;">{streamingMessage}</p>
                             </div>
                         </div>
                     {/if}
@@ -378,6 +383,17 @@
             
             :global(a), :global(button) {
                 width: 100%;
+                height: auto;
+                min-height: 100px;
+            }
+
+            :global(.tile-title) {
+                padding-right: 40px; /* Avoid overlap with toggle */
+            }
+
+            &.tile-locked {
+                background-color: #fafaf9;
+                opacity: 0.8;
             }
         }
     }

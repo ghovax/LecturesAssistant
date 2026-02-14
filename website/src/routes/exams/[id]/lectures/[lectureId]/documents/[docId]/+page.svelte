@@ -98,13 +98,13 @@
                             <div class="header-title d-flex align-items-center gap-4">
                                 <span class="header-text">Page {p.page_number} / {pages.length}</span>
                                 <div class="d-flex align-items-center gap-2">
-                                    <span class="text-muted" style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;">Go to page:</span>
+                                    <span class="text-muted" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;">Go to page:</span>
                                     <input 
                                         type="number" 
                                         min="1" 
                                         max={pages.length} 
                                         class="form-control cozy-input p-1 text-center no-spinner" 
-                                        style="width: 50px; height: 1.75rem; font-size: 0.75rem;"
+                                        style="width: 50px; height: 1.75rem; font-size: 0.8rem;"
                                         placeholder=""
                                         oninput={(e) => {
                                             const val = parseInt(e.currentTarget.value);

@@ -121,8 +121,8 @@ func TestFullPipeline_RealProviders(tester *testing.T) {
 	)
 	transcriptionService := transcription.NewService(config, transcriptionProvider, llmProvider, promptManager)
 
-	documentProcessor := documents.NewProcessor(llmProvider, config.LLM.GetModelForTask("documents_ingestion"), promptManager, config.Documents.RenderDPI)
-	markdownConverter := markdown.NewConverter(testRunDataDir)
+	documentProcessor := documents.NewProcessor(llmProvider, config.LLM.GetModelForTask("documents_ingestion"), promptManager, config.Documents.RenderDPI, config.Storage.BinDirectory)
+	markdownConverter := markdown.NewConverter(testRunDataDir, config.Storage.BinDirectory)
 	toolGenerator := tools.NewToolGenerator(config, llmProvider, promptManager)
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)

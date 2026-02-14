@@ -58,7 +58,7 @@
 >
     <div class="standard-header">
         <div class="header-title">
-            <span class="header-text" style="font-size: 0.75rem;">{title}</span>
+            <span class="header-text" style="font-size: 0.8rem;">{title}</span>
         </div>
         <button class="btn btn-link btn-sm p-0 text-muted border-0 shadow-none" onclick={onClose}>
             <X size={16} />
@@ -69,11 +69,11 @@
     </div>
     {#if sourceFile}
         <div class="px-3 pb-3 source-info">
-            <div class="text-muted" style="font-size: 0.8rem; line-height: 1.4; word-break: break-all;">
+            <div class="text-muted" style="font-size: 0.75rem; line-height: 1.4; word-break: break-all;">
                 {sourceFile}
             </div>
             {#if formattedPages}
-                <div class="text-muted fw-bold" style="font-size: 0.8rem; margin-top: 0.125rem;">
+                <div class="text-muted fw-bold" style="font-size: 0.75rem; margin-top: 0.125rem;">
                     {formattedPages}
                 </div>
             {/if}
@@ -105,7 +105,7 @@
     }
 
     .citation-content {
-        font-size: 0.8rem;
+        font-size: 0.85rem;
         line-height: 1.5;
         color: #000;
         

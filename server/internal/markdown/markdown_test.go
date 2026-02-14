@@ -1646,7 +1646,7 @@ func TestMixedMathDelimiters(tester *testing.T) {
 }
 
 func TestMarkdownToHTMLMathNormalization(tester *testing.T) {
-	converter := NewConverter("test_data")
+	converter := NewConverter("test_data", "")
 
 	testCases := []struct {
 		name     string

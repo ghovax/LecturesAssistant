@@ -261,7 +261,7 @@ func (server *Server) loggingMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Log request
-		slog.Info("Request processed",
+		slog.Debug("Request processed",
 			"method", request.Method,
 			"uri", uri,
 			"duration", time.Since(startTime),

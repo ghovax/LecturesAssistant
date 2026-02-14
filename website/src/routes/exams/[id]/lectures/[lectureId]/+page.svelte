@@ -574,7 +574,7 @@
             <div class="d-flex align-items-center gap-3">
                 <h1 class="page-title m-0">{lecture.title}</h1>
                 {#if lecture.estimated_cost > 0}
-                    <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
+                    <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;">
                         ${lecture.estimated_cost.toFixed(4)}
                     </span>
                 {/if}
@@ -882,7 +882,7 @@
                                         <StatusIndicator type="count" label="Segment" current={currentSegmentIndex + 1} total={transcript?.segments?.length || 0} />
                                         <StatusIndicator type="time" current={formatTime(seg.start_millisecond)} total={formatTime(seg.end_millisecond)} />
                                         {#if seg.media_filename}
-                                            <span class="text-muted small border-start ps-3 d-none d-lg-inline" style="font-size: 0.75rem;">{seg.media_filename}</span>
+                                            <span class="text-muted small border-start ps-3 d-none d-lg-inline" style="font-size: 0.8rem;">{seg.media_filename}</span>
                                         {/if}
                                     </div>
                                     <div class="btn-group">
@@ -952,13 +952,13 @@
                                     <div class="d-flex align-items-center gap-4">
                                         <StatusIndicator type="page" label="Page" current={p.page_number} total={selectedDocPages.length} />
                                         <div class="d-flex align-items-center gap-2">
-                                            <span class="text-muted" style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;">Go to page:</span>
+                                            <span class="text-muted" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;">Go to page:</span>
                                             <input 
                                                 type="number" 
                                                 min="1" 
                                                 max={selectedDocPages.length} 
                                                 class="form-control cozy-input p-1 text-center no-spinner" 
-                                                style="width: 50px; height: 1.75rem; font-size: 0.75rem;"
+                                                style="width: 50px; height: 1.75rem; font-size: 0.8rem;"
                                                 placeholder=""
                                                 oninput={(e) => {
                                                     const val = parseInt(e.currentTarget.value);
@@ -1043,7 +1043,7 @@
             <option value="fr-FR">Français</option>
             <option value="ja-JP">日本語</option>
         </select>
-        <div class="form-text mt-1 mb-4" style="font-size: 0.7rem;">The assistant will translate and prepare content in this language.</div>
+        <div class="form-text mt-1 mb-4" style="font-size: 0.75rem;">The assistant will translate and prepare content in this language.</div>
     </div>
 
     <div class="mb-0">
@@ -1097,7 +1097,7 @@
 
     .cozy-label {
         font-family: 'Manrope', sans-serif;
-        font-size: 0.75rem;
+        font-size: 0.8rem;
         font-weight: 600;
         color: var(--gray-500);
         text-transform: uppercase;
@@ -1145,7 +1145,7 @@
         display: block;
         font-weight: bold;
         text-transform: uppercase;
-        font-size: 0.75rem;
+        font-size: 0.8rem;
         color: var(--gray-500);
         margin-bottom: 0.75rem;
         letter-spacing: 0.05em;

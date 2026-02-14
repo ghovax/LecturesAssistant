@@ -43,7 +43,7 @@ cp -r server/prompts "$RESOURCES/"
 cp server/xelatex-template.tex "$RESOURCES/"
 
 # Bundling Dependencies
-echo "Bundling dependencies (FFmpeg, Pandoc, Tectonic)..."
+echo "Bundling dependencies (FFmpeg, Pandoc, Tectonic, Ghostscript)..."
 
 # Determine URLs based on architecture
 if [ "$ARCH" = "arm64" ]; then
@@ -51,11 +51,13 @@ if [ "$ARCH" = "arm64" ]; then
     TECTONIC_URL="https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.15.0/tectonic-0.15.0-aarch64-apple-darwin.tar.gz"
     FFMPEG_URL="https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip"
     FFPROBE_URL="https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip"
+    GHOSTSCRIPT_URL="https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10040/ghostscript-10.04.0-macos-arm64.tar.gz"
 else
     PANDOC_URL="https://github.com/jgm/pandoc/releases/download/3.9/pandoc-3.9-x86_64-macOS.zip"
     TECTONIC_URL="https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.15.0/tectonic-0.15.0-x86_64-apple-darwin.tar.gz"
     FFMPEG_URL="https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip"
     FFPROBE_URL="https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip"
+    GHOSTSCRIPT_URL="https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10040/ghostscript-10.04.0-macos-x86_64.tar.gz"
 fi
 
 download_and_extract() {
@@ -92,6 +94,9 @@ find . -name "ffmpeg" -type f -exec cp {} "$BIN_DEST/" \;
 
 download_and_extract "$FFPROBE_URL" "ffprobe"
 find . -name "ffprobe" -type f -exec cp {} "$BIN_DEST/" \;
+
+download_and_extract "$GHOSTSCRIPT_URL" "ghostscript"
+find . -name "gs" -type f -exec cp {} "$BIN_DEST/" \;
 
 cd ..
 rm -rf temp_build

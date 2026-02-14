@@ -414,16 +414,6 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 		CreatedAt: time.Now(),
 	}
 
-	_, databaseError = server.database.Exec(`
-		INSERT INTO chat_messages (id, session_id, role, content, created_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, userMessage.ID, userMessage.SessionID, userMessage.Role, userMessage.Content, userMessage.CreatedAt)
-
-	if databaseError != nil {
-		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to save user message", nil)
-		return
-	}
-
 	// 1.5. Lock the current context (move included to used)
 	var currentIncludedJSON string
 	var currentUsedJSON string
@@ -433,6 +423,45 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 	var currentUsed []string
 	json.Unmarshal([]byte(currentIncludedJSON), &currentIncluded)
 	json.Unmarshal([]byte(currentUsedJSON), &currentUsed)
+
+	// Fetch titles for newly included lectures
+	var newLectureTitles []string
+	if len(currentIncluded) > 0 {
+		placeholders := make([]string, len(currentIncluded))
+		args := make([]any, len(currentIncluded))
+		for i, id := range currentIncluded {
+			placeholders[i] = "?"
+			args[i] = id
+		}
+		query := fmt.Sprintf("SELECT title FROM lectures WHERE id IN (%s)", strings.Join(placeholders, ","))
+		rows, err := server.database.Query(query, args...)
+		if err == nil {
+			for rows.Next() {
+				var title string
+				if err := rows.Scan(&title); err == nil {
+					newLectureTitles = append(newLectureTitles, title)
+				}
+			}
+			rows.Close()
+		}
+	}
+
+	userMsgMetadata := map[string]any{
+		"new_lecture_ids":    currentIncluded,
+		"new_lecture_titles": newLectureTitles,
+	}
+	userMsgMetadataJSON, _ := json.Marshal(userMsgMetadata)
+	userMessage.Metadata = string(userMsgMetadataJSON)
+
+	_, databaseError = server.database.Exec(`
+		INSERT INTO chat_messages (id, session_id, role, content, metadata, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, userMessage.ID, userMessage.SessionID, userMessage.Role, userMessage.Content, userMessage.Metadata, userMessage.CreatedAt)
+
+	if databaseError != nil {
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to save user message", nil)
+		return
+	}
 
 	// Merge included into used, avoiding duplicates
 	usedMap := make(map[string]bool)
@@ -474,6 +503,12 @@ func (server *Server) handleSendMessage(responseWriter http.ResponseWriter, requ
 	// 3. Trigger async AI response
 	go server.processAIResponse(sendMessageRequest.SessionID, messages, lectureContext)
 
+	// Update user message with metadata in DB
+	_, _ = server.database.Exec(`
+		UPDATE chat_messages SET metadata = ? WHERE id = ?
+	`, string(userMsgMetadataJSON), userMsgMetadataJSON)
+
+	userMessage.Metadata = string(userMsgMetadataJSON)
 	server.writeJSON(responseWriter, http.StatusAccepted, userMessage)
 }
 
@@ -750,6 +785,9 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 
 	finalContent = markdownReconstructor.AppendCitations(finalContent, citations)
 
+	// Convert final content to HTML for immediate display in frontend
+	finalHTML, _ := server.markdownConverter.MarkdownToHTML(finalContent)
+
 	slog.Info("Chat AI response completed",
 		"sessionID", sessionID,
 		"input_tokens", totalMetrics.InputTokens,
@@ -764,6 +802,7 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 		SessionID:     sessionID,
 		Role:          "assistant",
 		Content:       completeResponseBuilder.String(), // RAW
+		ContentHTML:   finalHTML,
 		ModelUsed:     model,
 		InputTokens:   totalMetrics.InputTokens,
 		OutputTokens:  totalMetrics.OutputTokens,

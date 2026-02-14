@@ -192,10 +192,10 @@ func TestIntegration_EndToEndPipeline(tester *testing.T) {
 	}, mockLLM, nil)
 	transcriptionService.SetMediaProcessor(&MockMediaProcessor{})
 
-	documentProcessor := documents.NewProcessor(mockLLM, "mock-model", nil, config.Documents.RenderDPI)
+	documentProcessor := documents.NewProcessor(mockLLM, "mock-model", nil, config.Documents.RenderDPI, "")
 	documentProcessor.SetConverter(&MockDocumentConverter{})
 
-	markdownConverter := markdown.NewConverter(temporaryDirectory)
+	markdownConverter := markdown.NewConverter(temporaryDirectory, "")
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
@@ -665,9 +665,9 @@ func TestAI_FailureScenarios(tester *testing.T) {
 
 	jobQueue := jobs.NewQueue(initializedDatabase, 1)
 	transcriptionService := transcription.NewService(config, &MockTranscriptionProvider{}, mockLLM, nil)
-	documentProcessor := documents.NewProcessor(mockLLM, "mock-model", nil, config.Documents.RenderDPI)
+	documentProcessor := documents.NewProcessor(mockLLM, "mock-model", nil, config.Documents.RenderDPI, "")
 	toolGenerator := tools.NewToolGenerator(config, mockLLM, nil)
-	markdownConverter := markdown.NewConverter(temporaryDirectory)
+	markdownConverter := markdown.NewConverter(temporaryDirectory, "")
 
 	jobs.RegisterHandlers(jobQueue, initializedDatabase, config, transcriptionService, documentProcessor, toolGenerator, markdownConverter, database.CheckLectureReadiness, nil)
 	jobQueue.Start()

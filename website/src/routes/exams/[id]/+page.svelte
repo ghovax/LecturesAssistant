@@ -157,7 +157,7 @@
             <div class="d-flex align-items-center gap-3">
                 <h1 class="page-title m-0">{exam.title}</h1>
                 {#if exam.estimated_cost > 0}
-                    <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
+                    <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;">
                         ${exam.estimated_cost.toFixed(4)}
                     </span>
                 {/if}

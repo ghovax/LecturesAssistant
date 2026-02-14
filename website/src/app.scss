@@ -93,7 +93,7 @@ body {
   display: flex;
   align-items: center;
   color: rgba(255, 255, 255, 0.5) !important;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
 }
 .navbar-nav .nav-link:hover {
   color: rgba(255, 255, 255, 0.75) !important;
@@ -103,7 +103,7 @@ body {
 }
 .cozy-label {
   font-family: "Manrope", sans-serif !important;
-  font-size: 0.65rem !important;
+  font-size: 0.7rem !important;
   font-weight: 600 !important;
   color: var(--gray-500) !important;
   text-transform: uppercase !important;
@@ -116,7 +116,7 @@ body {
   border-radius: 0 !important;
   border: 1px solid var(--gray-300) !important;
   font-family: "Manrope", sans-serif !important;
-  font-size: 0.8rem !important;
+  font-size: 0.85rem !important;
   padding: 8px 12px !important;
   background: #fff !important;
   transition: all 0.2s ease !important;
@@ -151,7 +151,7 @@ textarea.cozy-input {
   .form-control,
   .form-select {
     border-right: none;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
   }
   .btn {
     border-radius: 0;
@@ -165,7 +165,7 @@ textarea.cozy-input {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   height: 2.25rem; // Homogenous height for primary buttons
   padding: 0 1.25rem;
   transition: all 0.15s ease;
@@ -184,7 +184,7 @@ textarea.cozy-input {
 .btn-sm {
   height: 1.75rem;
   padding: 0 0.75rem;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
 }
 
 .btn-lg {
@@ -250,7 +250,7 @@ textarea.cozy-input {
   border: none !important;
   padding: 0;
   margin-bottom: 1.25rem;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   .breadcrumb-item {
@@ -258,7 +258,7 @@ textarea.cozy-input {
     align-items: center;
     & + .breadcrumb-item::before {
       content: "/";
-      font-size: 0.8rem;
+      font-size: 0.85rem;
       line-height: 1;
       padding: 0 0.5rem;
       color: var(--gray-300);
@@ -315,7 +315,7 @@ textarea.cozy-input {
   margin-bottom: 0.25rem;
 }
 .smallText {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--gray-500);
 }
 .wordBriefTitle {
@@ -398,7 +398,7 @@ textarea.cozy-input {
       font-weight: 600;
       letter-spacing: 0.02em;
       text-transform: none;
-      font-size: 0.8rem;
+      font-size: 0.85rem;
       color: #1c1917;
       margin: 0;
     }
@@ -437,7 +437,7 @@ textarea.cozy-input {
 
 .form-label {
   font-family: "Manrope", sans-serif !important;
-  font-size: 0.65rem !important;
+  font-size: 0.7rem !important;
   font-weight: 600 !important;
   color: var(--gray-500) !important;
   text-transform: uppercase !important;
@@ -460,7 +460,7 @@ textarea.cozy-input {
   font-size-adjust: 0.5;
   background-color: rgba(0, 0, 0, 0.03);
   padding: 0.1em 0.3em;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -469,9 +469,11 @@ textarea.cozy-input {
   vertical-align: bottom;
 }
 
-/* MathML Font Size Adjustment */
-math {
+/* MathML and Pandoc Math Adjustment */
+math, .math {
   font-size: 1em;
+  font-size-adjust: from-font;
+  font-size-adjust: 0.5; /* Fallback for browsers that don't support from-font */
 }
 
 /* Dropdown / Pop-up refinements */
@@ -484,7 +486,7 @@ math {
 
   .dropdown-item {
     font-family: "Manrope", sans-serif;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     font-weight: 500;
     padding: 8px 16px;
     color: var(--gray-700);

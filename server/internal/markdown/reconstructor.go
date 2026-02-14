@@ -27,9 +27,18 @@ func (reconstructor *Reconstructor) Reconstruct(node *Node) string {
 
 	result := strings.Join(markdownLines, "\n")
 
-	// Avoid double dots and handle whitespace before footnote references: "text. [^1]" or "text [^1]" -> "text[^1]"
-	// We match an optional period, followed by horizontal whitespace, followed by [^
-	result = regexp.MustCompile(`\.?[ \t]*\[\^`).ReplaceAllString(result, "[^")
+	// Move periods/commas before footnote references to before and consolidate duplicates
+	// 1. Move all surrounding punctuation to the left and strip whitespace
+	result = regexp.MustCompile(`[ \t]*([.,]*)[ \t]*(\[\^\d+\])[ \t]*([.,]*)`).ReplaceAllString(result, "$1$3$2")
+	
+	// 2. Remove punctuation/whitespace between consecutive citations: "[^1]. [^2]" -> ".[^1][^2]"
+	result = regexp.MustCompile(`(\[\^\d+\])[ \t.,]*(\[\^\d+\])`).ReplaceAllString(result, "$1$2")
+	
+	// 3. Consolidate multiple dots/commas into one (now at the left of the first reference)
+	result = regexp.MustCompile(`([.,]{2,})(\[\^\d+\])`).ReplaceAllStringFunc(result, func(match string) string {
+		sub := regexp.MustCompile(`([.,]{2,})(\[\^\d+\])`).FindStringSubmatch(match)
+		return sub[1][:1] + sub[2]
+	})
 
 	return strings.TrimSpace(result) + "\n"
 }

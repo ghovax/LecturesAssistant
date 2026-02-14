@@ -172,11 +172,10 @@ func (generator *ToolGenerator) analyzeStructureWithRetries(jobContext context.C
 		sectionCounts.minimum, sectionCounts.maximum, sectionCounts.preferred = 1, 4, "2-3"
 	case "long":
 		sectionCounts.minimum, sectionCounts.maximum, sectionCounts.preferred = 4, 7, "5-6"
-	case "extra":
+	case "comprehensive":
 		sectionCounts.minimum, sectionCounts.maximum, sectionCounts.preferred = 7, 12, "8-10"
-	case "maximum":
-		sectionCounts.minimum, sectionCounts.maximum, sectionCounts.preferred = 12, 20, "14-16"
 	default:
+		// Covers "medium" and any fallback
 		sectionCounts.minimum, sectionCounts.maximum, sectionCounts.preferred = 2, 5, "3-4"
 	}
 

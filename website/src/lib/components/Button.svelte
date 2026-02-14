@@ -55,7 +55,7 @@
         gap: 8px;
         font-family: 'Manrope', sans-serif;
         font-weight: 600;
-        font-size: 0.75rem;
+        font-size: 0.8rem;
         padding: 0 1.25rem;
         height: 2.5rem;
         border-radius: 0;
@@ -76,7 +76,7 @@
         &.btn-sm {
             height: 1.75rem;
             padding: 0 0.75rem;
-            font-size: 0.65rem;
+            font-size: 0.7rem;
         }
 
         &.btn-lg {

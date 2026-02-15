@@ -44,9 +44,9 @@
         loading = true;
         try {
             const [examData, lecturesData, toolsData, sessionsData] = await Promise.all([
-                api.getExam(examId),
-                api.listLectures(examId),
-                api.listTools(examId),
+                api.getExam(examId!),
+                api.listLectures(examId!),
+                api.listTools(examId!),
                 api.request('GET', `/chat/sessions?exam_id=${examId}`)
             ]);
             exam = examData;
@@ -96,7 +96,7 @@
             isDanger: true,
             onConfirm: async () => {
                 try {
-                    await api.deleteLecture(id, examId);
+                    await api.deleteLecture(id, examId!);
                     await loadData();
                     notifications.success('The lesson has been removed.');
                 } catch (e: any) {
@@ -157,7 +157,7 @@
             <div class="d-flex align-items-center gap-3">
                 <h1 class="page-title m-0">{exam.title}</h1>
                 {#if exam.estimated_cost > 0}
-                    <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;">
+                    <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
                         ${exam.estimated_cost.toFixed(4)}
                     </span>
                 {/if}

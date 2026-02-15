@@ -108,6 +108,7 @@
         font-size: 0.85rem;
         line-height: 1.5;
         color: #000;
+        text-align: justify;
         
         :global(p) {
             margin-bottom: 0;

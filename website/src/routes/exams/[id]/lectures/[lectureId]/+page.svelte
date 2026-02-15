@@ -574,7 +574,7 @@
             <div class="d-flex align-items-center gap-3">
                 <h1 class="page-title m-0">{lecture.title}</h1>
                 {#if lecture.estimated_cost > 0}
-                    <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;">
+                    <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
                         ${lecture.estimated_cost.toFixed(4)}
                     </span>
                 {/if}

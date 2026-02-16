@@ -35,6 +35,7 @@ type ServerConfiguration struct {
 type StorageConfiguration struct {
 	DataDirectory string `yaml:"data_directory" json:"data_directory"`
 	BinDirectory  string `yaml:"bin_directory,omitempty" json:"bin_directory,omitempty"`
+	WebDirectory  string `yaml:"web_directory,omitempty" json:"web_directory,omitempty"`
 }
 
 type SecurityConfiguration struct {
@@ -267,35 +268,43 @@ func Load(configurationPath string) (*Configuration, error) {
 		useLocalDefaults = true
 	}
 
+	var loadedConfiguration *Configuration
+
 	// Check if file exists
 	if _, statError := os.Stat(configurationPath); os.IsNotExist(statError) {
 		// Create default config
-		newConfiguration := defaultConfiguration(useLocalDefaults)
-		newConfiguration.ConfigurationPath = configurationPath
+		loadedConfiguration = defaultConfiguration(useLocalDefaults)
+		loadedConfiguration.ConfigurationPath = configurationPath
 		if mkdirError := os.MkdirAll(filepath.Dir(configurationPath), 0755); mkdirError != nil {
 			return nil, mkdirError
 		}
-		if saveError := Save(newConfiguration, configurationPath); saveError != nil {
+		if saveError := Save(loadedConfiguration, configurationPath); saveError != nil {
 			return nil, saveError
 		}
-		// Expand paths after saving too, just in case
-		newConfiguration.Storage.DataDirectory = expandTilde(newConfiguration.Storage.DataDirectory)
-		return newConfiguration, nil
+	} else {
+		// Read existing config
+		configurationData, readingError := os.ReadFile(configurationPath)
+		if readingError != nil {
+			return nil, readingError
+		}
+
+		loadedConfiguration = &Configuration{}
+		if unmarshalingError := yaml.Unmarshal(configurationData, loadedConfiguration); unmarshalingError != nil {
+			return nil, unmarshalingError
+		}
+		loadedConfiguration.ConfigurationPath = configurationPath
 	}
 
-	// Read existing config
-	configurationData, readingError := os.ReadFile(configurationPath)
-	if readingError != nil {
-		return nil, readingError
-	}
-
-	loadedConfiguration := &Configuration{}
-	if unmarshalingError := yaml.Unmarshal(configurationData, loadedConfiguration); unmarshalingError != nil {
-		return nil, unmarshalingError
-	}
-
-	loadedConfiguration.ConfigurationPath = configurationPath
 	loadedConfiguration.Storage.DataDirectory = expandTilde(loadedConfiguration.Storage.DataDirectory)
+
+	// Environment variable overrides (Absolute Priority)
+	if envDataDir := os.Getenv("STORAGE_DATA_DIRECTORY"); envDataDir != "" {
+		loadedConfiguration.Storage.DataDirectory = expandTilde(envDataDir)
+	}
+	if envWebDir := os.Getenv("STORAGE_WEB_DIRECTORY"); envWebDir != "" {
+		loadedConfiguration.Storage.WebDirectory = expandTilde(envWebDir)
+	}
+
 	return loadedConfiguration, nil
 }
 
@@ -323,6 +332,8 @@ func defaultConfiguration(isLocal bool) *Configuration {
 	var dataDir string
 	if isLocal {
 		dataDir = "./data"
+	} else if os.Getenv("IN_DOCKER_ENV") == "true" {
+		dataDir = "/data"
 	} else {
 		home, _ := os.UserHomeDir()
 		dataDir = filepath.Join(home, ".lectures", "data")

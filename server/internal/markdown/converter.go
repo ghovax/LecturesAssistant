@@ -223,12 +223,19 @@ func (converter *ExternalConverter) HTMLToPDF(htmlContent string, outputPath str
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
 
-	// Create a temporary, unique cache directory for this Tectonic run
-	// This ensures we have permissions and that it is cleaned up after use
-	tempCacheDir, err := os.MkdirTemp("", "tectonic-cache-*")
-	if err == nil {
-		defer os.RemoveAll(tempCacheDir)
-		command.Env = append(os.Environ(), "TECTONIC_CACHE="+tempCacheDir)
+	// Handle Tectonic cache
+	if os.Getenv("IN_DOCKER_ENV") == "true" {
+		// In Docker, use a persistent cache directory within the data volume
+		cacheDir := filepath.Join(converter.dataDirectory, "tectonic_cache")
+		os.MkdirAll(cacheDir, 0755)
+		command.Env = append(os.Environ(), "TECTONIC_CACHE="+cacheDir)
+	} else {
+		// Locally, create a temporary, unique cache directory for this run
+		tempCacheDir, err := os.MkdirTemp("", "tectonic-cache-*")
+		if err == nil {
+			defer os.RemoveAll(tempCacheDir)
+			command.Env = append(os.Environ(), "TECTONIC_CACHE="+tempCacheDir)
+		}
 	}
 
 	if executionError := command.Run(); executionError != nil {

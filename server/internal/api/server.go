@@ -3,10 +3,10 @@ package api
 import (
 	"context"
 	"database/sql"
-	"embed"
-	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -22,9 +22,6 @@ import (
 	"github.com/gorilla/mux"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
-
-//go:embed web/dist/*
-var embeddedWeb embed.FS
 
 // Server represents the API server
 type Server struct {
@@ -179,38 +176,36 @@ func (server *Server) setupRoutes() {
 	// WebSocket
 	apiRouter.HandleFunc("/socket", server.handleWebSocket).Methods("GET")
 
-	// Static Frontend Serving (SPA)
-	// We need to serve the 'web/dist' subdirectory from the embedded filesystem
-	webFS, err := fs.Sub(embeddedWeb, "web/dist")
-	if err != nil {
-		slog.Error("Failed to subdirectory embedded web filesystem", "error", err)
-	} else {
-		// Serve static files with SPA fallback
-		server.router.PathPrefix("/").Handler(server.spaHandler(webFS))
+	// Static Frontend Serving (if configured)
+	if server.configuration.Storage.WebDirectory != "" {
+		if _, err := os.Stat(server.configuration.Storage.WebDirectory); err == nil {
+			slog.Info("Serving static frontend from", "directory", server.configuration.Storage.WebDirectory)
+			server.router.PathPrefix("/").Handler(server.spaHandler(server.configuration.Storage.WebDirectory))
+		} else {
+			slog.Warn("Configured WebDirectory does not exist", "directory", server.configuration.Storage.WebDirectory)
+		}
 	}
 }
 
 // spaHandler serves static files with fallback to index.html for SPA routing
-func (server *Server) spaHandler(webFS fs.FS) http.Handler {
-	fileServer := http.FileServer(http.FS(webFS))
+func (server *Server) spaHandler(webDir string) http.Handler {
+	fileServer := http.FileServer(http.Dir(webDir))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip API routes - they're already handled
+		// Skip API routes - they're already handled by more specific routes
 		if strings.HasPrefix(r.URL.Path, "/api") {
 			http.NotFound(w, r)
 			return
 		}
 
 		// Try to open the requested file
-		path := strings.TrimPrefix(r.URL.Path, "/")
-		if path == "" {
-			path = "index.html"
-		}
-
-		_, err := webFS.Open(path)
-		if err != nil {
-			// File doesn't exist - serve index.html for SPA routing
+		path := filepath.Join(webDir, r.URL.Path)
+		if _, err := os.Stat(path); os.IsNotExist(err) || r.URL.Path == "/" {
+			// File doesn't exist or root - serve index.html for SPA routing
 			r.URL.Path = "/"
+			// Use http.ServeFile to ensure index.html is served from the directory
+			http.ServeFile(w, r, filepath.Join(webDir, "index.html"))
+			return
 		}
 
 		fileServer.ServeHTTP(w, r)

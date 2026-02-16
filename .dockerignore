@@ -1,0 +1,17 @@
+.git
+.gitignore
+node_modules
+website/node_modules
+website/build
+website/.svelte-kit
+server/lectures
+server/lectures-assistant
+server/dist
+server/bin
+data/
+configuration.yaml
+*.log
+*.test
+.DS_Store
+Thumbs.db
+build/

@@ -1,15 +1,19 @@
-version: '3.8'
+name: lectures-assistant
 
 services:
-  lectures:
+  lectures-assistant:
     build:
       context: .
       dockerfile: Dockerfile
+    image: lectures-assistant:latest
+    container_name: lectures-assistant
     ports:
       - "3000:3000"
     volumes:
       - ./data:/data
-      - ./configuration.yaml:/data/configuration.yaml
     environment:
+      - STORAGE_DATA_DIRECTORY=/data
+      - STORAGE_WEB_DIRECTORY=/app/www
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=3000
+    restart: unless-stopped

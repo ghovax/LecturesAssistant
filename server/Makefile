@@ -2,15 +2,15 @@
 
 # Build the application
 build: fmt
-	CGO_ENABLED=0 go build -o lectures ./cmd/server
+	CGO_ENABLED=0 go build -o lectures-assistant ./cmd/server
 
 # Run the application
 run: build
-	./lectures
+	./lectures-assistant
 
 # Clean build artifacts
 clean:
-	rm -f lectures
+	rm -f lectures-assistant
 	go clean
 
 # Run tests (can take TEST argument for -run, and TAGS for build tags like integration)
@@ -32,7 +32,7 @@ dev:
 
 # Build for multiple platforms
 build-all:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o lectures-linux-amd64 ./cmd/server
-	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o lectures-darwin-amd64 ./cmd/server
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o lectures-darwin-arm64 ./cmd/server
-	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o lectures-windows-amd64.exe ./cmd/server
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o lectures-assistant-linux-amd64 ./cmd/server
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o lectures-assistant-darwin-amd64 ./cmd/server
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o lectures-assistant-darwin-arm64 ./cmd/server
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o lectures-assistant-windows-amd64.exe ./cmd/server

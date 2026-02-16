@@ -26,10 +26,15 @@ func (reconstructor *Reconstructor) Reconstruct(node *Node) string {
 	reconstructor.reconstructNode(node, &markdownLines)
 
 	result := strings.Join(markdownLines, "\n")
+	result = reconstructor.applyCitationPostProcessing(result)
 
+	return strings.TrimSpace(result) + "\n"
+}
+
+func (reconstructor *Reconstructor) applyCitationPostProcessing(text string) string {
 	// Move periods/commas before footnote references to before and consolidate duplicates
 	// 1. Move all surrounding punctuation to the left and strip whitespace
-	result = regexp.MustCompile(`[ \t]*([.,]*)[ \t]*(\[\^\d+\])[ \t]*([.,]*)`).ReplaceAllString(result, "$1$3$2")
+	result := regexp.MustCompile(`[ \t]*([.,]*)[ \t]*(\[\^\d+\])[ \t]*([.,]*)`).ReplaceAllString(text, "$1$3$2")
 
 	// 2. Remove punctuation/whitespace between consecutive citations: "[^1]. [^2]" -> ".[^1][^2]"
 	result = regexp.MustCompile(`(\[\^\d+\])[ \t.,]*(\[\^\d+\])`).ReplaceAllString(result, "$1$2")
@@ -42,9 +47,9 @@ func (reconstructor *Reconstructor) Reconstruct(node *Node) string {
 
 	// 4. Ensure space after citation if followed by text (e.g., "[^1]Next" -> "[^1] Next")
 	// Use a positive lookahead for any non-whitespace, non-punctuation character
-	result = regexp.MustCompile(`(\[\^\d+\])([^\s.,:;!?)\]])`).ReplaceAllString(result, "$1 $2")
+	result = regexp.MustCompile(`(\[\^\d+\])([^\s.,:;!?)\]\[])`).ReplaceAllString(result, "$1 $2")
 
-	return strings.TrimSpace(result) + "\n"
+	return result
 }
 
 // AppendCitations appends footnote definitions to the end of the markdown content
@@ -233,7 +238,14 @@ func (reconstructor *Reconstructor) reconstructTable(node *Node, markdownLines *
 	}
 
 	for _, tableRow := range node.Rows {
-		*markdownLines = append(*markdownLines, "| "+strings.Join(tableRow.Cells, " | ")+" |")
+		// Escape dollar signs in table cells to avoid breaking some markdown renderers
+		// and to satisfy robustness requirements.
+		escapedCells := make([]string, len(tableRow.Cells))
+		for i, cell := range tableRow.Cells {
+			escapedCells[i] = strings.ReplaceAll(cell, "$", "\\$")
+		}
+
+		*markdownLines = append(*markdownLines, "| "+strings.Join(escapedCells, " | ")+" |")
 		if tableRow.IsHeader {
 			var align []string
 			for range tableRow.Cells {

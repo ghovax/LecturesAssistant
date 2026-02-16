@@ -22,6 +22,9 @@ func NewParser() *Parser {
 
 // Parse converts markdown text into a hierarchical Document node
 func (parser *Parser) Parse(markdown string) *Node {
+	markdown = parser.unwrapBacktickMath(markdown)
+	markdown = parser.convertLatexMathDelimiters(markdown)
+
 	lines := strings.Split(markdown, "\n")
 	parser.indentUnit = parser.detectIndentationPattern(lines)
 

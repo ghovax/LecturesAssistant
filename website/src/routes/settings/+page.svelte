@@ -90,7 +90,7 @@
                     <div class="col-12">
                         <label for="model" class="cozy-label">Global Default Model</label>
                         <input type="text" id="model" class="form-control cozy-input" bind:value={settings.llm.model} />
-                        <div class="form-text mt-2" style="font-size: 12px;">Used for all tasks unless overridden below. Example: <code>anthropic/claude-3.5-sonnet</code></div>
+                        <div class="form-text mt-2" style="font-size: 12px;">Used for all tasks unless overridden below. Example: <code>google/gemini-3-flash-preview</code></div>
                     </div>
                 </div>
             </div>

@@ -46,6 +46,7 @@ func (server *Server) handleUpdateSettings(responseWriter http.ResponseWriter, r
 		"documents":     true,
 		"safety":        true,
 		"theme":         true,
+		"providers":     true,
 	}
 
 	for key, value := range updateSettingsRequest {

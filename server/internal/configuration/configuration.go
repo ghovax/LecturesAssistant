@@ -356,7 +356,7 @@ func defaultConfiguration(isLocal bool) *Configuration {
 		},
 		LLM: LLMConfiguration{
 			Provider:                "openrouter",
-			Model:                   "anthropic/claude-3.5-sonnet",
+			Model:                   "google/gemini-3-flash-preview",
 			Language:                "en-US",
 			EnableDocumentsMatching: false,
 			Models: ModelsConfiguration{

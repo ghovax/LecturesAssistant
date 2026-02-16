@@ -92,21 +92,8 @@ func (reconstructor *Reconstructor) ParseCitations(text string) (string, []Parse
 		// Replace marker (including its leading whitespace) with [^N]
 		result = strings.Replace(result, fullMatch, fmt.Sprintf("[^%d]", citationNumber), 1)
 	}
-	// Move periods/commas before footnote references to before and consolidate duplicates
-	// 1. Move all surrounding punctuation to the left and strip whitespace
-	result = regexp.MustCompile(`[ \t]*([.,]*)[ \t]*(\[\^\d+\])[ \t]*([.,]*)`).ReplaceAllString(result, "$1$3$2")
 
-	// 2. Remove punctuation/whitespace between consecutive citations: "[^1]. [^2]" -> ".[^1][^2]"
-	// Wait, if it's ".[^1][^2]", we need to make sure we don't end up with ".[^1].[^2]"
-	result = regexp.MustCompile(`(\[\^\d+\])[ \t.,]*(\[\^\d+\])`).ReplaceAllString(result, "$1$2")
-
-	// 3. Consolidate multiple dots/commas into one (now at the left of the first reference)
-	result = regexp.MustCompile(`([.,]{2,})(\[\^\d+\])`).ReplaceAllStringFunc(result, func(match string) string {
-		sub := regexp.MustCompile(`([.,]{2,})(\[\^\d+\])`).FindStringSubmatch(match)
-		return sub[1][:1] + sub[2]
-	})
-
-	return result, citations
+	return reconstructor.applyCitationPostProcessing(result), citations
 }
 
 // ParsePageString converts "1, 2, 5-10" to []int{1, 2, 5, 6, 7, 8, 9, 10}

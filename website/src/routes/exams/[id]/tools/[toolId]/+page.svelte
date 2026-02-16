@@ -1,13 +1,14 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { onMount, onDestroy } from 'svelte';
     import { page } from '$app/state';
+    import { browser } from '$app/environment';
     import { api } from '$lib/api/client';
     import { notifications } from '$lib/stores/notifications.svelte';
     import { getLanguageName, capitalize } from '$lib/utils';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
     import Tile from '$lib/components/Tile.svelte';
     import CitationPopup from '$lib/components/CitationPopup.svelte';
-    import { Download, FileDown, ExternalLink, Clock, Settings2 } from 'lucide-svelte';
+    import { Download, FileDown, ExternalLink, Clock, Settings2, Loader2 } from 'lucide-svelte';
 
     let { id: examId, toolId } = $derived(page.params);
     let exam = $state<any>(null);
@@ -16,10 +17,73 @@
     let htmlContent = $state<any>(null);
     let citations = $state<any[]>([]);
     let loading = $state(true);
+    let exporting = $state<Record<string, boolean>>({});
+    let handledJobIds = new Set<string>();
+    let downloadLock = new Set<string>();
+    let socket: WebSocket | null = null;
 
     // Citation Popup State
     let activeCitation = $state<{ content: string, x: number, y: number, sourceFile?: string, sourcePages?: number[] } | null>(null);
     let proseContainer: HTMLDivElement | null = $state(null);
+
+    function setupWebSocket() {
+        if (!browser || !examId) return;
+        
+        const token = localStorage.getItem('session_token');
+        const baseUrl = api.getBaseUrl().replace('http', 'ws');
+        socket = new WebSocket(`${baseUrl}/socket?session_token=${token}`);
+        
+        socket.onopen = () => {
+            socket?.send(JSON.stringify({
+                type: 'subscribe',
+                channel: `course:${examId}`
+            }));
+        };
+
+        socket.onmessage = async (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'job:progress') {
+                handleJobUpdate(data.payload);
+            }
+        };
+
+        socket.onclose = () => {
+            setTimeout(setupWebSocket, 5000);
+        };
+    }
+
+    async function handleJobUpdate(update: any) {
+        if (update.status === 'FAILED') {
+            notifications.error(`${update.error || 'A background task failed.'}`);
+        }
+
+        // Clear exporting state if a PUBLISH_MATERIAL job finishes
+        if (update.type === 'PUBLISH_MATERIAL' && (update.status === 'COMPLETED' || update.status === 'FAILED' || update.status === 'CANCELLED')) {
+            const payload = update.payload;
+            const resourceId = payload.tool_id || payload.document_id || payload.lecture_id;
+            const format = payload.format;
+            if (resourceId && format) {
+                exporting[`${resourceId}:${format}`] = false;
+            }
+        }
+
+        // Auto-download for completed exports
+        if (update.status === 'COMPLETED' && update.type === 'PUBLISH_MATERIAL' && !downloadLock.has(update.id)) {
+            downloadLock.add(update.id);
+            try {
+                const result = typeof update.result === 'string' ? JSON.parse(update.result) : update.result;
+                if (result?.file_path) {
+                    api.downloadExport(result.file_path).catch(() => {
+                        const directUrl = api.getAuthenticatedMediaUrl(`/exports/download?path=${encodeURIComponent(result.file_path)}`);
+                        window.open(directUrl, '_blank');
+                    });
+                    notifications.success('Your export has been downloaded.');
+                }
+            } catch(e) {
+                console.error('Failed to parse job result for auto-download', e);
+            }
+        }
+    }
 
     async function loadTool() {
         loading = true;
@@ -39,6 +103,8 @@
                 htmlContent = htmlRes.content_html;
                 citations = htmlRes.citations ?? [];
             }
+
+            if (browser) setupWebSocket();
         } catch (e) {
             console.error(e);
         } finally {
@@ -75,14 +141,17 @@
 
     async function handleExport(format: string) {
         try {
-            const res = await api.exportTool({ tool_id: toolId, exam_id: examId, format });
-            notifications.success(`We are preparing your export. You can see the progress in the source lesson.`);
+            exporting[`${toolId}:${format}`] = true;
+            await api.exportTool({ tool_id: toolId, exam_id: examId, format });
+            notifications.success(`We are preparing your export.`);
         } catch (e: any) {
+            exporting[`${toolId}:${format}`] = false;
             notifications.error(e.message || e);
         }
     }
 
     onMount(loadTool);
+    onDestroy(() => socket?.close());
 </script>
 
 {#if tool && exam}
@@ -95,16 +164,51 @@
     <header class="page-header">
         <div class="d-flex justify-content-between align-items-center mb-2">
             <h1 class="page-title m-0">{tool.title}</h1>
-            <div class="btn-group">
-                <button class="btn btn-primary btn-sm dropdown-toggle rounded-0" data-bs-toggle="dropdown">
-                    Export
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end rounded-0 shadow-none border">
-                    <li><button class="dropdown-item" onclick={() => handleExport('pdf')}>PDF Document</button></li>
-                    <li><button class="dropdown-item" onclick={() => handleExport('docx')}>Word Document</button></li>
-                    <li><button class="dropdown-item" onclick={() => handleExport('md')}>Markdown Source</button></li>
-                </ul>
-            </div>
+            {#if true}
+                {@const isExportingPDF = exporting[`${toolId}:pdf`]}
+                {@const isExportingDocx = exporting[`${toolId}:docx`]}
+                {@const isExportingMD = exporting[`${toolId}:md`]}
+                <div class="btn-group">
+                    <button 
+                        class="btn btn-primary btn-sm dropdown-toggle rounded-0" 
+                        data-bs-toggle="dropdown"
+                        disabled={isExportingPDF || isExportingDocx || isExportingMD}
+                    >
+                        {#if isExportingPDF || isExportingDocx || isExportingMD}
+                            <Loader2 size={16} class="spinner-animation me-2" />
+                            Processing...
+                        {:else}
+                            Export
+                        {/if}
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end rounded-0 shadow-none border">
+                        <li>
+                            <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExport('pdf')} disabled={isExportingPDF}>
+                                PDF Document
+                                {#if isExportingPDF}
+                                    <Loader2 size={14} class="spinner-animation ms-2" />
+                                {/if}
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExport('docx')} disabled={isExportingDocx}>
+                                Word Document
+                                {#if isExportingDocx}
+                                    <Loader2 size={14} class="spinner-animation ms-2" />
+                                {/if}
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExport('md')} disabled={isExportingMD}>
+                                Markdown Source
+                                {#if isExportingMD}
+                                    <Loader2 size={14} class="spinner-animation ms-2" />
+                                {/if}
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            {/if}
         </div>
         <div class="d-flex align-items-center gap-2">
             <span class="badge bg-dark rounded-0">{capitalize(tool.type)} Material</span>

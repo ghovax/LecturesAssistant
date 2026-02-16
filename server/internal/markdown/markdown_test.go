@@ -220,8 +220,8 @@ func TestTableWithMath(tester *testing.T) {
 	mathRow := table.Rows[1]
 	if len(mathRow.Cells) != 2 {
 		tester.Errorf("Expected 2 cells in math row, got %d. Cell contents: %v", len(mathRow.Cells), mathRow.Cells)
-	} else if mathRow.Cells[0] != `\$a | b\$` {
-		tester.Errorf("Expected cell 1 to be `\\$a | b\\$`, got '%s'", mathRow.Cells[0])
+	} else if mathRow.Cells[0] != `$a | b$` {
+		tester.Errorf("Expected cell 1 to be `$a | b$`, got '%s'", mathRow.Cells[0])
 	}
 }
 
@@ -1856,5 +1856,45 @@ Detailed explanation.`
 			title = sectionNode.Title
 		}
 		tester.Errorf("Should find section header 'Main Topic', got %q", title)
+	}
+}
+
+func TestCitationSpacing(tester *testing.T) {
+	reconstructor := NewReconstructor()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Citation followed by text",
+			input:    "Sentence with citation{{{Desc-file.pdf-p1}}}Next sentence.",
+			expected: "Sentence with citation[^1] Next sentence.",
+		},
+		{
+			name:     "Citation followed by punctuation (no space added)",
+			input:    "Sentence with citation{{{Desc-file.pdf-p1}}}. Next sentence.",
+			expected: "Sentence with citation.[^1] Next sentence.",
+		},
+		{
+			name:     "Multiple citations followed by text",
+			input:    "Citations{{{D1-f1.pdf-p1}}}{{{D2-f2.pdf-p2}}}Next text.",
+			expected: "Citations[^1][^2] Next text.",
+		},
+		{
+			name:     "Citation at the end of text (no trailing space)",
+			input:    "End of text{{{Desc-file.pdf-p1}}}",
+			expected: "End of text[^1]",
+		},
+	}
+
+	for _, tc := range testCases {
+		tester.Run(tc.name, func(subTester *testing.T) {
+			result, _ := reconstructor.ParseCitations(tc.input)
+			if strings.TrimSpace(result) != tc.expected {
+				subTester.Errorf("Expected: %q, Got: %q", tc.expected, result)
+			}
+		})
 	}
 }

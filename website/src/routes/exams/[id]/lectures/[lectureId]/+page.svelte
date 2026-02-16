@@ -955,15 +955,42 @@
                                 <span class="header-text">Study Guide</span>
                             </div>
                             <div class="d-flex align-items-center gap-2">
-                                <div class="dropdown">
-                                    <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0 dropdown-toggle no-caret" data-bs-toggle="dropdown" title="Export">
-                                        <Download size={18} />
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end">
-                                        <li><button class="dropdown-item" onclick={() => handleExportTool(guideTool?.id || '', 'pdf')}>Export PDF</button></li>
-                                        <li><button class="dropdown-item" onclick={() => handleExportTool(guideTool?.id || '', 'docx')}>Export Word</button></li>
-                                    </ul>
-                                </div>
+                                {#if guideTool}
+                                    {@const isExportingPDF = exporting[`${guideTool.id}:pdf`]}
+                                    {@const isExportingDocx = exporting[`${guideTool.id}:docx`]}
+                                    <div class="dropdown">
+                                        <button 
+                                            class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0 dropdown-toggle no-caret" 
+                                            data-bs-toggle="dropdown" 
+                                            title="Export"
+                                            disabled={isExportingPDF || isExportingDocx}
+                                        >
+                                            {#if isExportingPDF || isExportingDocx}
+                                                <Loader2 size={18} class="spinner-animation" />
+                                            {:else}
+                                                <Download size={18} />
+                                            {/if}
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li>
+                                                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTool(guideTool.id, 'pdf')} disabled={isExportingPDF}>
+                                                    Export PDF
+                                                    {#if isExportingPDF}
+                                                        <Loader2 size={14} class="spinner-animation ms-2" />
+                                                    {/if}
+                                                </button>
+                                            </li>
+                                            <li>
+                                                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTool(guideTool.id, 'docx')} disabled={isExportingDocx}>
+                                                    Export Word
+                                                    {#if isExportingDocx}
+                                                        <Loader2 size={14} class="spinner-animation ms-2" />
+                                                    {/if}
+                                                </button>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                {/if}
                                 <button class="btn btn-link btn-sm text-danger p-0 d-flex align-items-center shadow-none border-0" title="Delete Guide" onclick={() => deleteTool(guideTool?.id || '')}>
                                     <Trash2 size={18} />
                                 </button>
@@ -982,15 +1009,42 @@
                                 <span class="header-text">Dialogue</span>
                             </div>
                             <div class="d-flex align-items-center gap-2">
-                                <div class="dropdown">
-                                    <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0 dropdown-toggle no-caret" data-bs-toggle="dropdown" title="Export">
-                                        <Download size={18} />
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end">
-                                        <li><button class="dropdown-item" onclick={() => handleExportTranscript('pdf')}>Export PDF</button></li>
-                                        <li><button class="dropdown-item" onclick={() => handleExportTranscript('docx')}>Export Word</button></li>
-                                    </ul>
-                                </div>
+                                {#if true}
+                                    {@const isExportingPDF = exporting[`${lectureId}:pdf`]}
+                                    {@const isExportingDocx = exporting[`${lectureId}:docx`]}
+                                    <div class="dropdown">
+                                        <button 
+                                            class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0 dropdown-toggle no-caret" 
+                                            data-bs-toggle="dropdown" 
+                                            title="Export"
+                                            disabled={isExportingPDF || isExportingDocx}
+                                        >
+                                            {#if isExportingPDF || isExportingDocx}
+                                                <Loader2 size={18} class="spinner-animation" />
+                                            {:else}
+                                                <Download size={18} />
+                                            {/if}
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li>
+                                                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTranscript('pdf')} disabled={isExportingPDF}>
+                                                    Export PDF
+                                                    {#if isExportingPDF}
+                                                        <Loader2 size={14} class="spinner-animation ms-2" />
+                                                    {/if}
+                                                </button>
+                                            </li>
+                                            <li>
+                                                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTranscript('docx')} disabled={isExportingDocx}>
+                                                    Export Word
+                                                    {#if isExportingDocx}
+                                                        <Loader2 size={14} class="spinner-animation ms-2" />
+                                                    {/if}
+                                                </button>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                {/if}
                                 <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
                             </div>
                         </div>
@@ -1053,15 +1107,42 @@
                                 <span class="header-text">{doc?.title || 'Study Resource'}</span>
                             </div>
                             <div class="d-flex align-items-center gap-2">
-                                <div class="dropdown">
-                                    <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0 dropdown-toggle no-caret" data-bs-toggle="dropdown" title="Export">
-                                        <Download size={18} />
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end">
-                                        <li><button class="dropdown-item" onclick={() => handleExportDocument(selectedDocId || '', 'pdf')}>Export PDF</button></li>
-                                        <li><button class="dropdown-item" onclick={() => handleExportDocument(selectedDocId || '', 'docx')}>Export Word</button></li>
-                                    </ul>
-                                </div>
+                                {#if true}
+                                    {@const isExportingPDF = exporting[`${selectedDocId}:pdf`]}
+                                    {@const isExportingDocx = exporting[`${selectedDocId}:docx`]}
+                                    <div class="dropdown">
+                                        <button 
+                                            class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0 dropdown-toggle no-caret" 
+                                            data-bs-toggle="dropdown" 
+                                            title="Export"
+                                            disabled={isExportingPDF || isExportingDocx}
+                                        >
+                                            {#if isExportingPDF || isExportingDocx}
+                                                <Loader2 size={18} class="spinner-animation" />
+                                            {:else}
+                                                <Download size={18} />
+                                            {/if}
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li>
+                                                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportDocument(selectedDocId || '', 'pdf')} disabled={isExportingPDF}>
+                                                    Export PDF
+                                                    {#if isExportingPDF}
+                                                        <Loader2 size={14} class="spinner-animation ms-2" />
+                                                    {/if}
+                                                </button>
+                                            </li>
+                                            <li>
+                                                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportDocument(selectedDocId || '', 'docx')} disabled={isExportingDocx}>
+                                                    Export Word
+                                                    {#if isExportingDocx}
+                                                        <Loader2 size={14} class="spinner-animation ms-2" />
+                                                    {/if}
+                                                </button>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                {/if}
                                 <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
                             </div>
                         </div>

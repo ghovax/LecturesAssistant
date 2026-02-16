@@ -49,6 +49,10 @@ func (reconstructor *Reconstructor) applyCitationPostProcessing(text string) str
 	// Use a positive lookahead for any non-whitespace, non-punctuation character
 	result = regexp.MustCompile(`(\[\^\d+\])([^\s.,:;!?)\]\[])`).ReplaceAllString(result, "$1 $2")
 
+	// 5. Ensure space after a dot if followed by an uppercase letter: ".Cio" -> ". Cio"
+	// This also handles ellipsis followed by a capital letter.
+	result = regexp.MustCompile(`(\.+)([A-Z])`).ReplaceAllString(result, "$1 $2")
+
 	return result
 }
 
@@ -71,7 +75,8 @@ func (reconstructor *Reconstructor) AppendCitations(content string, citations []
 		}, &markdownLines)
 	}
 
-	return strings.Join(markdownLines, "\n")
+	result := strings.Join(markdownLines, "\n")
+	return reconstructor.applyCitationPostProcessing(result)
 }
 
 func (reconstructor *Reconstructor) ensureBlankLine(markdownLines *[]string) {

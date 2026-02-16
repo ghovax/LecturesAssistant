@@ -194,12 +194,17 @@ func (server *Server) handleGetTool(responseWriter http.ResponseWriter, request 
 	userID := server.getUserID(request)
 
 	var tool models.Tool
+	var lectureID sql.NullString
 	err := server.database.QueryRow(`
-		SELECT tools.id, tools.exam_id, tools.type, tools.title, tools.language_code, tools.content, tools.estimated_cost, tools.created_at, tools.updated_at
+		SELECT tools.id, tools.exam_id, tools.lecture_id, tools.type, tools.title, tools.language_code, tools.content, tools.estimated_cost, tools.created_at, tools.updated_at
 		FROM tools
 		JOIN exams ON tools.exam_id = exams.id
 		WHERE tools.id = ? AND tools.exam_id = ? AND exams.user_id = ?
-	`, toolID, examID, userID).Scan(&tool.ID, &tool.ExamID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.Content, &tool.EstimatedCost, &tool.CreatedAt, &tool.UpdatedAt)
+	`, toolID, examID, userID).Scan(&tool.ID, &tool.ExamID, &lectureID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.Content, &tool.EstimatedCost, &tool.CreatedAt, &tool.UpdatedAt)
+
+	if lectureID.Valid {
+		tool.LectureID = lectureID.String
+	}
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found in this exam", nil)
@@ -286,12 +291,17 @@ func (server *Server) handleGetToolHTML(responseWriter http.ResponseWriter, requ
 	userID := server.getUserID(request)
 
 	var tool models.Tool
+	var lectureID sql.NullString
 	err := server.database.QueryRow(`
-		SELECT tools.id, tools.title, tools.type, tools.content
+		SELECT tools.id, tools.lecture_id, tools.title, tools.type, tools.content
 		FROM tools
 		JOIN exams ON tools.exam_id = exams.id
 		WHERE tools.id = ? AND tools.exam_id = ? AND exams.user_id = ?
-	`, toolID, examID, userID).Scan(&tool.ID, &tool.Title, &tool.Type, &tool.Content)
+	`, toolID, examID, userID).Scan(&tool.ID, &lectureID, &tool.Title, &tool.Type, &tool.Content)
+
+	if lectureID.Valid {
+		tool.LectureID = lectureID.String
+	}
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Tool not found", nil)
@@ -404,6 +414,31 @@ func (server *Server) handleGetToolHTML(responseWriter http.ResponseWriter, requ
 	// For guide (study guide), it's already Markdown, return structured data with HTML
 	markdownText := tool.Content
 
+	// Pre-fetch original filenames and associated lecture IDs for this exam
+	filenameMap := make(map[string]string)
+	docToLectureMap := make(map[string]string)
+	fRows, err := server.database.Query(`
+		SELECT rd.id, rd.lecture_id, rd.original_filename, rd.title 
+		FROM reference_documents rd
+		JOIN lectures l ON rd.lecture_id = l.id
+		WHERE l.exam_id = ?
+	`, tool.ExamID)
+	if err == nil {
+		for fRows.Next() {
+			var id, lectureID, title string
+			var orig sql.NullString
+			if err := fRows.Scan(&id, &lectureID, &orig, &title); err == nil {
+				name := title
+				if orig.Valid && orig.String != "" {
+					name = orig.String
+				}
+				filenameMap[id] = name
+				docToLectureMap[id] = lectureID
+			}
+		}
+		fRows.Close()
+	}
+
 	// For study guides, transform raw citations to footnotes at runtime
 	if tool.Type == "guide" {
 		markdownReconstructor := markdown.NewReconstructor()
@@ -440,6 +475,82 @@ func (server *Server) handleGetToolHTML(responseWriter http.ResponseWriter, requ
 
 		// 4. Finalize markdown with footnote definitions
 		markdownText = markdownReconstructor.AppendCitations(processedContent, textCitations)
+
+		// 5. Enrich with cited images for visual integration on the website
+		// We do this even if tool.LectureID is missing (legacy guides) by looking up the lecture for each doc.
+		sessionToken := server.getSessionToken(request)
+		markdownParser := markdown.NewParser()
+		ast := markdownParser.Parse(markdownText)
+
+		// Get structured citation metadata from DB
+		citationMetadata := make(map[int]struct {
+			File  string
+			Pages []int
+		})
+		refRows, err := server.database.Query("SELECT source_id, metadata FROM tool_source_references WHERE tool_id = ?", tool.ID)
+		if err == nil {
+			for refRows.Next() {
+				var sourceID, metadataStr string
+				if err := refRows.Scan(&sourceID, &metadataStr); err == nil {
+					var meta struct {
+						FootnoteNumber int   `json:"footnote_number"`
+						Pages          []int `json:"pages"`
+					}
+					if json.Unmarshal([]byte(metadataStr), &meta) == nil {
+						citationMetadata[meta.FootnoteNumber] = struct {
+							File  string
+							Pages []int
+						}{File: sourceID, Pages: meta.Pages}
+					}
+				}
+			}
+			refRows.Close()
+		}
+
+		// Manually enrich AST nodes with reliable metadata
+		var enrichNodeMetadata func(*markdown.Node)
+		enrichNodeMetadata = func(node *markdown.Node) {
+			if node.Type == markdown.NodeFootnote {
+				if info, ok := citationMetadata[node.FootnoteNumber]; ok {
+					node.SourceFile = info.File
+					node.SourcePages = info.Pages
+				}
+			}
+			for _, child := range node.Children {
+				enrichNodeMetadata(child)
+			}
+		}
+		enrichNodeMetadata(ast)
+
+		imageResolver := func(sourceID string, pageNumber int) string {
+			associatedLectureID := docToLectureMap[sourceID]
+			if associatedLectureID == "" {
+				return "" // Cannot resolve image without a lecture link
+			}
+			baseUrl := fmt.Sprintf("/api/documents/pages/image?document_id=%s&lecture_id=%s&page_number=%d", sourceID, associatedLectureID, pageNumber)
+			if sessionToken != "" {
+				baseUrl += "&session_token=" + sessionToken
+			}
+			return baseUrl
+		}
+
+		markdown.EnrichWithCitedImages(ast, imageResolver)
+
+		// Update SourceFile in nodes to use original_filename for the caption/footnote
+		var updateSourceFileLabels func(*markdown.Node)
+		updateSourceFileLabels = func(node *markdown.Node) {
+			if (node.Type == markdown.NodeImage || node.Type == markdown.NodeFootnote) && node.SourceFile != "" {
+				if name, ok := filenameMap[node.SourceFile]; ok {
+					node.SourceFile = name
+				}
+			}
+			for _, child := range node.Children {
+				updateSourceFileLabels(child)
+			}
+		}
+		updateSourceFileLabels(ast)
+
+		markdownText = markdownReconstructor.Reconstruct(ast)
 	}
 
 	// Strip top-level title (H1) if present to follow "simply the content" requirement
@@ -487,10 +598,15 @@ func (server *Server) handleGetToolHTML(responseWriter http.ResponseWriter, requ
 					// Convert citation description to HTML to handle LaTeX/Markdown
 					citationHTML, _ := server.markdownConverter.MarkdownToHTML(meta.Description)
 
+					sourceLabel := sourceID
+					if name, ok := filenameMap[sourceID]; ok {
+						sourceLabel = name
+					}
+
 					citations = append(citations, citationMeta{
 						Number:      meta.FootnoteNumber,
 						ContentHTML: citationHTML,
-						SourceFile:  sourceID,
+						SourceFile:  sourceLabel,
 						SourcePages: meta.Pages,
 					})
 				}

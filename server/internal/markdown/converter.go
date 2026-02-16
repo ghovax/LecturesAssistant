@@ -321,7 +321,8 @@ func (converter *ExternalConverter) HTMLToCSV(toolType string, toolContent strin
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
-	if toolType == "flashcard" {
+	switch toolType {
+	case "flashcard":
 		var flashcards []map[string]string
 		if err := json.Unmarshal([]byte(toolContent), &flashcards); err != nil {
 			return err
@@ -330,7 +331,7 @@ func (converter *ExternalConverter) HTMLToCSV(toolType string, toolContent strin
 		for _, fc := range flashcards {
 			writer.Write([]string{fc["front"], fc["back"]})
 		}
-	} else if toolType == "quiz" {
+	case "quiz":
 		var quiz []map[string]any
 		if err := json.Unmarshal([]byte(toolContent), &quiz); err != nil {
 			return err
@@ -429,9 +430,9 @@ func (converter *ExternalConverter) GenerateMetadataHeader(options ConversionOpt
 		for _, audio := range options.AudioFiles {
 			duration := converter.FormatDuration(audio.Duration, options.Language)
 			if duration != "" {
-				fmt.Fprintf(&builder, "- %s (%s)\n", audio.Filename, duration)
+				fmt.Fprintf(&builder, "- `%s` (%s)\n", audio.Filename, duration)
 			} else {
-				fmt.Fprintf(&builder, "- %s\n", audio.Filename)
+				fmt.Fprintf(&builder, "- `%s`\n", audio.Filename)
 			}
 		}
 		builder.WriteString("\n")
@@ -457,9 +458,9 @@ func (converter *ExternalConverter) GenerateMetadataHeader(options ConversionOpt
 			}
 
 			if metadataStr != "" {
-				fmt.Fprintf(&builder, "- %s (%s)\n", file.Filename, metadataStr)
+				fmt.Fprintf(&builder, "- `%s` (%s)\n", file.Filename, metadataStr)
 			} else {
-				fmt.Fprintf(&builder, "- %s\n", file.Filename)
+				fmt.Fprintf(&builder, "- `%s`\n", file.Filename)
 			}
 		}
 		builder.WriteString("\n")

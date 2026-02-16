@@ -1898,3 +1898,48 @@ func TestCitationSpacing(tester *testing.T) {
 		})
 	}
 }
+
+func TestPunctuationSpacing(t *testing.T) {
+	reconstructor := NewReconstructor()
+
+	testCases := []struct {
+		input    string
+		expected string
+	}{
+		{
+			input:    "Hello.World",
+			expected: "Hello. World\n",
+		},
+		{
+			input:    ".Cio",
+			expected: ". Cio\n",
+		},
+		{
+			input:    "U.S.A.",
+			expected: "U. S. A.\n",
+		},
+		{
+			input:    "No match here. already spaced",
+			expected: "No match here. already spaced\n",
+		},
+		{
+			input:    "Number 1.2 should not match",
+			expected: "Number 1.2 should not match\n",
+		},
+		{
+			input:    "Ellipsis...Should it match?",
+			expected: "Ellipsis... Should it match?\n",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.input, func(t *testing.T) {
+			// We use Reconstruct with a simple text node to trigger applyCitationPostProcessing
+			node := &Node{Type: NodeParagraph, Content: tc.input}
+			result := reconstructor.Reconstruct(node)
+			if result != tc.expected {
+				t.Errorf("For input %q, expected %q, got %q", tc.input, tc.expected, result)
+			}
+		})
+	}
+}

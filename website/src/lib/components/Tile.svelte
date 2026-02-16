@@ -194,7 +194,6 @@
         bottom: 12px;
         left: 20px;
         font-size: 0.7rem;
-        font-weight: 600;
         color: var(--gray-400);
         font-family: 'JetBrains Mono', monospace;
         pointer-events: none;

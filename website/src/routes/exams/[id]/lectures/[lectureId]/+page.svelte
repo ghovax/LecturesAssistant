@@ -222,7 +222,7 @@
 
             if (guideTool) {
                 const htmlRes = await api.getToolHTML(guideTool.id, examId!);
-                guideHTML = htmlRes.content_html;
+                guideHTML = htmlRes.content_html.replaceAll('src="/api/', `src="${api.getBaseUrl()}/`);
                 guideCitations = htmlRes.citations ?? [];
             }
         } catch (e) {
@@ -613,11 +613,6 @@
         <div class="d-flex justify-content-between align-items-center mb-2">
             <div class="d-flex align-items-center gap-3">
                 <h1 class="page-title m-0">{lecture.title}</h1>
-                {#if lecture.estimated_cost > 0}
-                    <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
-                        ${lecture.estimated_cost.toFixed(4)}
-                    </span>
-                {/if}
             </div>
             <div class="d-flex align-items-center gap-3">
                 <button class="btn btn-link btn-sm text-muted p-0 border-0 shadow-none d-flex align-items-center" onclick={() => showEditModal = true} title="Edit Lesson">
@@ -749,7 +744,6 @@
                                                 <div class="spinner-border spinner-border-sm" role="status"></div>
                                                 <span>{guideJob.progress || 0}%</span>
                                             </div>
-                                            <div class="small mt-1 text-truncate">{guideJob.progress_message_text || 'Preparing...'}</div>
                                         {/if}
                                     {/snippet}
                                 </Tile>
@@ -933,7 +927,7 @@
                                         </div>
                                     {/snippet}
                                     {#snippet description()}
-                                        Analyzed on {new Date(doc.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                                        Analyzed on {new Date(doc.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}
                                     {/snippet}
                                 </Tile>
                             {/each}

@@ -172,11 +172,6 @@
     <header class="page-header">
         <div class="d-flex align-items-center gap-3">
             <h1 class="page-title m-0">{session.title || 'AI Assistant'}</h1>
-            {#if session.estimated_cost > 0}
-                <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;">
-                    ${session.estimated_cost.toFixed(4)}
-                </span>
-            {/if}
         </div>
     </header>
 
@@ -271,18 +266,6 @@
                                                                         {/if}
                                                                     </div>
                                                                     <div class="d-flex align-items-center gap-3">
-                                                                        {#if msg.estimated_cost > 0}
-                                                                            {@const userMsg = messages[i-1]}
-                                                                            {@const metadata = userMsg?.metadata ? (typeof userMsg.metadata === 'string' ? JSON.parse(userMsg.metadata) : userMsg.metadata) : null}
-                                                                            {#if metadata?.new_lecture_titles?.length > 0}
-                                                                                <span class="text-muted small" style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;">
-                                                                                    Associated new lessons: {metadata.new_lecture_titles.join(', ')}
-                                                                                </span>
-                                                                            {/if}
-                                                                            <span class="text-muted" style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
-                                                                                ${msg.estimated_cost.toFixed(4)}
-                                                                            </span>
-                                                                        {/if}
                                                                         <span class="text-muted small flex-shrink-0" style="font-size: 0.75rem;">
                                                                             {new Date(msg.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                         </span>

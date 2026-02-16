@@ -25,6 +25,9 @@ func (parser *Parser) Parse(markdown string) *Node {
 	markdown = parser.unwrapBacktickMath(markdown)
 	markdown = parser.convertLatexMathDelimiters(markdown)
 
+	// Ensure space after a dot if followed by an uppercase letter: ".Cio" -> ". Cio"
+	markdown = regexp.MustCompile(`(\.+)([A-Z])`).ReplaceAllString(markdown, "$1 $2")
+
 	lines := strings.Split(markdown, "\n")
 	parser.indentUnit = parser.detectIndentationPattern(lines)
 

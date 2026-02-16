@@ -501,7 +501,7 @@ func RegisterHandlers(
 					rootNode.Children = append(rootNode.Children, &markdown.Node{
 						Type:    markdown.NodeHeading,
 						Level:   1,
-						Content: "Reference File: " + title,
+						Content: "Reference File: `" + title + "`",
 					})
 					currentDocumentTitle = title
 				}
@@ -870,13 +870,13 @@ func RegisterHandlers(
 			// 2. Build TOC (Índice)
 			transcriptBuilder.WriteString("## Table of Contents\n\n")
 			for _, name := range mediaOrder {
-				transcriptBuilder.WriteString(fmt.Sprintf("- [%s](#%s)\n", name, strings.ToLower(strings.ReplaceAll(name, " ", "-"))))
+				transcriptBuilder.WriteString(fmt.Sprintf("- [`%s`](#%s)\n", name, strings.ToLower(strings.ReplaceAll(name, " ", "-"))))
 			}
 			transcriptBuilder.WriteString("\n---\n\n")
 
 			// 3. Build Content
 			for _, name := range mediaOrder {
-				transcriptBuilder.WriteString(fmt.Sprintf("## %s\n\n", name))
+				transcriptBuilder.WriteString(fmt.Sprintf("## `%s`\n\n", name))
 				for _, seg := range mediaGroups[name] {
 					transcriptBuilder.WriteString(fmt.Sprintf("### %s – %s\n\n", seg.start, seg.end))
 					transcriptBuilder.WriteString(seg.text + "\n\n")
@@ -896,13 +896,14 @@ func RegisterHandlers(
 				CourseTitle: examTitle,
 			}
 
-			if payload.Format == "pdf" {
+			switch payload.Format {
+			case "pdf":
 				html, _ := markdownConverter.MarkdownToHTML(transcriptBuilder.String())
 				err = markdownConverter.HTMLToPDF(html, outputPath, options)
-			} else if payload.Format == "docx" {
+			case "docx":
 				html, _ := markdownConverter.MarkdownToHTML(transcriptBuilder.String())
 				err = markdownConverter.HTMLToDocx(html, outputPath, options)
-			} else {
+			default:
 				err = markdownConverter.SaveMarkdown(transcriptBuilder.String(), outputPath)
 			}
 
@@ -944,7 +945,7 @@ func RegisterHandlers(
 			markdownReconstructor := markdown.NewReconstructor()
 			markdownReconstructor.Language = payload.LanguageCode
 			rootNode := &markdown.Node{Type: markdown.NodeDocument}
-			rootNode.Children = append(rootNode.Children, &markdown.Node{Type: markdown.NodeHeading, Level: 1, Content: doc.Title})
+			rootNode.Children = append(rootNode.Children, &markdown.Node{Type: markdown.NodeHeading, Level: 1, Content: "`" + doc.Title + "`"})
 
 			for rows.Next() {
 				var pageNum int
@@ -997,13 +998,14 @@ func RegisterHandlers(
 				CourseTitle: examTitle,
 			}
 
-			if payload.Format == "pdf" {
+			switch payload.Format {
+			case "pdf":
 				html, _ := markdownConverter.MarkdownToHTML(content)
 				err = markdownConverter.HTMLToPDF(html, outputPath, options)
-			} else if payload.Format == "docx" {
+			case "docx":
 				html, _ := markdownConverter.MarkdownToHTML(content)
 				err = markdownConverter.HTMLToDocx(html, outputPath, options)
-			} else {
+			default:
 				err = markdownConverter.SaveMarkdown(content, outputPath)
 			}
 

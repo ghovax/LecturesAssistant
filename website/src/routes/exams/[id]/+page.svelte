@@ -197,11 +197,6 @@
         <div class="d-flex justify-content-between align-items-center mb-2">
             <div class="d-flex align-items-center gap-3">
                 <h1 class="page-title m-0">{exam.title}</h1>
-                {#if exam.estimated_cost > 0}
-                    <span class="badge bg-light text-muted border fw-normal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">
-                        ${exam.estimated_cost.toFixed(4)}
-                    </span>
-                {/if}
             </div>
             <div class="d-flex align-items-center gap-3">
                 <button class="btn btn-link btn-sm text-muted p-0 border-0 shadow-none d-flex align-items-center" onclick={() => showEditModal = true} title="Edit Subject">

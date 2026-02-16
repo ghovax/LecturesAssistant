@@ -100,7 +100,7 @@
             otherTools = (allTools ?? []).filter((t: any) => t.id !== toolId).slice(0, 3);
             
             if (tool.type === 'guide') {
-                htmlContent = htmlRes.content_html;
+                htmlContent = htmlRes.content_html.replaceAll('src="/api/', `src="${api.getBaseUrl()}/`);
                 citations = htmlRes.citations ?? [];
             }
 

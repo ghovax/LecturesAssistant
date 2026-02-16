@@ -140,7 +140,7 @@
                         <Plus size={48} class="mb-3 opacity-25" />
                         <h3 class="text-dark h5 mb-3">Welcome to your Study Hub</h3>
                         <p class="small mb-4">Get started by creating your first subject. You can then add lessons, upload recordings, and generate AI-powered study guides.</p>
-                        <button class="btn btn-success btn-lg rounded-0 px-5" onclick={() => showCreate = true}>
+                        <button class="btn btn-success rounded-0" onclick={() => showCreate = true}>
                             Create My First Subject
                         </button>
                     </div>
@@ -151,47 +151,49 @@
 </div>
 
 {#if showCreate}
-    <div class="bg-white border mb-3 shadow-none">
-        <div class="standard-header">
-            <div class="header-title">
-                <span class="header-text">Create a New Subject</span>
+    <div class="pb-5">
+        <div class="bg-white border mb-3 shadow-none">
+            <div class="standard-header">
+                <div class="header-title">
+                    <span class="header-text">Create a New Subject</span>
+                </div>
             </div>
-        </div>
-        <div class="p-4">
-            <form onsubmit={(e) => { e.preventDefault(); createExam(); }}>
-                <div class="mb-4">
-                    <label for="examTitle" class="cozy-label">Subject Name</label>
-                    <input
-                        id="examTitle"
-                        type="text"
-                        class="form-control cozy-input"
-                        placeholder="e.g. History, Science, Mathematics..."
-                        bind:value={newExamTitle}
-                        required
-                    />
-                </div>
-                <div class="mb-4">
-                    <label for="examLanguage" class="cozy-label">Language (Optional)</label>
-                    <select id="examLanguage" class="form-select cozy-input" bind:value={newExamLanguage}>
-                        <option value="">Default (from settings)</option>
-                        <option value="en-US">English (US)</option>
-                        <option value="it-IT">Italian</option>
-                        <option value="ja-JP">Japanese</option>
-                        <option value="es-ES">Spanish</option>
-                        <option value="fr-FR">French</option>
-                        <option value="de-DE">German</option>
-                        <option value="zh-CN">Chinese (Simplified)</option>
-                        <option value="pt-BR">Portuguese (Brazilian)</option>
-                    </select>
-                    <div class="form-text small">Lectures will inherit this language for transcription and document processing.</div>
-                </div>
-                <button type="submit" class="btn btn-success btn-sm px-4 rounded-0" disabled={creating}>
-                    {#if creating}
-                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
-                    {/if}
-                    Create Subject
-                </button>
-            </form>
+            <div class="p-4">
+                <form onsubmit={(e) => { e.preventDefault(); createExam(); }}>
+                    <div class="mb-4">
+                        <label for="examTitle" class="cozy-label">Subject Name</label>
+                        <input
+                            id="examTitle"
+                            type="text"
+                            class="form-control cozy-input"
+                            placeholder="e.g. History, Science, Mathematics..."
+                            bind:value={newExamTitle}
+                            required
+                        />
+                    </div>
+                    <div class="mb-4">
+                        <label for="examLanguage" class="cozy-label">Language (Optional)</label>
+                        <select id="examLanguage" class="form-select cozy-input" bind:value={newExamLanguage}>
+                            <option value="">Default (from settings)</option>
+                            <option value="en-US">English (US)</option>
+                            <option value="it-IT">Italian</option>
+                            <option value="ja-JP">Japanese</option>
+                            <option value="es-ES">Spanish</option>
+                            <option value="fr-FR">French</option>
+                            <option value="de-DE">German</option>
+                            <option value="zh-CN">Chinese (Simplified)</option>
+                            <option value="pt-BR">Portuguese (Brazilian)</option>
+                        </select>
+                        <div class="form-text small">Lectures will inherit this language for transcription and document processing.</div>
+                    </div>
+                    <button type="submit" class="btn btn-success rounded-0" disabled={creating}>
+                        {#if creating}
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        {/if}
+                        Create Subject
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
 {/if}

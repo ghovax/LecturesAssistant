@@ -295,15 +295,21 @@
 
 <style lang="scss">
     .dropzone {
-        border: 2px dashed transparent;
+        border: 2px dashed var(--gray-300);
         padding: 40px 20px;
         text-align: center;
         transition: all 0.2s ease;
-        background: transparent;
+        background: var(--cream);
         
+        &:hover {
+            border-color: var(--gray-400);
+            background: #fff;
+        }
+
         &.is-dragging {
             border-color: var(--orange);
             background: #fff;
+            border-style: solid;
         }
 
         .dropzone-label {

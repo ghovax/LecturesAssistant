@@ -12,7 +12,8 @@ var monthsMap = map[string][]string{
 	"es": {"Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"},
 	"fr": {"Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"},
 	"de": {"Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"},
-	"pt": {"Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembre", "Dezembro"},
+	"pt": {"Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembre", "Dezember"},
+	"tr": {"Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"},
 }
 
 func formatLocalizedDate(t time.Time, lang string) string {
@@ -26,6 +27,9 @@ func formatLocalizedDate(t time.Time, lang string) string {
 
 	switch baseLang {
 	case "it", "es", "fr", "pt":
+		// Day Month Year
+		return fmt.Sprintf("%d %s %d", t.Day(), month, t.Year())
+	case "tr":
 		// Day Month Year
 		return fmt.Sprintf("%d %s %d", t.Day(), month, t.Year())
 	case "de":
@@ -49,6 +53,18 @@ var i18nMap = map[string]map[string]string{
 		"second_label":    "s",
 		"date_label":      "Date",
 		"course_label":    "Course",
+	},
+	"tr": {
+		"abstract":        "özet",
+		"audio_files":     "Ses Dosyaları",
+		"reference_files": "Referans Dosyaları",
+		"page_label":      "s.",
+		"pages_label":     "s.",
+		"hour_label":      "sa",
+		"minute_label":    "dk",
+		"second_label":    "sn",
+		"date_label":      "Tarih",
+		"course_label":    "Ders",
 	},
 	"it": {
 		"abstract":        "sommario",

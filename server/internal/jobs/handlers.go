@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"lectures/internal/configuration"
@@ -278,105 +279,128 @@ func RegisterHandlers(
 		documentRows.Close()
 
 		totalDocuments := len(documentsList)
+		var wg sync.WaitGroup
+		var mutex sync.Mutex
+		var firstError error
+
+		// Semaphore to limit concurrent document processing (e.g., 3 at a time)
+		semaphore := make(chan struct{}, 3)
+		completedCount := 0
+
 		for documentIndex, document := range documentsList {
-			metadata := map[string]any{
-				"document_index":  documentIndex + 1,
-				"total_documents": totalDocuments,
-				"document_title":  document.Title,
-			}
-			updateProgress(int(float64(documentIndex)/float64(totalDocuments)*100), "Ingesting reference documents...", metadata, totalMetrics)
-
-			// 2. Update status to processing
-			_, executionError := database.Exec("UPDATE reference_documents SET extraction_status = ?, updated_at = ? WHERE id = ?", "processing", time.Now(), document.ID)
-			if executionError != nil {
-				return fmt.Errorf("failed to update document status: %w", executionError)
+			if firstError != nil {
+				break
 			}
 
-			// 3. Create output directory for pages in lecture's assets directory
-			outputDirectory := filepath.Join(config.Storage.DataDirectory, "files", "lectures", payload.LectureID, "documents", document.ID, "pages")
+			wg.Add(1)
+			go func(idx int, doc models.ReferenceDocument) {
+				defer wg.Done()
 
-			// 4. Run document processing
-			pages, docMetrics, processingError := documentProcessor.ProcessDocument(jobContext, document, outputDirectory, payload.LanguageCode, func(progress int, message string) {
-				updateProgress(progress, "Extracting and processing document pages...", metadata, totalMetrics)
-			})
-
-			totalMetrics.InputTokens += docMetrics.InputTokens
-			totalMetrics.OutputTokens += docMetrics.OutputTokens
-			totalMetrics.EstimatedCost += docMetrics.EstimatedCost
-
-			if processingError != nil {
-				// Clean up PNG images on failure
-				os.RemoveAll(outputDirectory)
-				slog.Warn("Cleaned up document images after processing failure", "document_id", document.ID, "output_directory", outputDirectory)
-
-				database.Exec("UPDATE reference_documents SET extraction_status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), document.ID)
-				database.Exec("UPDATE lectures SET status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), payload.LectureID)
-				return fmt.Errorf("document processor failed for %s: %w", document.Title, processingError)
-			}
-
-			// 5. Store pages in database
-			databaseTransaction, transactionError := database.Begin()
-			if transactionError != nil {
-				// Clean up PNG images since we can't store the data
-				os.RemoveAll(outputDirectory)
-				slog.Warn("Cleaned up document images after database transaction begin failure", "document_id", document.ID, "output_directory", outputDirectory)
-				return fmt.Errorf("failed to begin transaction: %w", transactionError)
-			}
-			defer databaseTransaction.Rollback()
-
-			// Delete existing pages if any
-			_, transactionError = databaseTransaction.Exec("DELETE FROM reference_pages WHERE document_id = ?", document.ID)
-			if transactionError != nil {
-				// Clean up PNG images since we can't store the new data
-				os.RemoveAll(outputDirectory)
-				slog.Warn("Cleaned up document images after database delete failure", "document_id", document.ID, "output_directory", outputDirectory)
-				return fmt.Errorf("failed to delete old pages: %w", transactionError)
-			}
-
-			for _, currentPage := range pages {
-				_, transactionError = databaseTransaction.Exec(`
-					INSERT INTO reference_pages (document_id, page_number, image_path, extracted_text)
-					VALUES (?, ?, ?, ?)
-				`, document.ID, currentPage.PageNumber, currentPage.ImagePath, currentPage.ExtractedText)
-				if transactionError != nil {
-					// Clean up PNG images since we can't store the page data
-					os.RemoveAll(outputDirectory)
-					slog.Warn("Cleaned up document images after page insert failure", "document_id", document.ID, "output_directory", outputDirectory)
-					return fmt.Errorf("failed to insert page: %w", transactionError)
+				select {
+				case semaphore <- struct{}{}:
+					defer func() { <-semaphore }()
+				case <-jobContext.Done():
+					return
 				}
-			}
 
-			// 6. Update document as completed
-			_, transactionError = databaseTransaction.Exec("UPDATE reference_documents SET extraction_status = ?, page_count = ?, estimated_cost = ?, updated_at = ? WHERE id = ?", "completed", len(pages), docMetrics.EstimatedCost, time.Now(), document.ID)
-			if transactionError != nil {
-				// Clean up PNG images since we can't finalize the document
-				os.RemoveAll(outputDirectory)
-				slog.Warn("Cleaned up document images after document status update failure", "document_id", document.ID, "output_directory", outputDirectory)
-				return fmt.Errorf("failed to finalize document status: %w", transactionError)
-			}
-
-			// Update lecture cost (aggregate)
-			_, executionError = databaseTransaction.Exec("UPDATE lectures SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", docMetrics.EstimatedCost, time.Now(), payload.LectureID)
-			if executionError != nil {
-				slog.Warn("Failed to update lecture estimated cost during document ingestion", "lectureID", payload.LectureID, "error", executionError)
-			}
-
-			// Update exam cost (aggregate)
-			var examID string
-			databaseTransaction.QueryRow("SELECT exam_id FROM lectures WHERE id = ?", payload.LectureID).Scan(&examID)
-			if examID != "" {
-				_, executionError = databaseTransaction.Exec("UPDATE exams SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", docMetrics.EstimatedCost, time.Now(), examID)
+				// 2. Update status to processing
+				_, executionError := database.Exec("UPDATE reference_documents SET extraction_status = ?, updated_at = ? WHERE id = ?", "processing", time.Now(), doc.ID)
 				if executionError != nil {
-					slog.Warn("Failed to update exam estimated cost during document ingestion", "examID", examID, "error", executionError)
+					mutex.Lock()
+					if firstError == nil {
+						firstError = fmt.Errorf("failed to update document status: %w", executionError)
+					}
+					mutex.Unlock()
+					return
 				}
-			}
 
-			if commitError := databaseTransaction.Commit(); commitError != nil {
-				// Clean up PNG images since we can't commit the data
-				os.RemoveAll(outputDirectory)
-				slog.Warn("Cleaned up document images after transaction commit failure", "document_id", document.ID, "output_directory", outputDirectory)
-				return fmt.Errorf("failed to commit transaction: %w", commitError)
-			}
+				// 3. Create output directory for pages in lecture's assets directory
+				outputDir := filepath.Join(config.Storage.DataDirectory, "files", "lectures", payload.LectureID, "documents", doc.ID, "pages")
+
+				// 4. Run document processing
+				pages, docMetrics, processingError := documentProcessor.ProcessDocument(jobContext, doc, outputDir, payload.LanguageCode, func(progress int, message string) {
+					// We don't report sub-progress for individual docs here to avoid flooding, or we could prefix it
+				})
+
+				mutex.Lock()
+				defer mutex.Unlock()
+
+				if processingError != nil {
+					if firstError == nil {
+						firstError = fmt.Errorf("document processor failed for %s: %w", doc.Title, processingError)
+					}
+					os.RemoveAll(outputDir)
+					database.Exec("UPDATE reference_documents SET extraction_status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), doc.ID)
+					return
+				}
+
+				totalMetrics.InputTokens += docMetrics.InputTokens
+				totalMetrics.OutputTokens += docMetrics.OutputTokens
+				totalMetrics.EstimatedCost += docMetrics.EstimatedCost
+
+				// 5. Store pages in database
+				tx, err := database.Begin()
+				if err != nil {
+					if firstError == nil {
+						firstError = fmt.Errorf("failed to begin transaction: %w", err)
+					}
+					os.RemoveAll(outputDir)
+					return
+				}
+				defer tx.Rollback()
+
+				tx.Exec("DELETE FROM reference_pages WHERE document_id = ?", doc.ID)
+				for _, currentPage := range pages {
+					_, err = tx.Exec(`
+						INSERT INTO reference_pages (document_id, page_number, image_path, extracted_text)
+						VALUES (?, ?, ?, ?)
+					`, doc.ID, currentPage.PageNumber, currentPage.ImagePath, currentPage.ExtractedText)
+					if err != nil {
+						if firstError == nil {
+							firstError = fmt.Errorf("failed to insert page: %w", err)
+						}
+						os.RemoveAll(outputDir)
+						return
+					}
+				}
+
+				// 6. Update document as completed
+				_, err = tx.Exec("UPDATE reference_documents SET extraction_status = ?, page_count = ?, estimated_cost = ?, updated_at = ? WHERE id = ?", "completed", len(pages), docMetrics.EstimatedCost, time.Now(), doc.ID)
+				if err != nil {
+					if firstError == nil {
+						firstError = fmt.Errorf("failed to finalize document status: %w", err)
+					}
+					os.RemoveAll(outputDir)
+					return
+				}
+
+				if err := tx.Commit(); err != nil {
+					if firstError == nil {
+						firstError = fmt.Errorf("failed to commit transaction: %w", err)
+					}
+					os.RemoveAll(outputDir)
+					return
+				}
+
+				completedCount++
+				progress := int(float64(completedCount) / float64(totalDocuments) * 100)
+				updateProgress(progress, fmt.Sprintf("Ingested %d/%d reference documents...", completedCount, totalDocuments), nil, totalMetrics)
+			}(documentIndex, document)
+		}
+
+		wg.Wait()
+
+		if firstError != nil {
+			database.Exec("UPDATE lectures SET status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), payload.LectureID)
+			return firstError
+		}
+
+		// Update lecture and exam costs once at the end
+		_, _ = database.Exec("UPDATE lectures SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), payload.LectureID)
+		var examID string
+		database.QueryRow("SELECT exam_id FROM lectures WHERE id = ?", payload.LectureID).Scan(&examID)
+		if examID != "" {
+			_, _ = database.Exec("UPDATE exams SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), examID)
 		}
 
 		if checkReadiness != nil {
@@ -1179,12 +1203,41 @@ func RegisterHandlers(
 				slog.Info("Finished tool content reconstruction", "contentLength", len(contentToConvert))
 			}
 
-			updateProgress(30, "Gathering lecture metadata...", nil, totalMetrics)
+			// 3.1 Identify which lectures to include in metadata
+			var lectureIDs []string
+			if payload.LectureID != "" {
+				lectureIDs = append(lectureIDs, payload.LectureID)
+			} else if payload.ToolID != "" {
+				// Find lecture ID associated with tool
+				var lID sql.NullString
+				database.QueryRow("SELECT lecture_id FROM tools WHERE id = ?", payload.ToolID).Scan(&lID)
+				if lID.Valid {
+					lectureIDs = append(lectureIDs, lID.String)
+				}
+			} else if payload.DocumentID != "" {
+				// Find lecture ID associated with document
+				var lID sql.NullString
+				database.QueryRow("SELECT lecture_id FROM reference_documents WHERE id = ?", payload.DocumentID).Scan(&lID)
+				if lID.Valid {
+					lectureIDs = append(lectureIDs, lID.String)
+				}
+			}
 
-			// Get lectures for this exam to collect metadata
-			lectureRows, databaseError := database.Query("SELECT id, specified_date FROM lectures WHERE exam_id = ? AND status = 'ready'", examID)
-			if databaseError != nil {
-				return fmt.Errorf("failed to query lectures: %w", databaseError)
+			if len(lectureIDs) == 0 {
+				return fmt.Errorf("failed to identify associated lecture for export")
+			}
+
+			placeholders := make([]string, len(lectureIDs))
+			args := make([]any, len(lectureIDs))
+			for i, id := range lectureIDs {
+				placeholders[i] = "?"
+				args[i] = id
+			}
+
+			rows, queryError := database.Query(fmt.Sprintf("SELECT id, specified_date FROM lectures WHERE id IN (%s)", strings.Join(placeholders, ",")), args...)
+
+			if queryError != nil {
+				return fmt.Errorf("failed to query lectures: %w", queryError)
 			}
 
 			type lectureMeta struct {
@@ -1192,13 +1245,17 @@ func RegisterHandlers(
 				specifiedDate sql.NullTime
 			}
 			var lectures []lectureMeta
-			for lectureRows.Next() {
+			for rows.Next() {
 				var lecture lectureMeta
-				if err := lectureRows.Scan(&lecture.id, &lecture.specifiedDate); err == nil {
+				if err := rows.Scan(&lecture.id, &lecture.specifiedDate); err == nil {
 					lectures = append(lectures, lecture)
 				}
 			}
-			lectureRows.Close()
+			rows.Close()
+
+			if len(lectures) == 0 {
+				return fmt.Errorf("associated lecture not found")
+			}
 
 			var audioFiles []markdown.AudioFileMetadata
 			var referenceFiles []markdown.ReferenceFileMetadata

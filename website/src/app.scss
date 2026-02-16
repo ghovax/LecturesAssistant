@@ -423,6 +423,11 @@ textarea.cozy-input {
   animation: village-spinner-rotation 0.8s infinite
     cubic-bezier(0.6, 0.2, 0.4, 0.8);
 }
+
+.spinner-animation {
+  animation: village-spinner-rotation 1s linear infinite;
+}
+
 .shadow-kakimashou {
   box-shadow: none !important;
 }
@@ -509,10 +514,32 @@ math, .math {
   font-weight: 500;
   color: var(--gray-900);
   letter-spacing: -0.02em;
+  line-height: 1; // Tight line height for better centering
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
 }
 
 .page-header {
   margin-bottom: 2.5rem !important;
+  
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.75rem;
+    padding: 0 0.75rem;
+    line-height: 1;
+  }
+
+  // Ensure small link buttons (like the edit icon) are centered
+  .btn-link.btn-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.75rem;
+    width: 1.75rem;
+  }
 }
 
 /* Hide number input spinners */

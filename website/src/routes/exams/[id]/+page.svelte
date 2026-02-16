@@ -1,6 +1,7 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { onMount, onDestroy } from 'svelte';
     import { page } from '$app/state';
+    import { browser } from '$app/environment';
     import { api } from '$lib/api/client';
     import { notifications } from '$lib/stores/notifications.svelte';
     import { goto } from '$app/navigation';
@@ -17,6 +18,7 @@
     let chatSessions = $state<any[]>([]);
     let loading = $state(true);
     let showEditModal = $state(false);
+    let socket: WebSocket | null = null;
 
     // Confirmation Modal State
     let confirmModal = $state({
@@ -40,7 +42,40 @@
         };
     }
 
+    function setupWebSocket() {
+        if (!browser || !examId || examId === 'undefined') return;
+        
+        const token = localStorage.getItem('session_token');
+        const baseUrl = api.getBaseUrl().replace('http', 'ws');
+        socket = new WebSocket(`${baseUrl}/socket?session_token=${token}`);
+        
+        socket.onopen = () => {
+            if (examId && examId !== 'undefined') {
+                socket?.send(JSON.stringify({
+                    type: 'subscribe',
+                    channel: `course:${examId}`
+                }));
+            }
+        };
+
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'job:progress') {
+                const update = data.payload;
+                if (update.status === 'COMPLETED') {
+                    // Refresh data if a job finishes
+                    loadData();
+                }
+            }
+        };
+
+        socket.onclose = () => {
+            setTimeout(setupWebSocket, 5000);
+        };
+    }
+
     async function loadData() {
+        // ... (rest of loadData)
         loading = true;
         try {
             const [examData, lecturesData, toolsData, sessionsData] = await Promise.all([
@@ -125,8 +160,14 @@
 
     $effect(() => {
         if (examId) {
-            loadData();
+            loadData().then(() => {
+                if (browser) setupWebSocket();
+            });
         }
+    });
+
+    onDestroy(() => {
+        socket?.close();
     });
 </script>
 

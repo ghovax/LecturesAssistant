@@ -350,179 +350,168 @@ func (generator *ToolGenerator) generateSequentialStudyGuide(
 		adherenceModel = generator.configuration.LLM.GetModelForTask("content_verification")
 	}
 
-	slog.Info("Starting sequential section generation",
+	slog.Info("Starting parallel section generation",
 		"total_sections", len(sections),
 		"model", generationModel,
 		"adherence_model", adherenceModel,
 		"threshold", threshold)
 
+	type sectionResult struct {
+		index   int
+		content string
+		ast     *markdown.Node
+		metrics models.JobMetrics
+		err     error
+	}
+
+	resultChan := make(chan sectionResult, len(sections))
+	var wg sync.WaitGroup
+	semaphore := make(chan struct{}, 3) // Concurrent LLM calls
+
+	completedSections := 0
+	var updateMutex sync.Mutex
+
 	for sectionIndex, section := range sections {
-		sectionNumber := sectionIndex + 1
-		progress := 20 + int(float64(sectionIndex)/float64(len(sections))*75)
+		wg.Add(1)
+		go func(idx int, info sectionInfo) {
+			defer wg.Done()
 
-		slog.Info("Generating section",
-			"section_number", sectionNumber,
-			"total_sections", len(sections),
-			"title", section.Title,
-			"progress", progress)
-
-		var sectionPrompt string
-		if generator.promptManager != nil {
-			latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
-			languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{"language": language, "language_code": language})
-
-			citationInstructions := ""
-			exampleTemplatePrompt := prompts.PromptSectionWithoutCitationsExample
-			if materials != "" {
-				citationInstructions, _ = generator.promptManager.GetPrompt(prompts.PromptCitationInstructions, nil)
-				exampleTemplatePrompt = prompts.PromptSectionWithCitationsExample
-			}
-			exampleTemplate, _ := generator.promptManager.GetPrompt(exampleTemplatePrompt, nil)
-
-			sectionPromptTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptStudyGuideSectionGeneration, nil)
-			sectionPrompt = generator.replacePromptVariables(sectionPromptTemplate, map[string]string{
-				"language_requirement":  languageRequirement,
-				"section_title":         section.Title,
-				"section_coverage":      section.Coverage,
-				"structure_outline":     structure,
-				"citation_instructions": citationInstructions,
-				"latex_instructions":    latexInstructions,
-				"example_template":      exampleTemplate,
-			})
-		}
-
-		var acceptedContent string
-		for attempt := 1; attempt <= maximumRetries; attempt++ {
-			slog.Debug("Section generation attempt",
-				"section", sectionNumber,
-				"attempt", attempt,
-				"maximum_retries", maximumRetries)
-			history := []llm.Message{
-				{Role: "user", Content: []llm.ContentPart{{Type: "text", Text: initialContext}}},
-				{Role: "assistant", Content: []llm.ContentPart{{Type: "text", Text: "Ready."}}},
-			}
-			for i, content := range successfulSections {
-				history = append(history, llm.Message{Role: "user", Content: []llm.ContentPart{{Type: "text", Text: "Generate " + sections[i].Title}}})
-				history = append(history, llm.Message{Role: "assistant", Content: []llm.ContentPart{{Type: "text", Text: content}}})
-			}
-
-			updateProgress(progress, fmt.Sprintf("Generating section %d out of %d...", sectionNumber, len(sections)), nil, currentMetrics)
-
-			slog.Debug("Calling LLM for section generation",
-				"section", sectionNumber,
-				"attempt", attempt,
-				"history_messages", len(history))
-
-			response, generationMetrics, err := generator.callLLMWithHistoryAndModel(jobContext, sectionPrompt, history, generationModel)
-			metrics.InputTokens += generationMetrics.InputTokens
-			metrics.OutputTokens += generationMetrics.OutputTokens
-			metrics.EstimatedCost += generationMetrics.EstimatedCost
-
-			slog.Debug("Section generation response received",
-				"section", sectionNumber,
-				"attempt", attempt,
-				"input_tokens", generationMetrics.InputTokens,
-				"output_tokens", generationMetrics.OutputTokens,
-				"cost", generationMetrics.EstimatedCost)
-
-			if err != nil {
-				slog.Error("Section generation failed",
-					"section", sectionNumber,
-					"attempt", attempt,
-					"error", err)
-				continue
-			}
-
-			sectionParser := markdown.NewParser()
-			sectionAST := sectionParser.Parse(response)
-			similarity := 0.0
-
-			// Find the actual generated title from the AST
-			generatedTitle := ""
-			for _, child := range sectionAST.Children {
-				if child.Type == markdown.NodeSection && child.Level == 2 {
-					generatedTitle = child.Title
-					break
-				}
-				if child.Type == markdown.NodeHeading && child.Level == 2 {
-					generatedTitle = child.Content
-					break
-				}
-			}
-
-			if generatedTitle != "" {
-				similarity = generator.calculateSimilarity(section.Title, generatedTitle)
-				slog.Debug("Title similarity check",
-					"section", sectionNumber,
-					"expected", section.Title,
-					"generated", generatedTitle,
-					"similarity", similarity)
-			}
-
-			if similarity < 65 && attempt < maximumRetries {
-				slog.Warn("Title similarity too low, retrying",
-					"section", sectionNumber,
-					"similarity", similarity,
-					"threshold", 65,
-					"attempt", attempt)
-				continue
-			}
-
-			updateProgress(progress, "Verifying adherence...", nil, currentMetrics)
-			slog.Debug("Starting adherence verification",
-				"section", sectionNumber,
-				"attempt", attempt)
-
-			var verificationResponse string
-			var verificationMetrics models.JobMetrics
+			var sectionPrompt string
 			if generator.promptManager != nil {
-				verificationTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptVerifySectionAdherence, nil)
-				verificationPrompt := generator.replacePromptVariables(verificationTemplate, map[string]string{
-					"section_title": section.Title, "expected_coverage": section.Coverage, "generated_section": response,
+				latexInstructions, _ := generator.promptManager.GetPrompt(prompts.PromptLatexInstructions, nil)
+				languageRequirement, _ := generator.promptManager.GetPrompt(prompts.PromptLanguageRequirement, map[string]string{"language": language, "language_code": language})
+
+				citationInstructions := ""
+				exampleTemplatePrompt := prompts.PromptSectionWithoutCitationsExample
+				if materials != "" {
+					citationInstructions, _ = generator.promptManager.GetPrompt(prompts.PromptCitationInstructions, nil)
+					exampleTemplatePrompt = prompts.PromptSectionWithCitationsExample
+				}
+				exampleTemplate, _ := generator.promptManager.GetPrompt(exampleTemplatePrompt, nil)
+
+				sectionPromptTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptStudyGuideSectionGeneration, nil)
+				sectionPrompt = generator.replacePromptVariables(sectionPromptTemplate, map[string]string{
+					"language_requirement":  languageRequirement,
+					"section_title":         info.Title,
+					"section_coverage":      info.Coverage,
+					"structure_outline":     structure,
+					"citation_instructions": citationInstructions,
+					"latex_instructions":    latexInstructions,
+					"example_template":      exampleTemplate,
 				})
-				verificationResponse, verificationMetrics, _ = generator.callLLMWithModel(jobContext, verificationPrompt, adherenceModel)
-			}
-			metrics.InputTokens += verificationMetrics.InputTokens
-			metrics.OutputTokens += verificationMetrics.OutputTokens
-			metrics.EstimatedCost += verificationMetrics.EstimatedCost
-
-			adherenceScore := generator.parseScore(verificationResponse)
-			slog.Info("Adherence verification complete",
-				"section", sectionNumber,
-				"attempt", attempt,
-				"score", adherenceScore,
-				"threshold", threshold,
-				"passed", adherenceScore >= threshold)
-
-			if adherenceScore >= threshold || attempt == maximumRetries {
-				slog.Info("Section accepted",
-					"section", sectionNumber,
-					"attempt", attempt,
-					"adherence_score", adherenceScore,
-					"forced_accept", attempt == maximumRetries && adherenceScore < threshold)
-
-				acceptedContent = response
-				rootNode.Children = append(rootNode.Children, sectionAST.Children...)
-				successfulSections = append(successfulSections, response)
-				break
 			}
 
-			slog.Warn("Section rejected, retrying",
-				"section", sectionNumber,
-				"attempt", attempt,
-				"score", adherenceScore,
-				"threshold", threshold)
+			var finalSecMetrics models.JobMetrics
+			var acceptedContent string
+			var acceptedAST *markdown.Node
 
-			updateProgress(progress, "Rebuilding history for retry...", nil, currentMetrics)
-		}
+			for attempt := 1; attempt <= maximumRetries; attempt++ {
+				select {
+				case semaphore <- struct{}{}:
+					defer func() { <-semaphore }()
+				case <-jobContext.Done():
+					return
+				}
 
-		if acceptedContent == "" {
-			slog.Error("Section generation failed after all retries",
-				"section", sectionNumber,
-				"title", section.Title,
-				"attempts", maximumRetries)
-			return "", "", metrics, fmt.Errorf("failed to generate section %d", sectionNumber)
+				history := []llm.Message{
+					{Role: "user", Content: []llm.ContentPart{{Type: "text", Text: initialContext}}},
+					{Role: "assistant", Content: []llm.ContentPart{{Type: "text", Text: "Ready."}}},
+				}
+
+				response, generationMetrics, err := generator.callLLMWithHistoryAndModel(jobContext, sectionPrompt, history, generationModel)
+
+				finalSecMetrics.InputTokens += generationMetrics.InputTokens
+				finalSecMetrics.OutputTokens += generationMetrics.OutputTokens
+				finalSecMetrics.EstimatedCost += generationMetrics.EstimatedCost
+
+				if err != nil {
+					if attempt == maximumRetries {
+						resultChan <- sectionResult{err: err}
+						return
+					}
+					continue
+				}
+
+				sectionParser := markdown.NewParser()
+				sectionAST := sectionParser.Parse(response)
+
+				// Title validation
+				generatedTitle := ""
+				for _, child := range sectionAST.Children {
+					if (child.Type == markdown.NodeSection && child.Level == 2) || (child.Type == markdown.NodeHeading && child.Level == 2) {
+						generatedTitle = child.Title
+						if generatedTitle == "" {
+							generatedTitle = child.Content
+						}
+						break
+					}
+				}
+
+				similarity := 0.0
+				if generatedTitle != "" {
+					similarity = generator.calculateSimilarity(info.Title, generatedTitle)
+				}
+
+				if similarity < 65 && attempt < maximumRetries {
+					continue
+				}
+
+				// Adherence verification
+				var verificationResponse string
+				var verificationMetrics models.JobMetrics
+				if generator.promptManager != nil {
+					verificationTemplate, _ := generator.promptManager.GetPrompt(prompts.PromptVerifySectionAdherence, nil)
+					verificationPrompt := generator.replacePromptVariables(verificationTemplate, map[string]string{
+						"section_title": info.Title, "expected_coverage": info.Coverage, "generated_section": response,
+					})
+					verificationResponse, verificationMetrics, _ = generator.callLLMWithModel(jobContext, verificationPrompt, adherenceModel)
+				}
+				finalSecMetrics.InputTokens += verificationMetrics.InputTokens
+				finalSecMetrics.OutputTokens += verificationMetrics.OutputTokens
+				finalSecMetrics.EstimatedCost += verificationMetrics.EstimatedCost
+
+				adherenceScore := generator.parseScore(verificationResponse)
+				if adherenceScore >= threshold || attempt == maximumRetries {
+					acceptedContent = response
+					acceptedAST = sectionAST
+					break
+				}
+			}
+
+			updateMutex.Lock()
+			completedSections++
+			progress := 20 + int(float64(completedSections)/float64(len(sections))*75)
+			updateProgress(progress, fmt.Sprintf("Generated %d/%d sections...", completedSections, len(sections)), nil, currentMetrics)
+			updateMutex.Unlock()
+
+			resultChan <- sectionResult{
+				index:   idx,
+				content: acceptedContent,
+				ast:     acceptedAST,
+				metrics: finalSecMetrics,
+			}
+		}(sectionIndex, section)
+	}
+
+	wg.Wait()
+	close(resultChan)
+
+	var results []sectionResult
+	for res := range resultChan {
+		if res.err != nil {
+			return "", "", metrics, res.err
 		}
+		results = append(results, res)
+	}
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].index < results[j].index
+	})
+
+	for _, res := range results {
+		rootNode.Children = append(rootNode.Children, res.ast.Children...)
+		metrics.InputTokens += res.metrics.InputTokens
+		metrics.OutputTokens += res.metrics.OutputTokens
+		metrics.EstimatedCost += res.metrics.EstimatedCost
 	}
 
 	slog.Info("Sequential generation complete",

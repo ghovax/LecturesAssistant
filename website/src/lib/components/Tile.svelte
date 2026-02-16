@@ -177,8 +177,8 @@
     }
     .tile-actions {
         position: absolute;
-        top: 12px;
-        right: 12px;
+        bottom: 12px;
+        right: 20px;
         z-index: 10;
         display: flex;
         gap: 8px;

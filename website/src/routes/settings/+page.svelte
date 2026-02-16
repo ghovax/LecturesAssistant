@@ -83,6 +83,7 @@
                             <option value="es-ES">{getLanguageName('es-ES')}</option>
                             <option value="fr-FR">{getLanguageName('fr-FR')}</option>
                             <option value="de-DE">{getLanguageName('de-DE')}</option>
+                            <option value="tr-TR">{getLanguageName('tr-TR')}</option>
                         </select>
                     </div>
 

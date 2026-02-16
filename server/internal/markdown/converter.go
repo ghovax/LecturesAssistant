@@ -207,6 +207,7 @@ func (converter *ExternalConverter) HTMLToPDF(htmlContent string, outputPath str
 		"hy": {mainfont: "Noto Serif Armenian", cjkOptions: ""},
 		"ka": {mainfont: "Noto Serif Georgian", cjkOptions: ""},
 		"ru": {mainfont: "Noto Serif", cjkOptions: ""},
+		"tr": {mainfont: "Noto Serif", cjkOptions: ""},
 	}
 
 	if fontInfo, ok := languageFontMap[options.Language]; ok {
@@ -475,7 +476,7 @@ func fileExists(path string) bool {
 func (converter *ExternalConverter) writeMetadataFile(path string, options ConversionOptions) error {
 	slog.Info("Preparing PDF metadata",
 		"language", options.Language,
-		"description", options.Description,
+		"description_length", len(options.Description),
 		"creation_date", options.CreationDate,
 		"reference_files", options.ReferenceFiles,
 		"audio_files", options.AudioFiles)

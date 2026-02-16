@@ -26,6 +26,7 @@ type Queue struct {
 	subscribers        map[string][]chan JobUpdate
 	subscribersMutex   sync.RWMutex
 	heavyTaskSemaphore chan struct{}
+	OnUpdate           func(job *models.Job, update JobUpdate)
 }
 
 // JobHandler is a function that processes a specific job type
@@ -33,16 +34,20 @@ type JobHandler func(context context.Context, job *models.Job, updateProgress fu
 
 // JobUpdate represents a job progress update
 type JobUpdate struct {
-	JobID               string
-	Status              string
-	Progress            int
-	ProgressMessageText string
-	Metadata            any
-	Error               string
-	Result              string
-	InputTokens         int
-	OutputTokens        int
-	EstimatedCost       float64
+	JobID               string  `json:"id"`
+	Type                string  `json:"type"`
+	Status              string  `json:"status"`
+	Progress            int     `json:"progress"`
+	ProgressMessageText string  `json:"progress_message_text"`
+	Metadata            any     `json:"metadata"`
+	Payload             any     `json:"payload"`
+	CourseID            string  `json:"course_id"`
+	LectureID           string  `json:"lecture_id"`
+	Error               string  `json:"error"`
+	Result              string  `json:"result"`
+	InputTokens         int     `json:"input_tokens"`
+	OutputTokens        int     `json:"output_tokens"`
+	EstimatedCost       float64 `json:"estimated_cost"`
 }
 
 // NewQueue creates a new job queue
@@ -55,7 +60,7 @@ func NewQueue(database *sql.DB, workers int) *Queue {
 		cancel:             cancel,
 		handlers:           make(map[string]JobHandler),
 		subscribers:        make(map[string][]chan JobUpdate),
-		heavyTaskSemaphore: make(chan struct{}, 1), // Only 1 heavy task at a time
+		heavyTaskSemaphore: make(chan struct{}, 4), // Allow 4 heavy tasks at a time
 	}
 }
 
@@ -278,11 +283,16 @@ func (queue *Queue) processNextJob(workerID int) {
 	slog.Info("Worker processing job", "workerID", workerID, "jobID", job.ID, "type", job.Type)
 
 	// Publish initial update
-	queue.publishUpdate(JobUpdate{
+	update := JobUpdate{
 		JobID:    job.ID,
+		Type:     job.Type,
 		Status:   models.JobStatusRunning,
 		Progress: 0,
-	})
+	}
+	queue.publishUpdate(update)
+	if queue.OnUpdate != nil {
+		queue.OnUpdate(&job, update)
+	}
 
 	// Execute job
 	queue.executeJob(&job)
@@ -321,19 +331,36 @@ func (queue *Queue) executeJob(job *models.Job) {
 		`, progress, message, string(metadataJSON), metrics.InputTokens, metrics.OutputTokens, metrics.EstimatedCost, job.ID)
 
 		if executionError != nil {
-			slog.Error("Failed to update job progress", "error", executionError)
+			slog.Error("Failed to update job progress in DB", "error", executionError, "jobID", job.ID)
 		}
 
-		queue.publishUpdate(JobUpdate{
+		slog.Debug("Job progress update",
+			"jobID", job.ID,
+			"type", job.Type,
+			"progress", progress,
+			"message", message)
+
+		var parsedPayload interface{}
+		_ = json.Unmarshal([]byte(job.Payload), &parsedPayload)
+
+		update := JobUpdate{
 			JobID:               job.ID,
+			Type:                job.Type,
 			Status:              models.JobStatusRunning,
 			Progress:            progress,
 			ProgressMessageText: message,
 			Metadata:            metadata,
+			Payload:             parsedPayload,
+			CourseID:            job.CourseID,
+			LectureID:           job.LectureID,
 			InputTokens:         metrics.InputTokens,
 			OutputTokens:        metrics.OutputTokens,
 			EstimatedCost:       metrics.EstimatedCost,
-		})
+		}
+		queue.publishUpdate(update)
+		if queue.OnUpdate != nil {
+			queue.OnUpdate(job, update)
+		}
 	}
 
 	// Execute handler
@@ -364,27 +391,39 @@ func (queue *Queue) completeJob(jobID, result string) {
 		return
 	}
 
-	// Get final metrics for logging
-	var inputTokens, outputTokens int
-	var estimatedCost float64
-	queue.database.QueryRow("SELECT input_tokens, output_tokens, estimated_cost FROM jobs WHERE id = ?", jobID).Scan(&inputTokens, &outputTokens, &estimatedCost)
+	job, err := queue.GetJob(jobID)
+	if err != nil {
+		slog.Error("Failed to fetch job for completion update", "error", err)
+		return
+	}
 
 	slog.Info("Job completed successfully",
 		"jobID", jobID,
-		"input_tokens", inputTokens,
-		"output_tokens", outputTokens,
-		"estimated_cost_usd", estimatedCost,
-		"total_tokens", inputTokens+outputTokens)
+		"input_tokens", job.InputTokens,
+		"output_tokens", job.OutputTokens,
+		"estimated_cost_usd", job.EstimatedCost,
+		"total_tokens", job.InputTokens+job.OutputTokens)
 
-	queue.publishUpdate(JobUpdate{
+	var parsedPayload interface{}
+	_ = json.Unmarshal([]byte(job.Payload), &parsedPayload)
+
+	update := JobUpdate{
 		JobID:         jobID,
+		Type:          job.Type,
 		Status:        models.JobStatusCompleted,
 		Progress:      100,
 		Result:        result,
-		InputTokens:   inputTokens,
-		OutputTokens:  outputTokens,
-		EstimatedCost: estimatedCost,
-	})
+		Payload:       parsedPayload,
+		CourseID:      job.CourseID,
+		LectureID:     job.LectureID,
+		InputTokens:   job.InputTokens,
+		OutputTokens:  job.OutputTokens,
+		EstimatedCost: job.EstimatedCost,
+	}
+	queue.publishUpdate(update)
+	if queue.OnUpdate != nil {
+		queue.OnUpdate(job, update)
+	}
 }
 
 // failJob marks a job as failed
@@ -401,13 +440,30 @@ func (queue *Queue) failJob(jobID, errorMsg string) {
 		return
 	}
 
+	job, err := queue.GetJob(jobID)
+	if err != nil {
+		slog.Error("Failed to fetch job for failure update", "error", err)
+		return
+	}
+
 	slog.Error("Job failed", "jobID", jobID, "error", errorMsg)
 
-	queue.publishUpdate(JobUpdate{
-		JobID:  jobID,
-		Status: models.JobStatusFailed,
-		Error:  errorMsg,
-	})
+	var parsedPayload interface{}
+	_ = json.Unmarshal([]byte(job.Payload), &parsedPayload)
+
+	update := JobUpdate{
+		JobID:     jobID,
+		Type:      job.Type,
+		Status:    models.JobStatusFailed,
+		Payload:   parsedPayload,
+		CourseID:  job.CourseID,
+		LectureID: job.LectureID,
+		Error:     errorMsg,
+	}
+	queue.publishUpdate(update)
+	if queue.OnUpdate != nil {
+		queue.OnUpdate(job, update)
+	}
 }
 
 // GetJob retrieves a job by ID
@@ -473,10 +529,26 @@ func (queue *Queue) CancelJob(jobID string) error {
 		return executionError
 	}
 
-	queue.publishUpdate(JobUpdate{
-		JobID:  jobID,
-		Status: models.JobStatusCancelled,
-	})
+	job, err := queue.GetJob(jobID)
+	if err != nil {
+		return err
+	}
+
+	var parsedPayload interface{}
+	_ = json.Unmarshal([]byte(job.Payload), &parsedPayload)
+
+	update := JobUpdate{
+		JobID:     jobID,
+		Type:      job.Type,
+		Status:    models.JobStatusCancelled,
+		Payload:   parsedPayload,
+		CourseID:  job.CourseID,
+		LectureID: job.LectureID,
+	}
+	queue.publishUpdate(update)
+	if queue.OnUpdate != nil {
+		queue.OnUpdate(job, update)
+	}
 
 	return nil
 }

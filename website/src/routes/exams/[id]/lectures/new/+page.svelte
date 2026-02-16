@@ -5,6 +5,7 @@
     import { notifications } from '$lib/stores/notifications.svelte';
     import { goto } from '$app/navigation';
     import Breadcrumb from '$lib/components/Breadcrumb.svelte';
+    import Highlighter from '$lib/components/Highlighter.svelte';
     import { Upload, FileText, Info, X, Music, GripVertical, FileUp } from 'lucide-svelte';
 
     let examId = $derived(page.params.id);
@@ -17,6 +18,7 @@
     let uploading = $state(false);
     let status = $state('');
     let isDragging = $state(false);
+    let isHovered = $state(false);
 
     const mediaExtensions = ['mp4', 'mkv', 'mov', 'webm', 'mp3', 'wav', 'm4a', 'flac'];
     const docExtensions = ['pdf', 'pptx', 'docx'];
@@ -156,6 +158,7 @@
                             <option value="es-ES">Spanish</option>
                             <option value="fr-FR">French</option>
                             <option value="de-DE">German</option>
+                            <option value="tr-TR">Turkish</option>
                             <option value="zh-CN">Chinese (Simplified)</option>
                             <option value="pt-BR">Portuguese (Brazilian)</option>
                         </select>
@@ -177,11 +180,14 @@
                 <div class="p-4 flex-grow-1">
                     <!-- Dropzone -->
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    <!-- svelte-ignore a11y_mouse_events_have_key_events -->
                     <div 
-                        class="dropzone mb-4 {isDragging ? 'is-dragging' : ''}"
+                        class="dropzone-refined mb-4 {isDragging ? 'is-dragging' : ''}"
                         ondragover={(e) => { e.preventDefault(); isDragging = true; }}
                         ondragleave={() => isDragging = false}
                         {onDrop}
+                        onmouseenter={() => isHovered = true}
+                        onmouseleave={() => isHovered = false}
                     >
                         <input 
                             type="file" 
@@ -191,10 +197,18 @@
                             onchange={onFileSelect}
                             disabled={uploading}
                         />
-                        <label for="file-input" class="dropzone-label">
-                            <FileUp size={32} class="mb-2 text-orange opacity-75" />
-                            <div class="fw-bold small mb-1">Click or drag files here</div>
-                            <div class="text-muted" style="font-size: 0.75rem;">Recordings (MP4, MP3...) and References (PDF, PPTX...)</div>
+                        <label for="file-input" class="dropzone-label-refined">
+                            <div class="icon-stack mb-3">
+                                <FileUp size={40} class="text-orange" />
+                            </div>
+                            <div class="text-center">
+                                <Highlighter show={isHovered || isDragging} padding={2} offsetY={2}>
+                                    <span class="fw-bold h6 mb-1 d-block text-dark">Click or drag files here</span>
+                                </Highlighter>
+                                <p class="text-muted mb-0 mt-2 small px-4">
+                                    Recordings (MP4, MP3, WAV...) and Reference Materials (PDF, PPTX, DOCX)
+                                </p>
+                            </div>
                         </label>
                     </div>
 
@@ -259,7 +273,7 @@
                     {:else}
                         <div class="empty-state-files text-center py-5 opacity-25">
                             <Info size={48} class="mb-3 mx-auto" />
-                            <p class="small">No files selected yet.</p>
+                            <p class="fw-medium mb-0">No files selected yet.</p>
                         </div>
                     {/if}
                 </div>
@@ -294,46 +308,70 @@
 {/if}
 
 <style lang="scss">
-    .dropzone {
-        border: 2px dashed var(--gray-300);
-        padding: 40px 20px;
-        text-align: center;
+    .dropzone-refined {
+        border: 1px solid var(--gray-300);
+        background: #fff;
+        padding: 60px 20px;
         transition: all 0.2s ease;
-        background: var(--cream);
-        
+        position: relative;
+        cursor: pointer;
+
         &:hover {
             border-color: var(--gray-400);
-            background: #fff;
+            background: #fafaf9;
         }
 
         &.is-dragging {
             border-color: var(--orange);
-            background: #fff;
-            border-style: solid;
+            background: #fffafa;
+            outline: 2px solid var(--orange);
+            outline-offset: -4px;
         }
 
-        .dropzone-label {
+        .dropzone-label-refined {
             cursor: pointer;
             display: flex;
             flex-direction: column;
             align-items: center;
+            width: 100%;
             margin: 0;
         }
+    }
+
+    .icon-stack {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 80px;
+        height: 80px;
+        background: var(--cream);
+        border: 1px solid var(--gray-200);
+        margin-bottom: 1rem;
     }
 
     .file-item {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 8px 12px;
+        padding: 12px 16px;
         background: #fff;
-        border: 1px solid var(--gray-200);
-        margin-bottom: 4px;
-        transition: border-color 0.1s ease;
+        border: 1px solid var(--gray-300);
+        margin-bottom: 8px;
+        transition: all 0.2s ease;
+
+        &:hover {
+            border-color: var(--gray-400);
+            background: #fafaf9;
+        }
 
         &.recording {
             cursor: grab;
+            border-left: 4px solid var(--orange);
             &:active { cursor: grabbing; }
+        }
+
+        &.reference {
+            border-left: 4px solid var(--gray-900);
         }
     }
 

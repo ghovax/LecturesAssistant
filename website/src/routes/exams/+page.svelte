@@ -181,6 +181,7 @@
                             <option value="es-ES">Spanish</option>
                             <option value="fr-FR">French</option>
                             <option value="de-DE">German</option>
+                            <option value="tr-TR">Turkish</option>
                             <option value="zh-CN">Chinese (Simplified)</option>
                             <option value="pt-BR">Portuguese (Brazilian)</option>
                         </select>

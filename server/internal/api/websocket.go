@@ -229,12 +229,18 @@ func (client *WSClient) writePump() {
 	for {
 		select {
 		case wsMessage, isAvailable := <-client.send:
+			// Set a write deadline for every message
+			client.connection.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if !isAvailable {
 				client.connection.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
 
 			if err := client.connection.WriteJSON(wsMessage); err != nil {
+				// Don't log normal closure errors
+				if !websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					return
+				}
 				slog.Error("WS write error", "userID", client.userID, "error", err)
 				return
 			}
@@ -256,6 +262,46 @@ func (client *WSClient) handleSubscribe(channel string) {
 
 	if _, exists := client.subscriptions[channel]; exists {
 		return
+	}
+
+	// Security Check: Ensure user owns the resource they are subscribing to
+	if strings.HasPrefix(channel, "lecture:") {
+		lectureID := strings.TrimPrefix(channel, "lecture:")
+		var exists bool
+		client.server.database.QueryRow(`
+			SELECT EXISTS(
+				SELECT 1 FROM lectures 
+				JOIN exams ON lectures.exam_id = exams.id 
+				WHERE lectures.id = ? AND exams.user_id = ?
+			)
+		`, lectureID, client.userID).Scan(&exists)
+		if !exists {
+			slog.Warn("Unauthorized subscription attempt to lecture", "userID", client.userID, "lectureID", lectureID)
+			return
+		}
+	} else if strings.HasPrefix(channel, "course:") {
+		courseID := strings.TrimPrefix(channel, "course:")
+		var exists bool
+		client.server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM exams WHERE id = ? AND user_id = ?)", courseID, client.userID).Scan(&exists)
+		if !exists {
+			slog.Warn("Unauthorized subscription attempt to course", "userID", client.userID, "courseID", courseID)
+			return
+		}
+	} else if strings.HasPrefix(channel, "job:") {
+		jobID := strings.TrimPrefix(channel, "job:")
+		job, err := client.server.jobQueue.GetJob(jobID)
+		if err != nil || job.UserID != client.userID {
+			slog.Warn("Unauthorized subscription attempt to job", "userID", client.userID, "jobID", jobID)
+			return
+		}
+	} else if strings.HasPrefix(channel, "chat:") {
+		chatID := strings.TrimPrefix(channel, "chat:")
+		var exists bool
+		client.server.database.QueryRow("SELECT EXISTS(SELECT 1 FROM chat_sessions JOIN exams ON chat_sessions.exam_id = exams.id WHERE chat_sessions.id = ? AND exams.user_id = ?)", chatID, client.userID).Scan(&exists)
+		if !exists {
+			slog.Warn("Unauthorized subscription attempt to chat", "userID", client.userID, "chatID", chatID)
+			return
+		}
 	}
 
 	stopChannel := make(chan bool)

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"lectures/internal/configuration"
 	"lectures/internal/llm"
@@ -107,55 +108,103 @@ func (service *Service) TranscribeLecture(jobContext context.Context, mediaFiles
 				segmentChunkEnd = totalSegments
 			}
 
+			type segmentResult struct {
+				index    int
+				segments []models.TranscriptSegment
+				text     string
+				metrics  models.JobMetrics
+				err      error
+			}
+
+			resultChan := make(chan segmentResult, segmentChunkEnd-segmentChunkStart)
+			var wg sync.WaitGroup
+
+			// Concurrency limit for transcription (e.g., 5 concurrent segments)
+			semaphore := make(chan struct{}, 5)
+
+			for segmentIndex := segmentChunkStart; segmentIndex < segmentChunkEnd; segmentIndex++ {
+				wg.Add(1)
+				go func(idx int) {
+					defer wg.Done()
+
+					select {
+					case semaphore <- struct{}{}:
+						defer func() { <-semaphore }()
+					case <-jobContext.Done():
+						return
+					}
+
+					segmentFile := segmentFiles[idx]
+
+					transcriptionResults, stepMetrics, transcriptionError := service.provider.Transcribe(jobContext, segmentFile)
+					if transcriptionError != nil {
+						resultChan <- segmentResult{err: transcriptionError}
+						return
+					}
+
+					// Get actual segment duration as fallback
+					actualSegmentDuration, _ := service.mediaProcessor.GetDuration(segmentFile)
+					segmentBaseOffsetMilliseconds := int64(idx) * int64(segmentDurationSeconds) * 1000
+
+					var segs []models.TranscriptSegment
+					var textBuilder strings.Builder
+					for _, transcriptSegment := range transcriptionResults {
+						originalStart := segmentBaseOffsetMilliseconds + int64(transcriptSegment.Start*1000)
+						endSeconds := transcriptSegment.End
+						if endSeconds == 0 && actualSegmentDuration > 0 {
+							endSeconds = actualSegmentDuration
+						}
+						originalEnd := segmentBaseOffsetMilliseconds + int64(endSeconds*1000)
+
+						segs = append(segs, models.TranscriptSegment{
+							MediaID:                   media.ID,
+							OriginalStartMilliseconds: originalStart,
+							OriginalEndMilliseconds:   originalEnd,
+							Text:                      transcriptSegment.Text,
+							Confidence:                transcriptSegment.Confidence,
+							Speaker:                   transcriptSegment.Speaker,
+						})
+						textBuilder.WriteString(transcriptSegment.Text + " ")
+					}
+
+					resultChan <- segmentResult{
+						index:    idx,
+						segments: segs,
+						text:     textBuilder.String(),
+						metrics:  stepMetrics,
+					}
+				}(segmentIndex)
+			}
+
+			wg.Wait()
+			close(resultChan)
+
+			// Collect and sort results
+			var results []segmentResult
+			for res := range resultChan {
+				if res.err != nil {
+					return nil, totalMetrics, fmt.Errorf("transcription failed: %w", res.err)
+				}
+				results = append(results, res)
+			}
+			sort.Slice(results, func(i, j int) bool {
+				return results[i].index < results[j].index
+			})
+
 			var chunkSegments []models.TranscriptSegment
 			var chunkTextBuilder strings.Builder
 
-			for segmentIndex := segmentChunkStart; segmentIndex < segmentChunkEnd; segmentIndex++ {
-				segmentFile := segmentFiles[segmentIndex]
-
-				currentProgress := int((float64(mediaIndex) + float64(segmentIndex)/float64(totalSegments)) / float64(totalMediaFiles) * 100)
-
-				segmentMetadata := map[string]any{
-					"media_index":    mediaIndex + 1,
-					"segment_index":  segmentIndex + 1,
-					"total_segments": totalSegments,
-				}
-				updateProgress(currentProgress, "Transcribing audio segment...", segmentMetadata)
-
-				transcriptionResults, stepMetrics, transcriptionError := service.provider.Transcribe(jobContext, segmentFile)
-				if transcriptionError != nil {
-					return nil, totalMetrics, fmt.Errorf("transcription failed for segment %s: %w", segmentFile, transcriptionError)
-				}
-
-				totalMetrics.InputTokens += stepMetrics.InputTokens
-				totalMetrics.OutputTokens += stepMetrics.OutputTokens
-				totalMetrics.EstimatedCost += stepMetrics.EstimatedCost
-
-				// Get actual segment duration as fallback for providers that don't return timestamps (like Chat API)
-				actualSegmentDuration, _ := service.mediaProcessor.GetDuration(segmentFile)
-
-				segmentBaseOffsetMilliseconds := int64(segmentIndex) * int64(segmentDurationSeconds) * 1000
-
-				for _, transcriptSegment := range transcriptionResults {
-					originalStart := segmentBaseOffsetMilliseconds + int64(transcriptSegment.Start*1000)
-
-					endSeconds := transcriptSegment.End
-					if endSeconds == 0 && actualSegmentDuration > 0 {
-						endSeconds = actualSegmentDuration
-					}
-					originalEnd := segmentBaseOffsetMilliseconds + int64(endSeconds*1000)
-
-					chunkSegments = append(chunkSegments, models.TranscriptSegment{
-						MediaID:                   media.ID,
-						OriginalStartMilliseconds: originalStart,
-						OriginalEndMilliseconds:   originalEnd,
-						Text:                      transcriptSegment.Text,
-						Confidence:                transcriptSegment.Confidence,
-						Speaker:                   transcriptSegment.Speaker,
-					})
-					chunkTextBuilder.WriteString(transcriptSegment.Text + " ")
-				}
+			for _, res := range results {
+				chunkSegments = append(chunkSegments, res.segments...)
+				chunkTextBuilder.WriteString(res.text)
+				totalMetrics.InputTokens += res.metrics.InputTokens
+				totalMetrics.OutputTokens += res.metrics.OutputTokens
+				totalMetrics.EstimatedCost += res.metrics.EstimatedCost
 			}
+
+			// Update progress
+			currentProgress := int((float64(mediaIndex) + float64(segmentChunkEnd)/float64(totalSegments)) / float64(totalMediaFiles) * 100)
+			updateProgress(currentProgress, "Transcribing audio segments...", mediaMetadata)
 
 			// 4. LLM Cleanup for the chunk
 			if chunkTextBuilder.Len() > 0 {

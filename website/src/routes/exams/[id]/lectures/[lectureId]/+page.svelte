@@ -28,9 +28,11 @@
     let loading = $state(true);
     let currentSegmentIndex = $state(0);
     let audioElement: HTMLAudioElement | null = $state(null);
-    let jobPollingInterval: number | null = null;
+    let socket: WebSocket | null = null;
     let handledJobIds = new Set<string>(); // Prevent duplicate auto-downloads
+    let downloadLock = new Set<string>(); // Strict lock for actual download trigger
     let isInitialJobsLoad = true;
+    let exporting = $state<Record<string, boolean>>({}); // Track active exports: "resourceId:format" -> boolean
 
     // Derived state for job status
     let transcriptJobRunning = $derived(jobs.some(j => j.type === 'TRANSCRIBE_MEDIA' && (j.status === 'PENDING' || j.status === 'RUNNING')));
@@ -46,7 +48,7 @@
     let hasGuide = $derived(tools.some(t => t.type === 'guide') || activeToolsJobs.some(j => j.payload?.type === 'guide'));
 
     // View State
-    let activeView = $state<'dashboard' | 'guide' | 'transcript' | 'doc' | 'tool'>('dashboard');
+    let activeView = $state<'dashboard' | 'guide' | 'transcript' | 'document' | 'tool' | 'docs_list'>('dashboard');
 
     let selectedDocId = $state<string | null>(null);
     let selectedDocPages = $state<any[]>([]);
@@ -96,11 +98,94 @@
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 
+    function setupWebSocket() {
+        if (!browser || !lectureId || lectureId === 'undefined') return;
+        
+        const token = localStorage.getItem('session_token');
+        const baseUrl = api.getBaseUrl().replace('http', 'ws');
+        socket = new WebSocket(`${baseUrl}/socket?session_token=${token}`);
+        
+        socket.onopen = () => {
+            if (lectureId && lectureId !== 'undefined') {
+                socket?.send(JSON.stringify({
+                    type: 'subscribe',
+                    channel: `lecture:${lectureId}`
+                }));
+            }
+        };
+
+        socket.onmessage = async (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'job:progress') {
+                handleJobUpdate(data.payload);
+            }
+        };
+
+        socket.onclose = () => {
+            // Reconnect after a delay
+            setTimeout(setupWebSocket, 5000);
+        };
+    }
+
+    async function handleJobUpdate(update: any) {
+        const index = jobs.findIndex(j => j.id === update.id);
+        
+        if (index !== -1) {
+            // Update existing job
+            const updatedJob = { ...jobs[index], ...update };
+            // Ensure payload is still parsed if update doesn't have it
+            if (typeof updatedJob.payload === 'string') {
+                try { updatedJob.payload = JSON.parse(updatedJob.payload); } catch(e) {}
+            }
+            jobs[index] = updatedJob;
+        } else {
+            // New job we didn't know about
+            jobs = [update, ...jobs];
+        }
+
+        // notification for failures
+        if (update.status === 'FAILED') {
+            notifications.error(`${update.error || 'A background task failed.'}`);
+        }
+
+        // Clear exporting state if a PUBLISH_MATERIAL job finishes
+        if (update.type === 'PUBLISH_MATERIAL' && (update.status === 'COMPLETED' || update.status === 'FAILED' || update.status === 'CANCELLED')) {
+            const payload = update.payload;
+            const resourceId = payload.tool_id || payload.document_id || payload.lecture_id;
+            const format = payload.format;
+            if (resourceId && format) {
+                exporting[`${resourceId}:${format}`] = false;
+            }
+        }
+
+        // Auto-download for completed exports
+        if (update.status === 'COMPLETED' && update.type === 'PUBLISH_MATERIAL' && !downloadLock.has(update.id)) {
+            downloadLock.add(update.id);
+            try {
+                const result = typeof update.result === 'string' ? JSON.parse(update.result) : update.result;
+                if (result?.file_path) {
+                    api.downloadExport(result.file_path).catch(() => {
+                        const directUrl = api.getAuthenticatedMediaUrl(`/exports/download?path=${encodeURIComponent(result.file_path)}`);
+                        window.open(directUrl, '_blank');
+                    });
+                    notifications.success('Your export has been downloaded.');
+                }
+            } catch(e) {
+                console.error('Failed to parse job result for auto-download', e);
+            }
+        }
+
+        // Refresh lecture data if critical jobs finish
+        if (update.status === 'COMPLETED' && (update.type === 'TRANSCRIBE_MEDIA' || update.type === 'INGEST_DOCUMENTS' || update.type === 'BUILD_MATERIAL')) {
+            await loadLectureData();
+        }
+    }
+
     async function loadJobs() {
         try {
             const jobsR = await api.request('GET', `/jobs?lecture_id=${lectureId}`);
             const rawJobs = jobsR ?? [];
-            const newJobs = rawJobs.map((j: any) => {
+            jobs = rawJobs.map((j: any) => {
                 if (typeof j.payload === 'string') {
                     try {
                         j.payload = JSON.parse(j.payload);
@@ -108,72 +193,15 @@
                         // ignore
                     }
                 }
+                // Mark existing completed exports as handled so they don't auto-download on load
+                if (j.status === 'COMPLETED' && j.type === 'PUBLISH_MATERIAL') {
+                    handledJobIds.add(j.id);
+                }
                 return j;
             });
-
-            // Check for newly failed jobs to notify user
-            for (const newJob of newJobs) {
-                const oldJob = jobs.find(j => j.id === newJob.id);
-                if (newJob.status === 'FAILED' && (!oldJob || oldJob.status !== 'FAILED')) {
-                    notifications.error(`${newJob.error || 'Unknown error'}`);
-                }
-
-                // Auto-download completed exports (only if not the very first load of the page)
-                if (newJob.status === 'COMPLETED' && !handledJobIds.has(newJob.id)) {
-                    if (newJob.type === 'PUBLISH_MATERIAL') {
-                        if (!isInitialJobsLoad) {
-                            let resultData: any;
-                            try {
-                                resultData = JSON.parse(newJob.result);
-                            } catch (e) {
-                                // ignore
-                            }
-                            
-                            if (resultData?.file_path) {
-                                const filePath = resultData.file_path;
-                                // Attempt automatic download immediately
-                                api.downloadExport(filePath).catch(err => {
-                                    const directUrl = api.getAuthenticatedMediaUrl(`/exports/download?path=${encodeURIComponent(filePath)}`);
-                                    window.open(directUrl, '_blank');
-                                });
-                                notifications.success('Your export has been downloaded.');
-                            }
-                        }
-                        handledJobIds.add(newJob.id);
-                    }
-                }
-            }
-
-            // Decide whether to continue polling
-            const hasActiveJobs = newJobs.some((j: any) => j.status === 'PENDING' || j.status === 'RUNNING');
-            if (hasActiveJobs && !jobPollingInterval && browser) {
-                startJobPolling();
-            } else if (!hasActiveJobs && jobPollingInterval) {
-                stopJobPolling();
-            }
-
             isInitialJobsLoad = false;
-            jobs = newJobs;
         } catch (e) {
             console.error('Failed to load jobs:', e);
-        }
-    }
-
-    function startJobPolling() {
-        if (jobPollingInterval) return;
-        // The loadJobs call above already started this, we just need to set the interval
-        jobPollingInterval = window.setInterval(async () => {
-            await Promise.all([
-                loadJobs(),
-                loadLectureData()
-            ]);
-        }, 3000); // Poll every 3 seconds
-    }
-
-    function stopJobPolling() {
-        if (jobPollingInterval) {
-            clearInterval(jobPollingInterval);
-            jobPollingInterval = null;
         }
     }
 
@@ -219,6 +247,10 @@
                 loadLectureData(),
                 loadJobs()
             ]);
+
+            if (browser) {
+                setupWebSocket();
+            }
         } catch (e) {
             console.error(e);
         } finally {
@@ -228,7 +260,7 @@
 
     async function openDocument(id: string) {
         selectedDocId = id;
-        activeView = 'doc';
+        activeView = 'document';
         selectedDocPageIndex = 0;
         try {
             selectedDocPages = await api.getDocumentPages(id, lectureId!);
@@ -322,10 +354,10 @@
         
         if (event.key === 'ArrowRight') {
             if (activeView === 'transcript') nextSegment();
-            if (activeView === 'doc') nextDocPage();
+            if (activeView === 'document') nextDocPage();
         } else if (event.key === 'ArrowLeft') {
             if (activeView === 'transcript') prevSegment();
-            if (activeView === 'doc') prevDocPage();
+            if (activeView === 'document') prevDocPage();
         }
     }
 
@@ -394,6 +426,8 @@
         }
 
         try {
+            exporting[`${lectureId}:pdf`] = format === 'pdf'; // Set specifically if we want granular, but simplest is format
+            exporting[`${lectureId}:${format}`] = true;
             await api.exportTranscript({ 
                 lecture_id: lectureId, 
                 exam_id: examId, 
@@ -404,6 +438,7 @@
             notifications.success(`We are preparing your transcript export.`);
             await loadJobs();
         } catch (e: any) {
+            exporting[`${lectureId}:${format}`] = false;
             notifications.error(e.message || e);
         }
     }
@@ -427,6 +462,7 @@
         }
 
         try {
+            exporting[`${docId}:${format}`] = true;
             await api.exportDocument({ 
                 document_id: docId, 
                 lecture_id: lectureId, 
@@ -438,6 +474,7 @@
             notifications.success(`We are preparing your document analysis export.`);
             await loadJobs();
         } catch (e: any) {
+            exporting[`${docId}:${format}`] = false;
             notifications.error(e.message || e);
         }
     }
@@ -461,6 +498,7 @@
         }
 
         try {
+            exporting[`${toolId}:${format}`] = true;
             await api.exportTool({ 
                 tool_id: toolId, 
                 exam_id: examId, 
@@ -471,6 +509,7 @@
             notifications.success(`We are preparing your study guide export.`);
             await loadJobs();
         } catch (e: any) {
+            exporting[`${toolId}:${format}`] = false;
             notifications.error(e.message || e);
         }
     }
@@ -525,7 +564,7 @@
         if (browser) {
             window.removeEventListener('keydown', handleKeyDown);
         }
-        stopJobPolling();
+        socket?.close();
     });
 </script>
 
@@ -562,7 +601,8 @@
         ...(activeView !== 'dashboard' ? [{
             label: activeView === 'guide' ? 'Study Guide' :
                    activeView === 'transcript' ? 'Dialogue' :
-                   activeView === 'doc' ? (documents.find(d => d.id === selectedDocId)?.title || 'Reference') :
+                   activeView === 'docs_list' ? 'Reference Materials' :
+                   activeView === 'document' ? (documents.find(d => d.id === selectedDocId)?.title || 'Reference') :
                    activeView === 'tool' ? (tools.find(t => t.id === selectedToolId)?.title || 'Study Aid') :
                    'Resource',
             active: true
@@ -630,17 +670,38 @@
                                         </button>
                                     {:else if transcript && transcript.segments}
                                         {@const isCompleted = transcriptJob?.status === 'COMPLETED'}
+                                        {@const isExportingPDF = exporting[`${lectureId}:pdf`]}
+                                        {@const isExportingDocx = exporting[`${lectureId}:docx`]}
                                         <div class="dropdown" onclick={(e) => e.stopPropagation()}>
                                             <button 
                                                 class="btn btn-link {isCompleted ? 'text-orange' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
                                                 data-bs-toggle="dropdown" 
                                                 title="Export Options"
+                                                disabled={isExportingPDF || isExportingDocx}
                                             >
-                                                <Download size={16} />
+                                                {#if isExportingPDF || isExportingDocx}
+                                                    <Loader2 size={16} class="spinner-animation" />
+                                                {:else}
+                                                    <Download size={16} />
+                                                {/if}
                                             </button>
                                             <ul class="dropdown-menu dropdown-menu-end">
-                                                <li><button class="dropdown-item" onclick={() => handleExportTranscript('pdf')}>Export PDF</button></li>
-                                                <li><button class="dropdown-item" onclick={() => handleExportTranscript('docx')}>Export Word</button></li>
+                                                <li>
+                                                    <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTranscript('pdf')} disabled={isExportingPDF}>
+                                                        Export PDF
+                                                        {#if isExportingPDF}
+                                                            <Loader2 size={14} class="spinner-animation ms-2" />
+                                                        {/if}
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTranscript('docx')} disabled={isExportingDocx}>
+                                                        Export Word
+                                                        {#if isExportingDocx}
+                                                            <Loader2 size={14} class="spinner-animation ms-2" />
+                                                        {/if}
+                                                    </button>
+                                                </li>
                                             </ul>
                                         </div>
                                     {/if}
@@ -695,17 +756,38 @@
                             {:else if guideTool}
                                 <Tile href="javascript:void(0)" icon="" title="Study Guide" onclick={() => activeView = 'guide'} cost={guideTool.estimated_cost}>
                                     {#snippet actions()}
+                                        {@const isExportingPDF = exporting[`${guideTool.id}:pdf`]}
+                                        {@const isExportingDocx = exporting[`${guideTool.id}:docx`]}
                                         <div class="dropdown" onclick={(e) => e.stopPropagation()}>
                                             <button 
                                                 class="btn btn-link text-orange p-0 border-0 shadow-none dropdown-toggle no-caret" 
                                                 data-bs-toggle="dropdown" 
                                                 title="Export Options"
+                                                disabled={isExportingPDF || isExportingDocx}
                                             >
-                                                <Download size={16} />
+                                                {#if isExportingPDF || isExportingDocx}
+                                                    <Loader2 size={16} class="spinner-animation" />
+                                                {:else}
+                                                    <Download size={16} />
+                                                {/if}
                                             </button>
                                             <ul class="dropdown-menu dropdown-menu-end">
-                                                <li><button class="dropdown-item" onclick={() => handleExportTool(guideTool.id, 'pdf')}>Export PDF</button></li>
-                                                <li><button class="dropdown-item" onclick={() => handleExportTool(guideTool.id, 'docx')}>Export Word</button></li>
+                                                <li>
+                                                    <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTool(guideTool.id, 'pdf')} disabled={isExportingPDF}>
+                                                        Export PDF
+                                                        {#if isExportingPDF}
+                                                            <Loader2 size={14} class="spinner-animation ms-2" />
+                                                        {/if}
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTool(guideTool.id, 'docx')} disabled={isExportingDocx}>
+                                                        Export Word
+                                                        {#if isExportingDocx}
+                                                            <Loader2 size={14} class="spinner-animation ms-2" />
+                                                        {/if}
+                                                    </button>
+                                                </li>
                                             </ul>
                                         </div>
                                     {/snippet}
@@ -715,44 +797,19 @@
                                 </Tile>
                             {/if}
 
-                            {#each documents as doc}
-                                <Tile 
-                                    href="javascript:void(0)" 
-                                    icon="" 
-                                    title={doc.title} 
-                                    onclick={() => openDocument(doc.id)} 
-                                    cost={doc.estimated_cost}
-                                    disabled={doc.extraction_status !== 'completed'}
-                                    class={doc.extraction_status !== 'completed' ? 'tile-processing' : ''}
-                                >
-                                    {#snippet actions()}
-                                        <div class="dropdown" onclick={(e) => e.stopPropagation()}>
-                                            <button 
-                                                class="btn btn-link {doc.extraction_status === 'completed' ? 'text-orange' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
-                                                data-bs-toggle="dropdown" 
-                                                title="Export Options"
-                                            >
-                                                <Download size={16} />
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                <li><button class="dropdown-item" onclick={() => handleExportDocument(doc.id, 'pdf')}>Export PDF</button></li>
-                                                <li><button class="dropdown-item" onclick={() => handleExportDocument(doc.id, 'docx')}>Export Word</button></li>
-                                            </ul>
-                                        </div>
-                                    {/snippet}
-                                    {#snippet description()}
-                                        Reference material.
-                                    {/snippet}
-                                </Tile>
-                            {/each}
-
-                            {#if documentsJobRunning || documentsJobFailed}
+                            {#if documents.length > 0 || documentsJobRunning || documentsJobFailed}
                                 <Tile 
                                     icon="" 
                                     title="Reference Materials" 
-                                    class={documentsJobRunning ? 'tile-processing' : 'tile-error'} 
+                                    class={documentsJobRunning ? 'tile-processing' : (documentsJobFailed ? 'tile-error' : '')} 
                                     disabled={documentsJobRunning}
-                                    onclick={() => documentsJobFailed && retryBaseJob('INGEST_DOCUMENTS')}
+                                    onclick={() => {
+                                        if (documentsJobFailed) {
+                                            retryBaseJob('INGEST_DOCUMENTS');
+                                        } else {
+                                            activeView = 'docs_list';
+                                        }
+                                    }}
                                 >
                                     {#snippet actions()}
                                         {#if documentsJobFailed}
@@ -776,6 +833,8 @@
                                             </div>
                                         {:else if documentsJobFailed}
                                             <span class="text-danger">Processing failed. Click to retry.</span>
+                                        {:else}
+                                            Access and view your uploaded reference materials.
                                         {/if}
                                     {/snippet}
                                 </Tile>
@@ -816,6 +875,68 @@
                                     </div>
                                 {/if}
                             </div>
+                        </div>
+                    </div>
+                {:else if activeView === 'docs_list'}
+                    <div class="bg-white border mb-3" style="width: fit-content; max-width: 100%;">
+                        <div class="standard-header">
+                            <div class="header-title">
+                                <span class="header-text">Reference Materials</span>
+                            </div>
+                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                        </div>
+                        <div class="linkTiles">
+                            {#each documents as doc}
+                                <Tile 
+                                    href="javascript:void(0)" 
+                                    icon="" 
+                                    title={doc.title} 
+                                    onclick={() => openDocument(doc.id)} 
+                                    cost={doc.estimated_cost}
+                                    disabled={doc.extraction_status !== 'completed'}
+                                    class={doc.extraction_status !== 'completed' ? 'tile-processing' : ''}
+                                >
+                                    {#snippet actions()}
+                                        {@const isExportingPDF = exporting[`${doc.id}:pdf`]}
+                                        {@const isExportingDocx = exporting[`${doc.id}:docx`]}
+                                        <div class="dropdown" onclick={(e) => e.stopPropagation()}>
+                                            <button 
+                                                class="btn btn-link {doc.extraction_status === 'completed' ? 'text-orange' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
+                                                data-bs-toggle="dropdown" 
+                                                title="Export Options"
+                                                disabled={isExportingPDF || isExportingDocx}
+                                            >
+                                                {#if isExportingPDF || isExportingDocx}
+                                                    <Loader2 size={16} class="spinner-animation" />
+                                                {:else}
+                                                    <Download size={16} />
+                                                {/if}
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                <li>
+                                                    <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportDocument(doc.id, 'pdf')} disabled={isExportingPDF}>
+                                                        Export PDF
+                                                        {#if isExportingPDF}
+                                                            <Loader2 size={14} class="spinner-animation ms-2" />
+                                                        {/if}
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportDocument(doc.id, 'docx')} disabled={isExportingDocx}>
+                                                        Export Word
+                                                        {#if isExportingDocx}
+                                                            <Loader2 size={14} class="spinner-animation ms-2" />
+                                                        {/if}
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    {/snippet}
+                                    {#snippet description()}
+                                        Analyzed on {new Date(doc.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                                    {/snippet}
+                                </Tile>
+                            {/each}
                         </div>
                     </div>
                 {:else if activeView === 'guide'}
@@ -924,7 +1045,7 @@
                             </div>
                         {/if}
                     </div>
-                {:else if activeView === 'doc'}
+                {:else if activeView === 'document'}
                     {@const doc = documents.find(d => d.id === selectedDocId)}
                     <div class="well bg-white p-0 overflow-hidden mb-3 border">
                         <div class="standard-header">
@@ -1040,6 +1161,7 @@
             <option value="it-IT">Italiano</option>
             <option value="es-ES">Español</option>
             <option value="de-DE">Deutsch</option>
+            <option value="tr-TR">Türkçe</option>
             <option value="fr-FR">Français</option>
             <option value="ja-JP">日本語</option>
         </select>

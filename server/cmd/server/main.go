@@ -8,10 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
-	"time"
 
 	"lectures/internal/api"
 	"lectures/internal/configuration"
@@ -21,6 +18,7 @@ import (
 	"lectures/internal/llm"
 	"lectures/internal/markdown"
 	"lectures/internal/media"
+	"lectures/internal/models"
 	"lectures/internal/prompts"
 	"lectures/internal/tools"
 	"lectures/internal/transcription"
@@ -164,6 +162,17 @@ func main() {
 	// Create API server
 	apiServer := api.NewServer(loadedConfiguration, initializedDatabase, backgroundJobQueue, llmProvider, promptManager, toolGenerator, markdownConverter)
 
+	// Configure background job updates to broadcast via WebSocket
+	backgroundJobQueue.OnUpdate = func(job *models.Job, update jobs.JobUpdate) {
+		if job.LectureID != "" {
+			apiServer.Broadcast("lecture:"+job.LectureID, "job:progress", update)
+		}
+		if job.CourseID != "" {
+			apiServer.Broadcast("course:"+job.CourseID, "job:progress", update)
+		}
+		apiServer.Broadcast("user:"+job.UserID, "job:progress", update)
+	}
+
 	// Register job handlers
 	jobs.RegisterHandlers(
 		backgroundJobQueue,
@@ -185,33 +194,6 @@ func main() {
 	serverAddress := fmt.Sprintf("%s:%d", loadedConfiguration.Server.Host, loadedConfiguration.Server.Port)
 	slog.Info("Server starting", "address", serverAddress)
 	slog.Info("Data directory", "directory", loadedConfiguration.Storage.DataDirectory)
-
-	// Auto-open browser (skip if in Docker)
-	if os.Getenv("IN_DOCKER_ENV") != "true" {
-		go func() {
-			// Wait a moment for the server to actually start listening
-			time.Sleep(2 * time.Second)
-
-			url := fmt.Sprintf("http://localhost:%d", loadedConfiguration.Server.Port)
-			if loadedConfiguration.Server.Host != "0.0.0.0" && loadedConfiguration.Server.Host != "" {
-				url = fmt.Sprintf("http://%s:%d", loadedConfiguration.Server.Host, loadedConfiguration.Server.Port)
-			}
-
-			var err error
-			switch runtime.GOOS {
-			case "linux":
-				err = exec.Command("xdg-open", url).Start()
-			case "windows":
-				// cmd /c start is more robust for opening URLs on Windows
-				err = exec.Command("cmd", "/c", "start", url).Start()
-			case "darwin":
-				err = exec.Command("open", url).Start()
-			}
-			if err != nil {
-				slog.Warn("Failed to open browser automatically", "error", err)
-			}
-		}()
-	}
 
 	if serverError := http.ListenAndServe(serverAddress, apiServer.Handler()); serverError != nil {
 		slog.Error("Server failed", "error", serverError)

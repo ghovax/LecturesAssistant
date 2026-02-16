@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 
 	"lectures/internal/llm"
 	"lectures/internal/models"
@@ -82,27 +84,70 @@ func (processor *Processor) processPDF(jobContext context.Context, pdfPath strin
 	var extractedPages []models.ReferencePage
 	totalImages := len(imageFiles)
 
-	for imageIndex, imagePath := range imageFiles {
-		pageNumber := imageIndex + 1
-		progress := 10 + int(float64(imageIndex)/float64(totalImages)*90.0)
-		updateProgress(progress, fmt.Sprintf("Interpreting page content %d/%d...", pageNumber, totalImages))
+	var wg sync.WaitGroup
+	var mutex sync.Mutex
+	var firstError error
 
-		extractedText, pageMetrics, interpretationError := processor.interpretPageContent(jobContext, imagePath, languageCode)
-		if interpretationError != nil {
-			return nil, metrics, fmt.Errorf("failed to interpret page %d: %w", pageNumber, interpretationError)
+	// Semaphore to limit concurrency (e.g., 5 concurrent pages)
+	semaphore := make(chan struct{}, 5)
+
+	completedCount := 0
+
+	for imageIndex, imagePath := range imageFiles {
+		if firstError != nil {
+			break
 		}
 
-		metrics.InputTokens += pageMetrics.InputTokens
-		metrics.OutputTokens += pageMetrics.OutputTokens
-		metrics.EstimatedCost += pageMetrics.EstimatedCost
+		pageNumber := imageIndex + 1
+		wg.Add(1)
 
-		extractedPages = append(extractedPages, models.ReferencePage{
-			DocumentID:    documentID,
-			PageNumber:    pageNumber,
-			ImagePath:     imagePath,
-			ExtractedText: extractedText,
-		})
+		go func(pNum int, pPath string) {
+			defer wg.Done()
+
+			select {
+			case semaphore <- struct{}{}:
+				defer func() { <-semaphore }()
+			case <-jobContext.Done():
+				return
+			}
+
+			extractedText, pageMetrics, interpretationError := processor.interpretPageContent(jobContext, pPath, languageCode)
+
+			mutex.Lock()
+			defer mutex.Unlock()
+
+			if interpretationError != nil && firstError == nil {
+				firstError = fmt.Errorf("failed to interpret page %d: %w", pNum, interpretationError)
+				return
+			}
+
+			metrics.InputTokens += pageMetrics.InputTokens
+			metrics.OutputTokens += pageMetrics.OutputTokens
+			metrics.EstimatedCost += pageMetrics.EstimatedCost
+
+			extractedPages = append(extractedPages, models.ReferencePage{
+				DocumentID:    documentID,
+				PageNumber:    pNum,
+				ImagePath:     pPath,
+				ExtractedText: extractedText,
+			})
+
+			completedCount++
+			progress := 10 + int(float64(completedCount)/float64(totalImages)*90.0)
+			updateProgress(progress, fmt.Sprintf("Interpreting page contents... (%d/%d)", completedCount, totalImages))
+		}(pageNumber, imagePath)
 	}
+
+	wg.Wait()
+
+	if firstError != nil {
+		return nil, metrics, firstError
+	}
+
+	// Sort pages by page number since they were processed in parallel
+	sort.Slice(extractedPages, func(i, j int) bool {
+		return extractedPages[i].PageNumber < extractedPages[j].PageNumber
+	})
 
 	return extractedPages, metrics, nil
 }

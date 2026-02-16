@@ -40,6 +40,10 @@ func (reconstructor *Reconstructor) Reconstruct(node *Node) string {
 		return sub[1][:1] + sub[2]
 	})
 
+	// 4. Ensure space after citation if followed by text (e.g., "[^1]Next" -> "[^1] Next")
+	// Use a positive lookahead for any non-whitespace, non-punctuation character
+	result = regexp.MustCompile(`(\[\^\d+\])([^\s.,:;!?)\]])`).ReplaceAllString(result, "$1 $2")
+
 	return strings.TrimSpace(result) + "\n"
 }
 

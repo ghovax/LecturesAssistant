@@ -93,17 +93,16 @@ func RegisterHandlers(
 		if databaseError != nil {
 			return fmt.Errorf("failed to query media files: %w", databaseError)
 		}
+		defer mediaRows.Close()
 
 		var mediaFiles []models.LectureMedia
 		for mediaRows.Next() {
 			var media models.LectureMedia
 			if scanningError := mediaRows.Scan(&media.ID, &media.LectureID, &media.MediaType, &media.SequenceOrder, &media.FilePath, &media.CreatedAt); scanningError != nil {
-				mediaRows.Close()
 				return fmt.Errorf("failed to scan media file: %w", scanningError)
 			}
 			mediaFiles = append(mediaFiles, media)
 		}
-		mediaRows.Close()
 
 		if len(mediaFiles) == 0 {
 			return fmt.Errorf("no media files found for lecture: %s", payload.LectureID)
@@ -266,17 +265,16 @@ func RegisterHandlers(
 		if databaseError != nil {
 			return fmt.Errorf("failed to query documents: %w", databaseError)
 		}
+		defer documentRows.Close()
 
 		var documentsList []models.ReferenceDocument
 		for documentRows.Next() {
 			var document models.ReferenceDocument
 			if scanningError := documentRows.Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt); scanningError != nil {
-				documentRows.Close()
 				return fmt.Errorf("failed to scan document: %w", scanningError)
 			}
 			documentsList = append(documentsList, document)
 		}
-		documentRows.Close()
 
 		totalDocuments := len(documentsList)
 		var wg sync.WaitGroup
@@ -382,9 +380,11 @@ func RegisterHandlers(
 					return
 				}
 
+				mutex.Lock()
 				completedCount++
 				progress := int(float64(completedCount) / float64(totalDocuments) * 100)
 				updateProgress(progress, fmt.Sprintf("Ingested %d/%d reference documents...", completedCount, totalDocuments), nil, totalMetrics)
+				mutex.Unlock()
 			}(documentIndex, document)
 		}
 

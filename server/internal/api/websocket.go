@@ -73,7 +73,12 @@ func (hub *Hub) Run() {
 			hub.mutex.Lock()
 			if _, ok := hub.clients[client]; ok {
 				delete(hub.clients, client)
-				close(client.send)
+				client.mutex.Lock()
+				if !client.closed {
+					client.closed = true
+					close(client.send)
+				}
+				client.mutex.Unlock()
 			}
 			hub.mutex.Unlock()
 			slog.Debug("WS client unregistered", "total", len(hub.clients))
@@ -102,7 +107,12 @@ func (hub *Hub) Run() {
 				for _, client := range toRemove {
 					if _, ok := hub.clients[client]; ok {
 						delete(hub.clients, client)
-						close(client.send)
+						client.mutex.Lock()
+						if !client.closed {
+							client.closed = true
+							close(client.send)
+						}
+						client.mutex.Unlock()
 						slog.Warn("WS client disconnected due to full buffer", "userID", client.userID)
 					}
 				}
@@ -125,6 +135,7 @@ type WSClient struct {
 	subscriptions map[string]chan bool
 	userID        string
 	mutex         sync.Mutex
+	closed        bool
 }
 
 func (client *WSClient) isSubscribed(channel string) bool {
@@ -346,11 +357,17 @@ func (client *WSClient) monitorJob(jobID string, stopChannel chan bool) {
 			if !ok {
 				return
 			}
-			client.send <- WSMessage{
+			// Use non-blocking send to prevent goroutine leak if client buffer is full
+			select {
+			case client.send <- WSMessage{
 				Type:      "job:progress",
 				Channel:   "job:" + jobID,
 				Payload:   update,
 				Timestamp: time.Now().Format(time.RFC3339),
+			}:
+			default:
+				// Client buffer full, skip this update to prevent blocking
+				slog.Debug("Skipping job update - client buffer full", "jobID", jobID, "userID", client.userID)
 			}
 			if update.Status == "COMPLETED" || update.Status == "FAILED" || update.Status == "CANCELLED" {
 				return
@@ -363,9 +380,15 @@ func (client *WSClient) close() {
 	client.mutex.Lock()
 	defer client.mutex.Unlock()
 
+	if client.closed {
+		return
+	}
+	client.closed = true
+
 	for channel, stopChannel := range client.subscriptions {
 		close(stopChannel)
 		delete(client.subscriptions, channel)
 	}
+	close(client.send)
 	client.connection.Close()
 }

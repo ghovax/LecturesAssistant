@@ -146,6 +146,10 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	// 4. Handle Direct Multipart Files (Implicitly stage then bind)
 	for uploadIndex, fileHeader := range request.MultipartForm.File["media"] {
 		uploadID := server.stageMultipartFile(fileHeader)
+		if uploadID == "" {
+			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_UPLOAD_ERROR", "Failed to stage media file", nil)
+			return
+		}
 		if err := server.commitStagedUpload(transaction, lectureID, uploadID, "media", len(request.Form["media_upload_ids"])+uploadIndex); err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_UPLOAD_ERROR", "Failed to process direct media", nil)
 			return
@@ -153,6 +157,10 @@ func (server *Server) handleCreateLecture(responseWriter http.ResponseWriter, re
 	}
 	for _, fileHeader := range request.MultipartForm.File["documents"] {
 		uploadID := server.stageMultipartFile(fileHeader)
+		if uploadID == "" {
+			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_UPLOAD_ERROR", "Failed to stage document file", nil)
+			return
+		}
 		if err := server.commitStagedUpload(transaction, lectureID, uploadID, "document", 0); err != nil {
 			server.writeError(responseWriter, http.StatusInternalServerError, "FILE_UPLOAD_ERROR", "Failed to process direct document", nil)
 			return
@@ -291,15 +299,36 @@ func (server *Server) stageMultipartFile(fileHeader *multipart.FileHeader) strin
 	uploadDirectory := filepath.Join(os.TempDir(), "lectures-uploads", uploadID)
 	os.MkdirAll(uploadDirectory, 0755)
 
-	metadataFile, _ := os.Create(filepath.Join(uploadDirectory, "metadata.json"))
-	json.NewEncoder(metadataFile).Encode(map[string]any{"filename": fileHeader.Filename, "file_size_bytes": fileHeader.Size})
+	metadataFile, err := os.Create(filepath.Join(uploadDirectory, "metadata.json"))
+	if err != nil {
+		slog.Error("Failed to create metadata file", "uploadID", uploadID, "error", err)
+		return ""
+	}
+	if encodeErr := json.NewEncoder(metadataFile).Encode(map[string]any{"filename": fileHeader.Filename, "file_size_bytes": fileHeader.Size}); encodeErr != nil {
+		slog.Error("Failed to write metadata", "uploadID", uploadID, "error", encodeErr)
+		metadataFile.Close()
+		return ""
+	}
 	metadataFile.Close()
 
-	sourceFile, _ := fileHeader.Open()
+	sourceFile, err := fileHeader.Open()
+	if err != nil {
+		slog.Error("Failed to open uploaded file", "uploadID", uploadID, "error", err)
+		return ""
+	}
 	defer sourceFile.Close()
-	destinationFile, _ := os.Create(filepath.Join(uploadDirectory, "upload.data"))
+
+	destinationFile, err := os.Create(filepath.Join(uploadDirectory, "upload.data"))
+	if err != nil {
+		slog.Error("Failed to create destination file", "uploadID", uploadID, "error", err)
+		return ""
+	}
 	defer destinationFile.Close()
-	io.Copy(destinationFile, sourceFile)
+
+	if _, copyErr := io.Copy(destinationFile, sourceFile); copyErr != nil {
+		slog.Error("Failed to copy uploaded file", "uploadID", uploadID, "error", copyErr)
+		return ""
+	}
 
 	return uploadID
 }
@@ -354,7 +383,22 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 		return fmt.Errorf("unsupported or malicious file extension: %s", cleanExtension)
 	}
 
-	destinationPath := filepath.Join(destinationDirectory, fileID+"."+cleanExtension)
+	// Use only the base filename to prevent path traversal attacks
+	safeFilename := filepath.Base(fileID + "." + cleanExtension)
+	destinationPath := filepath.Join(destinationDirectory, safeFilename)
+
+	// Verify the resolved path is within the intended directory (defense in depth)
+	absDestination, err := filepath.Abs(destinationPath)
+	if err != nil {
+		return fmt.Errorf("failed to resolve destination path: %w", err)
+	}
+	absDestDir, err := filepath.Abs(destinationDirectory)
+	if err != nil {
+		return fmt.Errorf("failed to resolve destination directory: %w", err)
+	}
+	if !strings.HasPrefix(absDestination, absDestDir+string(os.PathSeparator)) && absDestination != absDestDir {
+		return fmt.Errorf("invalid destination path: path traversal detected")
+	}
 
 	stagedPath := filepath.Join(uploadDirectory, "upload.data")
 	if err := os.Rename(stagedPath, destinationPath); err != nil {
@@ -377,6 +421,12 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 	}
 
 	// Insert Database Metadata
+	// Sanitize original_filename to prevent path traversal in stored metadata
+	safeOriginalFilename := filepath.Base(metadata.Filename)
+	if safeOriginalFilename == "" || safeOriginalFilename == "." {
+		safeOriginalFilename = "unnamed_file"
+	}
+
 	if targetType == "media" {
 		mediaType := "audio"
 		for _, videoExtension := range server.configuration.Uploads.Media.SupportedFormats.Video {
@@ -398,7 +448,7 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 		_, err = transaction.Exec(`
 			INSERT INTO lecture_media (id, lecture_id, media_type, sequence_order, duration_milliseconds, file_path, original_filename, created_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		`, fileID, lectureID, mediaType, sequenceOrder, durationMs, destinationPath, metadata.Filename, time.Now())
+		`, fileID, lectureID, mediaType, sequenceOrder, durationMs, destinationPath, safeOriginalFilename, time.Now())
 	} else {
 		documentType := cleanExtension
 		// Normalize document type to satisfy database constraints
@@ -408,7 +458,7 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 
 		// Keep spaces for readability, but replace dashes with underscores
 		// to ensure the citation parser (which splits on dashes) works correctly.
-		normalizedTitle := strings.ReplaceAll(metadata.Filename, "-", "_")
+		normalizedTitle := strings.ReplaceAll(safeOriginalFilename, "-", "_")
 
 		// Remove characters that are dangerous in filenames.
 		unsafeChars := []string{"/", "\\", ":", "*", "?", "\"", "<", ">", "|", "\x00", "\n", "\r", "\t"}
@@ -420,7 +470,7 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 		_, err = transaction.Exec(`
 			INSERT INTO reference_documents (id, lecture_id, document_type, title, file_path, original_filename, page_count, extraction_status, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, fileID, lectureID, documentType, normalizedTitle, destinationPath, metadata.Filename, 0, "pending", time.Now(), time.Now())
+		`, fileID, lectureID, documentType, normalizedTitle, destinationPath, safeOriginalFilename, 0, "pending", time.Now(), time.Now())
 	}
 
 	if err != nil {

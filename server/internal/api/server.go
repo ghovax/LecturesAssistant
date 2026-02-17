@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -276,11 +277,31 @@ func (server *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// CSRF Protection: Require custom header for state-changing methods
+		// CSRF Protection: Require custom header AND Origin validation for state-changing methods
 		if request.Method == "POST" || request.Method == "PATCH" || request.Method == "DELETE" {
+			// Check X-Requested-With header (set by XMLHttpRequest/fetch)
 			if request.Header.Get("X-Requested-With") == "" {
 				server.writeError(responseWriter, http.StatusForbidden, "CSRF_ERROR", "X-Requested-With header is required", nil)
 				return
+			}
+
+			// Validate Origin header to prevent cross-site requests
+			origin := request.Header.Get("Origin")
+			if origin != "" {
+				// Parse origin URL to validate it's from an allowed source
+				originURL, err := parseURL(origin)
+				if err == nil {
+					// Check if origin is localhost/127.0.0.1 (development) or matches host header (production)
+					host := request.Host
+					isLocalhost := strings.Contains(originURL.Host, "localhost") || strings.Contains(originURL.Host, "127.0.0.1")
+					isSameHost := originURL.Host == host || originURL.Host+":80" == host || originURL.Host+":443" == host
+
+					if !isLocalhost && !isSameHost {
+						slog.Warn("CSRF: Origin header mismatch", "origin", origin, "host", host)
+						server.writeError(responseWriter, http.StatusForbidden, "CSRF_ERROR", "Origin header mismatch", nil)
+						return
+					}
+				}
 			}
 		}
 
@@ -346,21 +367,24 @@ func (server *Server) writeError(responseWriter http.ResponseWriter, statusCode 
 }
 
 func (server *Server) getSessionToken(request *http.Request) string {
-	// 1. Try query parameter (common for WebSockets)
-	if token := request.URL.Query().Get("session_token"); token != "" {
-		return token
-	}
-
-	// 2. Try cookie
+	// 1. Try cookie first (most secure, not logged)
 	cookie, err := request.Cookie("session_token")
-	if err == nil {
+	if err == nil && cookie.Value != "" {
 		return cookie.Value
 	}
 
-	// 3. Try Authorization header
+	// 2. Try Authorization header (also secure)
 	authHeader := request.Header.Get("Authorization")
 	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
 		return authHeader[7:]
+	}
+
+	// 3. Try query parameter (least secure - may be logged, deprecated but kept for WebSocket compatibility)
+	if token := request.URL.Query().Get("session_token"); token != "" {
+		// Log warning for security auditing (token exposure in URL)
+		slog.Warn("Session token provided via query parameter - consider using cookies or Authorization header",
+			"path", request.URL.Path, "method", request.Method)
+		return token
 	}
 
 	return ""
@@ -371,4 +395,13 @@ func (server *Server) getUserID(request *http.Request) string {
 		return userID
 	}
 	return ""
+}
+
+// parseURL is a helper function to parse URL strings safely
+func parseURL(rawURL string) (*url.URL, error) {
+	// Add scheme if missing for valid parsing
+	if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
+		rawURL = "http://" + rawURL
+	}
+	return url.Parse(rawURL)
 }

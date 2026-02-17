@@ -35,6 +35,7 @@
     let annotation: RoughAnnotation | null = null;
     let svgContent = $state('');
     let individualSvgs = $state<string[]>([]);
+    let isShowing = $state(false);
 
     function createAnnotation() {
         if (!contentElement) return;
@@ -93,10 +94,15 @@
     $effect(() => {
         // Re-create when showing or when core props change
         if (show && contentElement) {
+            isShowing = true;
             createAnnotation();
         } else if (!show) {
-            svgContent = '';
-            individualSvgs = [];
+            // Delay clearing SVG to allow fade-out transition
+            setTimeout(() => {
+                svgContent = '';
+                individualSvgs = [];
+                isShowing = false;
+            }, 200);
         }
     });
 
@@ -114,7 +120,7 @@
 </script>
 
 <span bind:this={containerElement} class="highlighter-container {className}">
-    {#if show}
+    {#if isShowing}
         {#if multiline}
             {#if svgContent}
                 <span class="highlight-svg-overlay" transition:fade={{ duration: 200 }}>
@@ -123,8 +129,8 @@
             {/if}
         {:else}
             {#each individualSvgs as svg, i}
-                <span 
-                    class="highlight-svg-overlay individual" 
+                <span
+                    class="highlight-svg-overlay individual"
                     style="animation-delay: {i * 150}ms; animation-duration: {animationDuration}ms"
                 >
                     {@html svg}

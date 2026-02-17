@@ -41,7 +41,7 @@
         padding: 0.25rem 0.75rem;
         background-color: var(--cream);
         border: 1px solid var(--gray-300);
-        font-family: 'Manrope', sans-serif;
+        font-family: var(--font-primary);
         font-size: 11px;
         font-weight: 600;
         color: var(--gray-600);

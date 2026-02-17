@@ -39,7 +39,7 @@
         height: 100%;
         margin: 0;
         background: #f5f3f0 !important;
-        font-family: 'Manrope', sans-serif !important;
+        font-family: var(--font-primary) !important;
         color: #292524 !important;
     }
 

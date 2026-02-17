@@ -180,8 +180,8 @@
     .list-group-item {
         border-radius: 0;
         border-color: var(--gray-300);
-        font-family: 'Manrope', sans-serif;
-        font-size: 14px;
+        font-family: var(--font-primary);
+        font-size: 0.85rem;
         color: var(--gray-700);
 
         &.active {

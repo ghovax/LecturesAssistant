@@ -120,7 +120,7 @@
 
 <style lang="scss">
     .cozy-homepage {
-        font-family: 'Manrope', sans-serif;
+        font-family: var(--font-primary);
         color: var(--gray-800);
         max-width: 1300px;
         margin: 0 auto;

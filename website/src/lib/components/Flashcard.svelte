@@ -65,7 +65,7 @@
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         color: var(--gray-900);
         border: 1px solid var(--gray-300);
-        font-family: 'Manrope', sans-serif;
+        font-family: var(--font-primary);
         font-size: 1.05rem;
         line-height: 1.4;
         overflow-y: auto; /* Handle overflow */

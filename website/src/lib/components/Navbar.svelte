@@ -68,7 +68,7 @@
 
 <style lang="scss">
     .cozy-navbar {
-        font-family: 'Manrope', sans-serif;
+        font-family: var(--font-primary);
         background: transparent;
         border-bottom: 1px solid var(--gray-300);
         min-height: 60px;

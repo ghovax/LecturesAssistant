@@ -3,6 +3,8 @@ $enable-rounded: false;
 @import "bootstrap/scss/bootstrap";
 /* EXACT Kakimashou Style Reconstruction from provided CSS and inspector data */
 :root {
+  --font-primary: "Manrope", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
   --cream: #f5f3f0;
   --gray-200: #e7e5e4;
   --gray-300: #d6d3d1;
@@ -38,7 +40,7 @@ $enable-rounded: false;
 body {
   background: #f5f3f0;
   color: #292524;
-  font-family: "Manrope", sans-serif;
+  font-family: var(--font-primary);
   font-size: 0.85rem;
   font-weight: 400;
   line-height: 1.6;
@@ -102,7 +104,7 @@ body {
   background-color: #222 !important;
 }
 .cozy-label {
-  font-family: "Manrope", sans-serif !important;
+  font-family: var(--font-primary) !important;
   font-size: 0.7rem !important;
   font-weight: 600 !important;
   color: var(--gray-500) !important;
@@ -115,7 +117,7 @@ body {
 .cozy-input {
   border-radius: 0 !important;
   border: 1px solid var(--gray-300) !important;
-  font-family: "Manrope", sans-serif !important;
+  font-family: var(--font-primary) !important;
   font-size: 0.85rem !important;
   padding: 8px 12px !important;
   background: #fff !important;
@@ -155,8 +157,8 @@ textarea.cozy-input {
   }
   .btn {
     border-radius: 0;
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding-left: 0.95rem;
+    padding-right: 0.95rem;
   }
 }
 
@@ -319,7 +321,7 @@ textarea.cozy-input {
   color: var(--gray-500);
 }
 .wordBriefTitle {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: bold;
   display: block;
 }
@@ -333,6 +335,7 @@ textarea.cozy-input {
   line-height: 1.5;
   font-size: 0.85rem;
   color: var(--gray-800);
+  font-family: var(--font-primary);
 }
 .transcript-view-container {
   max-height: 60vh;
@@ -349,7 +352,7 @@ textarea.cozy-input {
   font-size: 0.85rem;
   line-height: 1.7;
   color: var(--gray-800);
-  font-family: "Manrope", sans-serif;
+  font-family: var(--font-primary);
   text-align: justify;
 
   :global(figure) {
@@ -365,20 +368,20 @@ textarea.cozy-input {
     height: auto;
     border: 1px solid var(--gray-300);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-    margin-bottom: 1rem;
+    margin-bottom: 0.95rem;
   }
 
   :global(figcaption) {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--gray-500);
     font-style: italic;
     line-height: 1.4;
-    
+
     :global(code) {
-      font-size: 0.75rem;
+      font-size: 0.8rem;
       color: var(--gray-700);
       background: var(--gray-100);
-      padding: 0.1rem 0.3rem;
+      padding: 0.0.95rem 0.3rem;
     }
   }
 }
@@ -403,7 +406,7 @@ textarea.cozy-input {
   color: var(--gray-900);
 }
 .prose h3 {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   margin-top: 1.25em;
   margin-bottom: 0.5em;
@@ -472,7 +475,7 @@ textarea.cozy-input {
 }
 
 .form-label {
-  font-family: "Manrope", sans-serif !important;
+  font-family: var(--font-primary) !important;
   font-size: 0.7rem !important;
   font-weight: 600 !important;
   color: var(--gray-500) !important;
@@ -492,7 +495,7 @@ textarea.cozy-input {
 }
 
 .filename {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size-adjust: 0.5;
   background-color: rgba(0, 0, 0, 0.03);
   padding: 0.1em 0.3em;
@@ -521,7 +524,7 @@ math, .math {
   background: #fff;
 
   .dropdown-item {
-    font-family: "Manrope", sans-serif;
+    font-family: var(--font-primary);
     font-size: 0.85rem;
     font-weight: 500;
     padding: 8px 16px;

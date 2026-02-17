@@ -34,7 +34,7 @@
 
 <style lang="scss">
     .breadcrumb {
-        font-family: 'Manrope', sans-serif;
+        font-family: var(--font-primary);
         font-size: 0.7rem;
         font-weight: 500;
         text-transform: uppercase;

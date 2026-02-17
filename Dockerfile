@@ -50,7 +50,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     if [ "$ARCH" = "x86_64" ]; then PANDOC_ARCH="amd64"; \
     elif [ "$ARCH" = "aarch64" ]; then PANDOC_ARCH="arm64"; \
     else echo "Unsupported architecture: $ARCH" && exit 1; fi && \
-    curl -L "https://github.com/jgm/pandoc/releases/download/3.1.11/pandoc-3.1.11-linux-${PANDOC_ARCH}.tar.gz" | tar -xz --strip-components=1 -C /usr/local/ && \
+    curl -L "https://github.com/jgm/pandoc/releases/download/3.1.11/pandoc-3.1.11-linux-${PANDOC_ARCH}.tar.gz" | tar -xz -C /tmp/pandoc-install && \
+    cp /tmp/pandoc-install/pandoc-3.1.11/bin/pandoc /usr/local/bin/ && \
+    cp -r /tmp/pandoc-install/pandoc-3.1.11/share /usr/local/ && \
+    rm -rf /tmp/pandoc-install && \
     apt-get purge -y curl && \
     apt-get autoremove -y && \
     apt-get clean && \

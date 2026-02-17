@@ -311,7 +311,7 @@
 
 <style lang="scss">
     .page-description {
-        font-family: 'Manrope', sans-serif;
+        font-family: var(--font-primary);
         font-size: 0.85rem;
         line-height: 1.6;
         max-width: 600px;

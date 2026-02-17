@@ -15,7 +15,36 @@ Lectures Assistant is a high-fidelity, AI-powered platform designed to transform
 
 ### For Non-Technical Users (Recommended)
 
-The easiest way to run Lectures Assistant is with a single Docker command:
+The easiest way to run Lectures Assistant is using Docker Compose (included with Docker Desktop):
+
+1. **Download Docker Desktop** (if you haven't already):
+   - [Windows](https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe)
+   - [Mac](https://desktop.docker.com/mac/main/arm64/Docker.dmg)
+
+2. **Download Lectures Assistant**:
+   - Download [this folder](https://github.com/giovannigravili/LecturesAssistant/archive/refs/heads/main.zip) and extract it
+
+3. **Run it**:
+   - **Windows**: Double-click `run.bat` (or open Command Prompt in the folder and type `docker-compose up -d`)
+   - **Mac**: Open Terminal in the folder and type `docker-compose up -d`
+
+4. **Open your browser** to [http://localhost:3000](http://localhost:3000)
+
+**That's it!** The application will:
+- Download automatically (~900 MB on first run)
+- Start running in the background
+- Store all your data safely on your computer
+
+**Useful commands:**
+- Stop: `docker-compose down`
+- Start again: `docker-compose up -d`
+- View logs: `docker-compose logs -f`
+
+---
+
+### Alternative: Single Command
+
+If you prefer not to download the folder, run this single command in any terminal:
 
 ```bash
 docker run -d --name lectures-assistant -p 3000:3000 giovanni653/lectures-assistant:latest
@@ -23,30 +52,10 @@ docker run -d --name lectures-assistant -p 3000:3000 giovanni653/lectures-assist
 
 Then open [http://localhost:3000](http://localhost:3000) in your browser.
 
-**That's it!** The application will:
-- Download automatically (~900 MB)
-- Start running in the background
-- Store all your data safely on your computer
-- Be available at http://localhost:3000
-
-**Useful commands:**
+**Commands:**
 - Stop: `docker stop lectures-assistant`
 - Start again: `docker start lectures-assistant`
-- View logs: `docker logs lectures-assistant`
-- Remove completely: `docker rm -f lectures-assistant`
-
----
-
-### For Developers
-
-If you prefer using Docker Compose or want to build from source:
-
-**Using Docker Compose:**
-```bash
-docker-compose up -d
-```
-
-**Build from source:** See the [Development](#-development) section below.
+- Remove: `docker rm -f lectures-assistant`
 
 ## 🛠️ Configuration
 

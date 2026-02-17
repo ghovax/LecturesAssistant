@@ -143,7 +143,7 @@
         text-align: left;
         position: relative;
         z-index: 1;
-        font-family: 'Manrope', sans-serif;
+        font-family: var(--font-primary);
 
         &:focus-visible {
             outline: 2px solid var(--orange);
@@ -160,7 +160,7 @@
         margin: 0 0 8px;
         line-height: 1.2;
         &.font-monospace {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 0.85rem;
         }
     }
@@ -195,7 +195,7 @@
         left: 20px;
         font-size: 0.7rem;
         color: var(--gray-400);
-        font-family: 'JetBrains Mono', monospace;
+        font-family: var(--font-mono);
         pointer-events: none;
     }
 </style>

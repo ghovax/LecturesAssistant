@@ -97,10 +97,10 @@
         loading = true;
         try {
             const [examData, toolData, allTools, htmlRes] = await Promise.all([
-                api.getExam(examId),
+                api.getExam(examId!),
                 api.request('GET', `/tools/details?tool_id=${toolId}&exam_id=${examId}`),
-                api.listTools(examId),
-                api.getToolHTML(toolId, examId)
+                api.listTools(examId!),
+                api.getToolHTML(toolId!, examId!)
             ]);
             
             exam = examData;
@@ -297,9 +297,8 @@
     }
 
     .prose :global(.footnote-ref:hover) {
-        background-color: var(--orange);
-        color: #fff !important;
-        text-decoration: none;
+        color: var(--orange);
+        text-decoration: underline;
     }
 
     .linkTiles {

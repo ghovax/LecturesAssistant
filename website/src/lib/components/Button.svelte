@@ -53,7 +53,7 @@
         align-items: center;
         justify-content: center;
         gap: 8px;
-        font-family: 'Manrope', sans-serif;
+        font-family: var(--font-primary);
         font-weight: 600;
         font-size: 0.8rem;
         padding: 0 1.25rem;

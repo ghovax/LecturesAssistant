@@ -1338,7 +1338,7 @@
 
 <style lang="scss">
     .page-description {
-        font-family: 'Manrope', sans-serif;
+        font-family: var(--font-primary);
         font-size: 0.85rem;
         line-height: 1.6;
         max-width: 600px;
@@ -1363,7 +1363,7 @@
     }
 
     .cozy-label {
-        font-family: 'Manrope', sans-serif;
+        font-family: var(--font-primary);
         font-size: 0.8rem;
         font-weight: 600;
         color: var(--gray-500);
@@ -1375,9 +1375,9 @@
 
     .prose :global(h2) { font-size: 1.25rem; margin-top: 2rem; border-bottom: 1px solid var(--gray-300); padding-bottom: 0.5rem; color: var(--gray-900); }
     .prose :global(h3) { font-size: 1.1rem; margin-top: 1.5rem; color: var(--gray-700); }
-    .prose :global(p) { line-height: 1.6; margin-bottom: 1rem; font-size: 0.85rem; }
-    .prose :global(ul) { margin-bottom: 1rem; }
-    .prose :global(li) { margin-bottom: 0.5rem; }
+    .prose :global(p) { line-height: 1.6; margin-bottom: 1rem; font-size: 0.9rem; }
+    .prose :global(ul) { margin-bottom: 1rem; font-size: 0.9rem; }
+    .prose :global(li) { margin-bottom: 0.5rem; font-size: 0.9rem; }
 
     /* Hide default footnotes section since we use popups */
     .prose :global(.footnotes) {
@@ -1393,9 +1393,8 @@
     }
 
     .prose :global(.footnote-ref:hover) {
-        background-color: var(--orange);
-        color: #fff !important;
-        text-decoration: none;
+        color: var(--orange);
+        text-decoration: underline;
     }
 
     /* Table of Contents Styling */

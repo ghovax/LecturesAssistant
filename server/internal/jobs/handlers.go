@@ -807,6 +807,69 @@ func RegisterHandlers(
 			payload.LanguageCode = config.LLM.Language
 		}
 
+		// Parse include_images boolean (it might be a string "true" or a boolean true)
+		includeImages := true
+		if len(payload.IncludeImages) > 0 {
+			rawStr := string(payload.IncludeImages)
+			if rawStr == "false" || rawStr == `"false"` {
+				includeImages = false
+			}
+		}
+
+		// Parse include_qr_code boolean
+		includeQRCode := false
+		if len(payload.IncludeQRCode) > 0 {
+			rawStr := string(payload.IncludeQRCode)
+			if rawStr == "true" || rawStr == `"true"` {
+				includeQRCode = true
+			}
+		}
+
+		// Helper to handle QR code pass
+		handleQRCodePass := func(outputPath string, currentOptions *markdown.ConversionOptions, originalContent string, generateFunc func(string, markdown.ConversionOptions) error) (string, error) {
+			if !includeQRCode {
+				return "", nil
+			}
+
+			slog.Info("QR Code generation requested", "jobID", job.ID)
+			updateProgress(70, "Uploading document for QR code generation...", nil, models.JobMetrics{})
+
+			downloadURL, uploadError := uploadToTmpFiles(outputPath)
+			if uploadError != nil {
+				slog.Error("Failed to upload for QR code", "error", uploadError)
+				return "", nil // Continue without QR code
+			}
+
+			slog.Info("Document uploaded for QR code", "url", downloadURL)
+			nanoid, _ := gonanoid.New()
+			qrCodePath := filepath.Join(os.TempDir(), fmt.Sprintf("qrcode-%s.png", nanoid))
+
+			if qrErr := qrcode.WriteFile(downloadURL, qrcode.Medium, 256, qrCodePath); qrErr != nil {
+				slog.Error("Failed to generate QR code image", "error", qrErr)
+				return downloadURL, nil
+			}
+			defer os.Remove(qrCodePath)
+
+			updateProgress(85, "Re-generating document with QR code...", nil, models.JobMetrics{})
+			currentOptions.QRCodePath = qrCodePath
+			slog.Info("Re-generating document with QR code included", "format", payload.Format)
+
+			if err := generateFunc(originalContent, *currentOptions); err != nil {
+				slog.Error("Failed to re-generate with QR code", "error", err)
+				return downloadURL, nil
+			}
+
+			// Final upload so the shared file actually contains the QR code
+			finalURL, finalUploadErr := uploadToTmpFiles(outputPath)
+			if finalUploadErr != nil {
+				slog.Error("Failed final upload for QR code", "error", finalUploadErr)
+				return downloadURL, nil
+			}
+
+			slog.Info("Final document uploaded with QR code", "url", finalURL)
+			return finalURL, nil
+		}
+
 		// 1. Handle Transcript Export
 		if payload.ToolID == "" && payload.DocumentID == "" && payload.LectureID != "" {
 			// Get lecture and transcript
@@ -896,23 +959,31 @@ func RegisterHandlers(
 				CourseTitle: examTitle,
 			}
 
-			switch payload.Format {
-			case "pdf":
-				html, _ := markdownConverter.MarkdownToHTML(transcriptBuilder.String())
-				err = markdownConverter.HTMLToPDF(html, outputPath, options)
-			case "docx":
-				html, _ := markdownConverter.MarkdownToHTML(transcriptBuilder.String())
-				err = markdownConverter.HTMLToDocx(html, outputPath, options)
-			default:
-				err = markdownConverter.SaveMarkdown(transcriptBuilder.String(), outputPath)
+			generateFunc := func(content string, opts markdown.ConversionOptions) error {
+				switch payload.Format {
+				case "pdf":
+					html, _ := markdownConverter.MarkdownToHTML(content)
+					return markdownConverter.HTMLToPDF(html, outputPath, opts)
+				case "docx":
+					html, _ := markdownConverter.MarkdownToHTML(content)
+					return markdownConverter.HTMLToDocx(html, outputPath, opts)
+				default:
+					return markdownConverter.SaveMarkdown(content, outputPath)
+				}
 			}
 
-			if err != nil {
+			originalContent := transcriptBuilder.String()
+			if err := generateFunc(originalContent, options); err != nil {
 				return err
 			}
 
-			updateProgress(100, "Export completed", map[string]string{"file_path": outputPath}, models.JobMetrics{})
-			job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
+			downloadURL, _ := handleQRCodePass(outputPath, &options, originalContent, generateFunc)
+
+			if downloadURL != "" {
+				job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s", "download_url": "%s"}`, outputPath, payload.Format, downloadURL)
+			} else {
+				job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
+			}
 			return nil
 		}
 
@@ -998,46 +1069,36 @@ func RegisterHandlers(
 				CourseTitle: examTitle,
 			}
 
-			switch payload.Format {
-			case "pdf":
-				html, _ := markdownConverter.MarkdownToHTML(content)
-				err = markdownConverter.HTMLToPDF(html, outputPath, options)
-			case "docx":
-				html, _ := markdownConverter.MarkdownToHTML(content)
-				err = markdownConverter.HTMLToDocx(html, outputPath, options)
-			default:
-				err = markdownConverter.SaveMarkdown(content, outputPath)
+			generateFunc := func(content string, opts markdown.ConversionOptions) error {
+				switch payload.Format {
+				case "pdf":
+					html, _ := markdownConverter.MarkdownToHTML(content)
+					return markdownConverter.HTMLToPDF(html, outputPath, opts)
+				case "docx":
+					html, _ := markdownConverter.MarkdownToHTML(content)
+					return markdownConverter.HTMLToDocx(html, outputPath, opts)
+				default:
+					return markdownConverter.SaveMarkdown(content, outputPath)
+				}
 			}
 
-			if err != nil {
+			originalContent := content
+			if err := generateFunc(originalContent, options); err != nil {
 				return err
 			}
 
-			updateProgress(100, "Export completed", map[string]string{"file_path": outputPath}, models.JobMetrics{})
-			job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
+			downloadURL, _ := handleQRCodePass(outputPath, &options, originalContent, generateFunc)
+
+			if downloadURL != "" {
+				job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s", "download_url": "%s"}`, outputPath, payload.Format, downloadURL)
+			} else {
+				job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
+			}
 			return nil
 		}
 
 		// 3. Handle Tool Export (Study Guide, etc.)
 		if payload.ToolID != "" {
-			// Parse include_images boolean (it might be a string "true" or a boolean true)
-			includeImages := true
-			if len(payload.IncludeImages) > 0 {
-				rawStr := string(payload.IncludeImages)
-				if rawStr == "false" || rawStr == `"false"` {
-					includeImages = false
-				}
-			}
-
-			// Parse include_qr_code boolean
-			includeQRCode := false
-			if len(payload.IncludeQRCode) > 0 {
-				rawStr := string(payload.IncludeQRCode)
-				if rawStr == "true" || rawStr == `"true"` {
-					includeQRCode = true
-				}
-			}
-
 			var tool models.Tool
 			var examID string
 			queryError := database.QueryRow("SELECT id, exam_id, type, title, language_code, content, created_at FROM tools WHERE id = ?", payload.ToolID).Scan(&tool.ID, &examID, &tool.Type, &tool.Title, &tool.LanguageCode, &tool.Content, &tool.CreatedAt)
@@ -1334,8 +1395,7 @@ func RegisterHandlers(
 				AudioFiles:     audioFiles,
 			}
 
-			originalContent := contentToConvert
-			generateFile := func(currentContent string, currentOptions markdown.ConversionOptions) error {
+			generateFunc := func(currentContent string, currentOptions markdown.ConversionOptions) error {
 				// Normalize math for all non-HTML outputs if needed
 				normalizedContent := markdownConverter.NormalizeMath(currentContent)
 
@@ -1367,85 +1427,12 @@ func RegisterHandlers(
 				return markdownConverter.HTMLToPDF(htmlContent, outputPath, currentOptions)
 			}
 
-			// 1. Initial generation
-			if err := generateFile(originalContent, options); err != nil {
+			originalContent := contentToConvert
+			if err := generateFunc(originalContent, options); err != nil {
 				return fmt.Errorf("initial generation failed: %w", err)
 			}
 
-			// 2. Optional second pass for QR Code
-			if includeQRCode {
-				slog.Info("QR Code generation requested", "toolID", tool.ID)
-				updateProgress(70, "Uploading document for QR code generation...", nil, models.JobMetrics{})
-
-				downloadURL, uploadError := uploadToTmpFiles(outputPath)
-
-				if uploadError != nil {
-
-					slog.Error("Failed to upload for QR code", "error", uploadError)
-
-				} else {
-
-					slog.Info("Document uploaded for QR code", "url", downloadURL)
-
-					nanoid, _ := gonanoid.New()
-
-					qrCodePath := filepath.Join(os.TempDir(), fmt.Sprintf("qrcode-%s.png", nanoid))
-
-					if qrErr := qrcode.WriteFile(downloadURL, qrcode.Medium, 256, qrCodePath); qrErr != nil {
-
-						slog.Error("Failed to generate QR code image", "error", qrErr)
-					} else {
-						updateProgress(85, "Re-generating document with QR code...", nil, models.JobMetrics{})
-						options.QRCodePath = qrCodePath
-						slog.Info("Re-generating document with QR code included", "format", payload.Format)
-
-						if err := generateFile(originalContent, options); err != nil {
-							slog.Error("Failed to re-generate with QR code", "error", err)
-						} else {
-							// Final upload so the shared file actually contains the QR code
-							finalURL, finalUploadErr := uploadToTmpFiles(outputPath)
-							if finalUploadErr != nil {
-								slog.Error("Failed final upload for QR code", "error", finalUploadErr)
-							} else {
-								slog.Info("Final document uploaded with QR code", "url", finalURL)
-								downloadURL = finalURL // Use the final URL for the result
-							}
-						}
-						os.Remove(qrCodePath)
-					}
-				}
-
-				updateProgress(100, "Export completed", map[string]string{
-					"file_path":    outputPath,
-					"format":       payload.Format,
-					"download_url": downloadURL,
-				}, totalMetrics)
-
-				// Update costs
-				if payload.ToolID != "" {
-					database.Exec("UPDATE tools SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), payload.ToolID)
-				} else if payload.DocumentID != "" {
-					database.Exec("UPDATE reference_documents SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), payload.DocumentID)
-				} else if payload.LectureID != "" {
-					database.Exec("UPDATE transcripts SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE lecture_id = ?", totalMetrics.EstimatedCost, time.Now(), payload.LectureID)
-				}
-				if payload.LectureID != "" {
-					database.Exec("UPDATE lectures SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), payload.LectureID)
-				}
-				database.Exec("UPDATE exams SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), examID)
-
-				slog.Info("Export completed with costs",
-					"file_path", outputPath,
-					"format", payload.Format,
-					"download_url", downloadURL,
-					"input_tokens", totalMetrics.InputTokens,
-					"output_tokens", totalMetrics.OutputTokens,
-					"estimated_cost_usd", totalMetrics.EstimatedCost)
-				job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s", "download_url": "%s"}`, outputPath, payload.Format, downloadURL)
-				return nil
-			}
-
-			updateProgress(100, "Export completed", map[string]string{"file_path": outputPath, "format": payload.Format}, totalMetrics)
+			downloadURL, _ := handleQRCodePass(outputPath, &options, originalContent, generateFunc)
 
 			// Update costs
 			if payload.ToolID != "" {
@@ -1466,7 +1453,11 @@ func RegisterHandlers(
 				"input_tokens", totalMetrics.InputTokens,
 				"output_tokens", totalMetrics.OutputTokens,
 				"estimated_cost_usd", totalMetrics.EstimatedCost)
-			job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
+			if downloadURL != "" {
+				job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s", "download_url": "%s"}`, outputPath, payload.Format, downloadURL)
+			} else {
+				job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
+			}
 			return nil
 		}
 

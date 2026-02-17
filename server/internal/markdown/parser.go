@@ -28,6 +28,24 @@ func (parser *Parser) Parse(markdown string) *Node {
 	// Ensure space after a dot if followed by an uppercase letter: ".Cio" -> ". Cio"
 	markdown = regexp.MustCompile(`(\.+)([A-Z])`).ReplaceAllString(markdown, "$1 $2")
 
+	// Ensure space after a colon if followed by a character: "Word:Next" -> "Word: Next"
+	// We also handle cases where bold/italic markers follow the colon: "**Word:**Burun" -> "**Word:** Burun"
+	markdown = regexp.MustCompile(`(\w+:)([*\s_]*)([^\s/])`).ReplaceAllStringFunc(markdown, func(match string) string {
+		if strings.HasPrefix(strings.ToLower(match), "http:") || strings.HasPrefix(strings.ToLower(match), "https:") {
+			return match
+		}
+		if strings.Contains(match, ": ") {
+			return match
+		}
+		parts := strings.SplitN(match, ":", 2)
+		markersRegex := regexp.MustCompile(`^([*_]+)`)
+		markersMatch := markersRegex.FindString(parts[1])
+		if markersMatch != "" {
+			return parts[0] + ":" + markersMatch + " " + parts[1][len(markersMatch):]
+		}
+		return parts[0] + ": " + parts[1]
+	})
+
 	lines := strings.Split(markdown, "\n")
 	parser.indentUnit = parser.detectIndentationPattern(lines)
 

@@ -29,6 +29,10 @@
     function setupWebSocket() {
         if (!browser || !examId) return;
         
+        if (socket) {
+            socket.close();
+        }
+
         const token = localStorage.getItem('session_token');
         const baseUrl = api.getBaseUrl().replace('http', 'ws');
         socket = new WebSocket(`${baseUrl}/socket?session_token=${token}`);
@@ -48,7 +52,6 @@
         };
 
         socket.onclose = () => {
-            setTimeout(setupWebSocket, 5000);
         };
     }
 
@@ -59,11 +62,16 @@
 
         // Clear exporting state if a PUBLISH_MATERIAL job finishes
         if (update.type === 'PUBLISH_MATERIAL' && (update.status === 'COMPLETED' || update.status === 'FAILED' || update.status === 'CANCELLED')) {
-            const payload = update.payload;
+            const payload = typeof update.payload === 'string' ? JSON.parse(update.payload) : update.payload;
             const resourceId = payload.tool_id || payload.document_id || payload.lecture_id;
             const format = payload.format;
             if (resourceId && format) {
-                exporting[`${resourceId}:${format}`] = false;
+                if (format === 'pdf') {
+                    exporting[`${resourceId}:pdf:true`] = false;
+                    exporting[`${resourceId}:pdf:false`] = false;
+                } else {
+                    exporting[`${resourceId}:${format}`] = false;
+                }
             }
         }
 
@@ -139,13 +147,15 @@
         }
     }
 
-    async function handleExport(format: string) {
+    async function handleExport(format: string, includeQRCode: boolean = true) {
         try {
-            exporting[`${toolId}:${format}`] = true;
-            await api.exportTool({ tool_id: toolId, exam_id: examId, format });
+            const exportKey = format === 'pdf' ? `${toolId}:pdf:${includeQRCode}` : `${toolId}:${format}`;
+            exporting[exportKey] = true;
+            await api.exportTool({ tool_id: toolId, exam_id: examId, format, include_qr_code: includeQRCode });
             notifications.success(`We are preparing your export.`);
         } catch (e: any) {
-            exporting[`${toolId}:${format}`] = false;
+            const exportKey = format === 'pdf' ? `${toolId}:pdf:${includeQRCode}` : `${toolId}:${format}`;
+            exporting[exportKey] = false;
             notifications.error(e.message || e);
         }
     }
@@ -165,16 +175,17 @@
         <div class="d-flex justify-content-between align-items-center mb-2">
             <h1 class="page-title m-0">{tool.title}</h1>
             {#if true}
-                {@const isExportingPDF = exporting[`${toolId}:pdf`]}
+                {@const isExportingPDFWithQR = exporting[`${toolId}:pdf:true`]}
+                {@const isExportingPDFNoQR = exporting[`${toolId}:pdf:false`]}
                 {@const isExportingDocx = exporting[`${toolId}:docx`]}
                 {@const isExportingMD = exporting[`${toolId}:md`]}
                 <div class="btn-group">
                     <button 
                         class="btn btn-primary btn-sm dropdown-toggle rounded-0" 
                         data-bs-toggle="dropdown"
-                        disabled={isExportingPDF || isExportingDocx || isExportingMD}
+                        disabled={isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx || isExportingMD}
                     >
-                        {#if isExportingPDF || isExportingDocx || isExportingMD}
+                        {#if isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx || isExportingMD}
                             <Loader2 size={16} class="spinner-animation me-2" />
                             Processing...
                         {:else}
@@ -183,9 +194,17 @@
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end rounded-0 shadow-none border">
                         <li>
-                            <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExport('pdf')} disabled={isExportingPDF}>
-                                PDF Document
-                                {#if isExportingPDF}
+                            <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExport('pdf', true)} disabled={isExportingPDFWithQR}>
+                                PDF (with QR)
+                                {#if isExportingPDFWithQR}
+                                    <Loader2 size={14} class="spinner-animation ms-2" />
+                                {/if}
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExport('pdf', false)} disabled={isExportingPDFNoQR}>
+                                PDF (no QR)
+                                {#if isExportingPDFNoQR}
                                     <Loader2 size={14} class="spinner-animation ms-2" />
                                 {/if}
                             </button>

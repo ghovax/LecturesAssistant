@@ -1930,6 +1930,14 @@ func TestPunctuationSpacing(t *testing.T) {
 			input:    "Ellipsis...Should it match?",
 			expected: "Ellipsis... Should it match?\n",
 		},
+		{
+			input:    "**Rinomanometri:**Burun içinden geçen hava",
+			expected: "**Rinomanometri:** Burun içinden geçen hava\n",
+		},
+		{
+			input:    "Normal:Next",
+			expected: "Normal: Next\n",
+		},
 	}
 
 	for _, tc := range testCases {

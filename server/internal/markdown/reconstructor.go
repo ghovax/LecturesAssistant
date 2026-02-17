@@ -53,6 +53,36 @@ func (reconstructor *Reconstructor) applyCitationPostProcessing(text string) str
 	// This also handles ellipsis followed by a capital letter.
 	result = regexp.MustCompile(`(\.+)([A-Z])`).ReplaceAllString(result, "$1 $2")
 
+	// 6. Ensure space after a colon if followed by a character: "Word:Next" -> "Word: Next"
+	// We avoid common URL patterns (http:, https:) and don't add space if it's a protocol (followed by //)
+	// We also handle cases where bold/italic markers follow the colon: "**Word:**Burun" -> "**Word:** Burun"
+	result = regexp.MustCompile(`(\w+:)([*\s_]*)([^\s/])`).ReplaceAllStringFunc(result, func(match string) string {
+		if strings.HasPrefix(strings.ToLower(match), "http:") || strings.HasPrefix(strings.ToLower(match), "https:") {
+			return match
+		}
+
+		// If there's already a space after the colon (even with markers), return as is
+		if strings.Contains(match, ": ") {
+			return match
+		}
+
+		// Find the colon and insert space after all markers
+		parts := strings.SplitN(match, ":", 2)
+		// parts[1] contains markers and the next character
+		// We want to find where the "content" starts (non-marker, non-space)
+		// But wait, if it's ":**Burun", parts[1] is "**Burun".
+		// We should put space after "**".
+
+		markersRegex := regexp.MustCompile(`^([*_]+)`)
+		markersMatch := markersRegex.FindString(parts[1])
+
+		if markersMatch != "" {
+			return parts[0] + ":" + markersMatch + " " + parts[1][len(markersMatch):]
+		}
+
+		return parts[0] + ": " + parts[1]
+	})
+
 	return result
 }
 

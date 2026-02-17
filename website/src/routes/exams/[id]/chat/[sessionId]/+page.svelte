@@ -76,6 +76,12 @@
     }
 
     function setupWebSocket() {
+        if (!browser || !sessionId) return;
+
+        if (socket) {
+            socket.close();
+        }
+
         const token = localStorage.getItem('session_token');
         const baseUrl = api.getBaseUrl().replace('http', 'ws');
         socket = new WebSocket(`${baseUrl}/socket?session_token=${token}&subscribe_chat=${sessionId}`);

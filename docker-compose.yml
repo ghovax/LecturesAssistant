@@ -2,18 +2,13 @@ name: lectures-assistant
 
 services:
   lectures-assistant:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: lectures-assistant:latest
+    image: giovanni653/lectures-assistant:latest
     container_name: lectures-assistant
     ports:
       - "3000:3000"
     volumes:
-      - ./data:/data
-    environment:
-      - STORAGE_DATA_DIRECTORY=/data
-      - STORAGE_WEB_DIRECTORY=/app/www
-      - SERVER_HOST=0.0.0.0
-      - SERVER_PORT=3000
+      - lectures-data:/data
     restart: unless-stopped
+
+volumes:
+  lectures-data:

@@ -11,17 +11,42 @@ Lectures Assistant is a high-fidelity, AI-powered platform designed to transform
 - **Cost Tracking**: Transparent monitoring of token usage and estimated USD costs for every AI-powered operation.
 - **Local & Cloud Privacy**: Choose between powerful cloud models (Claude, GPT, Gemini) or fully private local inference using Ollama.
 
-## 🚀 Quick Start (Docker)
+## 🚀 Quick Start
 
-The fastest way to run Lectures Assistant is using Docker. This automatically handles heavy dependencies like FFmpeg, LibreOffice, Pandoc, and XeLaTeX.
+### For Non-Technical Users (Recommended)
 
-1.  **Run with one command**:
-    ```bash
-    docker-compose up --build -d
-    ```
-2.  **Access the interface**: Open [http://localhost:3000](http://localhost:3000) in your browser.
+The easiest way to run Lectures Assistant is with a single Docker command:
 
-*Note: All your data, including the database and generated files, will be persisted in the `./data` directory on your host machine.*
+```bash
+docker run -d --name lectures-assistant -p 3000:3000 giovanni653/lectures-assistant:latest
+```
+
+Then open [http://localhost:3000](http://localhost:3000) in your browser.
+
+**That's it!** The application will:
+- Download automatically (~900 MB)
+- Start running in the background
+- Store all your data safely on your computer
+- Be available at http://localhost:3000
+
+**Useful commands:**
+- Stop: `docker stop lectures-assistant`
+- Start again: `docker start lectures-assistant`
+- View logs: `docker logs lectures-assistant`
+- Remove completely: `docker rm -f lectures-assistant`
+
+---
+
+### For Developers
+
+If you prefer using Docker Compose or want to build from source:
+
+**Using Docker Compose:**
+```bash
+docker-compose up -d
+```
+
+**Build from source:** See the [Development](#-development) section below.
 
 ## 🛠️ Configuration
 

@@ -235,7 +235,7 @@
             <p class="text-muted small mb-3">
               Select which lessons to include in this conversation's context.
             </p>
-            <div class="linkTiles flex-column">
+            <div class="link-tiles flex-column">
               {#each allLectures as lecture}
                 {@const isUsed = usedLectureIds.includes(lecture.id)}
                 {@const isIncluded = includedLectureIds.includes(lecture.id)}
@@ -244,7 +244,7 @@
                   title={lecture.title}
                   onclick={() => !isUsed && toggleLecture(lecture.id)}
                   disabled={isUsed}
-                  class="w-100 mb-0 border {isUsed ? 'tile-locked' : ''}"
+                  class="w-100 mb-0 {isUsed ? 'tile-locked' : ''}"
                 >
                   {#snippet description()}
                     {lecture.description || "Lesson materials."}
@@ -259,7 +259,9 @@
                         class="village-toggle {isIncluded || isUsed
                           ? 'is-active'
                           : ''} {isUsed ? 'is-locked' : 'cursor-pointer'}"
-                        title={isUsed ? "Already used in this conversation" : "Toggle lesson"}
+                        title={isUsed
+                          ? "Already used in this conversation"
+                          : "Toggle lesson"}
                         onclick={(e) => {
                           e.stopPropagation();
                           !isUsed && toggleLecture(lecture.id);
@@ -326,7 +328,7 @@
                     {#if prevMsg && prevMsg.role === "user"}
                       <span
                         class="text-muted small text-truncate ms-3 fw-normal"
-                        style="opacity: 0.7; text-transform: none; font-style: italic;"
+                        style="opacity: 0.7; text-transform: none; font-style: italic; font-size: 0.9rem;"
                       >
                         “{prevMsg.content}”
                       </span>
@@ -335,7 +337,7 @@
                   <div class="d-flex align-items-center gap-3">
                     <span
                       class="text-muted small flex-shrink-0"
-                      style="font-size: 0.75rem;"
+                      style="font-size: 0.85rem;"
                     >
                       {new Date(
                         msg.created_at || Date.now(),
@@ -437,7 +439,7 @@
     grid-area: 1 / 1;
   }
 
-  .linkTiles {
+  .link-tiles {
     display: grid;
     grid-template-columns: 1fr;
     gap: 0;
@@ -445,12 +447,12 @@
 
     :global(.tile-wrapper) {
       margin: 0;
-      border: none;
-      border-bottom: 1px solid var(--gray-300);
+      border: 1px solid var(--gray-300);
+      border-top: none;
       width: 100%;
 
-      &:last-child {
-        border-bottom: none;
+      &:first-child {
+        border-top: 1px solid var(--gray-300);
       }
 
       :global(a),
@@ -518,6 +520,14 @@
     background: rgba(234, 126, 12, 0.5);
     border-color: rgba(234, 126, 12, 0.5);
     cursor: not-allowed;
+  }
+
+  /* Input group alignment */
+  .dictionary-style {
+    .btn {
+      height: 2.5rem;
+      font-size: 0.8rem;
+    }
   }
 
   .village-toggle.is-locked::after {

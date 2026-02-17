@@ -394,7 +394,7 @@
     color: var(--orange);
   }
 
-  .linkTiles {
+  .link-tiles {
     display: grid;
     grid-template-columns: 1fr;
     gap: 0;

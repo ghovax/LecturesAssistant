@@ -186,11 +186,11 @@ body {
   border-radius: 0;
   border: 1px solid var(--gray-300);
   font-family: var(--font-primary);
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   padding: 6px 10px;
   background: #fff;
   transition: all 0.2s ease;
-  height: 2rem;
+  height: 2.5rem;
   line-height: 1.4;
 }
 
@@ -461,13 +461,12 @@ select.form-select {
 
 // Tile Grid Layout
 .tile-grid,
-.linkTiles {
+.link-tiles {
   display: flex;
   flex-wrap: wrap;
   gap: 0;
   margin: 0;
   background: #fff;
-  border: 1px solid var(--gray-300);
   width: fit-content;
   max-width: 100%;
 

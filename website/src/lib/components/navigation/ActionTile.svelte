@@ -214,7 +214,7 @@
     position: absolute;
     bottom: 12px;
     left: 20px;
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     color: var(--gray-400);
     font-family: var(--font-mono);
     font-size-adjust: var(--font-mono-adjust);

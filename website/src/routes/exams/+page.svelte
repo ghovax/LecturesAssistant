@@ -126,7 +126,10 @@
   onCancel={() => (confirmModal.isOpen = false)}
 />
 
-<PageHeader title="My Studies" description="Access your personal study hub and manage all subjects.">
+<PageHeader
+  title="My Studies"
+  description="Access your personal study hub and manage all subjects."
+>
   <button
     class="btn btn-primary rounded-0"
     onclick={() => (showCreate = !showCreate)}

@@ -67,7 +67,7 @@
       <h2>Core Study Tools</h2>
     </div>
 
-    <div class="linkTiles mb-4">
+    <div class="link-tiles mb-4">
       <Tile href="/exams" icon="" title="My Studies">
         {#snippet description()}
           Access subjects, lessons, and all generated materials.
@@ -88,7 +88,7 @@
           <span class="overline">Identity</span>
           <h2>Account & Session</h2>
         </div>
-        <div class="linkTiles">
+        <div class="link-tiles">
           {#if !auth.user}
             <Tile href="/login" icon="" title="Sign In">
               {#snippet description()}
@@ -111,7 +111,7 @@
           <span class="overline">Support</span>
           <h2>Resources</h2>
         </div>
-        <div class="linkTiles">
+        <div class="link-tiles">
           <Tile href="/help" icon="" title="Help Guide">
             {#snippet description()}
               How to use the assistant effectively.
@@ -194,12 +194,13 @@
     }
   }
 
-  .linkTiles {
+  .link-tiles {
     display: flex;
     flex-wrap: wrap;
     gap: 0;
     background: transparent;
     margin-bottom: 2rem;
+    border: 1px solid var(--gray-300);
     overflow: visible;
 
     :global(.action-tile),

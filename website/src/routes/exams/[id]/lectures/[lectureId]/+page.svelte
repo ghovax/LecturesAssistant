@@ -816,7 +816,7 @@
                 <span class="header-text">Workspace</span>
               </div>
             </div>
-            <div class="linkTiles">
+            <div class="link-tiles">
               <Tile
                 icon=""
                 title="Dialogue"
@@ -1074,7 +1074,7 @@
                 aria-label="Close Reference Materials"><X size={20} /></button
               >
             </div>
-            <div class="linkTiles">
+            <div class="link-tiles">
               {#each documents as doc}
                 <Tile
                   href="javascript:void(0)"
@@ -1489,7 +1489,7 @@
     margin: 0;
   }
 
-  .linkTiles {
+  .link-tiles {
     display: flex;
     flex-wrap: wrap;
     gap: 0;

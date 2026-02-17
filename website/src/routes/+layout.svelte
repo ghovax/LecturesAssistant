@@ -1,62 +1,62 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
-    import { page } from '$app/state';
-    import { goto } from '$app/navigation';
-    import { auth } from '$lib/auth.svelte';
-    import "../app.scss";
-    import Navbar from '$lib/components/Navbar.svelte';
-    import NotificationBanner from '$lib/components/NotificationBanner.svelte';
-    
-    let { children } = $props();
+  import { onMount } from "svelte";
+  import { page } from "$app/state";
+  import { goto } from "$app/navigation";
+  import { auth } from "$lib/auth.svelte";
+  import "../app.scss";
+  import Navbar from "$lib/components/Navbar.svelte";
+  import NotificationBanner from "$lib/components/NotificationBanner.svelte";
 
-    onMount(async () => {
-        // @ts-ignore
-        await import('bootstrap');
+  let { children } = $props();
 
-        if (auth.loading) {
-            await auth.check();
-        }
+  onMount(async () => {
+    // @ts-ignore
+    await import("bootstrap");
 
-        // If not initialized and not already on the setup page, force redirect to setup
-        if (!auth.initialized && page.url.pathname !== '/setup') {
-            goto('/setup');
-        }
-    });
+    if (auth.loading) {
+      await auth.check();
+    }
+
+    // If not initialized and not already on the setup page, force redirect to setup
+    if (!auth.initialized && page.url.pathname !== "/setup") {
+      goto("/setup");
+    }
+  });
 </script>
 
 <div class="main-layout container-xl shadow-none">
-    <Navbar />
-    <NotificationBanner />
-    <div class="content-wrapper">
-        <main class="content">
-            {@render children()}
-        </main>
-    </div>
+  <Navbar />
+  <NotificationBanner />
+  <div class="content-wrapper">
+    <main class="content">
+      {@render children()}
+    </main>
+  </div>
 </div>
 
 <style lang="scss">
-    :global(html, body) {
-        height: 100%;
-        margin: 0;
-        background: #f5f3f0 !important;
-        font-family: var(--font-primary) !important;
-        color: #292524 !important;
-    }
+  :global(html, body) {
+    height: 100%;
+    margin: 0;
+    background: #f5f3f0 !important;
+    font-family: var(--font-primary) !important;
+    color: #292524 !important;
+  }
 
-    .main-layout {
-        background: transparent !important;
-        box-shadow: none !important;
-        border: none !important;
-        max-width: 1300px !important; /* Increased width */
-        margin: 0 auto;
-        padding: 0 20px;
-    }
+  .main-layout {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    max-width: 1300px !important; /* Increased width */
+    margin: 0 auto;
+    padding: 0 20px;
+  }
 
-    .content-wrapper {
-        width: 100%;
-    }
+  .content-wrapper {
+    width: 100%;
+  }
 
-    .content {
-        padding: 0;
-    }
+  .content {
+    padding: 0;
+  }
 </style>

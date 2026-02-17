@@ -1,110 +1,110 @@
 <script lang="ts">
-    import type { Snippet } from 'svelte';
+  import type { Snippet } from "svelte";
 
-    interface Props {
-        title?: string;
-        overline?: string;
-        children: Snippet;
-        actions?: Snippet;
-        variant?: 'card' | 'section' | 'page';
-        class?: string;
-    }
+  interface Props {
+    title?: string;
+    overline?: string;
+    children: Snippet;
+    actions?: Snippet;
+    variant?: "card" | "section" | "page";
+    class?: string;
+  }
 
-    let {
-        title,
-        overline,
-        children,
-        actions,
-        variant = 'card',
-        class: className = ''
-    }: Props = $props();
+  let {
+    title,
+    overline,
+    children,
+    actions,
+    variant = "card",
+    class: className = "",
+  }: Props = $props();
 </script>
 
 <div class="workspace-section {className} {variant}">
-    {#if overline || title || actions}
-        <div class="workspace-header">
-            <div class="workspace-title-group">
-                {#if overline}
-                    <span class="workspace-overline">{overline}</span>
-                {/if}
-                {#if title}
-                    <h2 class="workspace-title">{title}</h2>
-                {/if}
-            </div>
-            {#if actions}
-                <div class="workspace-actions">
-                    {@render actions()}
-                </div>
-            {/if}
+  {#if overline || title || actions}
+    <div class="workspace-header">
+      <div class="workspace-title-group">
+        {#if overline}
+          <span class="workspace-overline">{overline}</span>
+        {/if}
+        {#if title}
+          <h2 class="workspace-title">{title}</h2>
+        {/if}
+      </div>
+      {#if actions}
+        <div class="workspace-actions">
+          {@render actions()}
         </div>
-    {/if}
-    <div class="workspace-content">
-        {@render children()}
+      {/if}
     </div>
+  {/if}
+  <div class="workspace-content">
+    {@render children()}
+  </div>
 </div>
 
 <style lang="scss">
-    .workspace-section {
-        margin-bottom: 60px;
+  .workspace-section {
+    margin-bottom: 60px;
 
-        &:last-child {
-            margin-bottom: 0;
-        }
-
-        &.card {
-            .workspace-header {
-                margin-bottom: 1.5rem;
-            }
-        }
-
-        &.section {
-            .workspace-header {
-                margin-bottom: 1.5rem;
-            }
-        }
-
-        &.page {
-            margin-bottom: 2.5rem;
-        }
+    &:last-child {
+      margin-bottom: 0;
     }
 
-    .workspace-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 1rem;
+    &.card {
+      .workspace-header {
+        margin-bottom: 1.5rem;
+      }
     }
 
-    .workspace-title-group {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
+    &.section {
+      .workspace-header {
+        margin-bottom: 1.5rem;
+      }
     }
 
-    .workspace-overline {
-        font-size: 10px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-        color: var(--gray-500);
-        display: block;
+    &.page {
+      margin-bottom: 2.5rem;
     }
+  }
 
-    .workspace-title {
-        font-size: 18px;
-        font-weight: 500;
-        color: var(--gray-900);
-        margin: 0;
-        line-height: 1.2;
-    }
+  .workspace-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+  }
 
-    .workspace-actions {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-    }
+  .workspace-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
 
-    .workspace-content {
-        /* Content styling handled by children components */
-    }
+  .workspace-overline {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--gray-500);
+    display: block;
+  }
+
+  .workspace-title {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--gray-900);
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .workspace-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .workspace-content {
+    /* Content styling handled by children components */
+  }
 </style>

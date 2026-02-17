@@ -31,11 +31,13 @@ The easiest way to run Lectures Assistant is using Docker Compose (included with
 4. **Open your browser** to [http://localhost:3000](http://localhost:3000)
 
 **That's it!** The application will:
+
 - Download automatically (~900 MB on first run)
 - Start running in the background
 - Store all your data safely on your computer
 
 **Useful commands:**
+
 - Stop: `docker-compose down`
 - Start again: `docker-compose up -d`
 - View logs: `docker-compose logs -f`
@@ -53,6 +55,7 @@ docker run -d --name lectures-assistant -p 3000:3000 giovanni653/lectures-assist
 Then open [http://localhost:3000](http://localhost:3000) in your browser.
 
 **Commands:**
+
 - Stop: `docker stop lectures-assistant`
 - Start again: `docker start lectures-assistant`
 - Remove: `docker rm -f lectures-assistant`

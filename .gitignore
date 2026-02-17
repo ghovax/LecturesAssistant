@@ -1,4 +1,3 @@
-*.app
-Lectures Assistant/
 data/
 configuration.yaml
+node_modules/

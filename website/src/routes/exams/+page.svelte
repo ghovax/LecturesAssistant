@@ -1,206 +1,234 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
-    import { api } from '$lib/api/client';
-    import { notifications } from '$lib/stores/notifications.svelte';
-    import {
-        Breadcrumb,
-        ActionTile,
-        VerticalTileList,
-        ConfirmModal,
-        CardContainer,
-        PageHeader,
-        FormField,
-        EmptyState,
-        LoadingState
-    } from '$lib';
-    import { Plus, Trash2 } from 'lucide-svelte';
+  import { onMount } from "svelte";
+  import { api } from "$lib/api/client";
+  import { notifications } from "$lib/stores/notifications.svelte";
+  import {
+    Breadcrumb,
+    ActionTile,
+    VerticalTileList,
+    ConfirmModal,
+    CardContainer,
+    PageHeader,
+    FormField,
+    EmptyState,
+    LoadingState,
+  } from "$lib";
+  import { Plus, Trash2 } from "lucide-svelte";
 
-    let exams = $state<any[]>([]);
-    let loading = $state(true);
-    let newExamTitle = $state('');
-    let newExamLanguage = $state('');
-    let showCreate = $state(false);
+  let exams = $state<any[]>([]);
+  let loading = $state(true);
+  let newExamTitle = $state("");
+  let newExamLanguage = $state("");
+  let showCreate = $state(false);
 
-    // Confirmation Modal State
-    let confirmModal = $state({
-        isOpen: false,
-        title: '',
-        message: '',
-        onConfirm: () => {},
-        isDanger: false
-    });
+  // Confirmation Modal State
+  let confirmModal = $state({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+    isDanger: false,
+  });
 
-    function showConfirm(options: { title: string, message: string, onConfirm: () => void, isDanger?: boolean }) {
-        confirmModal = {
-            isOpen: true,
-            title: options.title,
-            message: options.message,
-            onConfirm: () => {
-                options.onConfirm();
-                confirmModal.isOpen = false;
-            },
-            isDanger: options.isDanger ?? false
-        };
+  function showConfirm(options: {
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    isDanger?: boolean;
+  }) {
+    confirmModal = {
+      isOpen: true,
+      title: options.title,
+      message: options.message,
+      onConfirm: () => {
+        options.onConfirm();
+        confirmModal.isOpen = false;
+      },
+      isDanger: options.isDanger ?? false,
+    };
+  }
+
+  async function loadExams() {
+    loading = true;
+    try {
+      const data = await api.listExams();
+      exams = data ?? [];
+    } catch (e) {
+      console.error(e);
+    } finally {
+      loading = false;
     }
+  }
 
-    async function loadExams() {
-        loading = true;
+  async function deleteExam(id: string) {
+    showConfirm({
+      title: "Delete Subject",
+      message:
+        "Are you sure you want to delete this subject? All lessons and study materials within it will be permanently removed.",
+      isDanger: true,
+      onConfirm: async () => {
         try {
-            const data = await api.listExams();
-            exams = data ?? [];
-        } catch (e) {
-            console.error(e);
-        } finally {
-            loading = false;
-        }
-    }
-
-    async function deleteExam(id: string) {
-        showConfirm({
-            title: 'Delete Subject',
-            message: 'Are you sure you want to delete this subject? All lessons and study materials within it will be permanently removed.',
-            isDanger: true,
-            onConfirm: async () => {
-                try {
-                    await api.request('DELETE', '/exams', { exam_id: id });
-                    await loadExams();
-                    notifications.success('The subject has been removed.');
-                } catch (e: any) {
-                    notifications.error(e.message || e);
-                }
-            }
-        });
-    }
-
-    let creating = $state(false);
-
-    async function createExam() {
-        if (!newExamTitle || creating) return;
-        creating = true;
-        try {
-            await api.createExam({
-                title: newExamTitle,
-                language: newExamLanguage || undefined
-            });
-            newExamTitle = '';
-            newExamLanguage = '';
-            showCreate = false;
-            await loadExams();
-            notifications.success('Your new subject has been added.');
+          await api.request("DELETE", "/exams", { exam_id: id });
+          await loadExams();
+          notifications.success("The subject has been removed.");
         } catch (e: any) {
-            notifications.error(e.message || e);
-        } finally {
-            creating = false;
+          notifications.error(e.message || e);
         }
+      },
+    });
+  }
+
+  let creating = $state(false);
+
+  async function createExam() {
+    if (!newExamTitle || creating) return;
+    creating = true;
+    try {
+      await api.createExam({
+        title: newExamTitle,
+        language: newExamLanguage || undefined,
+      });
+      newExamTitle = "";
+      newExamLanguage = "";
+      showCreate = false;
+      await loadExams();
+      notifications.success("Your new subject has been added.");
+    } catch (e: any) {
+      notifications.error(e.message || e);
+    } finally {
+      creating = false;
     }
+  }
 
-    onMount(loadExams);
+  onMount(loadExams);
 
-    const languageOptions = [
-        { value: '', label: 'Default (from settings)' },
-        { value: 'en-US', label: 'English (US)' },
-        { value: 'it-IT', label: 'Italian' },
-        { value: 'ja-JP', label: 'Japanese' },
-        { value: 'es-ES', label: 'Spanish' },
-        { value: 'fr-FR', label: 'French' },
-        { value: 'de-DE', label: 'German' },
-        { value: 'tr-TR', label: 'Turkish' },
-        { value: 'zh-CN', label: 'Chinese (Simplified)' },
-        { value: 'pt-BR', label: 'Portuguese (Brazilian)' }
-    ];
+  const languageOptions = [
+    { value: "", label: "Default (from settings)" },
+    { value: "en-US", label: "English (US)" },
+    { value: "it-IT", label: "Italian" },
+    { value: "ja-JP", label: "Japanese" },
+    { value: "es-ES", label: "Spanish" },
+    { value: "fr-FR", label: "French" },
+    { value: "de-DE", label: "German" },
+    { value: "tr-TR", label: "Turkish" },
+    { value: "zh-CN", label: "Chinese (Simplified)" },
+    { value: "pt-BR", label: "Portuguese (Brazilian)" },
+  ];
 </script>
 
-<Breadcrumb items={[{ label: 'My Studies', active: true }]} />
+<Breadcrumb items={[{ label: "My Studies", active: true }]} />
 
 <ConfirmModal
-    isOpen={confirmModal.isOpen}
-    title={confirmModal.title}
-    message={confirmModal.message}
-    isDanger={confirmModal.isDanger}
-    onConfirm={confirmModal.onConfirm}
-    onCancel={() => confirmModal.isOpen = false}
+  isOpen={confirmModal.isOpen}
+  title={confirmModal.title}
+  message={confirmModal.message}
+  isDanger={confirmModal.isDanger}
+  onConfirm={confirmModal.onConfirm}
+  onCancel={() => (confirmModal.isOpen = false)}
 />
 
 <PageHeader title="My Studies">
-    <button class="btn btn-primary rounded-0" onclick={() => showCreate = !showCreate}>
-        <Plus size={16} /> Add Subject
-    </button>
+  <button
+    class="btn btn-primary rounded-0"
+    onclick={() => (showCreate = !showCreate)}
+  >
+    <Plus size={16} /> Add Subject
+  </button>
 </PageHeader>
 
 <CardContainer title="Workspace" fitContent>
+  {#if !loading}
     {#if exams.length > 0}
-        <VerticalTileList>
-            {#each exams as exam}
-                <ActionTile
-                    href="/exams/{exam.id}"
-                    title={exam.title}
-                    cost={exam.estimated_cost}
-                >
-                    {#snippet description()}
-                        {exam.description || 'Access your lessons and study materials.'}
-                    {/snippet}
-
-                    {#snippet actions()}
-                        <button
-                            class="btn btn-link text-danger p-0 border-0 shadow-none"
-                            onclick={(e) => { e.preventDefault(); e.stopPropagation(); deleteExam(exam.id); }}
-                            title="Delete Subject"
-                            aria-label="Delete Subject"
-                        >
-                            <Trash2 size={16} />
-                        </button>
-                    {/snippet}
-                </ActionTile>
-            {/each}
-        </VerticalTileList>
-    {:else if !loading}
-        <EmptyState
-            icon={Plus}
-            title="Welcome to your Study Hub"
-            description="Get started by creating your first subject. You can then add lessons, upload recordings, and generate AI-powered study guides."
-        >
-            {#snippet action()}
-                <button class="btn btn-success rounded-0" onclick={() => showCreate = true}>
-                    Create My First Subject
-                </button>
+      <VerticalTileList>
+        {#each exams as exam}
+          <ActionTile
+            href="/exams/{exam.id}"
+            title={exam.title}
+            cost={exam.estimated_cost}
+          >
+            {#snippet description()}
+              {exam.description || "Access your lessons and study materials."}
             {/snippet}
-        </EmptyState>
+
+            {#snippet actions()}
+              <button
+                class="btn btn-link text-danger p-0 border-0 shadow-none"
+                onclick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  deleteExam(exam.id);
+                }}
+                title="Delete Subject"
+                aria-label="Delete Subject"
+              >
+                <Trash2 size={16} />
+              </button>
+            {/snippet}
+          </ActionTile>
+        {/each}
+      </VerticalTileList>
+    {:else}
+      <EmptyState
+        icon={Plus}
+        title="Welcome to your Study Hub"
+        description="Get started by creating your first subject. You can then add lessons, upload recordings, and generate AI-powered study guides."
+      >
+        {#snippet action()}
+          <button
+            class="btn btn-success rounded-0"
+            onclick={() => (showCreate = true)}
+          >
+            Create My First Subject
+          </button>
+        {/snippet}
+      </EmptyState>
     {/if}
+  {/if}
 </CardContainer>
 
 {#if showCreate}
-    <CardContainer title="Create a New Subject" class="mt-4">
-        <div class="p-4">
-            <form onsubmit={(e) => { e.preventDefault(); createExam(); }}>
-                <FormField
-                    label="Subject Name"
-                    id="examTitle"
-                    type="text"
-                    value={newExamTitle}
-                    placeholder="e.g. History, Science, Mathematics..."
-                    required
-                />
+  <CardContainer title="Create a New Subject" class="mt-4">
+    <div class="p-4">
+      <form
+        onsubmit={(e) => {
+          e.preventDefault();
+          createExam();
+        }}
+      >
+        <FormField
+          label="Subject Name"
+          id="examTitle"
+          type="text"
+          value={newExamTitle}
+          placeholder="e.g. History, Science, Mathematics..."
+          required
+        />
 
-                <FormField
-                    label="Language (Optional)"
-                    id="examLanguage"
-                    type="select"
-                    value={newExamLanguage}
-                    options={languageOptions}
-                    helpText="Lectures will inherit this language for transcription and document processing."
-                />
+        <FormField
+          label="Language (Optional)"
+          id="examLanguage"
+          type="select"
+          value={newExamLanguage}
+          options={languageOptions}
+          helpText="Lectures will inherit this language for transcription and document processing."
+        />
 
-                <button type="submit" class="btn btn-success rounded-0" disabled={creating}>
-                    {#if creating}
-                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
-                    {/if}
-                    Create Subject
-                </button>
-            </form>
-        </div>
-    </CardContainer>
+        <button
+          type="submit"
+          class="btn btn-success rounded-0"
+          disabled={creating}
+        >
+          {#if creating}
+            <span class="spinner-border spinner-border-sm me-2" role="status"
+            ></span>
+          {/if}
+          Create Subject
+        </button>
+      </form>
+    </div>
+  </CardContainer>
 {/if}
 
 {#if loading && exams.length === 0}
-    <LoadingState message="Loading your studies..." />
+  <LoadingState message="Loading your studies..." />
 {/if}

@@ -18,6 +18,8 @@
     async function loadData() {
         loading = true;
         try {
+            if (!examId || !lectureId || !docId) return;
+            
             const [examR, lectureR, docR, pagesR] = await Promise.all([
                 api.getExam(examId),
                 api.getLecture(lectureId, examId),

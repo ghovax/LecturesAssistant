@@ -2,7 +2,6 @@
     import { onMount, tick, type Snippet } from 'svelte';
     import { fade } from 'svelte/transition';
     import { annotate } from 'rough-notation';
-    import type { RoughAnnotation } from 'rough-notation';
 
     interface Props {
         children: Snippet;
@@ -32,7 +31,7 @@
 
     let containerElement: HTMLSpanElement | null = $state(null);
     let contentElement: HTMLSpanElement | null = $state(null);
-    let annotation: RoughAnnotation | null = null;
+    let annotation: any = null;
     let svgContent = $state('');
     let individualSvgs = $state<string[]>([]);
     let isShowing = $state(false);

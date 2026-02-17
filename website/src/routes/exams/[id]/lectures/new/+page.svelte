@@ -63,7 +63,7 @@
     }
 
     async function handleUpload() {
-        if (!title || (mediaFiles.length === 0 && documentFiles.length === 0)) return;
+        if (!examId || !title || (mediaFiles.length === 0 && documentFiles.length === 0)) return;
 
         uploading = true;
 
@@ -71,7 +71,7 @@
             const formData = new FormData();
             formData.append('exam_id', examId);
             formData.append('title', title);
-            formData.append('description', description);
+            formData.append('description', description || '');
             if (language) {
                 formData.append('language', language);
             }
@@ -92,6 +92,8 @@
     }
 
     onMount(async () => {
+        if (!examId) return;
+        
         const [examData, settings] = await Promise.all([
             api.getExam(examId),
             api.getSettings()
@@ -181,11 +183,11 @@
                     <!-- Dropzone -->
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <!-- svelte-ignore a11y_mouse_events_have_key_events -->
-                    <div 
+                    <div
                         class="dropzone-refined mb-4 {isDragging ? 'is-dragging' : ''}"
                         ondragover={(e) => { e.preventDefault(); isDragging = true; }}
                         ondragleave={() => isDragging = false}
-                        {onDrop}
+                        ondrop={onDrop}
                         onmouseenter={() => isHovered = true}
                         onmouseleave={() => isHovered = false}
                     >

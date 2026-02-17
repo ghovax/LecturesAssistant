@@ -2,9 +2,17 @@
     import { onMount } from 'svelte';
     import { api } from '$lib/api/client';
     import { notifications } from '$lib/stores/notifications.svelte';
-    import Breadcrumb from '$lib/components/Breadcrumb.svelte';
-    import Tile from '$lib/components/Tile.svelte';
-    import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+    import {
+        Breadcrumb,
+        ActionTile,
+        VerticalTileList,
+        ConfirmModal,
+        CardContainer,
+        PageHeader,
+        FormField,
+        EmptyState,
+        LoadingState
+    } from '$lib';
     import { Plus, Trash2 } from 'lucide-svelte';
 
     let exams = $state<any[]>([]);
@@ -87,11 +95,24 @@
     }
 
     onMount(loadExams);
+
+    const languageOptions = [
+        { value: '', label: 'Default (from settings)' },
+        { value: 'en-US', label: 'English (US)' },
+        { value: 'it-IT', label: 'Italian' },
+        { value: 'ja-JP', label: 'Japanese' },
+        { value: 'es-ES', label: 'Spanish' },
+        { value: 'fr-FR', label: 'French' },
+        { value: 'de-DE', label: 'German' },
+        { value: 'tr-TR', label: 'Turkish' },
+        { value: 'zh-CN', label: 'Chinese (Simplified)' },
+        { value: 'pt-BR', label: 'Portuguese (Brazilian)' }
+    ];
 </script>
 
 <Breadcrumb items={[{ label: 'My Studies', active: true }]} />
 
-<ConfirmModal 
+<ConfirmModal
     isOpen={confirmModal.isOpen}
     title={confirmModal.title}
     message={confirmModal.message}
@@ -100,127 +121,85 @@
     onCancel={() => confirmModal.isOpen = false}
 />
 
-<header class="page-header">
-    <div class="d-flex justify-content-between align-items-center">
-        <h1 class="page-title m-0">My Studies</h1>
-        <button class="btn btn-primary rounded-0" onclick={() => showCreate = !showCreate}>
-            <Plus size={16} /> Add Subject
-        </button>
-    </div>
-</header>
+<PageHeader title="My Studies">
+    <button class="btn btn-primary rounded-0" onclick={() => showCreate = !showCreate}>
+        <Plus size={16} /> Add Subject
+    </button>
+</PageHeader>
 
-<div class="bg-white border mb-3" style="width: fit-content; max-width: 100%;">
-    <div class="standard-header">
-        <div class="header-title">
-            <span class="header-text">Workspace</span>
-        </div>
-    </div>
+<CardContainer title="Workspace" fitContent>
+    {#if exams.length > 0}
+        <VerticalTileList>
+            {#each exams as exam}
+                <ActionTile
+                    href="/exams/{exam.id}"
+                    title={exam.title}
+                    cost={exam.estimated_cost}
+                >
+                    {#snippet description()}
+                        {exam.description || 'Access your lessons and study materials.'}
+                    {/snippet}
 
-    <div class="linkTiles">
-        {#each exams as exam}
-            <Tile href="/exams/{exam.id}" icon="" title={exam.title} cost={exam.estimated_cost}>
-                {#snippet description()}
-                    {exam.description || 'Access your lessons and study materials.'}
-                {/snippet}
-
-                {#snippet actions()}
-                    <button 
-                        class="btn btn-link text-danger p-0 border-0 shadow-none" 
-                        onclick={(e) => { e.preventDefault(); e.stopPropagation(); deleteExam(exam.id); }}
-                        title="Delete Subject"
-                    >
-                        <Trash2 size={16} />
-                    </button>
-                {/snippet}
-            </Tile>
-        {:else}
-            {#if !loading}
-                <div class="p-5 text-center text-muted w-100">
-                    <div class="max-width-500 mx-auto">
-                        <Plus size={48} class="mb-3 opacity-25" />
-                        <h3 class="text-dark h5 mb-3">Welcome to your Study Hub</h3>
-                        <p class="small mb-4">Get started by creating your first subject. You can then add lessons, upload recordings, and generate AI-powered study guides.</p>
-                        <button class="btn btn-success rounded-0" onclick={() => showCreate = true}>
-                            Create My First Subject
+                    {#snippet actions()}
+                        <button
+                            class="btn btn-link text-danger p-0 border-0 shadow-none"
+                            onclick={(e) => { e.preventDefault(); e.stopPropagation(); deleteExam(exam.id); }}
+                            title="Delete Subject"
+                        >
+                            <Trash2 size={16} />
                         </button>
-                    </div>
-                </div>
-            {/if}
-        {/each}
-    </div>
-</div>
+                    {/snippet}
+                </ActionTile>
+            {/each}
+        </VerticalTileList>
+    {:else if !loading}
+        <EmptyState
+            icon={Plus}
+            title="Welcome to your Study Hub"
+            description="Get started by creating your first subject. You can then add lessons, upload recordings, and generate AI-powered study guides."
+        >
+            {#snippet action()}
+                <button class="btn btn-success rounded-0" onclick={() => showCreate = true}>
+                    Create My First Subject
+                </button>
+            {/snippet}
+        </EmptyState>
+    {/if}
+</CardContainer>
 
 {#if showCreate}
-    <div class="pb-5">
-        <div class="bg-white border mb-3 shadow-none">
-            <div class="standard-header">
-                <div class="header-title">
-                    <span class="header-text">Create a New Subject</span>
-                </div>
-            </div>
-            <div class="p-4">
-                <form onsubmit={(e) => { e.preventDefault(); createExam(); }}>
-                    <div class="mb-4">
-                        <label for="examTitle" class="cozy-label">Subject Name</label>
-                        <input
-                            id="examTitle"
-                            type="text"
-                            class="form-control cozy-input"
-                            placeholder="e.g. History, Science, Mathematics..."
-                            bind:value={newExamTitle}
-                            required
-                        />
-                    </div>
-                    <div class="mb-4">
-                        <label for="examLanguage" class="cozy-label">Language (Optional)</label>
-                        <select id="examLanguage" class="form-select cozy-input" bind:value={newExamLanguage}>
-                            <option value="">Default (from settings)</option>
-                            <option value="en-US">English (US)</option>
-                            <option value="it-IT">Italian</option>
-                            <option value="ja-JP">Japanese</option>
-                            <option value="es-ES">Spanish</option>
-                            <option value="fr-FR">French</option>
-                            <option value="de-DE">German</option>
-                            <option value="tr-TR">Turkish</option>
-                            <option value="zh-CN">Chinese (Simplified)</option>
-                            <option value="pt-BR">Portuguese (Brazilian)</option>
-                        </select>
-                        <div class="form-text small">Lectures will inherit this language for transcription and document processing.</div>
-                    </div>
-                    <button type="submit" class="btn btn-success rounded-0" disabled={creating}>
-                        {#if creating}
-                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
-                        {/if}
-                        Create Subject
-                    </button>
-                </form>
-            </div>
+    <CardContainer title="Create a New Subject" class="mt-4">
+        <div class="p-4">
+            <form onsubmit={(e) => { e.preventDefault(); createExam(); }}>
+                <FormField
+                    label="Subject Name"
+                    id="examTitle"
+                    type="text"
+                    value={newExamTitle}
+                    placeholder="e.g. History, Science, Mathematics..."
+                    required
+                />
+
+                <FormField
+                    label="Language (Optional)"
+                    id="examLanguage"
+                    type="select"
+                    value={newExamLanguage}
+                    options={languageOptions}
+                    helpText="Lectures will inherit this language for transcription and document processing."
+                />
+
+                <button type="submit" class="btn btn-success rounded-0" disabled={creating}>
+                    {#if creating}
+                        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    {/if}
+                    Create Subject
+                </button>
+            </form>
         </div>
-    </div>
+    </CardContainer>
 {/if}
 
 {#if loading && exams.length === 0}
-    <div class="p-5 text-center">
-        <div class="d-flex flex-column align-items-center gap-3">
-            <div class="village-spinner mx-auto" role="status"></div>
-            <p class="text-muted mb-0">Loading your studies...</p>
-        </div>
-    </div>
+    <LoadingState message="Loading your studies..." />
 {/if}
-
-<style lang="scss">
-    .max-width-500 {
-        max-width: 500px;
-    }
-    .linkTiles {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0;
-        background: transparent;
-        overflow: hidden;
-        
-        :global(.tile-wrapper) {
-            width: 250px;
-        }
-    }
-</style>

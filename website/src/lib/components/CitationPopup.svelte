@@ -100,7 +100,7 @@
         min-width: 280px;
         margin: 0;
         pointer-events: auto;
-        border: none !important;
+        border: 1px solid #dee2e6 !important;
         box-shadow: 0 10px 25px rgba(0,0,0,0.1), 0 4px 10px rgba(0,0,0,0.05);
     }
 

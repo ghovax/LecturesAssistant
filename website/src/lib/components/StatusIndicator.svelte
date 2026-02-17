@@ -27,7 +27,7 @@
         {#if label}{label} {/if}
         <span class="current">{current}</span>
         {#if total}
-            <span class="separator">of</span>
+            <span class="separator">–</span>
             <span class="total">{total}</span>
         {/if}
     </span>

@@ -245,7 +245,7 @@
                                                 <Music size={16} class="text-orange flex-shrink-0" />
                                                 <span class="text-truncate small fw-bold" title={file.name}>{file.name}</span>
                                             </div>
-                                            <button class="btn btn-link btn-sm text-danger p-0 border-0 shadow-none ms-2" onclick={() => removeMedia(i)} disabled={uploading}>
+                                            <button class="btn btn-link btn-sm text-danger p-0 border-0 shadow-none ms-2" onclick={() => removeMedia(i)} disabled={uploading} aria-label="Remove {file.name}">
                                                 <X size={14} />
                                             </button>
                                         </div>
@@ -264,7 +264,7 @@
                                                 <FileText size={16} class="text-primary flex-shrink-0" />
                                                 <span class="text-truncate small fw-bold" title={file.name}>{file.name}</span>
                                             </div>
-                                            <button class="btn btn-link btn-sm text-danger p-0 border-0 shadow-none ms-2" onclick={() => removeDocument(i)} disabled={uploading}>
+                                            <button class="btn btn-link btn-sm text-danger p-0 border-0 shadow-none ms-2" onclick={() => removeDocument(i)} disabled={uploading} aria-label="Remove {file.name}">
                                                 <X size={14} />
                                             </button>
                                         </div>

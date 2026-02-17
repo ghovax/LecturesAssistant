@@ -25,7 +25,6 @@ import (
 	"lectures/internal/transcription"
 
 	gonanoid "github.com/matoous/go-nanoid/v2"
-	"github.com/skip2/go-qrcode"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
@@ -793,7 +792,6 @@ func RegisterHandlers(
 			LanguageCode  string          `json:"language_code"`
 			Format        string          `json:"format"` // "pdf", "docx", "md"
 			IncludeImages json.RawMessage `json:"include_images"`
-			IncludeQRCode json.RawMessage `json:"include_qr_code"`
 		}
 		if unmarshalingError := json.Unmarshal([]byte(job.Payload), &payload); unmarshalingError != nil {
 			return fmt.Errorf("failed to unmarshal job payload: %w", unmarshalingError)
@@ -814,60 +812,6 @@ func RegisterHandlers(
 			if rawStr == "false" || rawStr == `"false"` {
 				includeImages = false
 			}
-		}
-
-		// Parse include_qr_code boolean
-		includeQRCode := false
-		if len(payload.IncludeQRCode) > 0 {
-			rawStr := string(payload.IncludeQRCode)
-			if rawStr == "true" || rawStr == `"true"` {
-				includeQRCode = true
-			}
-		}
-
-		// Helper to handle QR code pass
-		handleQRCodePass := func(outputPath string, currentOptions *markdown.ConversionOptions, originalContent string, generateFunc func(string, markdown.ConversionOptions) error) (string, error) {
-			if !includeQRCode {
-				return "", nil
-			}
-
-			slog.Info("QR Code generation requested", "jobID", job.ID)
-			updateProgress(70, "Uploading document for QR code generation...", nil, models.JobMetrics{})
-
-			downloadURL, uploadError := uploadToTmpFiles(outputPath)
-			if uploadError != nil {
-				slog.Error("Failed to upload for QR code", "error", uploadError)
-				return "", nil // Continue without QR code
-			}
-
-			slog.Info("Document uploaded for QR code", "url", downloadURL)
-			nanoid, _ := gonanoid.New()
-			qrCodePath := filepath.Join(os.TempDir(), fmt.Sprintf("qrcode-%s.png", nanoid))
-
-			if qrErr := qrcode.WriteFile(downloadURL, qrcode.Medium, 256, qrCodePath); qrErr != nil {
-				slog.Error("Failed to generate QR code image", "error", qrErr)
-				return downloadURL, nil
-			}
-			defer os.Remove(qrCodePath)
-
-			updateProgress(85, "Re-generating document with QR code...", nil, models.JobMetrics{})
-			currentOptions.QRCodePath = qrCodePath
-			slog.Info("Re-generating document with QR code included", "format", payload.Format)
-
-			if err := generateFunc(originalContent, *currentOptions); err != nil {
-				slog.Error("Failed to re-generate with QR code", "error", err)
-				return downloadURL, nil
-			}
-
-			// Final upload so the shared file actually contains the QR code
-			finalURL, finalUploadErr := uploadToTmpFiles(outputPath)
-			if finalUploadErr != nil {
-				slog.Error("Failed final upload for QR code", "error", finalUploadErr)
-				return downloadURL, nil
-			}
-
-			slog.Info("Final document uploaded with QR code", "url", finalURL)
-			return finalURL, nil
 		}
 
 		// 1. Handle Transcript Export
@@ -977,13 +921,7 @@ func RegisterHandlers(
 				return err
 			}
 
-			downloadURL, _ := handleQRCodePass(outputPath, &options, originalContent, generateFunc)
-
-			if downloadURL != "" {
-				job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s", "download_url": "%s"}`, outputPath, payload.Format, downloadURL)
-			} else {
-				job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
-			}
+			job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
 			return nil
 		}
 
@@ -1015,6 +953,7 @@ func RegisterHandlers(
 
 			markdownReconstructor := markdown.NewReconstructor()
 			markdownReconstructor.Language = payload.LanguageCode
+			markdownReconstructor.IncludeImages = includeImages
 			rootNode := &markdown.Node{Type: markdown.NodeDocument}
 			rootNode.Children = append(rootNode.Children, &markdown.Node{Type: markdown.NodeHeading, Level: 1, Content: "`" + doc.Title + "`"})
 
@@ -1087,13 +1026,7 @@ func RegisterHandlers(
 				return err
 			}
 
-			downloadURL, _ := handleQRCodePass(outputPath, &options, originalContent, generateFunc)
-
-			if downloadURL != "" {
-				job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s", "download_url": "%s"}`, outputPath, payload.Format, downloadURL)
-			} else {
-				job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
-			}
+			job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
 			return nil
 		}
 
@@ -1137,6 +1070,7 @@ func RegisterHandlers(
 			if tool.Type == "guide" {
 				markdownReconstructor := markdown.NewReconstructor()
 				markdownReconstructor.Language = payload.LanguageCode
+				markdownReconstructor.IncludeImages = includeImages
 
 				// 1. Convert triple braces to references
 				processedContent, textCitations := markdownReconstructor.ParseCitations(contentToConvert)
@@ -1432,8 +1366,6 @@ func RegisterHandlers(
 				return fmt.Errorf("initial generation failed: %w", err)
 			}
 
-			downloadURL, _ := handleQRCodePass(outputPath, &options, originalContent, generateFunc)
-
 			// Update costs
 			if payload.ToolID != "" {
 				database.Exec("UPDATE tools SET estimated_cost = estimated_cost + ?, updated_at = ? WHERE id = ?", totalMetrics.EstimatedCost, time.Now(), payload.ToolID)
@@ -1453,11 +1385,7 @@ func RegisterHandlers(
 				"input_tokens", totalMetrics.InputTokens,
 				"output_tokens", totalMetrics.OutputTokens,
 				"estimated_cost_usd", totalMetrics.EstimatedCost)
-			if downloadURL != "" {
-				job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s", "download_url": "%s"}`, outputPath, payload.Format, downloadURL)
-			} else {
-				job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
-			}
+			job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
 			return nil
 		}
 

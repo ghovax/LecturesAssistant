@@ -239,6 +239,7 @@
                                             class="btn btn-link text-danger p-0 border-0 shadow-none"
                                             onclick={(e) => { e.preventDefault(); e.stopPropagation(); deleteChat(session.id); }}
                                             title="Delete Conversation"
+                                            aria-label="Delete Conversation"
                                         >
                                             <Trash2 size={16} />
                                         </button>
@@ -283,6 +284,7 @@
                                             class="btn btn-link text-danger p-0 border-0 shadow-none"
                                             onclick={(e) => { e.preventDefault(); e.stopPropagation(); deleteLecture(lecture.id); }}
                                             title="Delete Lesson"
+                                            aria-label="Delete Lesson"
                                         >
                                             <Trash2 size={16} />
                                         </button>

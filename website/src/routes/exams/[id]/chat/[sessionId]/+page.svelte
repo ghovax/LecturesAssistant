@@ -200,9 +200,10 @@
                             {#each allLectures as lecture}
                                 {@const isUsed = usedLectureIds.includes(lecture.id)}
                                 {@const isIncluded = includedLectureIds.includes(lecture.id)}
-                                <Tile 
-                                    icon="" 
+                                <Tile
+                                    icon=""
                                     title={lecture.title}
+                                    monospaceTitle={true}
                                     onclick={() => !isUsed && toggleLecture(lecture.id)}
                                     disabled={isUsed}
                                     class="w-100 mb-0 border {isUsed ? 'tile-locked' : ''}"

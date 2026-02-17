@@ -12,6 +12,7 @@ export { default as ConfirmModal } from './components/ConfirmModal.svelte';
 export { default as Pagination } from './components/Pagination.svelte';
 export { default as StatusIndicator } from './components/StatusIndicator.svelte';
 export { default as NotificationBanner } from './components/NotificationBanner.svelte';
+export { default as ExportMenu } from './components/ExportMenu.svelte';
 
 // Layout Components
 export { default as PageLayout } from './components/layout/PageLayout.svelte';

@@ -13,6 +13,7 @@
     import ConfirmModal from '$lib/components/ConfirmModal.svelte';
     import StatusIndicator from '$lib/components/StatusIndicator.svelte';
     import { FileText, Clock, ChevronLeft, ChevronRight, Volume2, Plus, X, Edit3, Loader2, Trash2, RotateCcw, Download } from 'lucide-svelte';
+    import ExportMenu from '$lib/components/ExportMenu.svelte';
 
     let { id: examId, lectureId } = $derived(page.params);
     let exam = $state<any>(null);
@@ -413,16 +414,16 @@
         }
     }
 
-    async function handleExportTranscript(format: string, includeQRCode: boolean = true) {
+    async function handleExportTranscript(format: string, includeImages: boolean = true) {
         // Check for existing completed job
-        const existingJob = jobs.find(j => 
-            j.type === 'PUBLISH_MATERIAL' && 
-            j.status === 'COMPLETED' && 
-            j.payload?.lecture_id === lectureId && 
-            !j.payload?.document_id && 
+        const existingJob = jobs.find(j =>
+            j.type === 'PUBLISH_MATERIAL' &&
+            j.status === 'COMPLETED' &&
+            j.payload?.lecture_id === lectureId &&
+            !j.payload?.document_id &&
             !j.payload?.tool_id &&
             j.payload?.format === format &&
-            (format !== 'pdf' || j.payload?.include_qr_code === includeQRCode)
+            (format !== 'pdf' || j.payload?.include_images === includeImages)
         );
 
         if (existingJob) {
@@ -435,19 +436,18 @@
         }
 
         try {
-            const exportKey = format === 'pdf' ? `${lectureId}:pdf:${includeQRCode}` : `${lectureId}:${format}`;
+            const exportKey = format === 'pdf' ? `${lectureId}:pdf:${includeImages}` : `${lectureId}:${format}`;
             exporting[exportKey] = true;
-            await api.exportTranscript({ 
-                lecture_id: lectureId, 
-                exam_id: examId, 
+            await api.exportTranscript({
+                lecture_id: lectureId,
+                exam_id: examId,
                 format,
-                include_images: true,
-                include_qr_code: includeQRCode
+                include_images: includeImages
             });
             notifications.success(`We are preparing your transcript export.`);
             await loadJobs();
         } catch (e: any) {
-            const exportKey = format === 'pdf' ? `${lectureId}:pdf:${includeQRCode}` : `${lectureId}:${format}`;
+            const exportKey = format === 'pdf' ? `${lectureId}:pdf:${includeImages}` : `${lectureId}:${format}`;
             exporting[exportKey] = false;
             notifications.error(e.message || e);
         }
@@ -681,49 +681,16 @@
                                         </button>
                                     {:else if transcript && transcript.segments}
                                         {@const isCompleted = transcriptJob?.status === 'COMPLETED'}
-                                        {@const isExportingPDFWithQR = exporting[`${lectureId}:pdf:true`]}
-                                        {@const isExportingPDFNoQR = exporting[`${lectureId}:pdf:false`]}
+                                        {@const isExportingPDFWithImages = exporting[`${lectureId}:pdf:true`]}
+                                        {@const isExportingPDFNoImages = exporting[`${lectureId}:pdf:false`]}
                                         {@const isExportingDocx = exporting[`${lectureId}:docx`]}
-                                        <div class="dropdown" onclick={(e) => e.stopPropagation()}>
-                                            <button 
-                                                class="btn btn-link {isCompleted ? 'text-orange' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
-                                                data-bs-toggle="dropdown" 
-                                                title="Export Options"
-                                                disabled={isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx}
-                                            >
-                                                {#if isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx}
-                                                    <Loader2 size={16} class="spinner-animation" />
-                                                {:else}
-                                                    <Download size={16} />
-                                                {/if}
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                <li>
-                                                    <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTranscript('pdf', true)} disabled={isExportingPDFWithQR}>
-                                                        Export PDF (with QR)
-                                                        {#if isExportingPDFWithQR}
-                                                            <Loader2 size={14} class="spinner-animation ms-2" />
-                                                        {/if}
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTranscript('pdf', false)} disabled={isExportingPDFNoQR}>
-                                                        Export PDF (no QR)
-                                                        {#if isExportingPDFNoQR}
-                                                            <Loader2 size={14} class="spinner-animation ms-2" />
-                                                        {/if}
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTranscript('docx')} disabled={isExportingDocx}>
-                                                        Export Word
-                                                        {#if isExportingDocx}
-                                                            <Loader2 size={14} class="spinner-animation ms-2" />
-                                                        {/if}
-                                                    </button>
-                                                </li>
-                                            </ul>
-                                        </div>
+                                        <ExportMenu
+                                            {isCompleted}
+                                            {isExportingPDFWithImages}
+                                            {isExportingPDFNoImages}
+                                            {isExportingDocx}
+                                            onExport={handleExportTranscript}
+                                        />
                                     {/if}
                                 {/snippet}
 
@@ -775,49 +742,16 @@
                             {:else if guideTool}
                                 <Tile href="javascript:void(0)" icon="" title="Study Guide" onclick={() => activeView = 'guide'} cost={guideTool.estimated_cost}>
                                     {#snippet actions()}
-                                        {@const isExportingPDFWithQR = exporting[`${guideTool.id}:pdf:true`]}
-                                        {@const isExportingPDFNoQR = exporting[`${guideTool.id}:pdf:false`]}
+                                        {@const isExportingPDFWithImages = exporting[`${guideTool.id}:pdf:true`]}
+                                        {@const isExportingPDFNoImages = exporting[`${guideTool.id}:pdf:false`]}
                                         {@const isExportingDocx = exporting[`${guideTool.id}:docx`]}
-                                        <div class="dropdown" onclick={(e) => e.stopPropagation()}>
-                                            <button 
-                                                class="btn btn-link text-orange p-0 border-0 shadow-none dropdown-toggle no-caret" 
-                                                data-bs-toggle="dropdown" 
-                                                title="Export Options"
-                                                disabled={isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx}
-                                            >
-                                                {#if isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx}
-                                                    <Loader2 size={16} class="spinner-animation" />
-                                                {:else}
-                                                    <Download size={16} />
-                                                {/if}
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                <li>
-                                                    <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTool(guideTool.id, 'pdf', true)} disabled={isExportingPDFWithQR}>
-                                                        Export PDF (with QR)
-                                                        {#if isExportingPDFWithQR}
-                                                            <Loader2 size={14} class="spinner-animation ms-2" />
-                                                        {/if}
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTool(guideTool.id, 'pdf', false)} disabled={isExportingPDFNoQR}>
-                                                        Export PDF (no QR)
-                                                        {#if isExportingPDFNoQR}
-                                                            <Loader2 size={14} class="spinner-animation ms-2" />
-                                                        {/if}
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTool(guideTool.id, 'docx')} disabled={isExportingDocx}>
-                                                        Export Word
-                                                        {#if isExportingDocx}
-                                                            <Loader2 size={14} class="spinner-animation ms-2" />
-                                                        {/if}
-                                                    </button>
-                                                </li>
-                                            </ul>
-                                        </div>
+                                        <ExportMenu
+                                            isCompleted={true}
+                                            {isExportingPDFWithImages}
+                                            {isExportingPDFNoImages}
+                                            {isExportingDocx}
+                                            onExport={(format, includeImages) => handleExportTool(guideTool.id, format, includeImages)}
+                                        />
                                     {/snippet}
                                     {#snippet description()}
                                         Read the comprehensive study guide.
@@ -911,63 +845,31 @@
                             <div class="header-title">
                                 <span class="header-text">Reference Materials</span>
                             </div>
-                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                            <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'} aria-label="Close Reference Materials"><X size={20} /></button>
                         </div>
                         <div class="linkTiles">
                             {#each documents as doc}
-                                <Tile 
-                                    href="javascript:void(0)" 
-                                    icon="" 
-                                    title={doc.title} 
-                                    onclick={() => openDocument(doc.id)} 
+                                <Tile
+                                    href="javascript:void(0)"
+                                    icon=""
+                                    title={doc.title}
+                                    monospaceTitle={true}
+                                    onclick={() => openDocument(doc.id)}
                                     cost={doc.estimated_cost}
                                     disabled={doc.extraction_status !== 'completed'}
                                     class={doc.extraction_status !== 'completed' ? 'tile-processing' : ''}
                                 >
                                     {#snippet actions()}
-                                        {@const isExportingPDFWithQR = exporting[`${doc.id}:pdf:true`]}
-                                        {@const isExportingPDFNoQR = exporting[`${doc.id}:pdf:false`]}
+                                        {@const isExportingPDFWithImages = exporting[`${doc.id}:pdf:true`]}
+                                        {@const isExportingPDFNoImages = exporting[`${doc.id}:pdf:false`]}
                                         {@const isExportingDocx = exporting[`${doc.id}:docx`]}
-                                        <div class="dropdown" onclick={(e) => e.stopPropagation()}>
-                                            <button 
-                                                class="btn btn-link {doc.extraction_status === 'completed' ? 'text-orange' : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret" 
-                                                data-bs-toggle="dropdown" 
-                                                title="Export Options"
-                                                disabled={isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx}
-                                            >
-                                                {#if isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx}
-                                                    <Loader2 size={16} class="spinner-animation" />
-                                                {:else}
-                                                    <Download size={16} />
-                                                {/if}
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                <li>
-                                                    <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportDocument(doc.id, 'pdf', true)} disabled={isExportingPDFWithQR}>
-                                                        Export PDF (with QR)
-                                                        {#if isExportingPDFWithQR}
-                                                            <Loader2 size={14} class="spinner-animation ms-2" />
-                                                        {/if}
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportDocument(doc.id, 'pdf', false)} disabled={isExportingPDFNoQR}>
-                                                        Export PDF (no QR)
-                                                        {#if isExportingPDFNoQR}
-                                                            <Loader2 size={14} class="spinner-animation ms-2" />
-                                                        {/if}
-                                                    </button>
-                                                </li>
-                                                <li>
-                                                    <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportDocument(doc.id, 'docx')} disabled={isExportingDocx}>
-                                                        Export Word
-                                                        {#if isExportingDocx}
-                                                            <Loader2 size={14} class="spinner-animation ms-2" />
-                                                        {/if}
-                                                    </button>
-                                                </li>
-                                            </ul>
-                                        </div>
+                                        <ExportMenu
+                                            isCompleted={doc.extraction_status === 'completed'}
+                                            {isExportingPDFWithImages}
+                                            {isExportingPDFNoImages}
+                                            {isExportingDocx}
+                                            onExport={(format, includeImages) => handleExportDocument(doc.id, format, includeImages)}
+                                        />
                                     {/snippet}
                                     {#snippet description()}
                                         Analyzed on {new Date(doc.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}
@@ -993,54 +895,21 @@
                             </div>
                             <div class="d-flex align-items-center gap-2">
                                 {#if guideTool}
-                                    {@const isExportingPDFWithQR = exporting[`${guideTool.id}:pdf:true`]}
-                                    {@const isExportingPDFNoQR = exporting[`${guideTool.id}:pdf:false`]}
+                                    {@const isExportingPDFWithImages = exporting[`${guideTool.id}:pdf:true`]}
+                                    {@const isExportingPDFNoImages = exporting[`${guideTool.id}:pdf:false`]}
                                     {@const isExportingDocx = exporting[`${guideTool.id}:docx`]}
-                                    <div class="dropdown">
-                                        <button 
-                                            class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0 dropdown-toggle no-caret" 
-                                            data-bs-toggle="dropdown" 
-                                            title="Export"
-                                            disabled={isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx}
-                                        >
-                                            {#if isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx}
-                                                <Loader2 size={18} class="spinner-animation" />
-                                            {:else}
-                                                <Download size={18} />
-                                            {/if}
-                                        </button>
-                                        <ul class="dropdown-menu dropdown-menu-end">
-                                            <li>
-                                                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTool(guideTool.id, 'pdf', true)} disabled={isExportingPDFWithQR}>
-                                                    Export PDF (with QR)
-                                                    {#if isExportingPDFWithQR}
-                                                        <Loader2 size={14} class="spinner-animation ms-2" />
-                                                    {/if}
-                                                </button>
-                                            </li>
-                                            <li>
-                                                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTool(guideTool.id, 'pdf', false)} disabled={isExportingPDFNoQR}>
-                                                    Export PDF (no QR)
-                                                    {#if isExportingPDFNoQR}
-                                                        <Loader2 size={14} class="spinner-animation ms-2" />
-                                                    {/if}
-                                                </button>
-                                            </li>
-                                            <li>
-                                                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTool(guideTool.id, 'docx')} disabled={isExportingDocx}>
-                                                    Export Word
-                                                    {#if isExportingDocx}
-                                                        <Loader2 size={14} class="spinner-animation ms-2" />
-                                                    {/if}
-                                                </button>
-                                            </li>
-                                        </ul>
-                                    </div>
+                                    <ExportMenu
+                                        isCompleted={true}
+                                        {isExportingPDFWithImages}
+                                        {isExportingPDFNoImages}
+                                        {isExportingDocx}
+                                        onExport={(format, includeImages) => handleExportTool(guideTool.id, format, includeImages)}
+                                    />
                                 {/if}
-                                <button class="btn btn-link btn-sm text-danger p-0 d-flex align-items-center shadow-none border-0" title="Delete Guide" onclick={() => deleteTool(guideTool?.id || '')}>
+                                <button class="btn btn-link btn-sm text-danger p-0 d-flex align-items-center shadow-none border-0" title="Delete Guide" aria-label="Delete Guide" onclick={() => deleteTool(guideTool?.id || '')}>
                                     <Trash2 size={18} />
                                 </button>
-                                <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                                <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'} aria-label="Close Study Guide"><X size={20} /></button>
                             </div>
                         </div>
                         <div class="p-4 prose">
@@ -1056,54 +925,21 @@
                             </div>
                             <div class="d-flex align-items-center gap-2">
                                 {#if true}
-                                    {@const isExportingPDFWithQR = exporting[`${lectureId}:pdf:true`]}
-                                    {@const isExportingPDFNoQR = exporting[`${lectureId}:pdf:false`]}
+                                    {@const isExportingPDFWithImages = exporting[`${lectureId}:pdf:true`]}
+                                    {@const isExportingPDFNoImages = exporting[`${lectureId}:pdf:false`]}
                                     {@const isExportingDocx = exporting[`${lectureId}:docx`]}
-                                    <div class="dropdown">
-                                        <button 
-                                            class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0 dropdown-toggle no-caret" 
-                                            data-bs-toggle="dropdown" 
-                                            title="Export"
-                                            disabled={isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx}
-                                        >
-                                            {#if isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx}
-                                                <Loader2 size={18} class="spinner-animation" />
-                                            {:else}
-                                                <Download size={18} />
-                                            {/if}
-                                        </button>
-                                        <ul class="dropdown-menu dropdown-menu-end">
-                                            <li>
-                                                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTranscript('pdf', true)} disabled={isExportingPDFWithQR}>
-                                                    Export PDF (with QR)
-                                                    {#if isExportingPDFWithQR}
-                                                        <Loader2 size={14} class="spinner-animation ms-2" />
-                                                    {/if}
-                                                </button>
-                                            </li>
-                                            <li>
-                                                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTranscript('pdf', false)} disabled={isExportingPDFNoQR}>
-                                                    Export PDF (no QR)
-                                                    {#if isExportingPDFNoQR}
-                                                        <Loader2 size={14} class="spinner-animation ms-2" />
-                                                    {/if}
-                                                </button>
-                                            </li>
-                                            <li>
-                                                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportTranscript('docx')} disabled={isExportingDocx}>
-                                                    Export Word
-                                                    {#if isExportingDocx}
-                                                        <Loader2 size={14} class="spinner-animation ms-2" />
-                                                    {/if}
-                                                </button>
-                                            </li>
-                                        </ul>
-                                    </div>
+                                    <ExportMenu
+                                        isCompleted={true}
+                                        {isExportingPDFWithImages}
+                                        {isExportingPDFNoImages}
+                                        {isExportingDocx}
+                                        onExport={handleExportTranscript}
+                                    />
                                 {/if}
-                                <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                                <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'} aria-label="Close Dialogue"><X size={20} /></button>
                             </div>
                         </div>
-                        
+
                         {#if transcript && transcript.segments}
                             {@const seg = transcript.segments[currentSegmentIndex]}
                             <div class="p-4">
@@ -1112,7 +948,7 @@
                                         <StatusIndicator type="count" label="Segment" current={currentSegmentIndex + 1} total={transcript?.segments?.length || 0} />
                                         <StatusIndicator type="time" current={formatTime(seg.start_millisecond)} total={formatTime(seg.end_millisecond)} />
                                         {#if seg.media_filename}
-                                            <span class="text-muted small border-start ps-3 d-none d-lg-inline" style="font-size: 0.8rem;">{seg.media_filename}</span>
+                                            <span class="text-muted small border-start ps-3 d-none d-lg-inline font-monospace" style="font-size: 0.8rem;">{seg.media_filename}</span>
                                         {/if}
                                     </div>
                                     <div class="btn-group">
@@ -1159,58 +995,25 @@
                     <div class="well bg-white p-0 overflow-hidden mb-3 border">
                         <div class="standard-header">
                             <div class="header-title">
-                                <span class="header-text">{doc?.title || 'Study Resource'}</span>
+                                <span class="header-text font-monospace">{doc?.title || 'Study Resource'}</span>
                             </div>
                             <div class="d-flex align-items-center gap-2">
                                 {#if true}
-                                    {@const isExportingPDFWithQR = exporting[`${selectedDocId}:pdf:true`]}
-                                    {@const isExportingPDFNoQR = exporting[`${selectedDocId}:pdf:false`]}
+                                    {@const isExportingPDFWithImages = exporting[`${selectedDocId}:pdf:true`]}
+                                    {@const isExportingPDFNoImages = exporting[`${selectedDocId}:pdf:false`]}
                                     {@const isExportingDocx = exporting[`${selectedDocId}:docx`]}
-                                    <div class="dropdown">
-                                        <button 
-                                            class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0 dropdown-toggle no-caret" 
-                                            data-bs-toggle="dropdown" 
-                                            title="Export"
-                                            disabled={isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx}
-                                        >
-                                            {#if isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx}
-                                                <Loader2 size={18} class="spinner-animation" />
-                                            {:else}
-                                                <Download size={18} />
-                                            {/if}
-                                        </button>
-                                        <ul class="dropdown-menu dropdown-menu-end">
-                                            <li>
-                                                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportDocument(selectedDocId || '', 'pdf', true)} disabled={isExportingPDFWithQR}>
-                                                    Export PDF (with QR)
-                                                    {#if isExportingPDFWithQR}
-                                                        <Loader2 size={14} class="spinner-animation ms-2" />
-                                                    {/if}
-                                                </button>
-                                            </li>
-                                            <li>
-                                                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportDocument(selectedDocId || '', 'pdf', false)} disabled={isExportingPDFNoQR}>
-                                                    Export PDF (no QR)
-                                                    {#if isExportingPDFNoQR}
-                                                        <Loader2 size={14} class="spinner-animation ms-2" />
-                                                    {/if}
-                                                </button>
-                                            </li>
-                                            <li>
-                                                <button class="dropdown-item d-flex justify-content-between align-items-center" onclick={() => handleExportDocument(selectedDocId || '', 'docx')} disabled={isExportingDocx}>
-                                                    Export Word
-                                                    {#if isExportingDocx}
-                                                        <Loader2 size={14} class="spinner-animation ms-2" />
-                                                    {/if}
-                                                </button>
-                                            </li>
-                                        </ul>
-                                    </div>
+                                    <ExportMenu
+                                        isCompleted={true}
+                                        {isExportingPDFWithImages}
+                                        {isExportingPDFNoImages}
+                                        {isExportingDocx}
+                                        onExport={(format, includeImages) => handleExportDocument(selectedDocId || '', format, includeImages)}
+                                    />
                                 {/if}
-                                <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'}><X size={20} /></button>
+                                <button class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0" onclick={() => activeView = 'dashboard'} aria-label="Close Document"><X size={20} /></button>
                             </div>
                         </div>
-                        
+
                         {#if selectedDocPages && selectedDocPages.length > 0}
                             {@const p = selectedDocPages[selectedDocPageIndex]}
                             <div class="p-4">
@@ -1317,8 +1120,9 @@
         <span class="form-label cozy-label">Level of Detail</span>
         <div class="d-flex gap-2 mt-3">
             {#each ['short', 'medium', 'long', 'comprehensive'] as len}
-                <button 
-                    class="btn flex-grow-1 rounded-0 border transition-all {toolOptions.length === len ? 'btn-primary' : 'btn-white bg-white text-dark'}"
+                <button
+                    class="btn detail-level-btn flex-grow-1 rounded-0 border transition-all {toolOptions.length === len ? 'btn-primary' : 'btn-white bg-white text-dark'}"
+                    data-length={len}
                     onclick={() => toolOptions.length = len}
                 >
                     {capitalize(len)}
@@ -1350,8 +1154,8 @@
         flex-wrap: wrap;
         gap: 0;
         background: transparent;
-        overflow: hidden;
-        
+        overflow: visible;
+
         &.flex-column {
             flex-direction: column;
             overflow: visible;
@@ -1394,7 +1198,6 @@
 
     .prose :global(.footnote-ref:hover) {
         color: var(--orange);
-        text-decoration: underline;
     }
 
     /* Table of Contents Styling */
@@ -1445,5 +1248,61 @@
     audio::-webkit-media-controls-enclosure {
         border-radius: 0;
         background-color: #fff;
+    }
+
+    .detail-level-btn[data-length="short"] {
+        background-color: rgba(220, 38, 38, 0.2) !important;
+        border-color: rgba(220, 38, 38, 0.5) !important;
+        color: rgba(185, 28, 28, 1) !important;
+    }
+    .detail-level-btn[data-length="short"]:hover {
+        background-color: rgba(220, 38, 38, 0.4) !important;
+    }
+    .detail-level-btn[data-length="short"].btn-primary {
+        background-color: rgba(220, 38, 38, 1) !important;
+        border-color: rgba(185, 28, 28, 1) !important;
+        color: #fff !important;
+    }
+
+    .detail-level-btn[data-length="medium"] {
+        background-color: rgba(245, 158, 11, 0.2) !important;
+        border-color: rgba(245, 158, 11, 0.5) !important;
+        color: rgba(180, 83, 9, 1) !important;
+    }
+    .detail-level-btn[data-length="medium"]:hover {
+        background-color: rgba(245, 158, 11, 0.4) !important;
+    }
+    .detail-level-btn[data-length="medium"].btn-primary {
+        background-color: rgba(245, 158, 11, 1) !important;
+        border-color: rgba(217, 119, 6, 1) !important;
+        color: #fff !important;
+    }
+
+    .detail-level-btn[data-length="long"] {
+        background-color: rgba(132, 204, 22, 0.2) !important;
+        border-color: rgba(132, 204, 22, 0.5) !important;
+        color: rgba(63, 98, 18, 1) !important;
+    }
+    .detail-level-btn[data-length="long"]:hover {
+        background-color: rgba(132, 204, 22, 0.4) !important;
+    }
+    .detail-level-btn[data-length="long"].btn-primary {
+        background-color: rgba(132, 204, 22, 1) !important;
+        border-color: rgba(101, 163, 13, 1) !important;
+        color: #fff !important;
+    }
+
+    .detail-level-btn[data-length="comprehensive"] {
+        background-color: rgba(34, 197, 94, 0.2) !important;
+        border-color: rgba(34, 197, 94, 0.5) !important;
+        color: rgba(22, 101, 52, 1) !important;
+    }
+    .detail-level-btn[data-length="comprehensive"]:hover {
+        background-color: rgba(34, 197, 94, 0.4) !important;
+    }
+    .detail-level-btn[data-length="comprehensive"].btn-primary {
+        background-color: rgba(34, 197, 94, 1) !important;
+        border-color: rgba(22, 163, 74, 1) !important;
+        color: #fff !important;
     }
 </style>

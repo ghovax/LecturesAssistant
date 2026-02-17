@@ -189,9 +189,8 @@ textarea.form-control {
 }
 
 .form-select {
-  padding-top: 0;
-  padding-bottom: 0;
-  line-height: 2.5rem;
+  padding: 0.375rem 2.5rem 0.375rem 0.75rem;
+  line-height: 1.5;
 }
 
 /* Dropdown arrow for select elements only - not for dropdown menus */
@@ -201,7 +200,7 @@ select.form-select {
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
   background-size: 16px 12px;
-  padding-right: 2.5rem;
+  padding: 0.375rem 2.5rem 0.375rem 0.75rem;
 }
 
 select.form-select:focus {
@@ -210,7 +209,7 @@ select.form-select:focus {
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
   background-size: 16px 12px;
-  padding-right: 2.5rem;
+  padding: 0.375rem 2.5rem 0.375rem 0.75rem;
 }
 
 // Hide number input spinners
@@ -435,7 +434,8 @@ select.form-select:focus {
 }
 
 // Tile Grid Layout
-.tile-grid {
+.tile-grid,
+.linkTiles {
   display: flex;
   flex-wrap: wrap;
   gap: 0;
@@ -447,10 +447,13 @@ select.form-select:focus {
     flex-wrap: nowrap;
     gap: 0;
 
+    .action-tile,
     .tile-wrapper {
       margin: 0;
       width: 250px;
 
+      .action-tile-link,
+      .action-tile-button,
       a,
       button.tile-button {
         width: 100%;
@@ -458,8 +461,16 @@ select.form-select:focus {
     }
   }
 
+  .action-tile,
   .tile-wrapper {
-    width: 250px;
+    width: 320px;
+  }
+}
+
+.action-tile {
+  .action-tile-link,
+  .action-tile-button {
+    height: 160px;
   }
 }
 
@@ -597,6 +608,10 @@ select.form-select:focus {
   border-top-color: var(--orange);
   border-radius: 50%;
   animation: spinner-rotation 0.8s infinite cubic-bezier(0.6, 0.2, 0.4, 0.8);
+}
+
+.spinner-animation {
+  animation: spinner-rotation 1s linear infinite;
 }
 
 .spinner-border {

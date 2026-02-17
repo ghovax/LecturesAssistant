@@ -145,6 +145,7 @@
                             class="btn btn-link text-danger p-0 border-0 shadow-none"
                             onclick={(e) => { e.preventDefault(); e.stopPropagation(); deleteExam(exam.id); }}
                             title="Delete Subject"
+                            aria-label="Delete Subject"
                         >
                             <Trash2 size={16} />
                         </button>

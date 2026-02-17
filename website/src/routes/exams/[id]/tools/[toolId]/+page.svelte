@@ -298,7 +298,6 @@
 
     .prose :global(.footnote-ref:hover) {
         color: var(--orange);
-        text-decoration: underline;
     }
 
     .linkTiles {

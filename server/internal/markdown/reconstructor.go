@@ -8,15 +8,17 @@ import (
 
 // Reconstructor handles converting an AST back into markdown text
 type Reconstructor struct {
-	indentUnit int
-	Language   string
+	indentUnit    int
+	Language      string
+	IncludeImages bool
 }
 
 // NewReconstructor creates a new markdown reconstructor
 func NewReconstructor() *Reconstructor {
 	return &Reconstructor{
-		indentUnit: 4,
-		Language:   "en",
+		indentUnit:    4,
+		Language:      "en",
+		IncludeImages: true,
 	}
 }
 
@@ -232,6 +234,10 @@ func (reconstructor *Reconstructor) reconstructNode(node *Node, markdownLines *[
 		*markdownLines = append(*markdownLines, "---")
 
 	case NodeImage:
+		if !reconstructor.IncludeImages {
+			break // Skip images when IncludeImages is false
+		}
+
 		reconstructor.ensureBlankLine(markdownLines)
 
 		// 1. Build the structured metadata part (Source File + Pages)

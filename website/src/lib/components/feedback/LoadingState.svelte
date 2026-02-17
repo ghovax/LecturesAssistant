@@ -61,8 +61,9 @@
   }
 
   .loading-message {
-    font-size: 0.85rem;
+    font-size: 1rem;
     color: var(--gray-500);
     margin: 0;
+    font-weight: 500;
   }
 </style>

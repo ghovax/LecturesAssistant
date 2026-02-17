@@ -439,25 +439,36 @@ select.form-select:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 0;
-  margin: 0;
+  margin: -1px;
   overflow: visible;
 
   &.flex-column {
     flex-direction: column;
     flex-wrap: nowrap;
     gap: 0;
+    margin: 0;
+    margin-left: -1px;
+    margin-right: -1px;
 
     > .action-tile,
     > .tile-wrapper,
     .action-tile,
     .tile-wrapper {
       margin: 0;
+      margin-left: -1px;
+      margin-right: -1px;
       width: 250px;
-      border-right: none !important;
-      border-bottom: 1px solid var(--gray-300) !important;
+      border: 1px solid var(--gray-300) !important;
+      margin-top: -1px;
+      margin-bottom: -1px;
+
+      &:first-child {
+        margin-top: 0;
+      }
 
       &:last-child {
-        border-bottom: none !important;
+        margin-bottom: 0;
+        border-bottom: 1px solid var(--gray-300) !important;
       }
 
       .action-tile-link,
@@ -474,11 +485,8 @@ select.form-select:focus {
   .action-tile,
   .tile-wrapper {
     width: 320px;
-    border-right: 1px solid var(--gray-300) !important;
-
-    &:last-child {
-      border-right: none !important;
-    }
+    border: 1px solid var(--gray-300) !important;
+    margin: -1px;
   }
 }
 

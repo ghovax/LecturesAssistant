@@ -242,34 +242,30 @@
                 <Tile
                   icon=""
                   title={lecture.title}
-                  monospaceTitle={true}
                   onclick={() => !isUsed && toggleLecture(lecture.id)}
                   disabled={isUsed}
                   class="w-100 mb-0 border {isUsed ? 'tile-locked' : ''}"
                 >
                   {#snippet description()}
-                    {#if isUsed}
-                      <div
-                        class="text-muted"
-                        style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;"
-                      >
-                        <Lock size={10} class="me-1" /> Already used
-                      </div>
-                    {:else}
-                      {lecture.description || "Lesson materials."}
-                    {/if}
+                    {lecture.description || "Lesson materials."}
                   {/snippet}
 
                   {#snippet actions()}
-                    <div
-                      class="village-toggle {isIncluded || isUsed
-                        ? 'is-active'
-                        : ''} {isUsed ? 'is-locked' : 'cursor-pointer'}"
-                      onclick={(e) => {
-                        e.stopPropagation();
-                        !isUsed && toggleLecture(lecture.id);
-                      }}
-                    ></div>
+                    <div class="lecture-toggle-wrapper">
+                      {#if isUsed}
+                        <Lock size={14} class="lock-icon" />
+                      {/if}
+                      <div
+                        class="village-toggle {isIncluded || isUsed
+                          ? 'is-active'
+                          : ''} {isUsed ? 'is-locked' : 'cursor-pointer'}"
+                        title={isUsed ? "Already used in this conversation" : "Toggle lesson"}
+                        onclick={(e) => {
+                          e.stopPropagation();
+                          !isUsed && toggleLecture(lecture.id);
+                        }}
+                      ></div>
+                    </div>
                   {/snippet}
                 </Tile>
               {:else}
@@ -476,6 +472,17 @@
   }
 
   /* Kakimashou Toggle Switch */
+  .lecture-toggle-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .lock-icon {
+    color: var(--gray-500);
+    flex-shrink: 0;
+  }
+
   .village-toggle {
     position: relative;
     width: 2.5rem;
@@ -508,12 +515,12 @@
   }
 
   .village-toggle.is-locked.is-active {
-    background: var(--gray-400);
-    border-color: var(--gray-400);
+    background: rgba(234, 126, 12, 0.5);
+    border-color: rgba(234, 126, 12, 0.5);
     cursor: not-allowed;
   }
 
   .village-toggle.is-locked::after {
-    background: #f8f9fa;
+    background: rgba(255, 255, 255, 0.7);
   }
 </style>

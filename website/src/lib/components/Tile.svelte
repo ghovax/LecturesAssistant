@@ -35,6 +35,7 @@
   }: Props = $props();
 
   // Note: icon prop is deprecated, use actions slot for icons
+  // monospaceTitle is deprecated - titles are no longer monospace by default
 </script>
 
 <!-- Tile is now a wrapper around ActionTile for backward compatibility -->

@@ -136,8 +136,8 @@
   </button>
 </PageHeader>
 
-<CardContainer title="Workspace" fitContent>
-  {#if !loading}
+{#if !loading}
+  <CardContainer title="Workspace" fitContent>
     {#if exams.length > 0}
       <VerticalTileList>
         {#each exams as exam}
@@ -183,8 +183,8 @@
         {/snippet}
       </EmptyState>
     {/if}
-  {/if}
-</CardContainer>
+  </CardContainer>
+{/if}
 
 {#if showCreate}
   <CardContainer title="Create a New Subject" class="mt-4">

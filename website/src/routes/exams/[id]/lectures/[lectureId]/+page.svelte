@@ -1130,7 +1130,7 @@
               <div class="header-title">
                 <span class="header-text">Study Guide</span>
               </div>
-              <div class="d-flex align-items-center gap-2">
+              <div class="header-actions">
                 {#if guideTool}
                   {@const isExportingPDFWithImages =
                     exporting[`${guideTool.id}:pdf:true`]}
@@ -1147,7 +1147,7 @@
                   />
                 {/if}
                 <button
-                  class="btn btn-link btn-sm text-danger p-0 d-flex align-items-center shadow-none border-0"
+                  class="btn btn-link btn-sm text-danger shadow-none border-0"
                   title="Delete Guide"
                   aria-label="Delete Guide"
                   onclick={() => deleteTool(guideTool?.id || "")}
@@ -1155,7 +1155,7 @@
                   <Trash2 size={18} />
                 </button>
                 <button
-                  class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0"
+                  class="btn btn-link btn-sm text-muted shadow-none border-0"
                   onclick={() => (activeView = "dashboard")}
                   aria-label="Close Study Guide"><X size={20} /></button
                 >
@@ -1172,7 +1172,7 @@
               <div class="header-title">
                 <span class="header-text">Dialogue</span>
               </div>
-              <div class="d-flex align-items-center gap-2">
+              <div class="header-actions">
                 {#if true}
                   {@const isExportingPDFWithImages =
                     exporting[`${lectureId}:pdf:true`]}
@@ -1188,7 +1188,7 @@
                   />
                 {/if}
                 <button
-                  class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0"
+                  class="btn btn-link btn-sm text-muted shadow-none border-0"
                   onclick={() => (activeView = "dashboard")}
                   aria-label="Close Dialogue"><X size={20} /></button
                 >
@@ -1286,7 +1286,7 @@
                   >{doc?.title || "Study Resource"}</span
                 >
               </div>
-              <div class="d-flex align-items-center gap-2">
+              <div class="header-actions">
                 {#if true}
                   {@const isExportingPDFWithImages =
                     exporting[`${selectedDocId}:pdf:true`]}
@@ -1307,7 +1307,7 @@
                   />
                 {/if}
                 <button
-                  class="btn btn-link btn-sm text-muted p-0 d-flex align-items-center shadow-none border-0"
+                  class="btn btn-link btn-sm text-muted shadow-none border-0"
                   onclick={() => (activeView = "dashboard")}
                   aria-label="Close Document"><X size={20} /></button
                 >

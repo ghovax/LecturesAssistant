@@ -26,6 +26,7 @@
     font-size: 0.7rem;
     color: var(--gray-400);
     font-family: var(--font-mono);
+    font-size-adjust: var(--font-mono-adjust);
     white-space: nowrap;
   }
 </style>

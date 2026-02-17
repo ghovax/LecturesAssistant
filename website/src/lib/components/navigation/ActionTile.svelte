@@ -178,6 +178,7 @@
     &.font-monospace {
       font-family: var(--font-mono);
       font-size: 0.85rem;
+      font-size-adjust: var(--font-mono-adjust);
     }
   }
 
@@ -216,6 +217,7 @@
     font-size: 0.7rem;
     color: var(--gray-400);
     font-family: var(--font-mono);
+    font-size-adjust: var(--font-mono-adjust);
     pointer-events: none;
   }
 </style>

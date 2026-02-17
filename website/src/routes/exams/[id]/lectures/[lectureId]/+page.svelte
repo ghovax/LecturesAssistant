@@ -1522,17 +1522,6 @@
     }
   }
 
-  .cozy-label {
-    font-family: var(--font-primary);
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--gray-500);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 8px;
-    display: block;
-  }
-
   .prose :global(h2) {
     font-size: 1.25rem;
     margin-top: 2rem;

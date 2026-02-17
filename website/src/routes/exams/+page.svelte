@@ -103,7 +103,6 @@
   onMount(loadExams);
 
   const languageOptions = [
-    { value: "", label: "Default (from settings)" },
     { value: "en-US", label: "English (US)" },
     { value: "it-IT", label: "Italian" },
     { value: "ja-JP", label: "Japanese" },

@@ -145,7 +145,6 @@
                 type="text"
                 id="model-{task.key}"
                 class="form-control cozy-input"
-                placeholder="Default"
                 bind:value={settings.llm.models[task.key].model}
               />
             </div>

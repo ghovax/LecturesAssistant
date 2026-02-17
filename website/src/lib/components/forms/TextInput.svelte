@@ -50,13 +50,13 @@
     border-radius: 0 !important;
     border: 1px solid var(--gray-300) !important;
     font-family: var(--font-primary) !important;
-    font-size: 0.85rem !important;
-    padding: 8px 12px !important;
+    font-size: 0.8rem !important;
+    padding: 6px 10px !important;
     background: #fff !important;
     transition: all 0.2s ease !important;
-    height: 2.25rem !important;
+    height: 2rem !important;
     color: var(--gray-800) !important;
-    line-height: 1.5 !important;
+    line-height: 1.4 !important;
 
     &:focus {
       border-color: var(--orange) !important;

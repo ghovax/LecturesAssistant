@@ -2,7 +2,10 @@ name: lectures-assistant
 
 services:
   lectures-assistant:
-    image: giovanni653/lectures-assistant:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lectures-assistant:local
     container_name: lectures-assistant
     ports:
       - "3000:3000"

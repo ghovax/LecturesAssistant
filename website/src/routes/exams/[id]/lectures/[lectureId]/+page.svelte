@@ -1088,6 +1088,12 @@
                     ? "tile-processing"
                     : ""}
                 >
+                  {#snippet description()}
+                    Analyzed on {new Date(doc.created_at).toLocaleDateString(
+                      undefined,
+                      { day: "numeric", month: "long" },
+                    )}
+                  {/snippet}
                   {#snippet actions()}
                     {@const isExportingPDFWithImages =
                       exporting[`${doc.id}:pdf:true`]}
@@ -1102,12 +1108,6 @@
                       onExport={(format, includeImages) =>
                         handleExportDocument(doc.id, format, includeImages)}
                     />
-                  {/snippet}
-                  {#snippet description()}
-                    Analyzed on {new Date(doc.created_at).toLocaleDateString(
-                      undefined,
-                      { day: "numeric", month: "long" },
-                    )}
                   {/snippet}
                 </Tile>
               {/each}
@@ -1129,31 +1129,33 @@
             <div class="standard-header">
               <div class="header-title">
                 <span class="header-text">Study Guide</span>
+                <div class="header-actions-inline">
+                  {#if guideTool}
+                    {@const isExportingPDFWithImages =
+                      exporting[`${guideTool.id}:pdf:true`]}
+                    {@const isExportingPDFNoImages =
+                      exporting[`${guideTool.id}:pdf:false`]}
+                    {@const isExportingDocx = exporting[`${guideTool.id}:docx`]}
+                    <ExportMenu
+                      isCompleted={true}
+                      {isExportingPDFWithImages}
+                      {isExportingPDFNoImages}
+                      {isExportingDocx}
+                      onExport={(format, includeImages) =>
+                        handleExportTool(guideTool.id, format, includeImages)}
+                    />
+                  {/if}
+                  <button
+                    class="btn btn-link btn-sm text-danger shadow-none border-0"
+                    title="Delete Guide"
+                    aria-label="Delete Guide"
+                    onclick={() => deleteTool(guideTool?.id || "")}
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
               </div>
               <div class="header-actions">
-                {#if guideTool}
-                  {@const isExportingPDFWithImages =
-                    exporting[`${guideTool.id}:pdf:true`]}
-                  {@const isExportingPDFNoImages =
-                    exporting[`${guideTool.id}:pdf:false`]}
-                  {@const isExportingDocx = exporting[`${guideTool.id}:docx`]}
-                  <ExportMenu
-                    isCompleted={true}
-                    {isExportingPDFWithImages}
-                    {isExportingPDFNoImages}
-                    {isExportingDocx}
-                    onExport={(format, includeImages) =>
-                      handleExportTool(guideTool.id, format, includeImages)}
-                  />
-                {/if}
-                <button
-                  class="btn btn-link btn-sm text-danger shadow-none border-0"
-                  title="Delete Guide"
-                  aria-label="Delete Guide"
-                  onclick={() => deleteTool(guideTool?.id || "")}
-                >
-                  <Trash2 size={18} />
-                </button>
                 <button
                   class="btn btn-link btn-sm text-muted shadow-none border-0"
                   onclick={() => (activeView = "dashboard")}
@@ -1171,22 +1173,24 @@
             <div class="standard-header">
               <div class="header-title">
                 <span class="header-text">Dialogue</span>
+                <div class="header-actions-inline">
+                  {#if true}
+                    {@const isExportingPDFWithImages =
+                      exporting[`${lectureId}:pdf:true`]}
+                    {@const isExportingPDFNoImages =
+                      exporting[`${lectureId}:pdf:false`]}
+                    {@const isExportingDocx = exporting[`${lectureId}:docx`]}
+                    <ExportMenu
+                      isCompleted={true}
+                      {isExportingPDFWithImages}
+                      {isExportingPDFNoImages}
+                      {isExportingDocx}
+                      onExport={handleExportTranscript}
+                    />
+                  {/if}
+                </div>
               </div>
               <div class="header-actions">
-                {#if true}
-                  {@const isExportingPDFWithImages =
-                    exporting[`${lectureId}:pdf:true`]}
-                  {@const isExportingPDFNoImages =
-                    exporting[`${lectureId}:pdf:false`]}
-                  {@const isExportingDocx = exporting[`${lectureId}:docx`]}
-                  <ExportMenu
-                    isCompleted={true}
-                    {isExportingPDFWithImages}
-                    {isExportingPDFNoImages}
-                    {isExportingDocx}
-                    onExport={handleExportTranscript}
-                  />
-                {/if}
                 <button
                   class="btn btn-link btn-sm text-muted shadow-none border-0"
                   onclick={() => (activeView = "dashboard")}
@@ -1285,27 +1289,29 @@
                 <span class="header-text font-monospace"
                   >{doc?.title || "Study Resource"}</span
                 >
+                <div class="header-actions-inline">
+                  {#if true}
+                    {@const isExportingPDFWithImages =
+                      exporting[`${selectedDocId}:pdf:true`]}
+                    {@const isExportingPDFNoImages =
+                      exporting[`${selectedDocId}:pdf:false`]}
+                    {@const isExportingDocx = exporting[`${selectedDocId}:docx`]}
+                    <ExportMenu
+                      isCompleted={true}
+                      {isExportingPDFWithImages}
+                      {isExportingPDFNoImages}
+                      {isExportingDocx}
+                      onExport={(format, includeImages) =>
+                        handleExportDocument(
+                          selectedDocId || "",
+                          format,
+                          includeImages,
+                        )}
+                    />
+                  {/if}
+                </div>
               </div>
               <div class="header-actions">
-                {#if true}
-                  {@const isExportingPDFWithImages =
-                    exporting[`${selectedDocId}:pdf:true`]}
-                  {@const isExportingPDFNoImages =
-                    exporting[`${selectedDocId}:pdf:false`]}
-                  {@const isExportingDocx = exporting[`${selectedDocId}:docx`]}
-                  <ExportMenu
-                    isCompleted={true}
-                    {isExportingPDFWithImages}
-                    {isExportingPDFNoImages}
-                    {isExportingDocx}
-                    onExport={(format, includeImages) =>
-                      handleExportDocument(
-                        selectedDocId || "",
-                        format,
-                        includeImages,
-                      )}
-                  />
-                {/if}
                 <button
                   class="btn btn-link btn-sm text-muted shadow-none border-0"
                   onclick={() => (activeView = "dashboard")}
@@ -1372,8 +1378,17 @@
                 </div>
 
                 <div
-                  class="bg-light d-flex justify-content-center p-3 mb-4 border text-center"
+                  class="bg-light d-flex justify-content-center p-3 mb-4 border text-center position-relative"
                 >
+                  <!-- Left click area for previous page -->
+                  {#if selectedDocPageIndex > 0}
+                    <div
+                      class="page-nav-overlay page-nav-left"
+                      onclick={prevDocPage}
+                      title="Previous page"
+                    ></div>
+                  {/if}
+
                   <img
                     src={api.getAuthenticatedMediaUrl(
                       `/documents/pages/image?document_id=${selectedDocId}&lecture_id=${lectureId}&page_number=${p.page_number}`,
@@ -1382,6 +1397,15 @@
                     class="img-fluid shadow-sm border"
                     style="width: 100%; height: auto;"
                   />
+
+                  <!-- Right click area for next page -->
+                  {#if selectedDocPageIndex < selectedDocPages.length - 1}
+                    <div
+                      class="page-nav-overlay page-nav-right"
+                      onclick={nextDocPage}
+                      title="Next page"
+                    ></div>
+                  {/if}
                 </div>
 
                 <div class="prose">
@@ -1487,6 +1511,23 @@
     line-height: 1.6;
     max-width: 600px;
     margin: 0;
+  }
+
+  .page-nav-overlay {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 15%;
+    z-index: 10;
+    cursor: pointer;
+
+    &.page-nav-left {
+      left: 0;
+    }
+
+    &.page-nav-right {
+      right: 0;
+    }
   }
 
   .link-tiles {

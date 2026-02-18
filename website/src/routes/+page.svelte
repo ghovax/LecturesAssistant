@@ -174,9 +174,19 @@
       A minimalist, cozy space to organize your studies, transcribe recordings,
       and generate smart materials for your exams.
     </p>
-    <div class="mt-4 scroll-blur-light visible">
+    <div class="mt-4 scroll-blur-light visible d-flex align-items-center gap-3">
       <a href="/exams" class="btn btn-primary btn-lg rounded-0 px-5">
         Start My Studies
+      </a>
+      <a
+        href="https://ko-fi.com/giovannigravili59139"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="donate-btn-hero"
+        title="Support the project on Ko-fi"
+      >
+        <img src="/logomarkLogo.webp" alt="Ko-fi" class="kofii-icon" />
+        <span class="donate-text">Buy me a coffee</span>
       </a>
     </div>
   </header>
@@ -339,6 +349,40 @@
     }
   }
 
+  .donate-btn-hero {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    color: var(--gray-700);
+    font-size: 1rem;
+    font-weight: 500;
+    padding: 0.75rem 1.5rem;
+    border: 1px solid var(--gray-300);
+    border-radius: 0;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    background: #fff;
+    height: 48px;
+
+    &:hover {
+      background: #fff;
+      border-color: var(--gray-400);
+      color: var(--gray-900);
+      text-decoration: none;
+    }
+
+    .kofii-icon {
+      width: 24px;
+      height: auto;
+      flex-shrink: 0;
+    }
+
+    .donate-text {
+      font-size: 0.95rem;
+      white-space: nowrap;
+    }
+  }
+
   .link-tiles {
     display: flex;
     flex-wrap: wrap;
@@ -400,6 +444,20 @@
   .scroll-blur-light {
     transition-duration: 0.6s;
     filter: blur(5px);
+  }
+
+  .donate-tile {
+    :global(.action-tile) {
+      border: 2px solid #ff5e5b;
+    }
+
+    .kofii-icon {
+      width: 20px;
+      height: 20px;
+      position: absolute;
+      top: 12px;
+      right: 12px;
+    }
   }
 
   @media (max-width: 768px) {

@@ -53,7 +53,7 @@
       goto("/login");
     } catch (e: any) {
       error = e.message;
-      notifications.error("Failed to restore: " + e.message);
+      notifications.error(e.message);
     } finally {
       restoring = false;
     }

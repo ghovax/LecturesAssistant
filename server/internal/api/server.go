@@ -164,6 +164,9 @@ func (server *Server) setupRoutes() {
 	server.router.HandleFunc("/api/auth/register", server.handleAuthRegister).Methods("POST")
 	server.router.HandleFunc("/api/auth/login", server.handleAuthLogin).Methods("POST")
 	server.router.HandleFunc("/api/auth/status", server.handleAuthStatus).Methods("GET")
+	// System restore must be public to allow restoration during initial setup
+	// Authentication is handled internally by the handler based on initialization state
+	server.router.HandleFunc("/api/system/restore", server.handleRestoreDatabase).Methods("POST")
 
 	// API routes (with middleware)
 	apiRouter := server.router.PathPrefix("/api").Subrouter()
@@ -244,7 +247,6 @@ func (server *Server) setupRoutes() {
 
 	// System
 	apiRouter.HandleFunc("/system/backup", server.handleBackupDatabase).Methods("GET")
-	apiRouter.HandleFunc("/system/restore", server.handleRestoreDatabase).Methods("POST")
 
 	// Settings
 	apiRouter.HandleFunc("/settings", server.handleGetSettings).Methods("GET")

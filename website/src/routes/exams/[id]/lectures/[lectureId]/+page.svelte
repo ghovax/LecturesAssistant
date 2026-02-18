@@ -886,6 +886,62 @@
                 {/snippet}
               </Tile>
 
+              {#if documents.length > 0 || documentsJobRunning || documentsJobFailed}
+                <Tile
+                  icon=""
+                  title="Reference Materials"
+                  class={documentsJobRunning
+                    ? "tile-processing"
+                    : documentsJobFailed
+                      ? "tile-error"
+                      : ""}
+                  disabled={documentsJobRunning}
+                  onclick={() => {
+                    if (documentsJobFailed) {
+                      retryBaseJob("INGEST_DOCUMENTS");
+                    } else {
+                      activeView = "docs_list";
+                    }
+                  }}
+                >
+                  {#snippet actions()}
+                    {#if documentsJobFailed}
+                      <button
+                        class="btn btn-link text-primary p-0 border-0 shadow-none"
+                        onclick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          retryBaseJob("INGEST_DOCUMENTS");
+                        }}
+                        title="Retry Document Ingestion"
+                      >
+                        <RotateCcw size={16} />
+                      </button>
+                    {/if}
+                  {/snippet}
+
+                  {#snippet description()}
+                    {#if documentsJobRunning}
+                      <div class="d-flex align-items-center gap-2">
+                        <div
+                          class="spinner-border spinner-border-sm"
+                          role="status"
+                        >
+                          <span class="visually-hidden">Processing...</span>
+                        </div>
+                        <span>{documentsJob?.progress || 0}%</span>
+                      </div>
+                    {:else if documentsJobFailed}
+                      <span class="text-danger"
+                        >Processing failed. Click to retry.</span
+                      >
+                    {:else}
+                      Access and view your uploaded reference materials.
+                    {/if}
+                  {/snippet}
+                </Tile>
+              {/if}
+
               {#if activeToolsJobs.find((j) => j.payload?.type === "guide")}
                 {@const guideJob = activeToolsJobs.find(
                   (j) => j.payload?.type === "guide",
@@ -956,62 +1012,6 @@
                   {/snippet}
                   {#snippet description()}
                     Read the comprehensive study guide.
-                  {/snippet}
-                </Tile>
-              {/if}
-
-              {#if documents.length > 0 || documentsJobRunning || documentsJobFailed}
-                <Tile
-                  icon=""
-                  title="Reference Materials"
-                  class={documentsJobRunning
-                    ? "tile-processing"
-                    : documentsJobFailed
-                      ? "tile-error"
-                      : ""}
-                  disabled={documentsJobRunning}
-                  onclick={() => {
-                    if (documentsJobFailed) {
-                      retryBaseJob("INGEST_DOCUMENTS");
-                    } else {
-                      activeView = "docs_list";
-                    }
-                  }}
-                >
-                  {#snippet actions()}
-                    {#if documentsJobFailed}
-                      <button
-                        class="btn btn-link text-primary p-0 border-0 shadow-none"
-                        onclick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          retryBaseJob("INGEST_DOCUMENTS");
-                        }}
-                        title="Retry Document Ingestion"
-                      >
-                        <RotateCcw size={16} />
-                      </button>
-                    {/if}
-                  {/snippet}
-
-                  {#snippet description()}
-                    {#if documentsJobRunning}
-                      <div class="d-flex align-items-center gap-2">
-                        <div
-                          class="spinner-border spinner-border-sm"
-                          role="status"
-                        >
-                          <span class="visually-hidden">Processing...</span>
-                        </div>
-                        <span>{documentsJob?.progress || 0}%</span>
-                      </div>
-                    {:else if documentsJobFailed}
-                      <span class="text-danger"
-                        >Processing failed. Click to retry.</span
-                      >
-                    {:else}
-                      Access and view your uploaded reference materials.
-                    {/if}
                   {/snippet}
                 </Tile>
               {/if}

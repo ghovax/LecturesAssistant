@@ -103,6 +103,12 @@ export class APIClient {
     return this.request("GET", "/auth/status");
   }
 
+  async restoreDatabase(file: File) {
+    const formData = new FormData();
+    formData.append("database", file);
+    return this.request("POST", "/system/restore", formData);
+  }
+
   async logout() {
     await this.request("POST", "/auth/logout");
     this.setToken(null);

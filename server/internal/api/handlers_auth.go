@@ -71,6 +71,14 @@ func (server *Server) handleAuthSetup(responseWriter http.ResponseWriter, reques
 		}
 	}
 
+	// Persist providers configuration to database so it can be recovered even if YAML is lost
+	providersJSON, _ := json.Marshal(server.configuration.Providers)
+	_, _ = server.database.Exec(`
+		INSERT INTO settings (key, value, updated_at)
+		VALUES ('providers', ?, ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+	`, string(providersJSON), time.Now())
+
 	passwordHash, passwordHashingError := bcrypt.GenerateFromPassword([]byte(setupRequest.Password), bcrypt.DefaultCost)
 	if passwordHashingError != nil {
 		server.writeError(responseWriter, http.StatusInternalServerError, "AUTHENTICATION_ERROR", "Failed to hash password", nil)

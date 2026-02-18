@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { auth } from "$lib/auth.svelte";
+  import { api } from "$lib/api/client";
+  import { notifications } from "$lib/stores/notifications.svelte";
   import { goto } from "$app/navigation";
   import Tile from "$lib/components/Tile.svelte";
   import {
@@ -11,11 +13,111 @@
     User,
     HelpCircle,
     Heart,
+    Database,
+    Download,
+    Upload,
   } from "lucide-svelte";
+  import { ConfirmModal } from "$lib";
 
   async function handleLogout() {
     await auth.logout();
     goto("/");
+  }
+
+  // Confirmation Modal State
+  let confirmModal = $state({
+    isOpen: false,
+    title: "",
+    message: "",
+    confirmText: "Confirm",
+    onConfirm: () => {},
+    isDanger: false,
+  });
+
+  function showConfirm(options: {
+    title: string;
+    message: string;
+    confirmText?: string;
+    onConfirm: () => void;
+    isDanger?: boolean;
+  }) {
+    confirmModal = {
+      isOpen: true,
+      title: options.title,
+      message: options.message,
+      confirmText: options.confirmText ?? "Confirm",
+      onConfirm: () => {
+        options.onConfirm();
+        confirmModal.isOpen = false;
+      },
+      isDanger: options.isDanger ?? false,
+    };
+  }
+
+  async function handleBackup() {
+    try {
+      const token = localStorage.getItem("session_token");
+      const url =
+        api.getBaseUrl() + "/system/backup?session_token=" + token;
+
+      // Use a hidden anchor to trigger download
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      notifications.success("Starting database backup download...");
+    } catch (e: any) {
+      notifications.error("Failed to start backup: " + (e.message || e));
+    }
+  }
+
+  let restoreFileInput: HTMLInputElement | null = $state(null);
+  let selectedRestoreFile: File | null = $state(null);
+
+  function triggerRestore() {
+    selectedRestoreFile = null;
+    showConfirm({
+      title: "Restore Workspace",
+      message:
+        "This is a destructive action. Restoring a backup will permanently overwrite all your current subjects, lessons, and configurations.",
+      confirmText: "Select File",
+      isDanger: true,
+      onConfirm: () => {
+        restoreFileInput?.click();
+      },
+    });
+  }
+
+  async function handleRestoreFile(e: Event) {
+    const input = e.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+
+    const file = input.files[0];
+    selectedRestoreFile = file;
+
+    // Update modal to show confirmation with file selected
+    showConfirm({
+      title: "Restore Workspace",
+      message: `This will permanently overwrite all your current subjects, lessons, and configurations. Are you sure?`,
+      confirmText: "Yes, Replace Everything",
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          notifications.info("Restoring workspace, please wait...");
+          await api.restoreDatabase(file);
+          notifications.success("Workspace restored successfully. Refreshing...");
+          setTimeout(() => window.location.reload(), 1500);
+        } catch (e: any) {
+          notifications.error("Failed to restore workspace: " + (e.message || e));
+        } finally {
+          input.value = "";
+          selectedRestoreFile = null;
+        }
+      },
+    });
   }
 
   onMount(async () => {
@@ -45,6 +147,24 @@
 </script>
 
 <div class="cozy-homepage">
+  <ConfirmModal
+    isOpen={confirmModal.isOpen}
+    title={confirmModal.title}
+    message={confirmModal.message}
+    confirmText={confirmModal.confirmText}
+    isDanger={confirmModal.isDanger}
+    onConfirm={confirmModal.onConfirm}
+    onCancel={() => (confirmModal.isOpen = false)}
+  />
+
+  <input
+    type="file"
+    accept=".db"
+    class="d-none"
+    bind:this={restoreFileInput}
+    onchange={handleRestoreFile}
+  />
+
   <header class="hero-section">
     <span class="overline scroll-blur-light visible">Welcome to your</span>
     <h1 class="scroll-blur-heavy visible">
@@ -101,6 +221,31 @@
                 Securely sign out of your session.
               {/snippet}
             </Tile>
+            {#if auth.user?.role === "admin"}
+              <Tile icon="" title="Workspace Backup" class="restore-workspace-tile">
+                {#snippet description()}
+                  Export or restore your study library.
+                {/snippet}
+                {#snippet actions()}
+                  <button
+                    type="button"
+                    class="btn btn-link p-0 border-0 shadow-none"
+                    onclick={handleBackup}
+                    title="Export Workspace"
+                  >
+                    <Download size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-link text-danger p-0 border-0 shadow-none"
+                    onclick={triggerRestore}
+                    title="Restore Workspace"
+                  >
+                    <Upload size={18} />
+                  </button>
+                {/snippet}
+              </Tile>
+            {/if}
           {/if}
         </div>
       </section>
@@ -210,6 +355,12 @@
 
       &:last-child {
         border-right: none;
+      }
+    }
+
+    .restore-workspace-tile {
+      :global(.action-tile) {
+        border: 2px solid #b91c1c;
       }
     }
   }

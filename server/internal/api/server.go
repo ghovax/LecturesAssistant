@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -57,8 +58,79 @@ func NewServer(configuration *configuration.Configuration, database *sql.DB, job
 
 	go server.wsHub.Run()
 	server.StartStagingCleanupWorker()
+	server.loadSettingsFromDatabase()
 	server.setupRoutes()
 	return server
+}
+
+// loadSettingsFromDatabase reads settings from the database and updates the in-memory configuration
+func (server *Server) loadSettingsFromDatabase() {
+	rows, err := server.database.Query("SELECT key, value FROM settings")
+	if err != nil {
+		slog.Warn("Failed to query settings from database", "error", err)
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var key, valueJSON string
+		if err := rows.Scan(&key, &valueJSON); err != nil {
+			continue
+		}
+
+		valueBytes := []byte(valueJSON)
+		switch key {
+		case "llm":
+			json.Unmarshal(valueBytes, &server.configuration.LLM)
+		case "transcription":
+			json.Unmarshal(valueBytes, &server.configuration.Transcription)
+		case "documents":
+			json.Unmarshal(valueBytes, &server.configuration.Documents)
+		case "safety":
+			json.Unmarshal(valueBytes, &server.configuration.Safety)
+		case "uploads":
+			json.Unmarshal(valueBytes, &server.configuration.Uploads)
+		case "providers":
+			if err := json.Unmarshal(valueBytes, &server.configuration.Providers); err == nil {
+				// Update OpenRouter API Key in the running provider
+				if routingProvider, ok := server.llmProvider.(*llm.RoutingProvider); ok {
+					if openRouterProvider, ok := routingProvider.GetProvider("openrouter").(*llm.OpenRouterProvider); ok {
+						openRouterProvider.SetAPIKey(server.configuration.Providers.OpenRouter.APIKey)
+					}
+				}
+			}
+		}
+	}
+	slog.Info("Configurations recovered from database")
+}
+
+// syncConfigurationToDatabase flushes the current in-memory configuration to the database
+func (server *Server) syncConfigurationToDatabase() {
+	configs := map[string]any{
+		"llm":           server.configuration.LLM,
+		"transcription": server.configuration.Transcription,
+		"documents":     server.configuration.Documents,
+		"safety":        server.configuration.Safety,
+		"providers":     server.configuration.Providers,
+		"uploads":       server.configuration.Uploads,
+	}
+
+	for key, val := range configs {
+		valueJSON, err := json.Marshal(val)
+		if err != nil {
+			continue
+		}
+
+		_, err = server.database.Exec(`
+			INSERT INTO settings (key, value, updated_at)
+			VALUES (?, ?, ?)
+			ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+		`, key, string(valueJSON), time.Now())
+
+		if err != nil {
+			slog.Error("Failed to sync config to database", "key", key, "error", err)
+		}
+	}
 }
 
 // Handler returns the HTTP handler
@@ -169,6 +241,10 @@ func (server *Server) setupRoutes() {
 	apiRouter.HandleFunc("/jobs", server.handleListJobs).Methods("GET")
 	apiRouter.HandleFunc("/jobs/details", server.handleGetJob).Methods("GET")
 	apiRouter.HandleFunc("/jobs", server.handleCancelJob).Methods("DELETE")
+
+	// System
+	apiRouter.HandleFunc("/system/backup", server.handleBackupDatabase).Methods("GET")
+	apiRouter.HandleFunc("/system/restore", server.handleRestoreDatabase).Methods("POST")
 
 	// Settings
 	apiRouter.HandleFunc("/settings", server.handleGetSettings).Methods("GET")

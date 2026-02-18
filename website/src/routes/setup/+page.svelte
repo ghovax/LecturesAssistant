@@ -1,6 +1,8 @@
 <script lang="ts">
   import { api } from "$lib/api/client";
   import { goto } from "$app/navigation";
+  import { onMount } from "svelte";
+  import { auth } from "$lib/auth.svelte";
   import Breadcrumb from "$lib/components/Breadcrumb.svelte";
 
   let username = $state("");
@@ -8,6 +10,13 @@
   let apiKey = $state("");
   let error = $state("");
   let loading = $state(false);
+
+  onMount(() => {
+    // If setup is already completed, redirect to home
+    if (auth.initialized) {
+      goto("/");
+    }
+  });
 
   async function handleSetup() {
     loading = true;

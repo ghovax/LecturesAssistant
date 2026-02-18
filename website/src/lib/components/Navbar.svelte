@@ -154,15 +154,23 @@
   }
 
   @media (max-width: 768px) {
+    .navbar-collapse {
+      padding: 12px 0 20px 0;
+    }
+
     .nav-link {
       height: auto;
-      padding: 12px 0;
-      border-bottom: none;
+      padding: 14px 0;
 
       &:hover {
-        border-bottom: none;
         padding-left: 8px;
       }
+    }
+
+    #rightNav {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--gray-300);
     }
   }
 </style>

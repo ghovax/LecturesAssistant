@@ -6,7 +6,6 @@ $enable-rounded: false;
 :root {
   // Typography
   --font-primary: "Manrope", sans-serif;
-  --font-primary-adjust: 0.55;
   --font-mono: "Menlo", monospace;
   --font-mono-adjust: 0.5;
 
@@ -676,5 +675,5 @@ samp {
 math,
 .math {
   font-size: 1em;
-  font-size-adjust: var(--font-primary-adjust);
+  font-size-adjust: 0.53;
 }

@@ -45,9 +45,39 @@
           border-bottom: none;
         }
 
+        &.tile-locked {
+          background-color: #fafaf9;
+          opacity: 0.8;
+        }
+
         .action-tile-link,
         .action-tile-button {
           width: 100%;
+          padding-right: 100px;
+        }
+
+        .action-tile-actions {
+          position: absolute;
+          top: 50%;
+          right: 16px;
+          transform: translateY(-50%);
+        }
+      }
+
+      &.adaptive-width {
+        :global(.action-tile) {
+          width: 100%;
+          border: 1px solid var(--gray-300);
+          border-top: none;
+
+          &:first-child {
+            border-top: 1px solid var(--gray-300);
+          }
+
+          &:last-child {
+            border-bottom: 1px solid var(--gray-300);
+            border-right: 1px solid var(--gray-300);
+          }
         }
       }
     }

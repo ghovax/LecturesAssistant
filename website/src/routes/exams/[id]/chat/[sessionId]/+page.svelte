@@ -6,6 +6,7 @@
   import { notifications } from "$lib/stores/notifications.svelte";
   import Breadcrumb from "$lib/components/Breadcrumb.svelte";
   import Tile from "$lib/components/Tile.svelte";
+  import VerticalTileList from "$lib/components/navigation/VerticalTileList.svelte";
   import {
     Send,
     User,
@@ -235,7 +236,7 @@
             <p class="text-muted small mb-3">
               Select which lessons to include in this conversation's context.
             </p>
-            <div class="link-tiles flex-column">
+            <VerticalTileList direction="vertical" class="adaptive-width">
               {#each allLectures as lecture}
                 {@const isUsed = usedLectureIds.includes(lecture.id)}
                 {@const isIncluded = includedLectureIds.includes(lecture.id)}
@@ -244,7 +245,7 @@
                   title={lecture.title}
                   onclick={() => !isUsed && toggleLecture(lecture.id)}
                   disabled={isUsed}
-                  class="w-100 mb-0 {isUsed ? 'tile-locked' : ''}"
+                  class="{isUsed ? 'tile-locked' : ''}"
                 >
                   {#snippet description()}
                     {lecture.description || "Lesson materials."}
@@ -275,7 +276,7 @@
                   No lessons found in this subject.
                 </div>
               {/each}
-            </div>
+            </VerticalTileList>
           </div>
         </div>
       </div>
@@ -437,40 +438,6 @@
 
   .no-shift-bold > span {
     grid-area: 1 / 1;
-  }
-
-  .link-tiles {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0;
-    background: transparent;
-
-    :global(.tile-wrapper) {
-      margin: 0;
-      border: 1px solid var(--gray-300);
-      border-top: none;
-      width: 100%;
-
-      &:first-child {
-        border-top: 1px solid var(--gray-300);
-      }
-
-      :global(a),
-      :global(button) {
-        width: 100%;
-        height: auto;
-        min-height: 100px;
-      }
-
-      :global(.tile-title) {
-        padding-right: 40px; /* Avoid overlap with toggle */
-      }
-
-      &.tile-locked {
-        background-color: #fafaf9;
-        opacity: 0.8;
-      }
-    }
   }
 
   /* Kakimashou Toggle Switch */

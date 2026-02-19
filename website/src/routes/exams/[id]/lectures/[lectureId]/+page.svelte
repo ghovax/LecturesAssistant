@@ -1129,33 +1129,31 @@
             <div class="standard-header">
               <div class="header-title">
                 <span class="header-text">Study Guide</span>
-                <div class="header-actions-inline">
-                  {#if guideTool}
-                    {@const isExportingPDFWithImages =
-                      exporting[`${guideTool.id}:pdf:true`]}
-                    {@const isExportingPDFNoImages =
-                      exporting[`${guideTool.id}:pdf:false`]}
-                    {@const isExportingDocx = exporting[`${guideTool.id}:docx`]}
-                    <ExportMenu
-                      isCompleted={true}
-                      {isExportingPDFWithImages}
-                      {isExportingPDFNoImages}
-                      {isExportingDocx}
-                      onExport={(format, includeImages) =>
-                        handleExportTool(guideTool.id, format, includeImages)}
-                    />
-                  {/if}
-                  <button
-                    class="btn btn-link btn-sm text-danger shadow-none border-0"
-                    title="Delete Guide"
-                    aria-label="Delete Guide"
-                    onclick={() => deleteTool(guideTool?.id || "")}
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
               </div>
               <div class="header-actions">
+                {#if guideTool}
+                  {@const isExportingPDFWithImages =
+                    exporting[`${guideTool.id}:pdf:true`]}
+                  {@const isExportingPDFNoImages =
+                    exporting[`${guideTool.id}:pdf:false`]}
+                  {@const isExportingDocx = exporting[`${guideTool.id}:docx`]}
+                  <ExportMenu
+                    isCompleted={true}
+                    {isExportingPDFWithImages}
+                    {isExportingPDFNoImages}
+                    {isExportingDocx}
+                    onExport={(format, includeImages) =>
+                      handleExportTool(guideTool.id, format, includeImages)}
+                  />
+                {/if}
+                <button
+                  class="btn btn-link btn-sm text-danger shadow-none border-0"
+                  title="Delete Guide"
+                  aria-label="Delete Guide"
+                  onclick={() => deleteTool(guideTool?.id || "")}
+                >
+                  <Trash2 size={18} />
+                </button>
                 <button
                   class="btn btn-link btn-sm text-muted shadow-none border-0"
                   onclick={() => (activeView = "dashboard")}
@@ -1173,24 +1171,22 @@
             <div class="standard-header">
               <div class="header-title">
                 <span class="header-text">Dialogue</span>
-                <div class="header-actions-inline">
-                  {#if true}
-                    {@const isExportingPDFWithImages =
-                      exporting[`${lectureId}:pdf:true`]}
-                    {@const isExportingPDFNoImages =
-                      exporting[`${lectureId}:pdf:false`]}
-                    {@const isExportingDocx = exporting[`${lectureId}:docx`]}
-                    <ExportMenu
-                      isCompleted={true}
-                      {isExportingPDFWithImages}
-                      {isExportingPDFNoImages}
-                      {isExportingDocx}
-                      onExport={handleExportTranscript}
-                    />
-                  {/if}
-                </div>
               </div>
               <div class="header-actions">
+                {#if true}
+                  {@const isExportingPDFWithImages =
+                    exporting[`${lectureId}:pdf:true`]}
+                  {@const isExportingPDFNoImages =
+                    exporting[`${lectureId}:pdf:false`]}
+                  {@const isExportingDocx = exporting[`${lectureId}:docx`]}
+                  <ExportMenu
+                    isCompleted={true}
+                    {isExportingPDFWithImages}
+                    {isExportingPDFNoImages}
+                    {isExportingDocx}
+                    onExport={handleExportTranscript}
+                  />
+                {/if}
                 <button
                   class="btn btn-link btn-sm text-muted shadow-none border-0"
                   onclick={() => (activeView = "dashboard")}
@@ -1289,29 +1285,27 @@
                 <span class="header-text font-monospace"
                   >{doc?.title || "Study Resource"}</span
                 >
-                <div class="header-actions-inline">
-                  {#if true}
-                    {@const isExportingPDFWithImages =
-                      exporting[`${selectedDocId}:pdf:true`]}
-                    {@const isExportingPDFNoImages =
-                      exporting[`${selectedDocId}:pdf:false`]}
-                    {@const isExportingDocx = exporting[`${selectedDocId}:docx`]}
-                    <ExportMenu
-                      isCompleted={true}
-                      {isExportingPDFWithImages}
-                      {isExportingPDFNoImages}
-                      {isExportingDocx}
-                      onExport={(format, includeImages) =>
-                        handleExportDocument(
-                          selectedDocId || "",
-                          format,
-                          includeImages,
-                        )}
-                    />
-                  {/if}
-                </div>
               </div>
               <div class="header-actions">
+                {#if true}
+                  {@const isExportingPDFWithImages =
+                    exporting[`${selectedDocId}:pdf:true`]}
+                  {@const isExportingPDFNoImages =
+                    exporting[`${selectedDocId}:pdf:false`]}
+                  {@const isExportingDocx = exporting[`${selectedDocId}:docx`]}
+                  <ExportMenu
+                    isCompleted={true}
+                    {isExportingPDFWithImages}
+                    {isExportingPDFNoImages}
+                    {isExportingDocx}
+                    onExport={(format, includeImages) =>
+                      handleExportDocument(
+                        selectedDocId || "",
+                        format,
+                        includeImages,
+                      )}
+                  />
+                {/if}
                 <button
                   class="btn btn-link btn-sm text-muted shadow-none border-0"
                   onclick={() => (activeView = "dashboard")}

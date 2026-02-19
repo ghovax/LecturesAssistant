@@ -57,8 +57,7 @@
   async function handleBackup() {
     try {
       const token = localStorage.getItem("session_token");
-      const url =
-        api.getBaseUrl() + "/system/backup?session_token=" + token;
+      const url = api.getBaseUrl() + "/system/backup?session_token=" + token;
 
       // Use a hidden anchor to trigger download
       const link = document.createElement("a");
@@ -108,10 +107,14 @@
         try {
           notifications.info("Restoring workspace, please wait...");
           await api.restoreDatabase(file);
-          notifications.success("Workspace restored successfully. Refreshing...");
+          notifications.success(
+            "Workspace restored successfully. Refreshing...",
+          );
           setTimeout(() => window.location.reload(), 1500);
         } catch (e: any) {
-          notifications.error("Failed to restore workspace: " + (e.message || e));
+          notifications.error(
+            "Failed to restore workspace: " + (e.message || e),
+          );
         } finally {
           input.value = "";
           selectedRestoreFile = null;
@@ -232,7 +235,11 @@
               {/snippet}
             </Tile>
             {#if auth.user?.role === "admin"}
-              <Tile icon="" title="Workspace Backup" class="restore-workspace-tile">
+              <Tile
+                icon=""
+                title="Workspace Backup"
+                class="restore-workspace-tile"
+              >
                 {#snippet description()}
                   Export or restore your study library.
                 {/snippet}
@@ -360,7 +367,10 @@
     padding: 0.75rem 1.5rem;
     border: 1px solid var(--gray-300);
     border-radius: 0;
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease;
     background: #fff;
     height: 48px;
 

@@ -49,7 +49,7 @@
 
     const token = localStorage.getItem("session_token");
     // Use relative URL to go through Vite proxy
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${wsProtocol}//${window.location.host}/api/socket?session_token=${token}`;
     console.log("Connecting to WebSocket:", wsUrl);
     socket = new WebSocket(wsUrl);
@@ -216,7 +216,9 @@
 
   async function handleDownload() {
     if (!lastExportPath) {
-      notifications.error("No export available. Please export the material first.");
+      notifications.error(
+        "No export available. Please export the material first.",
+      );
       return;
     }
     try {
@@ -244,7 +246,9 @@
         format,
         include_qr_code: includeQRCode,
       });
-      notifications.success(`We are preparing your export. Download will start automatically when ready.`);
+      notifications.success(
+        `We are preparing your export. Download will start automatically when ready.`,
+      );
     } catch (e: any) {
       const exportKey =
         format === "pdf"
@@ -271,96 +275,98 @@
   <header class="page-header">
     <div class="d-flex justify-content-between align-items-center mb-2">
       <h1 class="page-title m-0">{tool.title}</h1>
-      <div class="d-flex align-items-center gap-2">
-        <button
-          class="btn btn-outline-primary btn-sm rounded-0"
-          onclick={handleDownload}
-          disabled={!lastExportPath}
-          title="Download last exported file"
-        >
-          <Download size={16} class="me-1" />
-          Download
-        </button>
+      {#if true}
         {@const isExportingPDFWithQR = exporting[`${toolId}:pdf:true`]}
         {@const isExportingPDFNoQR = exporting[`${toolId}:pdf:false`]}
         {@const isExportingDocx = exporting[`${toolId}:docx`]}
         {@const isExportingMD = exporting[`${toolId}:md`]}
-        <div class="btn-group">
+        <div class="d-flex align-items-center gap-2">
           <button
-            class="btn btn-primary btn-sm dropdown-toggle rounded-0"
-            data-bs-toggle="dropdown"
-            disabled={isExportingPDFWithQR ||
-              isExportingPDFNoQR ||
-              isExportingDocx ||
-              isExportingMD}
+            class="btn btn-outline-primary btn-sm rounded-0"
+            onclick={handleDownload}
+            disabled={!lastExportPath}
+            title="Download last exported file"
           >
-            {#if isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx || isExportingMD}
-              <Loader2 size={16} class="spinner-animation me-2" />
-              Processing...
-            {:else}
-              <FileDown size={16} class="me-1" />
-              Export
-            {/if}
+            <Download size={16} class="me-1" />
+            Download
           </button>
-          <ul
-            class="dropdown-menu dropdown-menu-end rounded-0 shadow-none border"
-          >
-            <li>
-              <button
-                class="dropdown-item d-flex justify-content-between align-items-center"
-                onclick={() => handleExport("pdf", true)}
-                disabled={isExportingPDFWithQR}
-              >
-                PDF (with QR)
-                {#if isExportingPDFWithQR}
-                  <Loader2 size={14} class="spinner-animation ms-2" />
-                {/if}
-              </button>
-            </li>
-            <li>
-              <button
-                class="dropdown-item d-flex justify-content-between align-items-center"
-                onclick={() => handleExport("pdf", false)}
-                disabled={isExportingPDFNoQR}
-              >
-                PDF (no QR)
-                {#if isExportingPDFNoQR}
-                  <Loader2 size={14} class="spinner-animation ms-2" />
-                {/if}
-              </button>
-            </li>
-            <li>
-              <button
-                class="dropdown-item d-flex justify-content-between align-items-center"
-                onclick={() => handleExport("docx")}
-                disabled={isExportingDocx}
-              >
-                Word Document
-                {#if isExportingDocx}
-                  <Loader2 size={14} class="spinner-animation ms-2" />
-                {/if}
-              </button>
-            </li>
-            <li>
-              <button
-                class="dropdown-item d-flex justify-content-between align-items-center"
-                onclick={() => handleExport("md")}
-                disabled={isExportingMD}
-              >
-                Markdown Source
-                {#if isExportingMD}
-                  <Loader2 size={14} class="spinner-animation ms-2" />
-                {/if}
-              </button>
-            </li>
-          </ul>
+          <div class="btn-group">
+            <button
+              class="btn btn-primary btn-sm dropdown-toggle rounded-0"
+              data-bs-toggle="dropdown"
+              disabled={isExportingPDFWithQR ||
+                isExportingPDFNoQR ||
+                isExportingDocx ||
+                isExportingMD}
+            >
+              {#if isExportingPDFWithQR || isExportingPDFNoQR || isExportingDocx || isExportingMD}
+                <Loader2 size={16} class="spinner-animation me-2" />
+                Processing...
+              {:else}
+                <FileDown size={16} class="me-1" />
+                Export
+              {/if}
+            </button>
+            <ul
+              class="dropdown-menu dropdown-menu-end rounded-0 shadow-none border"
+            >
+              <li>
+                <button
+                  class="dropdown-item d-flex justify-content-between align-items-center"
+                  onclick={() => handleExport("pdf", true)}
+                  disabled={isExportingPDFWithQR}
+                >
+                  PDF (with QR)
+                  {#if isExportingPDFWithQR}
+                    <Loader2 size={14} class="spinner-animation ms-2" />
+                  {/if}
+                </button>
+              </li>
+              <li>
+                <button
+                  class="dropdown-item d-flex justify-content-between align-items-center"
+                  onclick={() => handleExport("pdf", false)}
+                  disabled={isExportingPDFNoQR}
+                >
+                  PDF (no QR)
+                  {#if isExportingPDFNoQR}
+                    <Loader2 size={14} class="spinner-animation ms-2" />
+                  {/if}
+                </button>
+              </li>
+              <li>
+                <button
+                  class="dropdown-item d-flex justify-content-between align-items-center"
+                  onclick={() => handleExport("docx")}
+                  disabled={isExportingDocx}
+                >
+                  Word Document
+                  {#if isExportingDocx}
+                    <Loader2 size={14} class="spinner-animation ms-2" />
+                  {/if}
+                </button>
+              </li>
+              <li>
+                <button
+                  class="dropdown-item d-flex justify-content-between align-items-center"
+                  onclick={() => handleExport("md")}
+                  disabled={isExportingMD}
+                >
+                  Markdown Source
+                  {#if isExportingMD}
+                    <Loader2 size={14} class="spinner-animation ms-2" />
+                  {/if}
+                </button>
+              </li>
+            </ul>
+          </div>
         </div>
+      {/if}
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-dark rounded-0"
+          >{capitalize(tool.type)} Material</span
+        >
       </div>
-    </div>
-    <div class="d-flex align-items-center gap-2">
-      <span class="badge bg-dark rounded-0"
-        >{capitalize(tool.type)} Material</span
-      >
     </div>
   </header>
 

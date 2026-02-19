@@ -245,7 +245,7 @@
                   title={lecture.title}
                   onclick={() => !isUsed && toggleLecture(lecture.id)}
                   disabled={isUsed}
-                  class="{isUsed ? 'tile-locked' : ''}"
+                  class={isUsed ? "tile-locked" : ""}
                 >
                   {#snippet description()}
                     {lecture.description || "Lesson materials."}

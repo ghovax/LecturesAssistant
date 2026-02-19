@@ -153,7 +153,10 @@ func (client *WSClient) isSubscribed(channel string) bool {
 // handleWebSocket handles the WebSocket connection upgrade
 func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, request *http.Request) {
 	slog.Info("WebSocket connection attempt", "origin", request.Header.Get("Origin"), "remote", request.RemoteAddr)
-	sessionToken := server.getSessionToken(request)
+	// Use query param directly — browsers always send cookies with WebSocket
+	// connections, even cross-origin. A stale HttpOnly cookie would shadow the
+	// valid query-param token if we used getSessionToken() (which checks cookies first).
+	sessionToken := request.URL.Query().Get("session_token")
 	if sessionToken == "" {
 		slog.Warn("WebSocket rejected: no session token")
 		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Authentication required", nil)

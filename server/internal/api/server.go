@@ -252,8 +252,13 @@ func (server *Server) setupRoutes() {
 	apiRouter.HandleFunc("/settings", server.handleGetSettings).Methods("GET")
 	apiRouter.HandleFunc("/settings", server.handleUpdateSettings).Methods("PATCH")
 
-	// WebSocket
-	apiRouter.HandleFunc("/socket", server.handleWebSocket).Methods("GET")
+	// WebSocket — registered on the public router (not apiRouter) because:
+	// The apiRouter's authMiddleware checks cookies first, but browsers always send
+	// cookies with WebSocket connections even cross-origin. If a stale HttpOnly cookie
+	// exists, the middleware rejects the request before handleWebSocket (which does its
+	// own auth via query param) is ever reached. The WebSocket handler already performs
+	// its own session validation, so the middleware is unnecessary.
+	server.router.HandleFunc("/api/socket", server.handleWebSocket).Methods("GET")
 
 	// Static Frontend Serving (if configured)
 	if server.configuration.Storage.WebDirectory != "" {

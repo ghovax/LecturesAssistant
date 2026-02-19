@@ -560,7 +560,7 @@
   async function handleExportDocument(
     docId: string,
     format: string,
-    includeQRCode: boolean = true,
+    includeImages: boolean = true,
   ) {
     // Check for existing completed job
     const existingJob = jobs.find(
@@ -569,7 +569,7 @@
         j.status === "COMPLETED" &&
         j.payload?.document_id === docId &&
         j.payload?.format === format &&
-        (format !== "pdf" || j.payload?.include_qr_code === includeQRCode),
+        (format !== "pdf" || j.payload?.include_images === includeImages),
     );
 
     if (existingJob) {
@@ -584,7 +584,7 @@
     try {
       const exportKey =
         format === "pdf"
-          ? `${docId}:pdf:${includeQRCode}`
+          ? `${docId}:pdf:${includeImages}`
           : `${docId}:${format}`;
       exporting[exportKey] = true;
       await api.exportDocument({
@@ -592,15 +592,14 @@
         lecture_id: lectureId,
         exam_id: examId,
         format,
-        include_images: true,
-        include_qr_code: includeQRCode,
+        include_images: includeImages,
       });
       notifications.success(`We are preparing your document analysis export.`);
       await loadJobs();
     } catch (e: any) {
       const exportKey =
         format === "pdf"
-          ? `${docId}:pdf:${includeQRCode}`
+          ? `${docId}:pdf:${includeImages}`
           : `${docId}:${format}`;
       exporting[exportKey] = false;
       notifications.error(e.message || e);
@@ -610,7 +609,7 @@
   async function handleExportTool(
     toolId: string,
     format: string,
-    includeQRCode: boolean = true,
+    includeImages: boolean = true,
   ) {
     // Check for existing completed job
     const existingJob = jobs.find(
@@ -619,7 +618,7 @@
         j.status === "COMPLETED" &&
         j.payload?.tool_id === toolId &&
         j.payload?.format === format &&
-        (format !== "pdf" || j.payload?.include_qr_code === includeQRCode),
+        (format !== "pdf" || j.payload?.include_images === includeImages),
     );
 
     if (existingJob) {
@@ -634,22 +633,21 @@
     try {
       const exportKey =
         format === "pdf"
-          ? `${toolId}:pdf:${includeQRCode}`
+          ? `${toolId}:pdf:${includeImages}`
           : `${toolId}:${format}`;
       exporting[exportKey] = true;
       await api.exportTool({
         tool_id: toolId,
         exam_id: examId,
         format,
-        include_images: true,
-        include_qr_code: includeQRCode,
+        include_images: includeImages,
       });
       notifications.success(`We are preparing your study guide export.`);
       await loadJobs();
     } catch (e: any) {
       const exportKey =
         format === "pdf"
-          ? `${toolId}:pdf:${includeQRCode}`
+          ? `${toolId}:pdf:${includeImages}`
           : `${toolId}:${format}`;
       exporting[exportKey] = false;
       notifications.error(e.message || e);

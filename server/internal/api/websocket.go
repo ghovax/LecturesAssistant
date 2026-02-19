@@ -14,11 +14,16 @@ import (
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(httpRequest *http.Request) bool {
 		origin := httpRequest.Header.Get("Origin")
+		slog.Debug("WebSocket origin check", "origin", origin)
 		if origin == "" {
 			return true
 		}
-		// Allow any port on localhost or 127.0.0.1
-		return strings.Contains(origin, "://localhost") || strings.Contains(origin, "://127.0.0.1")
+		// Allow localhost on any port
+		if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
+			return true
+		}
+		slog.Warn("WebSocket origin rejected", "origin", origin)
+		return false
 	},
 }
 
@@ -147,8 +152,10 @@ func (client *WSClient) isSubscribed(channel string) bool {
 
 // handleWebSocket handles the WebSocket connection upgrade
 func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, request *http.Request) {
+	slog.Info("WebSocket connection attempt", "origin", request.Header.Get("Origin"), "remote", request.RemoteAddr)
 	sessionToken := server.getSessionToken(request)
 	if sessionToken == "" {
+		slog.Warn("WebSocket rejected: no session token")
 		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Authentication required", nil)
 		return
 	}
@@ -157,15 +164,18 @@ func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, reques
 	var expiresAt time.Time
 	databaseError := server.database.QueryRow("SELECT user_id, expires_at FROM auth_sessions WHERE id = ?", sessionToken).Scan(&userID, &expiresAt)
 	if databaseError != nil || time.Now().After(expiresAt) {
+		slog.Warn("WebSocket rejected: invalid session", "error", databaseError)
 		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid or expired session", nil)
 		return
 	}
 
+	slog.Info("WebSocket upgrading", "userID", userID)
 	connection, upgradeError := upgrader.Upgrade(responseWriter, request, nil)
 	if upgradeError != nil {
-		slog.Error("WebSocket upgrade failed", "error", upgradeError)
+		slog.Error("WebSocket upgrade failed", "error", upgradeError, "origin", request.Header.Get("Origin"))
 		return
 	}
+	slog.Info("WebSocket connected", "userID", userID)
 
 	client := &WSClient{
 		hub:           server.wsHub,

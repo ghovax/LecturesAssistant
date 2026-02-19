@@ -322,9 +322,9 @@
           {#each messages ?? [] as msg, i}
             {#if msg.role === "assistant"}
               {@const prevMsg = messages[i - 1]}
-              <div class="bg-white p-0 overflow-hidden mb-4 border">
+              <div class="bg-white p-0 mb-4 border">
                 <div class="standard-header">
-                  <div class="header-title overflow-hidden">
+                  <div class="header-title">
                     <span class="header-text">Assistant</span>
                     {#if prevMsg && prevMsg.role === "user"}
                       <span
@@ -361,9 +361,9 @@
           {/each}
 
           {#if streamingMessage}
-            <div class="bg-white p-0 overflow-hidden mb-4 border">
+            <div class="bg-white p-0 mb-4 border">
               <div class="standard-header">
-                <div class="header-title overflow-hidden">
+                <div class="header-title">
                   <span class="header-text">Assistant</span>
                   {#if messages.length > 0 && messages[messages.length - 1].role === "user"}
                     <span

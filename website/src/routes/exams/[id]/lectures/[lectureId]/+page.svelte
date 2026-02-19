@@ -1119,7 +1119,7 @@
           <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
           <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
           <div
-            class="well bg-white p-0 overflow-hidden mb-3 border"
+            class="well bg-white p-0 mb-3 border"
             onclick={handleCitationClick}
             onkeydown={(e) =>
               e.key === "Enter" && handleCitationClick(e as any)}
@@ -1169,7 +1169,7 @@
           </div>
         {/if}
         {#if !loading && activeView === "transcript"}
-          <div class="well bg-white p-0 overflow-hidden mb-3 border">
+          <div class="well bg-white p-0 mb-3 border">
             <div class="standard-header">
               <div class="header-title">
                 <span class="header-text">Dialogue</span>
@@ -1283,7 +1283,7 @@
         {/if}
         {#if !loading && activeView === "document"}
           {@const doc = documents.find((d) => d.id === selectedDocId)}
-          <div class="well bg-white p-0 overflow-hidden mb-3 border">
+          <div class="well bg-white p-0 mb-3 border">
             <div class="standard-header">
               <div class="header-title">
                 <span class="header-text font-monospace"

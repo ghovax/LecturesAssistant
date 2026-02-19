@@ -105,7 +105,7 @@
         {#if pages[currentPageIndex]}
           {@const p = pages[currentPageIndex]}
           <div
-            class="well bg-white mb-3 p-0 overflow-hidden border shadow-none"
+            class="well bg-white mb-3 p-0 border shadow-none"
           >
             <div class="standard-header">
               <div class="header-title d-flex align-items-center gap-4">

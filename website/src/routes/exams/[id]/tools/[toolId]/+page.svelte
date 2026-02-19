@@ -28,6 +28,7 @@
   let handledJobIds = new Set<string>();
   let downloadLock = new Set<string>();
   let socket: WebSocket | null = null;
+  let lastExportPath = $state<string | null>(null);
 
   // Citation Popup State
   let activeCitation = $state<{
@@ -47,10 +48,14 @@
     }
 
     const token = localStorage.getItem("session_token");
-    const baseUrl = api.getBaseUrl().replace("http", "ws");
-    socket = new WebSocket(`${baseUrl}/socket?session_token=${token}`);
+    // Use relative URL to go through Vite proxy
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}/api/socket?session_token=${token}`;
+    console.log("Connecting to WebSocket:", wsUrl);
+    socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
+      console.log("WebSocket connected");
       socket?.send(
         JSON.stringify({
           type: "subscribe",
@@ -60,13 +65,21 @@
     };
 
     socket.onmessage = async (event) => {
+      console.log("WebSocket message received:", event.data);
       const data = JSON.parse(event.data);
       if (data.type === "job:progress") {
+        console.log("Job progress update:", data.payload);
         handleJobUpdate(data.payload);
       }
     };
 
-    socket.onclose = () => {};
+    socket.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
+
+    socket.onclose = (event) => {
+      console.log("WebSocket closed:", event.code, event.reason);
+    };
   }
 
   async function handleJobUpdate(update: any) {
@@ -111,6 +124,7 @@
             ? JSON.parse(update.result)
             : update.result;
         if (result?.file_path) {
+          lastExportPath = result.file_path;
           api.downloadExport(result.file_path).catch(() => {
             const directUrl = api.getAuthenticatedMediaUrl(
               `/exports/download?path=${encodeURIComponent(result.file_path)}`,
@@ -121,6 +135,19 @@
         }
       } catch (e) {
         console.error("Failed to parse job result for auto-download", e);
+      } finally {
+        // Reset exporting state
+        const payload =
+          typeof update.payload === "string"
+            ? JSON.parse(update.payload)
+            : update.payload;
+        const format = payload.format;
+        if (format === "pdf") {
+          exporting[`${toolId}:pdf:true`] = false;
+          exporting[`${toolId}:pdf:false`] = false;
+        } else {
+          exporting[`${toolId}:${format}`] = false;
+        }
       }
     }
   }
@@ -187,6 +214,23 @@
     }
   }
 
+  async function handleDownload() {
+    if (!lastExportPath) {
+      notifications.error("No export available. Please export the material first.");
+      return;
+    }
+    try {
+      await api.downloadExport(lastExportPath);
+      notifications.success("Download started.");
+    } catch (e: any) {
+      const directUrl = api.getAuthenticatedMediaUrl(
+        `/exports/download?path=${encodeURIComponent(lastExportPath)}`,
+      );
+      window.open(directUrl, "_blank");
+      notifications.success("Opening export in new tab...");
+    }
+  }
+
   async function handleExport(format: string, includeQRCode: boolean = true) {
     try {
       const exportKey =
@@ -200,7 +244,7 @@
         format,
         include_qr_code: includeQRCode,
       });
-      notifications.success(`We are preparing your export.`);
+      notifications.success(`We are preparing your export. Download will start automatically when ready.`);
     } catch (e: any) {
       const exportKey =
         format === "pdf"
@@ -227,7 +271,16 @@
   <header class="page-header">
     <div class="d-flex justify-content-between align-items-center mb-2">
       <h1 class="page-title m-0">{tool.title}</h1>
-      {#if true}
+      <div class="d-flex align-items-center gap-2">
+        <button
+          class="btn btn-outline-primary btn-sm rounded-0"
+          onclick={handleDownload}
+          disabled={!lastExportPath}
+          title="Download last exported file"
+        >
+          <Download size={16} class="me-1" />
+          Download
+        </button>
         {@const isExportingPDFWithQR = exporting[`${toolId}:pdf:true`]}
         {@const isExportingPDFNoQR = exporting[`${toolId}:pdf:false`]}
         {@const isExportingDocx = exporting[`${toolId}:docx`]}
@@ -245,6 +298,7 @@
               <Loader2 size={16} class="spinner-animation me-2" />
               Processing...
             {:else}
+              <FileDown size={16} class="me-1" />
               Export
             {/if}
           </button>
@@ -301,7 +355,7 @@
             </li>
           </ul>
         </div>
-      {/if}
+      </div>
     </div>
     <div class="d-flex align-items-center gap-2">
       <span class="badge bg-dark rounded-0"

@@ -52,6 +52,11 @@
     }
 
     &.card {
+      background: #fff;
+      border: 1px solid var(--gray-300);
+      border-radius: var(--border-radius);
+      padding: 20px;
+
       .workspace-header {
         margin-bottom: 1.5rem;
       }

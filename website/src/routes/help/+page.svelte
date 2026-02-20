@@ -14,7 +14,7 @@
 
 <div class="row">
   <div class="col-md-6 mb-4">
-    <div class="bg-white border h-100">
+    <div class="feature-card bg-white border h-100">
       <div class="standard-header">
         <div class="header-title">
           <span class="header-text">Lesson Transcripts</span>
@@ -34,7 +34,7 @@
   </div>
 
   <div class="col-md-6 mb-4">
-    <div class="bg-white border h-100">
+    <div class="feature-card bg-white border h-100">
       <div class="standard-header">
         <div class="header-title">
           <span class="header-text">Smart Study Aids</span>
@@ -53,7 +53,7 @@
   </div>
 
   <div class="col-md-6 mb-4">
-    <div class="bg-white border h-100">
+    <div class="feature-card bg-white border h-100">
       <div class="standard-header">
         <div class="header-title">
           <span class="header-text">Study Assistant</span>
@@ -73,7 +73,7 @@
   </div>
 
   <div class="col-md-6 mb-4">
-    <div class="bg-white border h-100">
+    <div class="feature-card bg-white border h-100">
       <div class="standard-header">
         <div class="header-title">
           <span class="header-text">Deep Content Search</span>
@@ -93,7 +93,7 @@
   </div>
 
   <div class="col-md-6 mb-4">
-    <div class="bg-white border h-100">
+    <div class="feature-card bg-white border h-100">
       <div class="standard-header">
         <div class="header-title">
           <span class="header-text">Professional Export</span>
@@ -112,7 +112,7 @@
   </div>
 
   <div class="col-md-6 mb-4">
-    <div class="bg-white border h-100">
+    <div class="feature-card bg-white border h-100">
       <div class="standard-header">
         <div class="header-title">
           <span class="header-text">Local & Cloud AI</span>
@@ -130,3 +130,9 @@
     </div>
   </div>
 </div>
+
+<style lang="scss">
+  .feature-card {
+    border-radius: var(--border-radius);
+  }
+</style>

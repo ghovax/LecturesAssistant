@@ -9,6 +9,7 @@ export { default as Highlighter } from "./components/Highlighter.svelte";
 export { default as CitationPopup } from "./components/CitationPopup.svelte";
 export { default as EditModal } from "./components/EditModal.svelte";
 export { default as ConfirmModal } from "./components/ConfirmModal.svelte";
+export { default as CreateLectureModal } from "./components/CreateLectureModal.svelte";
 export { default as Pagination } from "./components/Pagination.svelte";
 export { default as StatusIndicator } from "./components/StatusIndicator.svelte";
 export { default as NotificationBanner } from "./components/NotificationBanner.svelte";

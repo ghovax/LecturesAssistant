@@ -52,7 +52,7 @@
         >
           {#if error}
             <div
-              class="alert alert-danger mb-4 rounded-0 border-danger bg-danger bg-opacity-10 text-danger"
+              class="alert alert-danger mb-4 border-danger bg-danger bg-opacity-10 text-danger"
             >
               {error}
             </div>
@@ -100,7 +100,7 @@
           <div class="text-center">
             <button
               type="submit"
-              class="btn btn-success px-5 btn-lg rounded-0 w-100"
+              class="btn btn-success px-5 btn-lg w-100"
               disabled={loading}
             >
               {#if loading}

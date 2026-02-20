@@ -282,7 +282,7 @@
         {@const isExportingMD = exporting[`${toolId}:md`]}
         <div class="d-flex align-items-center gap-2">
           <button
-            class="btn btn-outline-primary btn-sm rounded-0"
+            class="btn btn-outline-primary btn-sm"
             onclick={handleDownload}
             disabled={!lastExportPath}
             title="Download last exported file"
@@ -292,7 +292,7 @@
           </button>
           <div class="btn-group">
             <button
-              class="btn btn-primary btn-sm dropdown-toggle rounded-0"
+              class="btn btn-primary btn-sm dropdown-toggle"
               data-bs-toggle="dropdown"
               disabled={isExportingPDFWithQR ||
                 isExportingPDFNoQR ||
@@ -308,7 +308,7 @@
               {/if}
             </button>
             <ul
-              class="dropdown-menu dropdown-menu-end rounded-0 shadow-none border"
+              class="dropdown-menu dropdown-menu-end shadow-none border"
             >
               <li>
                 <button
@@ -363,7 +363,7 @@
         </div>
       {/if}
       <div class="d-flex align-items-center gap-2">
-        <span class="badge bg-dark rounded-0"
+        <span class="badge bg-dark"
           >{capitalize(tool.type)} Material</span
         >
       </div>

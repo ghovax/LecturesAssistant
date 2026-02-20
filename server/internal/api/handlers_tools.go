@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -921,29 +920,12 @@ func (server *Server) handleDownloadExport(responseWriter http.ResponseWriter, r
 		return
 	}
 
-	// Basic security check: ensure path is within data directory
-	absoluteDataDir, _ := filepath.Abs(server.configuration.Storage.DataDirectory)
-	absoluteFilePath, _ := filepath.Abs(filePath)
-
-	// Robust prefix check using Rel
-	rel, err := filepath.Rel(absoluteDataDir, absoluteFilePath)
-	if err != nil || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
-		server.writeError(responseWriter, http.StatusForbidden, "ACCESS_DENIED", "Access to this file is forbidden", nil)
-		return
-	}
-
-	if _, err := os.Stat(absoluteFilePath); os.IsNotExist(err) {
-		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "File not found", nil)
-		return
-	}
-
 	// Set content-disposition to force download with original filename
-	fileName := filepath.Base(absoluteFilePath)
-	// Properly escape filename for Content-Disposition
+	fileName := filepath.Base(filePath)
 	encodedFileName := url.PathEscape(fileName)
 	responseWriter.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"; filename*=UTF-8''%s", fileName, encodedFileName))
 
-	// Set Content-Type based on extension for better blob handling
+	// Set Content-Type based on extension
 	ext := strings.ToLower(filepath.Ext(fileName))
 	switch ext {
 	case ".pdf":
@@ -954,5 +936,21 @@ func (server *Server) handleDownloadExport(responseWriter http.ResponseWriter, r
 		responseWriter.Header().Set("Content-Type", "text/markdown")
 	}
 
-	http.ServeFile(responseWriter, request, absoluteFilePath)
+	// Serve from DB BLOB
+	userID := server.getUserID(request)
+	var exportData []byte
+	err := server.database.QueryRow(`
+		SELECT export_data FROM jobs
+		WHERE user_id = ? AND type = 'PUBLISH_MATERIAL' AND status = 'COMPLETED'
+		AND result LIKE ? AND export_data IS NOT NULL
+		ORDER BY completed_at DESC LIMIT 1
+	`, userID, "%"+fileName+"%").Scan(&exportData)
+
+	if err != nil || len(exportData) == 0 {
+		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Export file not found", nil)
+		return
+	}
+
+	responseWriter.Header().Set("Content-Length", fmt.Sprintf("%d", len(exportData)))
+	responseWriter.Write(exportData)
 }

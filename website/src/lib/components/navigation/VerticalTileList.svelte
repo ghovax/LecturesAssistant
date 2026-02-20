@@ -40,9 +40,15 @@
         width: 250px;
         border-right: none;
         border-bottom: 1px solid var(--gray-300);
+        border-radius: 0 !important;
 
         &:last-child {
           border-bottom: none;
+          border-radius: 0 0 var(--border-radius) var(--border-radius) !important;
+        }
+
+        &:first-child {
+          border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
         }
 
         &.tile-locked {
@@ -69,14 +75,17 @@
           width: 100%;
           border: 1px solid var(--gray-300);
           border-top: none;
+          border-radius: 0 !important;
 
           &:first-child {
             border-top: 1px solid var(--gray-300);
+            border-radius: 0 !important;
           }
 
           &:last-child {
             border-bottom: 1px solid var(--gray-300);
             border-right: 1px solid var(--gray-300);
+            border-radius: 0 0 var(--border-radius) var(--border-radius) !important;
           }
         }
       }
@@ -85,9 +94,15 @@
     :global(.action-tile) {
       width: 250px;
       border-right: 1px solid var(--gray-300);
+      border-radius: 0 !important;
 
       &:last-child {
         border-right: none;
+        border-radius: 0 var(--border-radius) var(--border-radius) 0 !important;
+      }
+
+      &:first-child {
+        border-radius: var(--border-radius) 0 0 var(--border-radius) !important;
       }
     }
   }

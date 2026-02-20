@@ -178,7 +178,7 @@
       and generate smart materials for your exams.
     </p>
     <div class="mt-4 scroll-blur-light visible d-flex align-items-center gap-3">
-      <a href="/exams" class="btn btn-primary btn-lg rounded-0 px-5">
+      <a href="/exams" class="btn btn-primary btn-lg px-5">
         Start My Studies
       </a>
       <a
@@ -366,7 +366,7 @@
     font-weight: 500;
     padding: 0.75rem 1.5rem;
     border: 1px solid var(--gray-300);
-    border-radius: 0;
+    border-radius: var(--border-radius);
     transition:
       background-color 0.2s ease,
       border-color 0.2s ease,
@@ -400,15 +400,22 @@
     background: transparent;
     margin-bottom: 2rem;
     border: 1px solid var(--gray-300);
+    border-radius: var(--border-radius);
     overflow: visible;
 
     :global(.action-tile),
     :global(.tile-wrapper) {
       width: 250px;
       border-right: 1px solid var(--gray-300);
+      border-radius: 0;
 
       &:last-child {
         border-right: none;
+        border-radius: 0 var(--border-radius) var(--border-radius) 0;
+      }
+
+      &:first-child {
+        border-radius: var(--border-radius) 0 0 var(--border-radius);
       }
     }
 

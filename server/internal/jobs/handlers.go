@@ -82,9 +82,9 @@ func RegisterHandlers(
 			broadcast("lecture:"+payload.LectureID, "lecture:processing", map[string]string{"lecture_id": payload.LectureID})
 		}
 
-		// 1. Get lecture media files in order
+		// 1. Get lecture media files in order, including BLOB data
 		mediaRows, databaseError := database.Query(`
-			SELECT id, lecture_id, media_type, sequence_order, file_path, created_at
+			SELECT id, lecture_id, media_type, sequence_order, file_path, created_at, file_data
 			FROM lecture_media
 			WHERE lecture_id = ?
 			ORDER BY sequence_order ASC
@@ -94,11 +94,24 @@ func RegisterHandlers(
 		}
 		defer mediaRows.Close()
 
+		// Temp directory for restoring media files from DB
+		mediaTempDir := filepath.Join(os.TempDir(), "lectures-jobs", job.ID, "media")
+		os.MkdirAll(mediaTempDir, 0755)
+
 		var mediaFiles []models.LectureMedia
 		for mediaRows.Next() {
 			var media models.LectureMedia
-			if scanningError := mediaRows.Scan(&media.ID, &media.LectureID, &media.MediaType, &media.SequenceOrder, &media.FilePath, &media.CreatedAt); scanningError != nil {
+			var fileData []byte
+			if scanningError := mediaRows.Scan(&media.ID, &media.LectureID, &media.MediaType, &media.SequenceOrder, &media.FilePath, &media.CreatedAt, &fileData); scanningError != nil {
 				return fmt.Errorf("failed to scan media file: %w", scanningError)
+			}
+			// Restore media file from DB BLOB to temp dir for processing
+			if len(fileData) > 0 {
+				tempPath := filepath.Join(mediaTempDir, filepath.Base(media.FilePath))
+				if writeErr := os.WriteFile(tempPath, fileData, 0644); writeErr != nil {
+					return fmt.Errorf("failed to restore media file from DB: %w", writeErr)
+				}
+				media.FilePath = tempPath
 			}
 			mediaFiles = append(mediaFiles, media)
 		}
@@ -255,9 +268,9 @@ func RegisterHandlers(
 			payload.LanguageCode = config.LLM.Language
 		}
 
-		// 1. Get reference documents for the lecture
+		// 1. Get reference documents for the lecture, including BLOB data
 		documentRows, databaseError := database.Query(`
-			SELECT id, lecture_id, document_type, title, file_path, page_count, extraction_status, created_at, updated_at
+			SELECT id, lecture_id, document_type, title, file_path, page_count, extraction_status, created_at, updated_at, file_data
 			FROM reference_documents
 			WHERE lecture_id = ?
 		`, payload.LectureID)
@@ -266,11 +279,25 @@ func RegisterHandlers(
 		}
 		defer documentRows.Close()
 
+		// Temp directory for restoring document files from DB
+		docTempDir := filepath.Join(os.TempDir(), "lectures-documents", job.ID)
+		os.MkdirAll(docTempDir, 0755)
+		defer os.RemoveAll(docTempDir)
+
 		var documentsList []models.ReferenceDocument
 		for documentRows.Next() {
 			var document models.ReferenceDocument
-			if scanningError := documentRows.Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt); scanningError != nil {
+			var fileData []byte
+			if scanningError := documentRows.Scan(&document.ID, &document.LectureID, &document.DocumentType, &document.Title, &document.FilePath, &document.PageCount, &document.ExtractionStatus, &document.CreatedAt, &document.UpdatedAt, &fileData); scanningError != nil {
 				return fmt.Errorf("failed to scan document: %w", scanningError)
+			}
+			// Restore document file from DB BLOB to temp dir for processing
+			if len(fileData) > 0 {
+				tempPath := filepath.Join(docTempDir, filepath.Base(document.FilePath))
+				if writeErr := os.WriteFile(tempPath, fileData, 0644); writeErr != nil {
+					return fmt.Errorf("failed to restore document from DB: %w", writeErr)
+				}
+				document.FilePath = tempPath
 			}
 			documentsList = append(documentsList, document)
 		}
@@ -311,36 +338,33 @@ func RegisterHandlers(
 					return
 				}
 
-				// 3. Create output directory for pages in lecture's assets directory
-				outputDir := filepath.Join(config.Storage.DataDirectory, "files", "lectures", payload.LectureID, "documents", doc.ID, "pages")
+				// 3. Create temp output directory for page images
+				outputDir := filepath.Join(os.TempDir(), "lectures-documents", job.ID, doc.ID, "pages")
 
 				// 4. Run document processing
 				pages, docMetrics, processingError := documentProcessor.ProcessDocument(jobContext, doc, outputDir, payload.LanguageCode, func(progress int, message string) {
 					// We don't report sub-progress for individual docs here to avoid flooding, or we could prefix it
 				})
 
-				mutex.Lock()
-				defer mutex.Unlock()
-
 				if processingError != nil {
+					mutex.Lock()
 					if firstError == nil {
 						firstError = fmt.Errorf("document processor failed for %s: %w", doc.Title, processingError)
 					}
+					mutex.Unlock()
 					os.RemoveAll(outputDir)
 					database.Exec("UPDATE reference_documents SET extraction_status = ?, updated_at = ? WHERE id = ?", "failed", time.Now(), doc.ID)
 					return
 				}
 
-				totalMetrics.InputTokens += docMetrics.InputTokens
-				totalMetrics.OutputTokens += docMetrics.OutputTokens
-				totalMetrics.EstimatedCost += docMetrics.EstimatedCost
-
-				// 5. Store pages in database
+				// 5. Store pages in database — image data goes into BLOBs
 				tx, err := database.Begin()
 				if err != nil {
+					mutex.Lock()
 					if firstError == nil {
 						firstError = fmt.Errorf("failed to begin transaction: %w", err)
 					}
+					mutex.Unlock()
 					os.RemoveAll(outputDir)
 					return
 				}
@@ -348,14 +372,23 @@ func RegisterHandlers(
 
 				tx.Exec("DELETE FROM reference_pages WHERE document_id = ?", doc.ID)
 				for _, currentPage := range pages {
+					// Read image bytes to store in DB
+					imageData, readErr := os.ReadFile(currentPage.ImagePath)
+					if readErr != nil {
+						slog.Warn("Failed to read page image for DB storage", "path", currentPage.ImagePath, "error", readErr)
+					}
+					// Store a logical path (just the filename) — not a disk path
+					logicalImagePath := filepath.Base(currentPage.ImagePath)
 					_, err = tx.Exec(`
-						INSERT INTO reference_pages (document_id, page_number, image_path, extracted_text)
-						VALUES (?, ?, ?, ?)
-					`, doc.ID, currentPage.PageNumber, currentPage.ImagePath, currentPage.ExtractedText)
+						INSERT INTO reference_pages (document_id, page_number, image_path, extracted_text, image_data)
+						VALUES (?, ?, ?, ?, ?)
+					`, doc.ID, currentPage.PageNumber, logicalImagePath, currentPage.ExtractedText, imageData)
 					if err != nil {
+						mutex.Lock()
 						if firstError == nil {
 							firstError = fmt.Errorf("failed to insert page: %w", err)
 						}
+						mutex.Unlock()
 						os.RemoveAll(outputDir)
 						return
 					}
@@ -364,22 +397,29 @@ func RegisterHandlers(
 				// 6. Update document as completed
 				_, err = tx.Exec("UPDATE reference_documents SET extraction_status = ?, page_count = ?, estimated_cost = ?, updated_at = ? WHERE id = ?", "completed", len(pages), docMetrics.EstimatedCost, time.Now(), doc.ID)
 				if err != nil {
+					mutex.Lock()
 					if firstError == nil {
 						firstError = fmt.Errorf("failed to finalize document status: %w", err)
 					}
+					mutex.Unlock()
 					os.RemoveAll(outputDir)
 					return
 				}
 
 				if err := tx.Commit(); err != nil {
+					mutex.Lock()
 					if firstError == nil {
 						firstError = fmt.Errorf("failed to commit transaction: %w", err)
 					}
+					mutex.Unlock()
 					os.RemoveAll(outputDir)
 					return
 				}
 
 				mutex.Lock()
+				totalMetrics.InputTokens += docMetrics.InputTokens
+				totalMetrics.OutputTokens += docMetrics.OutputTokens
+				totalMetrics.EstimatedCost += docMetrics.EstimatedCost
 				completedCount++
 				progress := int(float64(completedCount) / float64(totalDocuments) * 100)
 				updateProgress(progress, fmt.Sprintf("Ingested %d/%d reference documents...", completedCount, totalDocuments), nil, totalMetrics)
@@ -890,9 +930,10 @@ func RegisterHandlers(
 				}
 			}
 
-			// Setup export directory
-			exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", job.ID)
+			// Setup export in temp directory (DB BLOB is the source of truth)
+			exportDirectory := filepath.Join(os.TempDir(), "lectures-exports", job.ID)
 			os.MkdirAll(exportDirectory, 0755)
+			defer os.RemoveAll(exportDirectory)
 			safeFilename := "Transcript of " + sanitizeFilename(lecture.Title) + "." + payload.Format
 			outputPath := filepath.Join(exportDirectory, safeFilename)
 
@@ -921,6 +962,10 @@ func RegisterHandlers(
 				return err
 			}
 
+			// Store export bytes in DB for self-contained backups
+			if exportBytes, readErr := os.ReadFile(outputPath); readErr == nil {
+				database.Exec("UPDATE jobs SET export_data = ? WHERE id = ?", exportBytes, job.ID)
+			}
 			job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
 			return nil
 		}
@@ -943,7 +988,7 @@ func RegisterHandlers(
 			database.QueryRow("SELECT title FROM exams WHERE id = ?", examID).Scan(&examTitle)
 
 			rows, err := database.Query(`
-				SELECT page_number, image_path, extracted_text FROM reference_pages
+				SELECT page_number, image_path, extracted_text, image_data FROM reference_pages
 				WHERE document_id = ? ORDER BY page_number ASC
 			`, payload.DocumentID)
 			if err != nil {
@@ -957,14 +1002,20 @@ func RegisterHandlers(
 			rootNode := &markdown.Node{Type: markdown.NodeDocument}
 			rootNode.Children = append(rootNode.Children, &markdown.Node{Type: markdown.NodeHeading, Level: 1, Content: "`" + doc.Title + "`"})
 
+			// Temp dir for restoring page images from DB BLOBs
+			docExportTempDir := filepath.Join(os.TempDir(), "lectures-exports", job.ID, "images")
+			os.MkdirAll(docExportTempDir, 0755)
+
 			for rows.Next() {
 				var pageNum int
 				var imagePath, text string
-				if err := rows.Scan(&pageNum, &imagePath, &text); err == nil {
-					// Convert to relative path for Pandoc
-					relPath, err := filepath.Rel(config.Storage.DataDirectory, imagePath)
-					if err == nil {
-						imagePath = relPath
+				var imageData []byte
+				if err := rows.Scan(&pageNum, &imagePath, &text, &imageData); err == nil {
+					// Restore image from BLOB to temp dir
+					if len(imageData) > 0 {
+						tempImagePath := filepath.Join(docExportTempDir, fmt.Sprintf("page_%d.png", pageNum))
+						os.WriteFile(tempImagePath, imageData, 0644)
+						imagePath = tempImagePath
 					}
 
 					if pageNum%10 == 0 || pageNum == 1 {
@@ -995,9 +1046,10 @@ func RegisterHandlers(
 
 			content := markdownReconstructor.Reconstruct(rootNode)
 
-			// Setup export directory
-			exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", job.ID)
+			// Setup export in temp directory (DB BLOB is the source of truth)
+			exportDirectory := filepath.Join(os.TempDir(), "lectures-exports", job.ID)
 			os.MkdirAll(exportDirectory, 0755)
+			defer os.RemoveAll(exportDirectory)
 			safeFilename := sanitizeFilename(doc.Title) + "." + payload.Format
 			outputPath := filepath.Join(exportDirectory, safeFilename)
 
@@ -1026,6 +1078,10 @@ func RegisterHandlers(
 				return err
 			}
 
+			// Store export bytes in DB for self-contained backups
+			if exportBytes, readErr := os.ReadFile(outputPath); readErr == nil {
+				database.Exec("UPDATE jobs SET export_data = ? WHERE id = ?", exportBytes, job.ID)
+			}
 			job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
 			return nil
 		}
@@ -1052,10 +1108,12 @@ func RegisterHandlers(
 				payload.LanguageCode = config.LLM.Language
 			}
 
-			exportDirectory := filepath.Join(config.Storage.DataDirectory, "files", "exports", tool.ID)
+			// Setup export in temp directory (DB BLOB is the source of truth)
+			exportDirectory := filepath.Join(os.TempDir(), "lectures-exports", job.ID)
 			if mkdirError := os.MkdirAll(exportDirectory, 0755); mkdirError != nil {
 				return fmt.Errorf("failed to create export directory: %w", mkdirError)
 			}
+			defer os.RemoveAll(exportDirectory)
 
 			// Use sanitized tool title as filename
 			outputExtension := "." + payload.Format
@@ -1149,11 +1207,13 @@ func RegisterHandlers(
 					}
 					enrichNodeMetadata(ast)
 
-					// 3. Pre-fetch all page paths for this exam
+					// 3. Pre-fetch all page images for this exam, restoring from BLOBs to temp
+					toolImageTempDir := filepath.Join(os.TempDir(), "lectures-exports", job.ID, "images")
+					os.MkdirAll(toolImageTempDir, 0755)
 					pageMap := make(map[string]string) // Key: "filename:page"
 					slog.Info("Pre-fetching page image paths from database", "examID", examID)
 					rows, err := database.Query(`
-						SELECT reference_documents.original_filename, reference_documents.title, reference_pages.page_number, reference_pages.image_path
+						SELECT reference_documents.original_filename, reference_documents.title, reference_pages.page_number, reference_pages.image_path, reference_pages.image_data
 						FROM reference_pages
 						JOIN reference_documents ON reference_pages.document_id = reference_documents.id
 						JOIN lectures ON reference_documents.lecture_id = lectures.id
@@ -1164,12 +1224,22 @@ func RegisterHandlers(
 							var originalFilename sql.NullString
 							var title, imagePath string
 							var pageNumber int
-							if err := rows.Scan(&originalFilename, &title, &pageNumber, &imagePath); err == nil {
+							var imageData []byte
+							if err := rows.Scan(&originalFilename, &title, &pageNumber, &imagePath, &imageData); err == nil {
+								// Restore image from BLOB to temp dir
+								resolvedPath := imagePath
+								if len(imageData) > 0 {
+									tempImagePath := filepath.Join(toolImageTempDir, fmt.Sprintf("%s_page_%d.png", filepath.Base(imagePath), pageNumber))
+									if writeErr := os.WriteFile(tempImagePath, imageData, 0644); writeErr == nil {
+										resolvedPath = tempImagePath
+									}
+								}
+
 								if originalFilename.Valid && originalFilename.String != "" {
-									pageMap[fmt.Sprintf("%s:%d", originalFilename.String, pageNumber)] = imagePath
+									pageMap[fmt.Sprintf("%s:%d", originalFilename.String, pageNumber)] = resolvedPath
 								}
 								if title != "" {
-									pageMap[fmt.Sprintf("%s:%d", title, pageNumber)] = imagePath
+									pageMap[fmt.Sprintf("%s:%d", title, pageNumber)] = resolvedPath
 								}
 							}
 						}
@@ -1179,16 +1249,7 @@ func RegisterHandlers(
 
 					imageResolver := func(filename string, pageNumber int) string {
 						key := fmt.Sprintf("%s:%d", filename, pageNumber)
-						absPath := pageMap[key]
-						if absPath == "" {
-							return ""
-						}
-						// Return path relative to data directory for Pandoc
-						relPath, err := filepath.Rel(config.Storage.DataDirectory, absPath)
-						if err != nil {
-							return absPath
-						}
-						return relPath
+						return pageMap[key]
 					}
 
 					slog.Info("Starting AST enrichment with cited images")
@@ -1385,6 +1446,10 @@ func RegisterHandlers(
 				"input_tokens", totalMetrics.InputTokens,
 				"output_tokens", totalMetrics.OutputTokens,
 				"estimated_cost_usd", totalMetrics.EstimatedCost)
+			// Store export bytes in DB for self-contained backups
+			if exportBytes, readErr := os.ReadFile(outputPath); readErr == nil {
+				database.Exec("UPDATE jobs SET export_data = ? WHERE id = ?", exportBytes, job.ID)
+			}
 			job.Result = fmt.Sprintf(`{"file_path": "%s", "format": "%s"}`, outputPath, payload.Format)
 			return nil
 		}

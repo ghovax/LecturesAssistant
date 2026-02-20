@@ -59,7 +59,7 @@
   .notification-banner {
     pointer-events: auto;
     padding: 0.75rem 1rem;
-    border-radius: 0; /* Kakimashou style: no rounded corners */
+    border-radius: var(--border-radius);
     border-left: 0.25rem solid transparent;
     background: #fff;
     color: #333;

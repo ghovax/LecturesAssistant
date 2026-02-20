@@ -12,6 +12,7 @@
     FormField,
     EmptyState,
     LoadingState,
+    Modal,
   } from "$lib";
   import { Plus, Trash2 } from "lucide-svelte";
 
@@ -19,7 +20,8 @@
   let loading = $state(true);
   let newExamTitle = $state("");
   let newExamLanguage = $state("");
-  let showCreate = $state(false);
+  let showCreateModal = $state(false);
+  let defaultLanguage = $state("");
 
   // Confirmation Modal State
   let confirmModal = $state({
@@ -51,8 +53,12 @@
   async function loadExams() {
     loading = true;
     try {
-      const data = await api.listExams();
+      const [data, settings] = await Promise.all([
+        api.listExams(),
+        api.getSettings(),
+      ]);
       exams = data ?? [];
+      defaultLanguage = settings?.llm?.language || "en-US";
     } catch (e) {
       console.error(e);
     } finally {
@@ -80,17 +86,22 @@
 
   let creating = $state(false);
 
+  function openCreateModal() {
+    newExamLanguage = defaultLanguage;
+    showCreateModal = true;
+  }
+
   async function createExam() {
     if (!newExamTitle || creating) return;
     creating = true;
     try {
       await api.createExam({
         title: newExamTitle,
-        language: newExamLanguage || undefined,
+        language: newExamLanguage || defaultLanguage || undefined,
       });
       newExamTitle = "";
       newExamLanguage = "";
-      showCreate = false;
+      showCreateModal = false;
       await loadExams();
       notifications.success("Your new subject has been added.");
     } catch (e: any) {
@@ -131,8 +142,8 @@
   description="Access your personal study hub and manage all subjects."
 >
   <button
-    class="btn btn-primary rounded-0"
-    onclick={() => (showCreate = !showCreate)}
+    class="btn btn-primary"
+    onclick={openCreateModal}
   >
     <Plus size={16} /> Add Subject
   </button>
@@ -177,8 +188,8 @@
       >
         {#snippet action()}
           <button
-            class="btn btn-success rounded-0"
-            onclick={() => (showCreate = true)}
+            class="btn btn-success"
+            onclick={openCreateModal}
           >
             Create My First Subject
           </button>
@@ -188,48 +199,50 @@
   </CardContainer>
 {/if}
 
-{#if showCreate}
-  <CardContainer title="Create a New Subject" class="mt-4">
-    <div class="p-4">
-      <form
-        onsubmit={(e) => {
-          e.preventDefault();
-          createExam();
-        }}
+<Modal
+  title="Create a New Subject"
+  isOpen={showCreateModal}
+  onClose={() => (showCreateModal = false)}
+  maxWidth="550px"
+>
+  <form
+    onsubmit={(e) => {
+      e.preventDefault();
+      createExam();
+    }}
+  >
+    <FormField
+      label="Subject Name"
+      id="examTitle"
+      type="text"
+      bind:value={newExamTitle}
+      placeholder="e.g. History, Science, Mathematics..."
+      required
+    />
+
+    <FormField
+      label="Language (Optional)"
+      id="examLanguage"
+      type="select"
+      bind:value={newExamLanguage}
+      options={languageOptions}
+      helpText="Lectures will inherit this language for transcription and document processing."
+    />
+
+    <div class="d-flex justify-content-end mt-4">
+      <button
+        type="submit"
+        class="btn btn-success px-4"
+        disabled={creating}
       >
-        <FormField
-          label="Subject Name"
-          id="examTitle"
-          type="text"
-          value={newExamTitle}
-          placeholder="e.g. History, Science, Mathematics..."
-          required
-        />
-
-        <FormField
-          label="Language (Optional)"
-          id="examLanguage"
-          type="select"
-          value={newExamLanguage}
-          options={languageOptions}
-          helpText="Lectures will inherit this language for transcription and document processing."
-        />
-
-        <button
-          type="submit"
-          class="btn btn-success rounded-0"
-          disabled={creating}
-        >
-          {#if creating}
-            <span class="spinner-border spinner-border-sm me-2" role="status"
-            ></span>
-          {/if}
-          Create Subject
-        </button>
-      </form>
+        {#if creating}
+          <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+        {/if}
+        Create Subject
+      </button>
     </div>
-  </CardContainer>
-{/if}
+  </form>
+</Modal>
 
 {#if loading && exams.length === 0}
   <LoadingState message="Loading your studies..." />

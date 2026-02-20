@@ -40,7 +40,7 @@
       class="modal-dialog modal-dialog-centered"
       style="max-width: {maxWidth};"
     >
-      <div class="modal-content rounded-0 shadow-lg">
+      <div class="modal-content shadow-lg">
         <!-- Header -->
         <div class="standard-header px-3">
           <div class="header-title">
@@ -72,7 +72,7 @@
 
 <style lang="scss">
   .modal-content {
-    border-radius: 0 !important;
+    border-radius: var(--border-radius) !important;
     border: 1px solid var(--gray-300) !important;
   }
 </style>

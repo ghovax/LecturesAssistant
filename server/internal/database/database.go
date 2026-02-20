@@ -299,8 +299,11 @@ func createSchema(database *sql.DB) error {
 		`CREATE INDEX index_jobs_status ON jobs(status)`,
 		`CREATE INDEX index_auth_sessions_user_id ON auth_sessions(user_id)`,
 
-		// Store page images as BLOBs so backups are fully self-contained
+		// Store all file data as BLOBs so backups are fully self-contained
 		`ALTER TABLE reference_pages ADD COLUMN image_data BLOB`,
+		`ALTER TABLE lecture_media ADD COLUMN file_data BLOB`,
+		`ALTER TABLE reference_documents ADD COLUMN file_data BLOB`,
+		`ALTER TABLE jobs ADD COLUMN export_data BLOB`,
 	}
 
 	for _, migration := range migrations {

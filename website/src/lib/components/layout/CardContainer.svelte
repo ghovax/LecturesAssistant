@@ -42,6 +42,7 @@
   .card-container {
     background: #fff;
     border: 1px solid var(--gray-300);
+    border-radius: var(--border-radius);
     margin-bottom: 1rem;
     width: 100%;
 

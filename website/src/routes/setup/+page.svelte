@@ -87,7 +87,7 @@
         >
           {#if error && !restoring}
             <div
-              class="alert alert-danger mb-4 rounded-0 border-danger bg-danger bg-opacity-10 text-danger"
+              class="alert alert-danger mb-4 border-danger bg-danger bg-opacity-10 text-danger"
             >
               {error}
             </div>
@@ -139,7 +139,7 @@
           <div class="text-center">
             <button
               type="submit"
-              class="btn btn-success px-5 btn-lg rounded-0 w-100"
+              class="btn btn-success px-5 btn-lg w-100"
               disabled={loading || restoring}
             >
               {#if loading}
@@ -179,7 +179,7 @@
           />
           <label
             for="restore-file"
-            class="btn btn-outline-primary px-5 rounded-0 w-100 d-flex align-items-center justify-content-center gap-2"
+            class="btn btn-outline-primary px-5 w-100 d-flex align-items-center justify-content-center gap-2"
             class:disabled={loading || restoring}
           >
             {#if restoring}

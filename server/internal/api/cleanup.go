@@ -7,26 +7,27 @@ import (
 	"time"
 )
 
-// StartStagingCleanupWorker runs a background task to clean up old staging directories and exports
+// StartStagingCleanupWorker runs a background task to clean up old temp directories
 func (server *Server) StartStagingCleanupWorker() {
 	ticker := time.NewTicker(1 * time.Hour)
 	go func() {
 		for range ticker.C {
-			server.cleanupOrphanedUploads()
-			server.cleanupOrphanedJobDirectories()
-			server.cleanupOldExports()
+			cleanupTempDir(filepath.Join(os.TempDir(), "lectures-uploads"), "upload")
+			cleanupTempDir(filepath.Join(os.TempDir(), "lectures-jobs"), "job")
+			cleanupTempDir(filepath.Join(os.TempDir(), "lectures-documents"), "document")
+			cleanupTempDir(filepath.Join(os.TempDir(), "lectures-exports"), "export")
+			cleanupTempFiles(filepath.Join(os.TempDir(), "lectures-media-cache"), "media-cache")
 		}
 	}()
 	slog.Info("Staging cleanup worker started")
 }
 
-func (server *Server) cleanupOldExports() {
-	exportsDir := filepath.Join(server.configuration.Storage.DataDirectory, "files", "exports")
-
-	entries, err := os.ReadDir(exportsDir)
+// cleanupTempDir removes subdirectories older than 24 hours from the given directory.
+func cleanupTempDir(dir string, label string) {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			slog.Error("Failed to read exports directory for cleanup", "error", err)
+			slog.Error("Failed to read temp directory for cleanup", "dir", dir, "error", err)
 		}
 		return
 	}
@@ -45,29 +46,27 @@ func (server *Server) cleanupOldExports() {
 			continue
 		}
 
-		// Delete if older than threshold
 		if currentTime.Sub(info.ModTime()) > threshold {
-			exportPath := filepath.Join(exportsDir, entry.Name())
-			if err := os.RemoveAll(exportPath); err == nil {
+			entryPath := filepath.Join(dir, entry.Name())
+			if err := os.RemoveAll(entryPath); err == nil {
 				deletedCount++
 			} else {
-				slog.Error("Failed to delete old export directory", "path", exportPath, "error", err)
+				slog.Error("Failed to delete orphaned directory", "path", entryPath, "error", err)
 			}
 		}
 	}
 
 	if deletedCount > 0 {
-		slog.Info("Old exports cleanup completed", "deleted_directories", deletedCount)
+		slog.Info("Temp directory cleanup completed", "type", label, "deleted_directories", deletedCount)
 	}
 }
 
-func (server *Server) cleanupOrphanedUploads() {
-	uploadsDir := filepath.Join(os.TempDir(), "lectures-uploads")
-
-	entries, err := os.ReadDir(uploadsDir)
+// cleanupTempFiles removes files (not directories) older than 24 hours from the given directory.
+func cleanupTempFiles(dir string, label string) {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			slog.Error("Failed to read uploads directory for cleanup", "error", err)
+			slog.Error("Failed to read temp directory for cleanup", "dir", dir, "error", err)
 		}
 		return
 	}
@@ -77,7 +76,7 @@ func (server *Server) cleanupOrphanedUploads() {
 	deletedCount := 0
 
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if entry.IsDir() {
 			continue
 		}
 
@@ -86,100 +85,15 @@ func (server *Server) cleanupOrphanedUploads() {
 			continue
 		}
 
-		// Delete if older than threshold
 		if currentTime.Sub(info.ModTime()) > threshold {
-			uploadPath := filepath.Join(uploadsDir, entry.Name())
-			if err := os.RemoveAll(uploadPath); err == nil {
+			filePath := filepath.Join(dir, entry.Name())
+			if err := os.Remove(filePath); err == nil {
 				deletedCount++
-			} else {
-				slog.Error("Failed to delete orphaned upload directory", "path", uploadPath, "error", err)
 			}
 		}
 	}
 
 	if deletedCount > 0 {
-		slog.Info("Upload staging cleanup completed", "deleted_directories", deletedCount)
-	}
-}
-
-func (server *Server) cleanupOrphanedJobDirectories() {
-	jobsDir := filepath.Join(os.TempDir(), "lectures-jobs")
-
-	entries, err := os.ReadDir(jobsDir)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			slog.Error("Failed to read jobs directory for cleanup", "error", err)
-		}
-		return
-	}
-
-	currentTime := time.Now()
-	threshold := 24 * time.Hour
-	deletedCount := 0
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		info, err := entry.Info()
-		if err != nil {
-			continue
-		}
-
-		// Delete if older than threshold (likely from crashed jobs or server restarts)
-		if currentTime.Sub(info.ModTime()) > threshold {
-			jobPath := filepath.Join(jobsDir, entry.Name())
-			if err := os.RemoveAll(jobPath); err == nil {
-				deletedCount++
-			} else {
-				slog.Error("Failed to delete orphaned job directory", "path", jobPath, "error", err)
-			}
-		}
-	}
-
-	if deletedCount > 0 {
-		slog.Info("Job directory cleanup completed", "deleted_directories", deletedCount)
-	}
-}
-
-func (server *Server) cleanupOrphanedDocumentDirectories() {
-	documentsDir := filepath.Join(os.TempDir(), "lectures-documents")
-
-	entries, err := os.ReadDir(documentsDir)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			slog.Error("Failed to read documents directory for cleanup", "error", err)
-		}
-		return
-	}
-
-	currentTime := time.Now()
-	threshold := 24 * time.Hour
-	deletedCount := 0
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		info, err := entry.Info()
-		if err != nil {
-			continue
-		}
-
-		// Delete if older than threshold (PNG images from document processing)
-		if currentTime.Sub(info.ModTime()) > threshold {
-			docPath := filepath.Join(documentsDir, entry.Name())
-			if err := os.RemoveAll(docPath); err == nil {
-				deletedCount++
-			} else {
-				slog.Error("Failed to delete orphaned document directory", "path", docPath, "error", err)
-			}
-		}
-	}
-
-	if deletedCount > 0 {
-		slog.Info("Document directory cleanup completed", "deleted_directories", deletedCount)
+		slog.Info("Temp file cleanup completed", "type", label, "deleted_files", deletedCount)
 	}
 }

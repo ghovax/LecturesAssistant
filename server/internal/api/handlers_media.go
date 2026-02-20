@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"lectures/internal/models"
@@ -98,9 +99,6 @@ func (server *Server) handleDeleteMedia(responseWriter http.ResponseWriter, requ
 		return
 	}
 
-	// Delete file
-	_ = os.Remove(filePath)
-
 	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Media deleted successfully"})
 }
 
@@ -127,15 +125,16 @@ func (server *Server) handleGetMediaContent(responseWriter http.ResponseWriter, 
 		return
 	}
 
-	// Get file path and verify ownership
+	// Get file path, type, and BLOB data; verify ownership
 	var filePath, mediaType string
+	var fileData []byte
 	err := server.database.QueryRow(`
-		SELECT lecture_media.file_path, lecture_media.media_type 
-		FROM lecture_media 
+		SELECT lecture_media.file_path, lecture_media.media_type, lecture_media.file_data
+		FROM lecture_media
 		JOIN lectures ON lecture_media.lecture_id = lectures.id
 		JOIN exams ON lectures.exam_id = exams.id
 		WHERE lecture_media.id = ? AND exams.user_id = ?
-	`, mediaID, userID).Scan(&filePath, &mediaType)
+	`, mediaID, userID).Scan(&filePath, &mediaType, &fileData)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Media not found", nil)
@@ -146,6 +145,25 @@ func (server *Server) handleGetMediaContent(responseWriter http.ResponseWriter, 
 		return
 	}
 
-	// Serve the file
-	http.ServeFile(responseWriter, request, filePath)
+	// Serve from BLOB: restore to temp file so http.ServeFile can handle range requests
+	if len(fileData) > 0 {
+		ext := filepath.Ext(filePath)
+		if ext == "" {
+			ext = ".bin"
+		}
+		tempDir := filepath.Join(os.TempDir(), "lectures-media-cache")
+		os.MkdirAll(tempDir, 0755)
+		tempPath := filepath.Join(tempDir, mediaID+ext)
+		// Only write if not already cached
+		if _, statErr := os.Stat(tempPath); statErr != nil {
+			if writeErr := os.WriteFile(tempPath, fileData, 0644); writeErr != nil {
+				server.writeError(responseWriter, http.StatusInternalServerError, "FILE_ERROR", "Failed to prepare media file", nil)
+				return
+			}
+		}
+		http.ServeFile(responseWriter, request, tempPath)
+		return
+	}
+
+	server.writeError(responseWriter, http.StatusNotFound, "FILE_NOT_FOUND", "Media file not found", nil)
 }

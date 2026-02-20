@@ -65,14 +65,25 @@
     font-size: 0.8rem;
     padding: 0 1.25rem;
     height: 2.5rem;
-    border-radius: 0;
-    border: 1px solid transparent;
-    transition: all 0.2s ease;
+    border-radius: var(--border-radius);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    transition: all 0.15s ease;
     cursor: pointer;
     text-decoration: none;
     line-height: 1;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.05),
+      0 2px 0 rgba(0, 0, 0, 0.1);
+    transform: translateY(0);
+
+    &:active {
+      transform: translateY(2px);
+      box-shadow:
+        0 0 0 rgba(0, 0, 0, 0.05),
+        0 0 0 rgba(0, 0, 0, 0.1);
+    }
 
     &.disabled {
       opacity: 0.5;
@@ -96,31 +107,31 @@
     &.btn-success {
       background: var(--gray-900);
       color: var(--cream);
-      border-color: var(--gray-900);
+      border-color: rgba(0, 0, 0, 0.3);
 
       &:hover {
         background: var(--gray-800);
-        border-color: var(--gray-800);
+        border-color: rgba(0, 0, 0, 0.35);
       }
     }
 
     &.btn-danger {
       background: #b91c1c;
       color: white;
-      border-color: #b91c1c;
+      border-color: rgba(0, 0, 0, 0.3);
       &:hover {
         background: #991b1b;
-        border-color: #991b1b;
+        border-color: rgba(0, 0, 0, 0.35);
       }
     }
 
     &.btn-white {
       background: white;
       color: var(--gray-800);
-      border-color: var(--gray-300);
+      border-color: rgba(0, 0, 0, 0.2);
       &:hover {
         background: var(--gray-200);
-        border-color: var(--gray-400);
+        border-color: rgba(0, 0, 0, 0.25);
       }
     }
 
@@ -128,10 +139,10 @@
     &.btn-outline-success {
       background: transparent;
       color: var(--gray-800);
-      border-color: var(--gray-300);
+      border-color: rgba(0, 0, 0, 0.2);
       &:hover {
         background: var(--gray-200);
-        border-color: var(--gray-400);
+        border-color: rgba(0, 0, 0, 0.3);
       }
     }
 
@@ -140,9 +151,14 @@
       color: var(--gray-600);
       padding: 0;
       border: none;
+      box-shadow: none;
+      transform: none;
       &:hover {
         color: var(--orange);
         text-decoration: underline;
+      }
+      &:active {
+        transform: none;
       }
     }
   }

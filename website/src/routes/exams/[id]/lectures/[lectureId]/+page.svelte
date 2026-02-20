@@ -787,7 +787,7 @@
           <Edit3 size={16} />
         </button>
         <button
-          class="btn btn-success rounded-0"
+          class="btn btn-success"
           onclick={() => createTool("guide")}
           disabled={lecture.status !== "ready"}
         >
@@ -806,7 +806,7 @@
       <div class="col-12">
         {#if !loading && activeView === "dashboard"}
           <div
-            class="mb-4 bg-white border"
+            class="mb-4 bg-white border dashboard-card"
             style="width: fit-content; max-width: 100%;"
           >
             <div class="standard-header">
@@ -1016,7 +1016,7 @@
             </div>
           </div>
 
-          <div class="bg-white border mt-4">
+          <div class="bg-white border mt-4 source-assets-card">
             <div class="standard-header">
               <div class="header-title">
                 <span class="header-text">Source Assets</span>
@@ -1474,7 +1474,7 @@
     <div class="d-flex gap-2 mt-3">
       {#each ["short", "medium", "long", "comprehensive"] as len}
         <button
-          class="btn detail-level-btn flex-grow-1 rounded-0 border transition-all {toolOptions.length ===
+          class="btn detail-level-btn flex-grow-1 border transition-all {toolOptions.length ===
           len
             ? 'btn-primary'
             : 'btn-white bg-white text-dark'}"
@@ -1644,7 +1644,7 @@
   }
 
   audio::-webkit-media-controls-enclosure {
-    border-radius: 0;
+    border-radius: var(--border-radius);
     background-color: #fff;
   }
 

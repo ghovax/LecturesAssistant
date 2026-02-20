@@ -346,10 +346,6 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 	}
 	json.Unmarshal(metadataBytes, &metadata)
 
-	// Move file to permanent storage
-	destinationDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "files", "lectures", lectureID, targetType+"s")
-	os.MkdirAll(destinationDirectory, 0755)
-
 	fileID, _ := gonanoid.New()
 	rawExtension := filepath.Ext(metadata.Filename)
 
@@ -383,49 +379,25 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 		return fmt.Errorf("unsupported or malicious file extension: %s", cleanExtension)
 	}
 
-	// Use only the base filename to prevent path traversal attacks
-	safeFilename := filepath.Base(fileID + "." + cleanExtension)
-	destinationPath := filepath.Join(destinationDirectory, safeFilename)
-
-	// Verify the resolved path is within the intended directory (defense in depth)
-	absDestination, err := filepath.Abs(destinationPath)
-	if err != nil {
-		return fmt.Errorf("failed to resolve destination path: %w", err)
-	}
-	absDestDir, err := filepath.Abs(destinationDirectory)
-	if err != nil {
-		return fmt.Errorf("failed to resolve destination directory: %w", err)
-	}
-	if !strings.HasPrefix(absDestination, absDestDir+string(os.PathSeparator)) && absDestination != absDestDir {
-		return fmt.Errorf("invalid destination path: path traversal detected")
-	}
-
+	// Rename staged file to have proper extension (needed by ffprobe/processing tools)
 	stagedPath := filepath.Join(uploadDirectory, "upload.data")
-	if err := os.Rename(stagedPath, destinationPath); err != nil {
-		// Fallback to copy
-		sourceFile, err := os.Open(stagedPath)
-		if err != nil {
-			return fmt.Errorf("failed to open source for copy: %w", err)
-		}
-		defer sourceFile.Close()
+	tempFilePath := filepath.Join(uploadDirectory, fileID+"."+cleanExtension)
+	os.Rename(stagedPath, tempFilePath)
 
-		destinationFile, err := os.Create(destinationPath)
-		if err != nil {
-			return fmt.Errorf("failed to create destination for copy: %w", err)
-		}
-		defer destinationFile.Close()
-
-		if _, err := io.Copy(destinationFile, sourceFile); err != nil {
-			return fmt.Errorf("failed to copy file: %w", err)
-		}
+	// Read file bytes — the DB is the source of truth for all file data
+	fileData, readErr := os.ReadFile(tempFilePath)
+	if readErr != nil {
+		return fmt.Errorf("failed to read staged file: %w", readErr)
 	}
 
-	// Insert Database Metadata
 	// Sanitize original_filename to prevent path traversal in stored metadata
 	safeOriginalFilename := filepath.Base(metadata.Filename)
 	if safeOriginalFilename == "" || safeOriginalFilename == "." {
 		safeOriginalFilename = "unnamed_file"
 	}
+
+	// Store a logical file_path (not a disk path) — used for extension detection by processors
+	logicalPath := fileID + "." + cleanExtension
 
 	if targetType == "media" {
 		mediaType := "audio"
@@ -436,9 +408,9 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 			}
 		}
 
-		// Extract duration using ffprobe
+		// Extract duration using ffprobe on the temp file
 		durationMs := int64(0)
-		if extractedDuration, err := media.GetDurationMilliseconds(destinationPath, server.configuration.Storage.BinDirectory); err == nil {
+		if extractedDuration, err := media.GetDurationMilliseconds(tempFilePath, server.configuration.Storage.BinDirectory); err == nil {
 			durationMs = extractedDuration
 			slog.Info("Extracted media duration", "file_id", fileID, "duration_milliseconds", durationMs, "duration_seconds", durationMs/1000)
 		} else {
@@ -446,9 +418,9 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 		}
 
 		_, err = transaction.Exec(`
-			INSERT INTO lecture_media (id, lecture_id, media_type, sequence_order, duration_milliseconds, file_path, original_filename, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		`, fileID, lectureID, mediaType, sequenceOrder, durationMs, destinationPath, safeOriginalFilename, time.Now())
+			INSERT INTO lecture_media (id, lecture_id, media_type, sequence_order, duration_milliseconds, file_path, original_filename, created_at, file_data)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, fileID, lectureID, mediaType, sequenceOrder, durationMs, logicalPath, safeOriginalFilename, time.Now(), fileData)
 	} else {
 		documentType := cleanExtension
 		// Normalize document type to satisfy database constraints
@@ -468,9 +440,9 @@ func (server *Server) commitStagedUpload(transaction *sql.Tx, lectureID string, 
 		normalizedTitle = strings.Trim(normalizedTitle, " .")
 
 		_, err = transaction.Exec(`
-			INSERT INTO reference_documents (id, lecture_id, document_type, title, file_path, original_filename, page_count, extraction_status, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, fileID, lectureID, documentType, normalizedTitle, destinationPath, safeOriginalFilename, 0, "pending", time.Now(), time.Now())
+			INSERT INTO reference_documents (id, lecture_id, document_type, title, file_path, original_filename, page_count, extraction_status, created_at, updated_at, file_data)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, fileID, lectureID, documentType, normalizedTitle, logicalPath, safeOriginalFilename, 0, "pending", time.Now(), time.Now(), fileData)
 	}
 
 	if err != nil {
@@ -756,10 +728,6 @@ func (server *Server) handleDeleteLecture(responseWriter http.ResponseWriter, re
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Lecture not found", nil)
 		return
 	}
-
-	// Delete files from filesystem
-	lectureDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "files", "lectures", deleteRequest.LectureID)
-	_ = os.RemoveAll(lectureDirectory)
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Lecture deleted successfully"})
 }

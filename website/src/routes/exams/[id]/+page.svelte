@@ -11,6 +11,7 @@
     VerticalTileList,
     EditModal,
     ConfirmModal,
+    CreateLectureModal,
     PageHeader,
     CardContainer,
     LoadingState,
@@ -24,6 +25,7 @@
   let chatSessions = $state<any[]>([]);
   let loading = $state(true);
   let showEditModal = $state(false);
+  let showCreateLectureModal = $state(false);
   let socket: WebSocket | null = null;
 
   // Confirmation Modal State
@@ -182,6 +184,19 @@
         if (browser) setupWebSocket();
       });
     }
+
+    // Refresh data when page becomes visible (e.g., after back navigation)
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && examId) {
+        loadData();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   });
 
   onDestroy(() => {
@@ -225,10 +240,13 @@
       >
         <Edit3 size={16} />
       </button>
-      <a href="/exams/{examId}/lectures/new" class="btn btn-primary rounded-0">
+      <button
+        class="btn btn-primary"
+        onclick={() => (showCreateLectureModal = true)}
+      >
         <Plus size={16} /> Add Lesson
-      </a>
-      <button class="btn btn-success rounded-0" onclick={createChat}>
+      </button>
+      <button class="btn btn-success" onclick={createChat}>
         <Plus size={16} /> New Chat
       </button>
     </div>
@@ -281,7 +299,7 @@
               >
                 {#snippet action()}
                   <button
-                    class="btn btn-success rounded-0"
+                    class="btn btn-success"
                     onclick={createChat}
                   >
                     <Plus size={14} /> Start New Chat
@@ -335,12 +353,12 @@
                 description="Add your first lesson by uploading a recording or a PDF document."
               >
                 {#snippet action()}
-                  <a
-                    href="/exams/{examId}/lectures/new"
-                    class="btn btn-primary rounded-0"
+                  <button
+                    class="btn btn-primary"
+                    onclick={() => (showCreateLectureModal = true)}
                   >
                     <Plus size={14} /> Add Your First Lesson
-                  </a>
+                  </button>
                 {/snippet}
               </EmptyState>
             {/if}
@@ -352,3 +370,10 @@
 {:else if loading}
   <LoadingState message="Loading project details..." />
 {/if}
+
+<CreateLectureModal
+  isOpen={showCreateLectureModal}
+  examId={examId}
+  onClose={() => (showCreateLectureModal = false)}
+  onLectureCreated={loadData}
+/>

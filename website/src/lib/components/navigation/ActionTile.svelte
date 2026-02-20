@@ -108,6 +108,7 @@
     position: relative;
     vertical-align: top;
     background: #fff;
+    border-radius: var(--border-radius);
     transition: all 0.2s ease;
 
     &:hover:not(.disabled) {

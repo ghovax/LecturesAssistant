@@ -33,8 +33,8 @@
 <input
   {id}
   {type}
-  class="cozy-form-input {className}"
-  {value}
+  class="form-control cozy-input {className}"
+  bind:value
   {placeholder}
   {required}
   {disabled}
@@ -44,45 +44,3 @@
   {onfocus}
   {onblur}
 />
-
-<style lang="scss">
-  .cozy-form-input {
-    border-radius: 0 !important;
-    border: 1px solid var(--gray-300) !important;
-    font-family: var(--font-primary) !important;
-    font-size: 0.8rem !important;
-    padding: 6px 10px !important;
-    background: #fff !important;
-    transition: all 0.2s ease !important;
-    height: 2rem !important;
-    color: var(--gray-800) !important;
-    line-height: 1.4 !important;
-
-    &:focus {
-      border-color: var(--orange) !important;
-      box-shadow: none !important;
-      background: #fafaf9 !important;
-      outline: none !important;
-    }
-
-    &:disabled {
-      background: var(--gray-100) !important;
-      cursor: not-allowed;
-      opacity: 0.7;
-    }
-
-    &::placeholder {
-      color: var(--gray-400);
-    }
-
-    /* Hide number input spinners */
-    &[type="number"] {
-      appearance: none;
-      &::-webkit-outer-spin-button,
-      &::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
-      }
-    }
-  }
-</style>

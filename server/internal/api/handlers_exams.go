@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
 	"lectures/internal/models"
@@ -323,12 +321,6 @@ func (server *Server) handleDeleteExam(responseWriter http.ResponseWriter, reque
 	if rowsAffected == 0 {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Exam not found", nil)
 		return
-	}
-
-	// 3. Delete lecture files from filesystem
-	for _, lectureIdentifier := range lectureIdentifiers {
-		lectureDirectory := filepath.Join(server.configuration.Storage.DataDirectory, "files", "lectures", lectureIdentifier)
-		_ = os.RemoveAll(lectureDirectory)
 	}
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Exam deleted successfully"})

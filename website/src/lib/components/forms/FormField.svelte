@@ -53,7 +53,7 @@
   {#if type === "textarea"}
     <TextArea
       id={inputId}
-      {value}
+      bind:value
       {placeholder}
       {required}
       {disabled}
@@ -61,12 +61,12 @@
       {rows}
     />
   {:else if type === "select"}
-    <SelectInput id={inputId} {value} {options} {required} {disabled} />
+    <SelectInput id={inputId} bind:value {options} {required} {disabled} />
   {:else}
     <TextInput
       id={inputId}
+      bind:value
       {type}
-      {value}
       {placeholder}
       {required}
       {disabled}

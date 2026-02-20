@@ -201,7 +201,7 @@
   }
 
   .list-group-item {
-    border-radius: 0;
+    border-radius: var(--border-radius);
     border-color: var(--gray-300);
     font-family: var(--font-primary);
     font-size: 0.85rem;
@@ -215,7 +215,7 @@
 
   kbd {
     background-color: var(--cream);
-    border-radius: 0;
+    border-radius: var(--border-radius);
     border: 1px solid var(--gray-300);
     box-shadow: none;
     color: var(--gray-700);

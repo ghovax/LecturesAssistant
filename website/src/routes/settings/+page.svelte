@@ -69,7 +69,7 @@
       saveSettings();
     }}
   >
-    <div class="bg-white border mb-4">
+    <div class="settings-card bg-white border mb-4">
       <div class="standard-header">
         <div class="header-title">
           <span class="header-text">AI Assistant Settings</span>
@@ -124,7 +124,7 @@
       </div>
     </div>
 
-    <div class="bg-white border mb-4">
+    <div class="settings-card bg-white border mb-4">
       <div class="standard-header">
         <div class="header-title">
           <span class="header-text">Advanced Task Model Routing</span>
@@ -153,7 +153,7 @@
       </div>
     </div>
 
-    <div class="bg-white border mb-4">
+    <div class="settings-card bg-white border mb-4">
       <div class="standard-header">
         <div class="header-title">
           <span class="header-text">Service Credentials</span>
@@ -174,7 +174,7 @@
       </div>
     </div>
 
-    <div class="bg-white border mb-4">
+    <div class="settings-card bg-white border mb-4">
       <div class="standard-header">
         <div class="header-title">
           <span class="header-text">Safety & Budget</span>
@@ -210,7 +210,7 @@
     <div class="text-center mt-5 pb-5">
       <button
         type="submit"
-        class="btn btn-success px-5 rounded-0 btn-lg"
+        class="btn btn-success px-5 btn-lg"
         disabled={saving}
       >
         {#if saving}
@@ -223,4 +223,7 @@
 {/if}
 
 <style lang="scss">
+  .settings-card {
+    border-radius: var(--border-radius);
+  }
 </style>

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"lectures/internal/models"
@@ -193,11 +192,12 @@ func (server *Server) handleGetPageImage(responseWriter http.ResponseWriter, req
 	pageNumber, _ := strconv.Atoi(pageNumberString)
 
 	var imagePath string
+	var imageData []byte
 	err = server.database.QueryRow(`
-		SELECT image_path
+		SELECT image_path, image_data
 		FROM reference_pages
 		WHERE document_id = ? AND page_number = ?
-	`, documentID, pageNumber).Scan(&imagePath)
+	`, documentID, pageNumber).Scan(&imagePath, &imageData)
 
 	if err == sql.ErrNoRows {
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Page not found", nil)
@@ -208,6 +208,16 @@ func (server *Server) handleGetPageImage(responseWriter http.ResponseWriter, req
 		return
 	}
 
+	// Serve from DB BLOB if available (works after backup/restore)
+	if len(imageData) > 0 {
+		responseWriter.Header().Set("Content-Type", "image/png")
+		responseWriter.Header().Set("Content-Length", fmt.Sprintf("%d", len(imageData)))
+		responseWriter.Header().Set("Cache-Control", "public, max-age=86400")
+		responseWriter.Write(imageData)
+		return
+	}
+
+	// Fall back to disk file for legacy rows without image_data
 	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
 		server.writeError(responseWriter, http.StatusNotFound, "FILE_NOT_FOUND", "Image file not found on disk", nil)
 		return
@@ -258,12 +268,6 @@ func (server *Server) handleDeleteDocument(responseWriter http.ResponseWriter, r
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to delete document from database", nil)
 		return
 	}
-
-	// Delete files
-	_ = os.Remove(filePath)
-	// Delete page images directory (stored in lecture's assets)
-	pagesDir := filepath.Join(server.configuration.Storage.DataDirectory, "files", "lectures", deleteRequest.LectureID, "documents", deleteRequest.DocumentID)
-	_ = os.RemoveAll(pagesDir)
 
 	server.writeJSON(responseWriter, http.StatusOK, map[string]string{"message": "Document deleted successfully"})
 }

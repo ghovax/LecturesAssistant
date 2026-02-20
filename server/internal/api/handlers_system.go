@@ -13,10 +13,22 @@ import (
 
 // handleBackupDatabase creates a consistent backup of the SQLite database and serves it for download
 func (server *Server) handleBackupDatabase(responseWriter http.ResponseWriter, request *http.Request) {
-	// 1. Verify admin role
-	userID := server.getUserID(request)
+	// 1. Authenticate — bypass authMiddleware (stale cookies must not block download links)
+	sessionToken := server.getValidSessionToken(request)
+	if sessionToken == "" {
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Authentication required", nil)
+		return
+	}
+	var userID string
+	err := server.database.QueryRow("SELECT user_id FROM auth_sessions WHERE id = ?", sessionToken).Scan(&userID)
+	if err != nil {
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid session", nil)
+		return
+	}
+
+	// 2. Verify admin role
 	var role string
-	err := server.database.QueryRow("SELECT role FROM users WHERE id = ?", userID).Scan(&role)
+	err = server.database.QueryRow("SELECT role FROM users WHERE id = ?", userID).Scan(&role)
 	if err != nil {
 		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Failed to verify user role", nil)
 		return
@@ -57,13 +69,19 @@ func (server *Server) handleRestoreDatabase(responseWriter http.ResponseWriter, 
 	initialized := userCount > 0
 
 	if initialized {
-		userID := server.getUserID(request)
-		if userID == "" {
+		sessionToken := server.getValidSessionToken(request)
+		if sessionToken == "" {
 			server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Authentication required", nil)
 			return
 		}
+		var userID string
+		err := server.database.QueryRow("SELECT user_id FROM auth_sessions WHERE id = ?", sessionToken).Scan(&userID)
+		if err != nil {
+			server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid session", nil)
+			return
+		}
 		var role string
-		err := server.database.QueryRow("SELECT role FROM users WHERE id = ?", userID).Scan(&role)
+		err = server.database.QueryRow("SELECT role FROM users WHERE id = ?", userID).Scan(&role)
 		if err != nil || role != "admin" {
 			server.writeError(responseWriter, http.StatusForbidden, "FORBIDDEN", "Only administrators can restore a database", nil)
 			return

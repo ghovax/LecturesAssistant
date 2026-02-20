@@ -250,8 +250,11 @@ func (server *Server) setupRoutes() {
 	apiRouter.HandleFunc("/jobs/details", server.handleGetJob).Methods("GET")
 	apiRouter.HandleFunc("/jobs", server.handleCancelJob).Methods("DELETE")
 
-	// System
-	apiRouter.HandleFunc("/system/backup", server.handleBackupDatabase).Methods("GET")
+	// System backup — registered on the public router (not apiRouter) because:
+	// Browsers send cookies with download link navigations. If a stale HttpOnly cookie
+	// exists, authMiddleware rejects the request before the handler (which does its
+	// own auth via getValidSessionToken) is ever reached.
+	server.router.HandleFunc("/api/system/backup", server.handleBackupDatabase).Methods("GET")
 
 	// Settings
 	apiRouter.HandleFunc("/settings", server.handleGetSettings).Methods("GET")

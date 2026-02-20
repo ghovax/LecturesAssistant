@@ -1061,7 +1061,7 @@
                       {isExportingPDFWithImages}
                       {isExportingPDFNoImages}
                       {isExportingDocx}
-                      onExport={(format, includeImages) =>
+                      onExport={(format: string, includeImages: boolean) =>
                         handleExportTool(guideTool.id, format, includeImages)}
                     />
                   {/snippet}
@@ -1160,7 +1160,7 @@
                       {isExportingPDFWithImages}
                       {isExportingPDFNoImages}
                       {isExportingDocx}
-                      onExport={(format, includeImages) =>
+                      onExport={(format: string, includeImages: boolean) =>
                         handleExportDocument(doc.id, format, includeImages)}
                     />
                   {/snippet}
@@ -1197,7 +1197,7 @@
                     {isExportingPDFWithImages}
                     {isExportingPDFNoImages}
                     {isExportingDocx}
-                    onExport={(format, includeImages) =>
+                    onExport={(format: string, includeImages: boolean) =>
                       handleExportTool(guideTool.id, format, includeImages)}
                   />
                 {/if}
@@ -1447,7 +1447,7 @@
                     {isExportingPDFWithImages}
                     {isExportingPDFNoImages}
                     {isExportingDocx}
-                    onExport={(format, includeImages) =>
+                    onExport={(format: string, includeImages: boolean) =>
                       handleExportDocument(
                         selectedDocId || "",
                         format,

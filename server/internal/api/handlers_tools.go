@@ -920,6 +920,21 @@ func (server *Server) handleDownloadExport(responseWriter http.ResponseWriter, r
 		return
 	}
 
+	// Try multiple token sources with validation (cookie -> header -> query param)
+	sessionToken := server.getValidSessionToken(request)
+	if sessionToken == "" {
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Authentication required", nil)
+		return
+	}
+
+	// Get user info from validated session
+	var userID string
+	err := server.database.QueryRow("SELECT user_id FROM auth_sessions WHERE id = ?", sessionToken).Scan(&userID)
+	if err != nil {
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid session", nil)
+		return
+	}
+
 	// Set content-disposition to force download with original filename
 	fileName := filepath.Base(filePath)
 	encodedFileName := url.PathEscape(fileName)
@@ -937,9 +952,8 @@ func (server *Server) handleDownloadExport(responseWriter http.ResponseWriter, r
 	}
 
 	// Serve from DB BLOB
-	userID := server.getUserID(request)
 	var exportData []byte
-	err := server.database.QueryRow(`
+	err = server.database.QueryRow(`
 		SELECT export_data FROM jobs
 		WHERE user_id = ? AND type = 'PUBLISH_MATERIAL' AND status = 'COMPLETED'
 		AND result LIKE ? AND export_data IS NOT NULL

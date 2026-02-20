@@ -96,14 +96,18 @@
     updateContext();
   }
 
+  let isDestroyed = false;
+
   function setupWebSocket() {
-    if (!browser || !sessionId) return;
+    if (!browser || !sessionId || isDestroyed) return;
 
     if (socket) {
       socket.close();
     }
 
     const token = localStorage.getItem("session_token");
+    if (!token) return;
+
     const baseUrl = api.getBaseUrl().replace("http", "ws");
     socket = new WebSocket(
       `${baseUrl}/socket?session_token=${token}&subscribe_chat=${sessionId}`,
@@ -144,6 +148,12 @@
             `Background task failed: ${data.payload.Error || "Unknown error"}`,
           );
         }
+      }
+    };
+
+    socket.onclose = () => {
+      if (!isDestroyed) {
+        setTimeout(setupWebSocket, 5000);
       }
     };
   }
@@ -197,7 +207,10 @@
     }
   });
 
-  onDestroy(() => socket?.close());
+  onDestroy(() => {
+    isDestroyed = true;
+    socket?.close();
+  });
 </script>
 
 {#if exam && session}

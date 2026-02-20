@@ -205,7 +205,6 @@ func (server *Server) setupRoutes() {
 	// Media (Listing/Ordering)
 	apiRouter.HandleFunc("/media", server.handleListMedia).Methods("GET")
 	apiRouter.HandleFunc("/media", server.handleDeleteMedia).Methods("DELETE")
-	apiRouter.HandleFunc("/media/content", server.handleGetMediaContent).Methods("GET")
 
 	// Transcripts
 	apiRouter.HandleFunc("/transcripts", server.handleGetTranscript).Methods("GET")
@@ -225,6 +224,12 @@ func (server *Server) setupRoutes() {
 	// its own auth via getValidSessionToken) is ever reached.
 	server.router.HandleFunc("/api/documents/pages/image", server.handleGetPageImage).Methods("GET")
 
+	// Media content serving — registered on the public router because:
+	// Browsers always send cookies with audio tag requests. If a stale HttpOnly cookie
+	// exists, authMiddleware rejects the request before handleGetMediaContent (which does
+	// its own auth via getValidSessionToken) is ever reached.
+	server.router.HandleFunc("/api/media/content", server.handleGetMediaContent).Methods("GET")
+
 	// Tools
 	apiRouter.HandleFunc("/tools", server.handleCreateTool).Methods("POST")
 	apiRouter.HandleFunc("/tools", server.handleListTools).Methods("GET")
@@ -235,7 +240,12 @@ func (server *Server) setupRoutes() {
 	apiRouter.HandleFunc("/tools/export", server.handleExportTool).Methods("POST")
 	apiRouter.HandleFunc("/transcripts/export", server.handleExportTranscript).Methods("POST")
 	apiRouter.HandleFunc("/documents/export", server.handleExportDocument).Methods("POST")
-	apiRouter.HandleFunc("/exports/download", server.handleDownloadExport).Methods("GET")
+
+	// Exports download serving — registered on the public router because:
+	// Anchor tag navigations or window.open calls used for downloads send cookies.
+	// A stale cookie would block the download via authMiddleware before the handler
+	// can use the valid query-param token.
+	server.router.HandleFunc("/api/exports/download", server.handleDownloadExport).Methods("GET")
 
 	// Chat
 	apiRouter.HandleFunc("/chat/sessions", server.handleCreateChatSession).Methods("POST")

@@ -153,14 +153,19 @@
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   }
 
+  let isDestroyed = false;
+
   function setupWebSocket() {
-    if (!browser || !lectureId || lectureId === "undefined") return;
+    if (!browser || !lectureId || lectureId === "undefined" || isDestroyed)
+      return;
 
     if (socket) {
       socket.close();
     }
 
     const token = localStorage.getItem("session_token");
+    if (!token) return;
+
     const baseUrl = api.getBaseUrl().replace("http", "ws");
     socket = new WebSocket(`${baseUrl}/socket?session_token=${token}`);
 
@@ -183,7 +188,9 @@
     };
 
     socket.onclose = () => {
-      // Only reconnect if the component hasn't been destroyed (implicitly handled by socket being set to null in onDestroy)
+      if (!isDestroyed) {
+        setTimeout(setupWebSocket, 5000);
+      }
     };
   }
 
@@ -717,6 +724,7 @@
   });
 
   onDestroy(() => {
+    isDestroyed = true;
     if (browser) {
       window.removeEventListener("keydown", handleKeyDown);
     }
@@ -1176,16 +1184,60 @@
             <div class="standard-header">
               <div class="header-title">
                 <span class="header-text">Dialogue</span>
+                {#if transcript && transcript.segments}
+                  {@const seg = transcript.segments[currentSegmentIndex]}
+                  <div class="d-flex align-items-center gap-3 ms-2 ps-3 border-start">
+                    <StatusIndicator
+                      type="count"
+                      label="Segment"
+                      current={currentSegmentIndex + 1}
+                      total={transcript?.segments?.length || 0}
+                    />
+                    <StatusIndicator
+                      type="time"
+                      current={formatTime(seg.start_millisecond)}
+                      total={formatTime(seg.end_millisecond)}
+                    />
+                    {#if seg.media_filename}
+                      <span
+                        class="text-muted small border-start ps-3 d-none d-lg-inline font-monospace"
+                        style="font-size: 0.8rem;">{seg.media_filename}</span
+                      >
+                    {/if}
+                  </div>
+                {/if}
               </div>
               <div class="header-actions">
+                {#if transcript && transcript.segments}
+                  <div class="d-flex align-items-center gap-2 me-2">
+                    <button
+                      class="btn btn-link btn-sm text-success p-0 shadow-none border-0"
+                      disabled={currentSegmentIndex === 0}
+                      onclick={prevSegment}
+                      title="Previous Segment"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                    <button
+                      class="btn btn-link btn-sm text-success p-0 shadow-none border-0"
+                      disabled={currentSegmentIndex ===
+                        (transcript?.segments?.length || 0) - 1}
+                      onclick={nextSegment}
+                      title="Next Segment"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                  </div>
+                {/if}
                 {#if true}
+                  {@const isCompleted = transcriptJob?.status === "COMPLETED"}
                   {@const isExportingPDFWithImages =
                     exporting[`${lectureId}:pdf:true`]}
                   {@const isExportingPDFNoImages =
                     exporting[`${lectureId}:pdf:false`]}
                   {@const isExportingDocx = exporting[`${lectureId}:docx`]}
                   <ExportMenu
-                    isCompleted={true}
+                    {isCompleted}
                     {isExportingPDFWithImages}
                     {isExportingPDFNoImages}
                     {isExportingDocx}
@@ -1195,51 +1247,15 @@
                 <button
                   class="btn btn-link btn-sm text-muted shadow-none border-0"
                   onclick={() => (activeView = "dashboard")}
-                  aria-label="Close Dialogue"><X size={20} /></button
+                  aria-label="Close Dialogue"
                 >
+                  <X size={20} />
+                </button>
               </div>
             </div>
 
             {#if transcript && transcript.segments}
               {@const seg = transcript.segments[currentSegmentIndex]}
-              <div
-                class="d-flex justify-content-between align-items-center px-4 py-2 border-bottom"
-              >
-                <div class="d-flex align-items-center gap-3">
-                  <StatusIndicator
-                    type="count"
-                    label="Segment"
-                    current={currentSegmentIndex + 1}
-                    total={transcript?.segments?.length || 0}
-                  />
-                  <StatusIndicator
-                    type="time"
-                    current={formatTime(seg.start_millisecond)}
-                    total={formatTime(seg.end_millisecond)}
-                  />
-                  {#if seg.media_filename}
-                    <span
-                      class="text-muted small border-start ps-3 d-none d-lg-inline font-monospace"
-                      style="font-size: 0.8rem;">{seg.media_filename}</span
-                    >
-                  {/if}
-                </div>
-                <div class="btn-group">
-                  <button
-                    class="btn btn-outline-success btn-sm p-1 d-flex align-items-center me-2"
-                    disabled={currentSegmentIndex === 0}
-                    onclick={prevSegment}
-                    title="Previous Segment"><ChevronLeft size={18} /></button
-                  >
-                  <button
-                    class="btn btn-outline-success btn-sm p-1 d-flex align-items-center"
-                    disabled={currentSegmentIndex ===
-                      (transcript?.segments?.length || 0) - 1}
-                    onclick={nextSegment}
-                    title="Next Segment"><ChevronRight size={18} /></button
-                  >
-                </div>
-              </div>
               <div class="p-4">
                 {#if seg.media_id}
                   <div class="mb-4 pb-3 border-bottom">
@@ -1289,8 +1305,67 @@
                 <span class="header-text font-monospace"
                   >{doc?.title || "Study Resource"}</span
                 >
+                {#if selectedDocPages && selectedDocPages.length > 0}
+                  <div
+                    class="d-flex align-items-center gap-3 ms-2 ps-3 border-start"
+                  >
+                    <StatusIndicator
+                      type="page"
+                      label="Page"
+                      current={selectedDocPageIndex + 1}
+                      total={selectedDocPages.length}
+                    />
+                    <div class="d-flex align-items-center gap-2">
+                      <span
+                        class="text-muted d-none d-md-inline"
+                        style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;"
+                        >Go to:</span
+                      >
+                      <input
+                        type="number"
+                        min="1"
+                        max={selectedDocPages.length}
+                        class="form-control cozy-input p-1 text-center no-spinner"
+                        style="width: 45px; height: 1.75rem; font-size: 0.8rem;"
+                        placeholder=""
+                        oninput={(e) => {
+                          const val = parseInt(e.currentTarget.value);
+                          if (
+                            !isNaN(val) &&
+                            val >= 1 &&
+                            val <= selectedDocPages.length
+                          ) {
+                            selectedDocPageIndex = val - 1;
+                          }
+                        }}
+                        onblur={(e) => (e.currentTarget.value = "")}
+                      />
+                    </div>
+                  </div>
+                {/if}
               </div>
               <div class="header-actions">
+                {#if selectedDocPages && selectedDocPages.length > 0}
+                  <div class="d-flex align-items-center gap-2 me-2">
+                    <button
+                      class="btn btn-link btn-sm text-primary p-0 shadow-none border-0"
+                      disabled={selectedDocPageIndex === 0}
+                      onclick={prevDocPage}
+                      title="Previous Page"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                    <button
+                      class="btn btn-link btn-sm text-primary p-0 shadow-none border-0"
+                      disabled={selectedDocPageIndex ===
+                        selectedDocPages.length - 1}
+                      onclick={nextDocPage}
+                      title="Next Page"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                  </div>
+                {/if}
                 {#if true}
                   {@const isExportingPDFWithImages =
                     exporting[`${selectedDocId}:pdf:true`]}
@@ -1313,66 +1388,15 @@
                 <button
                   class="btn btn-link btn-sm text-muted shadow-none border-0"
                   onclick={() => (activeView = "dashboard")}
-                  aria-label="Close Document"><X size={20} /></button
+                  aria-label="Close Document"
                 >
+                  <X size={20} />
+                </button>
               </div>
             </div>
 
             {#if selectedDocPages && selectedDocPages.length > 0}
               {@const p = selectedDocPages[selectedDocPageIndex]}
-              <div
-                class="d-flex justify-content-between align-items-center px-4 py-2 border-bottom"
-              >
-                <div class="d-flex align-items-center gap-4">
-                  <StatusIndicator
-                    type="page"
-                    label="Page"
-                    current={p.page_number}
-                    total={selectedDocPages.length}
-                  />
-                  <div class="d-flex align-items-center gap-2">
-                    <span
-                      class="text-muted"
-                      style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;"
-                      >Go to page:</span
-                    >
-                    <input
-                      type="number"
-                      min="1"
-                      max={selectedDocPages.length}
-                      class="form-control cozy-input p-1 text-center no-spinner"
-                      style="width: 50px; height: 1.75rem; font-size: 0.8rem;"
-                      placeholder=""
-                      oninput={(e) => {
-                        const val = parseInt(e.currentTarget.value);
-                        if (
-                          !isNaN(val) &&
-                          val >= 1 &&
-                          val <= selectedDocPages.length
-                        ) {
-                          selectedDocPageIndex = val - 1;
-                        }
-                      }}
-                      onblur={(e) => (e.currentTarget.value = "")}
-                    />
-                  </div>
-                </div>
-                <div class="btn-group">
-                  <button
-                    class="btn btn-outline-primary btn-sm p-1 d-flex align-items-center me-2"
-                    disabled={selectedDocPageIndex === 0}
-                    onclick={prevDocPage}
-                    title="Previous Page"><ChevronLeft size={18} /></button
-                  >
-                  <button
-                    class="btn btn-outline-primary btn-sm p-1 d-flex align-items-center"
-                    disabled={selectedDocPageIndex ===
-                      selectedDocPages.length - 1}
-                    onclick={nextDocPage}
-                    title="Next Page"><ChevronRight size={18} /></button
-                  >
-                </div>
-              </div>
               <div class="p-4">
                 <div
                   class="bg-light d-flex justify-content-center p-3 mb-4 border text-center position-relative"

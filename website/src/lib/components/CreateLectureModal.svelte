@@ -32,7 +32,6 @@
   let mediaFiles = $state<File[]>([]);
   let documentFiles = $state<File[]>([]);
   let uploading = $state(false);
-  let status = $state("");
   let isDragging = $state(false);
 
   const mediaExtensions = [
@@ -92,7 +91,6 @@
     language = "";
     mediaFiles = [];
     documentFiles = [];
-    status = "";
   }
 
   function handleClose() {
@@ -121,7 +119,6 @@
       mediaFiles.forEach((file) => formData.append("media", file));
       documentFiles.forEach((file) => formData.append("documents", file));
 
-      status = "Processing upload...";
       await api.createLecture(formData);
 
       notifications.success(
@@ -382,11 +379,6 @@
         {#if uploading}
           <div class="text-center py-3">
             <div class="village-spinner mx-auto mb-3"></div>
-            <p
-              class="text-muted fw-bold small uppercase letter-spacing-05 mb-0"
-            >
-              {status}
-            </p>
           </div>
         {:else}
           <div class="d-flex justify-content-between align-items-center">
@@ -559,13 +551,6 @@
       font-family: var(--font-mono);
       font-size: 0.8rem;
     }
-  }
-
-  .uppercase {
-    text-transform: uppercase;
-  }
-  .letter-spacing-05 {
-    letter-spacing: 0.05em;
   }
 
   textarea:focus {

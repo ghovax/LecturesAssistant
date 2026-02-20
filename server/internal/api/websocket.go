@@ -153,12 +153,14 @@ func (client *WSClient) isSubscribed(channel string) bool {
 // handleWebSocket handles the WebSocket connection upgrade
 func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, request *http.Request) {
 	slog.Info("WebSocket connection attempt", "origin", request.Header.Get("Origin"), "remote", request.RemoteAddr)
-	// Use query param directly — browsers always send cookies with WebSocket
-	// connections, even cross-origin. A stale HttpOnly cookie would shadow the
-	// valid query-param token if we used getSessionToken() (which checks cookies first).
-	sessionToken := request.URL.Query().Get("session_token")
+
+	// Try multiple token sources with validation (cookie -> header -> query param)
+	// Browsers always send cookies with WebSocket connections, even cross-origin.
+	// A stale HttpOnly cookie would shadow the valid query-param token if we used
+	// simple cookie extraction. getValidSessionToken handles this by validating each source.
+	sessionToken := server.getValidSessionToken(request)
 	if sessionToken == "" {
-		slog.Warn("WebSocket rejected: no session token")
+		slog.Warn("WebSocket rejected: no valid session token found")
 		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Authentication required", nil)
 		return
 	}
@@ -166,9 +168,9 @@ func (server *Server) handleWebSocket(responseWriter http.ResponseWriter, reques
 	var userID string
 	var expiresAt time.Time
 	databaseError := server.database.QueryRow("SELECT user_id, expires_at FROM auth_sessions WHERE id = ?", sessionToken).Scan(&userID, &expiresAt)
-	if databaseError != nil || time.Now().After(expiresAt) {
-		slog.Warn("WebSocket rejected: invalid session", "error", databaseError)
-		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid or expired session", nil)
+	if databaseError != nil {
+		slog.Warn("WebSocket rejected: session not found in database", "error", databaseError)
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid session", nil)
 		return
 	}
 

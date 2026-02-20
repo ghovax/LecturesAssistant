@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 
 	"lectures/internal/models"
 )
@@ -110,25 +109,26 @@ func (server *Server) handleGetMediaContent(responseWriter http.ResponseWriter, 
 		return
 	}
 
-	sessionToken := server.getSessionToken(request)
+	// Try multiple token sources with validation (cookie -> header -> query param)
+	// This handles cases where old cookies exist but the current session uses a different token
+	sessionToken := server.getValidSessionToken(request)
 	if sessionToken == "" {
 		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Authentication required", nil)
 		return
 	}
 
-	// Verify session and get user ID
+	// Get user info from validated session
 	var userID string
-	var expiresAt time.Time
-	databaseError := server.database.QueryRow("SELECT user_id, expires_at FROM auth_sessions WHERE id = ?", sessionToken).Scan(&userID, &expiresAt)
-	if databaseError != nil || time.Now().After(expiresAt) {
-		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid or expired session", nil)
+	err := server.database.QueryRow("SELECT user_id FROM auth_sessions WHERE id = ?", sessionToken).Scan(&userID)
+	if err != nil {
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid session", nil)
 		return
 	}
 
 	// Get file path, type, and BLOB data; verify ownership
 	var filePath, mediaType string
 	var fileData []byte
-	err := server.database.QueryRow(`
+	err = server.database.QueryRow(`
 		SELECT lecture_media.file_path, lecture_media.media_type, lecture_media.file_data
 		FROM lecture_media
 		JOIN lectures ON lecture_media.lecture_id = lectures.id

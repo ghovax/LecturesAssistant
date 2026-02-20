@@ -55,14 +55,18 @@
     };
   }
 
+  let isDestroyed = false;
+
   function setupWebSocket() {
-    if (!browser || !examId || examId === "undefined") return;
+    if (!browser || !examId || examId === "undefined" || isDestroyed) return;
 
     if (socket) {
       socket.close();
     }
 
     const token = localStorage.getItem("session_token");
+    if (!token) return;
+
     const baseUrl = api.getBaseUrl().replace("http", "ws");
     socket = new WebSocket(`${baseUrl}/socket?session_token=${token}`);
 
@@ -88,7 +92,9 @@
     };
 
     socket.onclose = () => {
-      setTimeout(setupWebSocket, 5000);
+      if (!isDestroyed) {
+        setTimeout(setupWebSocket, 5000);
+      }
     };
   }
 
@@ -200,6 +206,7 @@
   });
 
   onDestroy(() => {
+    isDestroyed = true;
     socket?.close();
   });
 </script>

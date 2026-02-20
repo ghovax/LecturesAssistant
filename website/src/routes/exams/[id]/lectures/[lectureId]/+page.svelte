@@ -1239,7 +1239,7 @@
                       <span
                         class="text-muted d-none d-md-inline"
                         style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;"
-                        >Go to:</span
+                        >Go to segment:</span
                       >
                       <input
                         type="number"
@@ -1389,7 +1389,7 @@
                       <span
                         class="text-muted d-none d-md-inline"
                         style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;"
-                        >Go to:</span
+                        >Go to page:</span
                       >
                       <input
                         type="number"

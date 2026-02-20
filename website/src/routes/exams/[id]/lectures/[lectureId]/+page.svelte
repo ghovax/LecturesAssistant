@@ -1323,6 +1323,7 @@
               <div class="p-4">
                 <div
                   class="document-nav mb-4 d-flex justify-content-between align-items-center p-2 border"
+                  style="border-radius: var(--border-radius);"
                 >
                   <div class="d-flex align-items-center gap-4">
                     <StatusIndicator
@@ -1377,6 +1378,7 @@
 
                 <div
                   class="bg-light d-flex justify-content-center p-3 mb-4 border text-center position-relative"
+                  style="border-radius: var(--border-radius);"
                 >
                   <!-- Left click area for previous page -->
                   {#if selectedDocPageIndex > 0}
@@ -1544,6 +1546,7 @@
     :global(.tile-wrapper) {
       width: 250px;
       border-right: 1px solid var(--gray-300);
+      border-radius: 0 !important;
 
       &:last-child {
         border-right: none;

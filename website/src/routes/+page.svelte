@@ -401,21 +401,16 @@
     margin-bottom: 2rem;
     border: 1px solid var(--gray-300);
     border-radius: var(--border-radius);
-    overflow: visible;
+    overflow: hidden;
 
     :global(.action-tile),
     :global(.tile-wrapper) {
       width: 250px;
       border-right: 1px solid var(--gray-300);
-      border-radius: 0;
+      border-radius: 0 !important;
 
       &:last-child {
         border-right: none;
-        border-radius: 0 var(--border-radius) var(--border-radius) 0;
-      }
-
-      &:first-child {
-        border-radius: var(--border-radius) 0 0 var(--border-radius);
       }
     }
 

@@ -823,9 +823,9 @@
                   !transcript ||
                   !transcript.segments}
                 class={transcriptJobRunning
-                  ? "tile-processing"
+                  ? "processing"
                   : transcriptJobFailed
-                    ? "tile-error"
+                    ? "error"
                     : ""}
                 cost={transcript?.estimated_cost}
               >
@@ -889,9 +889,9 @@
                   icon=""
                   title="Reference Materials"
                   class={documentsJobRunning
-                    ? "tile-processing"
+                    ? "processing"
                     : documentsJobFailed
-                      ? "tile-error"
+                      ? "error"
                       : ""}
                   disabled={documentsJobRunning}
                   onclick={() => {
@@ -951,8 +951,8 @@
                   onclick={() =>
                     guideJob.status === "FAILED" && retryJob(guideJob)}
                   class={guideJob.status === "FAILED"
-                    ? "tile-error"
-                    : "tile-processing"}
+                    ? "error"
+                    : "processing"}
                 >
                   {#snippet actions()}
                     {#if guideJob.status === "FAILED"}
@@ -1059,7 +1059,7 @@
         {/if}
         {#if !loading && activeView === "docs_list"}
           <div
-            class="bg-white border mb-3"
+            class="bg-white border mb-3 reference-materials-card"
             style="width: fit-content; max-width: 100%;"
           >
             <div class="standard-header">
@@ -1083,7 +1083,7 @@
                   cost={doc.estimated_cost}
                   disabled={doc.extraction_status !== "completed"}
                   class={doc.extraction_status !== "completed"
-                    ? "tile-processing"
+                    ? "processing"
                     : ""}
                 >
                   {#snippet description()}
@@ -1702,5 +1702,10 @@
     background-color: rgba(34, 197, 94, 1) !important;
     border-color: rgba(22, 163, 74, 1) !important;
     color: #fff !important;
+  }
+
+  .reference-materials-card {
+    border-radius: var(--border-radius) !important;
+    overflow: hidden;
   }
 </style>

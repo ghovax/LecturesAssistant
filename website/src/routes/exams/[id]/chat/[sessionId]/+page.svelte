@@ -220,7 +220,7 @@
     <div class="row g-4">
       <!-- Sidebar: Context & Selection -->
       <div class="col-lg-4 order-lg-2">
-        <div class="bg-white border mb-4">
+        <div class="bg-white border mb-4 knowledge-base-card">
           <div class="standard-header">
             <div class="header-title">
               <span class="header-text">Knowledge Base</span>
@@ -499,5 +499,17 @@
 
   .village-toggle.is-locked::after {
     background: rgba(255, 255, 255, 0.7);
+  }
+
+  .chat-viewport {
+    .bg-white.border {
+      border-radius: var(--border-radius) !important;
+      overflow: hidden;
+    }
+  }
+
+  .knowledge-base-card {
+    border-radius: var(--border-radius) !important;
+    overflow: hidden;
   }
 </style>

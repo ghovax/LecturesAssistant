@@ -64,7 +64,7 @@
 
 <div class="row justify-content-center">
   <div class="col-lg-8">
-    <div class="bg-white border mb-4">
+    <div class="bg-white border mb-4 setup-card">
       <div class="standard-header">
         <div class="header-title">
           <span class="header-text">Let's Get Started</span>
@@ -156,7 +156,7 @@
     </div>
 
     <!-- Restore Section -->
-    <div class="bg-white border mb-3">
+    <div class="bg-white border mb-3 setup-card">
       <div class="standard-header">
         <div class="header-title">
           <span class="header-text">Already have a workspace?</span>
@@ -196,3 +196,10 @@
     </div>
   </div>
 </div>
+
+<style lang="scss">
+  .setup-card {
+    border-radius: var(--border-radius) !important;
+    overflow: hidden;
+  }
+</style>

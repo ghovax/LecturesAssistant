@@ -71,21 +71,21 @@
       }
 
       &.adaptive-width {
+        border: 1px solid var(--gray-300);
+        border-radius: var(--border-radius);
+        overflow: hidden;
+
         :global(.action-tile) {
           width: 100%;
-          border: 1px solid var(--gray-300);
-          border-top: none;
+          border-bottom: 1px solid var(--gray-300);
           border-radius: 0 !important;
 
           &:first-child {
-            border-top: 1px solid var(--gray-300);
-            border-radius: 0 !important;
+            border-top: none;
           }
 
           &:last-child {
-            border-bottom: 1px solid var(--gray-300);
-            border-right: 1px solid var(--gray-300);
-            border-radius: 0 0 var(--border-radius) var(--border-radius) !important;
+            border-bottom: none;
           }
         }
       }

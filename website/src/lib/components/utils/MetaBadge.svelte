@@ -55,7 +55,7 @@
     background-color: var(--cream);
     border: 1px solid var(--gray-300);
     font-family: var(--font-primary);
-    font-size: 11px;
+    font-size: 0.6875rem;
     font-weight: 600;
     color: var(--gray-600);
     letter-spacing: 0.02em;
@@ -64,7 +64,7 @@
 
     &.compact {
       padding: 0.125rem 0.5rem;
-      font-size: 10px;
+      font-size: 0.625rem;
       height: 1.5rem;
       gap: 0.375rem;
     }

@@ -45,7 +45,7 @@
   .text-with-highlight {
     &.font-monospace {
       font-family: var(--font-mono);
-      font-size-adjust: var(--font-mono-adjust);
+      font-size: calc(1em * var(--font-mono-size-factor));
     }
   }
 </style>

@@ -307,7 +307,7 @@
             <input
               type="text"
               class="form-control cozy-input"
-              placeholder="Ask about your lectures or reference documents..."
+              placeholder={sending ? "Waiting for response..." : "Ask about your lectures or reference documents..."}
               bind:value={input}
               disabled={sending}
             />
@@ -316,7 +316,13 @@
               type="submit"
               disabled={sending || !input.trim()}
             >
-              <Search size={18} />
+              {#if sending}
+                <div class="spinner-border spinner-border-sm" role="status">
+                  <span class="visually-hidden">Sending...</span>
+                </div>
+              {:else}
+                <Search size={18} />
+              {/if}
             </button>
           </div>
         </form>
@@ -404,20 +410,41 @@
                       </span>
                     {/if}
                   {/if}
-                  <div class="spinner-border spinner-border-sm" role="status">
-                    <span class="visually-hidden">Thinking...</span>
-                  </div>
+                  <span class="streaming-badge">
+                    <span class="streaming-dot"></span>
+                    Responding
+                  </span>
                 </div>
               </div>
               <div class="p-4 prose">
-                <p style="white-space: pre-wrap;">{streamingMessage}</p>
+                <p style="white-space: pre-wrap;">{streamingMessage}<span class="typing-cursor"></span></p>
               </div>
             </div>
           {/if}
 
           {#if sending && !streamingMessage}
-            <div class="text-center p-4">
-              <div class="village-spinner mx-auto"></div>
+            <div class="bg-white p-0 mb-4 border thinking-card">
+              <div class="standard-header">
+                <div class="header-title">
+                  <span class="header-text">Assistant</span>
+                  {#if messages.length > 0 && messages[messages.length - 1].role === "user"}
+                    <span
+                      class="text-muted small text-truncate ms-3 fw-normal"
+                      style="opacity: 0.7; text-transform: none; font-style: italic;"
+                    >
+                      "{messages[messages.length - 1].content}"
+                    </span>
+                  {/if}
+                </div>
+              </div>
+              <div class="p-4">
+                <div class="thinking-indicator">
+                  <span class="thinking-dot"></span>
+                  <span class="thinking-dot"></span>
+                  <span class="thinking-dot"></span>
+                  <span class="thinking-label">Thinking...</span>
+                </div>
+              </div>
             </div>
           {/if}
         </div>
@@ -524,5 +551,86 @@
   .knowledge-base-card {
     border-radius: var(--border-radius) !important;
     overflow: hidden;
+  }
+
+  /* Thinking indicator (waiting for first token) */
+  .thinking-card {
+    border-color: var(--gray-200) !important;
+  }
+
+  .thinking-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .thinking-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--gray-400);
+    animation: thinking-bounce 1.4s infinite ease-in-out both;
+
+    &:nth-child(1) { animation-delay: 0s; }
+    &:nth-child(2) { animation-delay: 0.16s; }
+    &:nth-child(3) { animation-delay: 0.32s; }
+  }
+
+  .thinking-label {
+    font-size: 0.85rem;
+    color: var(--gray-400);
+    margin-left: 0.35rem;
+  }
+
+  @keyframes thinking-bounce {
+    0%, 80%, 100% {
+      transform: scale(0.6);
+      opacity: 0.4;
+    }
+    40% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  /* Streaming badge (tokens arriving) */
+  .streaming-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--orange);
+  }
+
+  .streaming-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--orange);
+    animation: streaming-pulse 1s infinite ease-in-out;
+  }
+
+  @keyframes streaming-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* Typing cursor at end of streaming text */
+  .typing-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background: var(--orange);
+    margin-left: 1px;
+    vertical-align: text-bottom;
+    animation: cursor-blink 0.8s step-end infinite;
+  }
+
+  @keyframes cursor-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
   }
 </style>

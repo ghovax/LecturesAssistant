@@ -114,7 +114,7 @@
               class="form-control cozy-input"
               bind:value={settings.llm.model}
             />
-            <div class="form-text mt-2" style="font-size: 12px;">
+            <div class="form-help-text">
               Used for all tasks unless overridden below. Example: <code
                 >google/gemini-3-flash-preview</code
               >

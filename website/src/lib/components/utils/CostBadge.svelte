@@ -23,10 +23,9 @@
 
 <style lang="scss">
   .cost-badge {
-    font-size: 0.7rem;
+    font-size: calc(0.7rem * var(--font-mono-size-factor));
     color: var(--gray-400);
     font-family: var(--font-mono);
-    font-size-adjust: var(--font-mono-adjust);
     white-space: nowrap;
   }
 </style>

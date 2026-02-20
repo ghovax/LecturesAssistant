@@ -123,7 +123,7 @@
   }
 
   .navbar-brand {
-    font-size: 20px;
+    font-size: 1.25rem;
     font-weight: 500;
     color: var(--gray-900) !important;
     letter-spacing: -0.02em;

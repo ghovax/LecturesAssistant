@@ -12,7 +12,7 @@ $enable-rounded: true;
   // Typography
   --font-primary: "Manrope", sans-serif;
   --font-mono: "JetBrains Mono", "Menlo", monospace;
-  --font-mono-size-factor: 0.88;
+  --font-mono-size-factor: 1.0;
 
   // Neutral Colors (Warm Gray Scale)
   --cream: #f5f3f0;
@@ -59,7 +59,6 @@ body {
   margin: 0;
   background: var(--cream);
   font-family: var(--font-primary);
-  font-size-adjust: var(--font-primary-adjust);
   color: var(--gray-800);
   font-size: 0.95rem;
   font-weight: 400;
@@ -365,7 +364,7 @@ select.form-select {
   background: transparent !important;
   padding: 0 !important;
   white-space: nowrap;
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 500;
   color: var(--gray-900) !important;
   letter-spacing: -0.02em;
@@ -474,7 +473,7 @@ select.form-select {
       font-weight: 600;
       letter-spacing: 0.02em;
       text-transform: none;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       color: var(--gray-900);
       margin: 0;
     }
@@ -652,7 +651,7 @@ pre,
 kbd,
 samp {
   font-family: var(--font-mono);
-  font-size: calc(1em * var(--font-mono-size-factor));
+  font-size: calc(1rem * var(--font-mono-size-factor));
 }
 
 // Animations

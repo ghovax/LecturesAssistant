@@ -65,7 +65,7 @@
   }
 
   .section-overline {
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.12em;
@@ -74,7 +74,7 @@
   }
 
   .section-title {
-    font-size: 18px;
+    font-size: 1.125rem;
     font-weight: 500;
     color: var(--gray-900);
     margin: 0;

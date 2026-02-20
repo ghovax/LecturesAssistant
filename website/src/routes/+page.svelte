@@ -355,7 +355,7 @@
     text-align: center;
     margin-top: 40px;
     p {
-      font-size: 12px;
+      font-size: 0.75rem;
       color: var(--gray-400);
     }
   }
@@ -406,7 +406,7 @@
     }
 
     h1 {
-      font-size: 32px;
+      font-size: 2rem;
     }
 
     .cozy-homepage {

@@ -1033,7 +1033,7 @@ func RegisterHandlers(
 					} else {
 						rootNode.Children = append(rootNode.Children, &markdown.Node{
 							Type:    markdown.NodeHeading,
-							Level:   3,
+							Level:   2,
 							Content: fmt.Sprintf("Page %d", pageNum),
 						})
 					}

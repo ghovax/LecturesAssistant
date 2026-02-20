@@ -723,6 +723,7 @@ func (server *Server) processAIResponse(sessionID string, history []llm.Message,
 		Messages:  fullMessages,
 		Stream:    true,
 		SessionID: sessionID,
+		MaxTokens: 16384,
 	})
 
 	if chatError != nil {

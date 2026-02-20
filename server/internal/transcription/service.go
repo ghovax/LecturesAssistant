@@ -281,11 +281,15 @@ func (service *Service) cleanupTranscriptChunk(jobContext context.Context, rawTe
 		model = service.configuration.LLM.Model
 	}
 
+	// Set max_tokens to 16384 to prevent truncation of long transcript segments
+	const maxTokens = 16384
+
 	responseChannel, chatError := service.llmProvider.Chat(jobContext, &llm.ChatRequest{
 		Model: model,
 		Messages: []llm.Message{
 			{Role: "user", Content: []llm.ContentPart{{Type: "text", Text: cleanupPrompt}}},
 		},
+		MaxTokens: maxTokens,
 	})
 	if chatError != nil {
 		return "", metrics, chatError

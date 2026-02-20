@@ -35,6 +35,7 @@ type ChatRequest struct {
 	Messages  []Message `json:"messages"`
 	Stream    bool      `json:"stream"`
 	SessionID string    `json:"session_id,omitempty"`
+	MaxTokens int       `json:"max_tokens,omitempty"`
 }
 
 // ChatResponseChunk represents a chunk of the streamed response

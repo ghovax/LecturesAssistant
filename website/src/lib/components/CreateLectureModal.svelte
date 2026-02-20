@@ -376,27 +376,27 @@
 
       <!-- Action Button -->
       <section class="mt-2">
-        {#if uploading}
-          <div class="text-center py-3">
-            <div class="village-spinner mx-auto mb-3"></div>
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center gap-2 text-muted small">
+            <Info size={14} />
+            <span>Multiple files will be combined into one lesson.</span>
           </div>
-        {:else}
-          <div class="d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center gap-2 text-muted small">
-              <Info size={14} />
-              <span>Multiple files will be combined into one lesson.</span>
-            </div>
+          <div class="d-flex align-items-center gap-2">
             <button
               class="btn btn-success px-4"
               onclick={handleUpload}
-              disabled={!title ||
+              disabled={uploading ||
+                !title ||
                 (mediaFiles.length === 0 && documentFiles.length === 0)}
             >
               <Upload size={18} />
               Start Processing Lesson
             </button>
+            {#if uploading}
+              <div class="village-spinner"></div>
+            {/if}
           </div>
-        {/if}
+        </div>
       </section>
     </div>
   {/if}

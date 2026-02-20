@@ -194,6 +194,7 @@ func (processor *Processor) interpretPageContent(jobContext context.Context, ima
 				},
 			},
 		},
+		MaxTokens: 16384,
 	}
 
 	responseChannel, chatError := processor.llmProvider.Chat(jobContext, &request)

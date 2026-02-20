@@ -758,7 +758,7 @@ func (generator *ToolGenerator) callLLMWithHistoryAndModel(jobContext context.Co
 	})
 
 	responseChannel, err := generator.llmProvider.Chat(jobContext, &llm.ChatRequest{
-		Model: model, Messages: messages, Stream: false,
+		Model: model, Messages: messages, Stream: false, MaxTokens: 16384,
 	})
 	if err != nil {
 		return "", models.JobMetrics{}, err

@@ -96,6 +96,7 @@ func (provider *OpenRouterProvider) Chat(jobContext context.Context, request *Ch
 				Messages:  chatMessages,
 				Stream:    true,
 				SessionId: request.SessionID,
+				MaxTokens: request.MaxTokens,
 			})
 			if streamError != nil {
 				responseChannel <- ChatResponseChunk{Error: streamError}
@@ -130,6 +131,7 @@ func (provider *OpenRouterProvider) Chat(jobContext context.Context, request *Ch
 				Model:     request.Model,
 				Messages:  chatMessages,
 				SessionId: request.SessionID,
+				MaxTokens: request.MaxTokens,
 			})
 			if chatError != nil {
 				responseChannel <- ChatResponseChunk{Error: chatError}

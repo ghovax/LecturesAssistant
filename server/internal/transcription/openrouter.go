@@ -88,7 +88,8 @@ func (provider *OpenRouterTranscriptionProvider) Transcribe(jobContext context.C
 				},
 			},
 		},
-		Stream: false,
+		Stream:    false,
+		MaxTokens: 16384,
 	}
 
 	// Call LLM

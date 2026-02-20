@@ -77,6 +77,12 @@ func (provider *OllamaProvider) Chat(jobContext context.Context, request *ChatRe
 		Model:    request.Model,
 		Messages: ollamaMessages,
 		Stream:   &isStreaming,
+		Options:  make(map[string]any),
+	}
+
+	// Set max_tokens (Ollama uses "num_predict" for this)
+	if request.MaxTokens > 0 {
+		ollamaRequest.Options["num_predict"] = request.MaxTokens
 	}
 
 	go func() {

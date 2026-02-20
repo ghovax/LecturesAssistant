@@ -11,7 +11,8 @@ $enable-rounded: true;
 
   // Typography
   --font-primary: "Manrope", sans-serif;
-  --font-mono: "Menlo", monospace;
+  --font-mono: "JetBrains Mono", "Menlo", monospace;
+  --font-mono-size-factor: 0.88;
 
   // Neutral Colors (Warm Gray Scale)
   --cream: #f5f3f0;
@@ -273,9 +274,14 @@ select.form-select {
   justify-content: center;
   gap: 0.5rem;
 
-  &:active {
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0.125rem 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
     box-shadow: none;
-    transform: translateY(1px);
   }
 }
 
@@ -628,10 +634,9 @@ select.form-select {
 // Utility Classes
 .filename {
   font-family: var(--font-mono);
-  font-size-adjust: var(--font-mono-adjust);
   background-color: rgba(0, 0, 0, 0.03);
   padding: 0.1em 0.3em;
-  font-size: 0.85rem;
+  font-size: calc(0.85rem * var(--font-mono-size-factor));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -640,14 +645,14 @@ select.form-select {
   vertical-align: bottom;
 }
 
-// Monospace text normalization
+// Monospace text normalization — JetBrains Mono renders larger than Manrope at the same size
 .font-monospace,
 code,
 pre,
 kbd,
 samp {
   font-family: var(--font-mono);
-  font-size-adjust: var(--font-mono-adjust);
+  font-size: calc(1em * var(--font-mono-size-factor));
 }
 
 // Animations

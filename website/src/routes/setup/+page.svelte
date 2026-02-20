@@ -94,7 +94,7 @@
           {/if}
 
           <div class="row">
-            <div class="col-md-6 mb-4">
+            <div class="col-md-6 form-field">
               <label for="username" class="cozy-label">Admin Username</label>
               <input
                 type="text"
@@ -105,7 +105,7 @@
               />
             </div>
 
-            <div class="col-md-6 mb-4">
+            <div class="col-md-6 form-field">
               <label for="password" class="cozy-label">Admin Password</label>
               <input
                 type="password"
@@ -115,13 +115,13 @@
                 required
                 minlength="8"
               />
-              <small class="form-text text-muted mt-2 d-block"
+              <small class="form-help-text"
                 >Minimum 8 characters.</small
               >
             </div>
           </div>
 
-          <div class="mb-4">
+          <div class="form-field">
             <label for="apiKey" class="cozy-label">OpenRouter API Key</label>
             <input
               type="password"
@@ -130,7 +130,7 @@
               bind:value={apiKey}
               required
             />
-            <small class="form-text text-muted mt-2 d-block"
+            <small class="form-help-text"
               >This key is required for all AI-powered transcription and
               generation features.</small
             >

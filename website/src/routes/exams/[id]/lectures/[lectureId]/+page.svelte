@@ -447,6 +447,48 @@
     }
   }
 
+  function handleAudioTimeUpdate() {
+    if (!audioElement || !transcript?.segments) return;
+    const currentTimeMs = audioElement.currentTime * 1000;
+    const seg = transcript.segments[currentSegmentIndex];
+    if (!seg) return;
+
+    // Check if playback has gone past the current segment's end boundary
+    const segEnd = seg.original_end_milliseconds;
+    const segStart = seg.original_start_milliseconds;
+
+    if (currentTimeMs >= segEnd && currentSegmentIndex < transcript.segments.length - 1) {
+      // Find the segment that contains the current time
+      const nextIdx = transcript.segments.findIndex(
+        (s: any) =>
+          s.media_id === seg.media_id &&
+          currentTimeMs >= s.original_start_milliseconds &&
+          currentTimeMs < s.original_end_milliseconds,
+      );
+      if (nextIdx !== -1 && nextIdx !== currentSegmentIndex) {
+        currentSegmentIndex = nextIdx;
+      }
+    }
+  }
+
+  function handleAudioSeeked() {
+    if (!audioElement || !transcript?.segments) return;
+    const currentTimeMs = audioElement.currentTime * 1000;
+    const seg = transcript.segments[currentSegmentIndex];
+    if (!seg) return;
+
+    // After a seek, find the matching segment for the current media file
+    const matchIdx = transcript.segments.findIndex(
+      (s: any) =>
+        s.media_id === seg.media_id &&
+        currentTimeMs >= s.original_start_milliseconds &&
+        currentTimeMs < s.original_end_milliseconds,
+    );
+    if (matchIdx !== -1 && matchIdx !== currentSegmentIndex) {
+      currentSegmentIndex = matchIdx;
+    }
+  }
+
   function nextSegment() {
     if (
       transcript?.segments &&
@@ -1193,6 +1235,32 @@
                       current={currentSegmentIndex + 1}
                       total={transcript?.segments?.length || 0}
                     />
+                    <div class="d-flex align-items-center gap-2">
+                      <span
+                        class="text-muted d-none d-md-inline"
+                        style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;"
+                        >Go to:</span
+                      >
+                      <input
+                        type="number"
+                        min="1"
+                        max={transcript?.segments?.length || 1}
+                        class="form-control cozy-input p-1 text-center no-spinner"
+                        style="width: 45px; height: 1.75rem; font-size: 0.8rem;"
+                        placeholder=""
+                        oninput={(e) => {
+                          const val = parseInt(e.currentTarget.value);
+                          if (
+                            !isNaN(val) &&
+                            val >= 1 &&
+                            val <= (transcript?.segments?.length || 1)
+                          ) {
+                            currentSegmentIndex = val - 1;
+                          }
+                        }}
+                        onblur={(e) => (e.currentTarget.value = "")}
+                      />
+                    </div>
                     <StatusIndicator
                       type="time"
                       current={formatTime(seg.start_millisecond)}
@@ -1264,6 +1332,8 @@
                       controls
                       class="w-100"
                       style="height: 40px; display: block;"
+                      ontimeupdate={handleAudioTimeUpdate}
+                      onseeked={handleAudioSeeked}
                       src={api.getAuthenticatedMediaUrl(
                         `/media/content?media_id=${seg.media_id}`,
                       ) +
@@ -1404,11 +1474,14 @@
                 >
                   <!-- Left click area for previous page -->
                   {#if selectedDocPageIndex > 0}
-                    <div
+                    <button
                       class="page-nav-overlay page-nav-left"
                       onclick={prevDocPage}
                       title="Previous page"
-                    ></div>
+                      aria-label="Previous page"
+                    >
+                      <ChevronLeft size={28} />
+                    </button>
                   {/if}
 
                   <img
@@ -1422,11 +1495,14 @@
 
                   <!-- Right click area for next page -->
                   {#if selectedDocPageIndex < selectedDocPages.length - 1}
-                    <div
+                    <button
                       class="page-nav-overlay page-nav-right"
                       onclick={nextDocPage}
                       title="Next page"
-                    ></div>
+                      aria-label="Next page"
+                    >
+                      <ChevronRight size={28} />
+                    </button>
                   {/if}
                 </div>
 
@@ -1479,7 +1555,7 @@
   isOpen={showCreateModal}
   onClose={() => (showCreateModal = false)}
 >
-  <div class="mb-4">
+  <div class="form-field">
     <label class="form-label cozy-label" for="tool-lang">Target Language</label>
     <select
       id="tool-lang"
@@ -1494,12 +1570,12 @@
       <option value="fr-FR">Français</option>
       <option value="ja-JP">日本語</option>
     </select>
-    <div class="form-text mt-1 mb-4" style="font-size: 0.75rem;">
+    <div class="form-help-text">
       The assistant will translate and prepare content in this language.
     </div>
   </div>
 
-  <div class="mb-0">
+  <div class="form-field" style="margin-bottom: 0;">
     <span class="form-label cozy-label">Level of Detail</span>
     <div class="d-flex gap-2 mt-3">
       {#each ["short", "medium", "long", "comprehensive"] as len}
@@ -1542,6 +1618,21 @@
     width: 15%;
     z-index: 10;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: var(--gray-400);
+    opacity: 0;
+    transition: opacity 0.2s ease, background 0.2s ease;
+
+    &:hover {
+      opacity: 1;
+      background: rgba(0, 0, 0, 0.06);
+      color: var(--gray-700);
+    }
 
     &.page-nav-left {
       left: 0;

@@ -54,19 +54,19 @@
     justify-content: center;
     margin-bottom: 1.5rem;
     color: var(--gray-400);
-    opacity: 0.25;
+    opacity: 0.45;
   }
 
   .empty-state-title {
-    font-size: 1rem;
+    font-size: 1.1rem;
     font-weight: 600;
-    color: var(--gray-900);
+    color: var(--gray-800);
     margin: 0 0 0.5rem 0;
     line-height: 1.2;
   }
 
   .empty-state-description {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     color: var(--gray-500);
     line-height: 1.5;
     margin: 0 0 1.5rem 0;

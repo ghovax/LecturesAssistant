@@ -1,10 +1,8 @@
-// Core Components (existing)
-export { default as Button } from "./components/Button.svelte";
+// Core Components
 export { default as Modal } from "./components/Modal.svelte";
 export { default as Tile } from "./components/Tile.svelte";
 export { default as Breadcrumb } from "./components/Breadcrumb.svelte";
 export { default as Navbar } from "./components/Navbar.svelte";
-export { default as Flashcard } from "./components/Flashcard.svelte";
 export { default as Highlighter } from "./components/Highlighter.svelte";
 export { default as CitationPopup } from "./components/CitationPopup.svelte";
 export { default as EditModal } from "./components/EditModal.svelte";
@@ -34,7 +32,6 @@ export { default as LoadingState } from "./components/feedback/LoadingState.svel
 export { default as ErrorState } from "./components/feedback/ErrorState.svelte";
 
 // Navigation Components
-export { default as NavCard } from "./components/navigation/NavCard.svelte";
 export { default as ActionTile } from "./components/navigation/ActionTile.svelte";
 export { default as VerticalTileList } from "./components/navigation/VerticalTileList.svelte";
 
@@ -46,8 +43,6 @@ export { default as MetaBadge } from "./components/utils/MetaBadge.svelte";
 
 // Composite Components
 export { default as TileGrid } from "./components/composite/TileGrid.svelte";
-export { default as WorkspaceSection } from "./components/composite/WorkspaceSection.svelte";
-export { default as ContentBlock } from "./components/composite/ContentBlock.svelte";
 
 // Utilities
 export { getLanguageName, capitalize, formatActivityType } from "./utils";

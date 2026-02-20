@@ -50,7 +50,7 @@
             </div>
           {/if}
 
-          <div class="mb-4">
+          <div class="form-field">
             <label for="username" class="cozy-label">Username</label>
             <input
               type="text"
@@ -61,7 +61,7 @@
             />
           </div>
 
-          <div class="mb-4">
+          <div class="form-field">
             <label for="password" class="cozy-label">Password</label>
             <input
               type="password"

@@ -39,11 +39,9 @@
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.25rem 0.75rem;
-    background-color: var(--cream);
-    border: 1px solid var(--gray-300);
+    padding: 0.25rem 0;
     font-family: var(--font-primary);
-    font-size: 11px;
+    font-size: 0.8rem;
     font-weight: 600;
     color: var(--gray-600);
     letter-spacing: 0.02em;

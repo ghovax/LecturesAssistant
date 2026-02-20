@@ -310,7 +310,10 @@
 
       // Fetch transcript separately - it may not exist for document-only lectures
       try {
-        transcript = await api.request("GET", `/transcripts/html?lecture_id=${lectureId}`);
+        transcript = await api.request(
+          "GET",
+          `/transcripts/html?lecture_id=${lectureId}`,
+        );
       } catch (e) {
         // Transcript not found is OK for lectures without media
         transcript = null;
@@ -956,9 +959,7 @@
                   disabled={guideJob.status !== "FAILED"}
                   onclick={() =>
                     guideJob.status === "FAILED" && retryJob(guideJob)}
-                  class={guideJob.status === "FAILED"
-                    ? "error"
-                    : "processing"}
+                  class={guideJob.status === "FAILED" ? "error" : "processing"}
                 >
                   {#snippet actions()}
                     {#if guideJob.status === "FAILED"}
@@ -1201,7 +1202,9 @@
 
             {#if transcript && transcript.segments}
               {@const seg = transcript.segments[currentSegmentIndex]}
-              <div class="d-flex justify-content-between align-items-center px-4 py-2 border-bottom">
+              <div
+                class="d-flex justify-content-between align-items-center px-4 py-2 border-bottom"
+              >
                 <div class="d-flex align-items-center gap-3">
                   <StatusIndicator
                     type="count"
@@ -1317,7 +1320,9 @@
 
             {#if selectedDocPages && selectedDocPages.length > 0}
               {@const p = selectedDocPages[selectedDocPageIndex]}
-              <div class="d-flex justify-content-between align-items-center px-4 py-2 border-bottom">
+              <div
+                class="d-flex justify-content-between align-items-center px-4 py-2 border-bottom"
+              >
                 <div class="d-flex align-items-center gap-4">
                   <StatusIndicator
                     type="page"

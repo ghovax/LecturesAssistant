@@ -298,10 +298,7 @@
                 description="Ask questions across all your lessons."
               >
                 {#snippet action()}
-                  <button
-                    class="btn btn-success"
-                    onclick={createChat}
-                  >
+                  <button class="btn btn-success" onclick={createChat}>
                     <Plus size={14} /> Start New Chat
                   </button>
                 {/snippet}
@@ -373,7 +370,7 @@
 
 <CreateLectureModal
   isOpen={showCreateLectureModal}
-  examId={examId}
+  {examId}
   onClose={() => (showCreateLectureModal = false)}
   onLectureCreated={loadData}
 />

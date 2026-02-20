@@ -20,7 +20,7 @@
 
   let isOpen = $state(false);
   let buttonElement: HTMLButtonElement | null = $state(null);
-  let dropdownElement: HTMLDivElement | null = $state(null);
+  let dropdownElement: HTMLUListElement | null = $state(null);
   let dropdownStyle = $state("");
 
   function openDropdown() {

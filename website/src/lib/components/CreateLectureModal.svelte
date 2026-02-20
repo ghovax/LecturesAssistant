@@ -4,7 +4,17 @@
   import { notifications } from "$lib/stores/notifications.svelte";
   import { goto } from "$app/navigation";
   import Modal from "./Modal.svelte";
-  import { Upload, FileText, Info, X, Music, GripVertical, FileUp, Film, Mic } from "lucide-svelte";
+  import {
+    Upload,
+    FileText,
+    Info,
+    X,
+    Music,
+    GripVertical,
+    FileUp,
+    Film,
+    Mic,
+  } from "lucide-svelte";
 
   interface Props {
     isOpen: boolean;
@@ -25,7 +35,16 @@
   let status = $state("");
   let isDragging = $state(false);
 
-  const mediaExtensions = ["mp4", "mkv", "mov", "webm", "mp3", "wav", "m4a", "flac"];
+  const mediaExtensions = [
+    "mp4",
+    "mkv",
+    "mov",
+    "webm",
+    "mp3",
+    "wav",
+    "m4a",
+    "flac",
+  ];
   const docExtensions = ["pdf", "pptx", "docx"];
 
   function handleFiles(files: FileList | File[]) {
@@ -84,7 +103,12 @@
   }
 
   async function handleUpload() {
-    if (!examId || !title || (mediaFiles.length === 0 && documentFiles.length === 0)) return;
+    if (
+      !examId ||
+      !title ||
+      (mediaFiles.length === 0 && documentFiles.length === 0)
+    )
+      return;
 
     uploading = true;
     try {
@@ -100,7 +124,9 @@
       status = "Processing upload...";
       await api.createLecture(formData);
 
-      notifications.success("The lesson has been added. We are now preparing your materials.");
+      notifications.success(
+        "The lesson has been added. We are now preparing your materials.",
+      );
       resetForm();
       onClose();
       onLectureCreated?.();
@@ -113,7 +139,10 @@
   $effect(() => {
     if (isOpen && examId) {
       onMount(async () => {
-        const [examData, settings] = await Promise.all([api.getExam(examId), api.getSettings()]);
+        const [examData, settings] = await Promise.all([
+          api.getExam(examId),
+          api.getSettings(),
+        ]);
         exam = examData;
         if (exam?.language) language = exam.language;
         else if (settings?.llm?.language) language = settings.llm.language;
@@ -122,7 +151,12 @@
   });
 </script>
 
-<Modal title="Create New Lesson" isOpen={isOpen} onClose={handleClose} maxWidth="750px">
+<Modal
+  title="Create New Lesson"
+  {isOpen}
+  onClose={handleClose}
+  maxWidth="750px"
+>
   {#if exam}
     <div class="d-flex flex-column gap-4">
       <!-- Step 1: Lesson Details -->
@@ -145,7 +179,9 @@
             />
           </div>
           <div class="col-12">
-            <label for="lesson-desc" class="cozy-label">Description (Optional)</label>
+            <label for="lesson-desc" class="cozy-label"
+              >Description (Optional)</label
+            >
             <textarea
               id="lesson-desc"
               class="form-control cozy-input"
@@ -157,7 +193,9 @@
             ></textarea>
           </div>
           <div class="col-md-6">
-            <label for="lesson-lang" class="cozy-label">Processing Language</label>
+            <label for="lesson-lang" class="cozy-label"
+              >Processing Language</label
+            >
             <select
               id="lesson-lang"
               class="form-select cozy-input"
@@ -190,7 +228,10 @@
         <!-- svelte-ignore a11y_mouse_events_have_key_events -->
         <div
           class="dropzone-refined mb-3 {isDragging ? 'is-dragging' : ''}"
-          ondragover={(e) => { e.preventDefault(); isDragging = true; }}
+          ondragover={(e) => {
+            e.preventDefault();
+            isDragging = true;
+          }}
           ondragleave={() => (isDragging = false)}
           ondrop={onDrop}
         >
@@ -226,27 +267,39 @@
               <div class="file-group mb-3">
                 <div class="file-group-header">
                   <Music size={14} class="text-orange me-2" />
-                  <span class="file-group-title">Recordings ({mediaFiles.length})</span>
+                  <span class="file-group-title"
+                    >Recordings ({mediaFiles.length})</span
+                  >
                 </div>
                 <div class="file-list">
                   {#each mediaFiles as file, i}
                     <div
                       class="file-item recording"
                       draggable={!uploading}
-                      ondragstart={(e: DragEvent) => !uploading && e.dataTransfer?.setData("text/plain", i.toString())}
+                      ondragstart={(e: DragEvent) =>
+                        !uploading &&
+                        e.dataTransfer?.setData("text/plain", i.toString())}
                       ondragover={(e: DragEvent) => {
                         e.preventDefault();
-                        if (!uploading && e.currentTarget instanceof HTMLElement)
-                          e.currentTarget.style.borderTop = "2px solid var(--orange)";
+                        if (
+                          !uploading &&
+                          e.currentTarget instanceof HTMLElement
+                        )
+                          e.currentTarget.style.borderTop =
+                            "2px solid var(--orange)";
                       }}
                       ondragleave={(e: DragEvent) => {
-                        if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.borderTop = "";
+                        if (e.currentTarget instanceof HTMLElement)
+                          e.currentTarget.style.borderTop = "";
                       }}
                       ondrop={(e: DragEvent) => {
                         e.preventDefault();
-                        if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.borderTop = "";
+                        if (e.currentTarget instanceof HTMLElement)
+                          e.currentTarget.style.borderTop = "";
                         if (uploading) return;
-                        const fromIndex = parseInt(e.dataTransfer?.getData("text/plain") || "-1");
+                        const fromIndex = parseInt(
+                          e.dataTransfer?.getData("text/plain") || "-1",
+                        );
                         if (fromIndex !== -1 && fromIndex !== i) {
                           const files = [...mediaFiles];
                           const [moved] = files.splice(fromIndex, 1);
@@ -255,10 +308,19 @@
                         }
                       }}
                     >
-                      <div class="d-flex align-items-center gap-2 overflow-hidden">
-                        <GripVertical size={14} class="text-muted flex-shrink-0" style="cursor: grab;" />
+                      <div
+                        class="d-flex align-items-center gap-2 overflow-hidden"
+                      >
+                        <GripVertical
+                          size={14}
+                          class="text-muted flex-shrink-0"
+                          style="cursor: grab;"
+                        />
                         <Film size={14} class="text-orange flex-shrink-0" />
-                        <span class="text-truncate small filename" title={file.name}>{file.name}</span>
+                        <span
+                          class="text-truncate small filename"
+                          title={file.name}>{file.name}</span
+                        >
                       </div>
                       <button
                         class="btn btn-link btn-sm text-danger p-0 border-0 shadow-none ms-2 flex-shrink-0"
@@ -278,15 +340,25 @@
               <div class="file-group">
                 <div class="file-group-header">
                   <FileText size={14} class="text-primary me-2" />
-                  <span class="file-group-title">Documents ({documentFiles.length})</span>
+                  <span class="file-group-title"
+                    >Documents ({documentFiles.length})</span
+                  >
                 </div>
                 <div class="file-list">
                   {#each documentFiles as file, i}
                     <div class="file-item document">
-                      <div class="d-flex align-items-center gap-2 overflow-hidden">
+                      <div
+                        class="d-flex align-items-center gap-2 overflow-hidden"
+                      >
                         <div style="width: 14px;"></div>
-                        <FileText size={14} class="text-primary flex-shrink-0" />
-                        <span class="text-truncate small filename" title={file.name}>{file.name}</span>
+                        <FileText
+                          size={14}
+                          class="text-primary flex-shrink-0"
+                        />
+                        <span
+                          class="text-truncate small filename"
+                          title={file.name}>{file.name}</span
+                        >
                       </div>
                       <button
                         class="btn btn-link btn-sm text-danger p-0 border-0 shadow-none ms-2 flex-shrink-0"
@@ -310,7 +382,11 @@
         {#if uploading}
           <div class="text-center py-3">
             <div class="village-spinner mx-auto mb-3"></div>
-            <p class="text-muted fw-bold small uppercase letter-spacing-05 mb-0">{status}</p>
+            <p
+              class="text-muted fw-bold small uppercase letter-spacing-05 mb-0"
+            >
+              {status}
+            </p>
           </div>
         {:else}
           <div class="d-flex justify-content-between align-items-center">
@@ -321,7 +397,8 @@
             <button
               class="btn btn-success px-4"
               onclick={handleUpload}
-              disabled={!title || (mediaFiles.length === 0 && documentFiles.length === 0)}
+              disabled={!title ||
+                (mediaFiles.length === 0 && documentFiles.length === 0)}
             >
               <Upload size={18} />
               Start Processing Lesson

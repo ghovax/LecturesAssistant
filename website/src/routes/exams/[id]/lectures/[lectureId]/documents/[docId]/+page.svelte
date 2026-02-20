@@ -104,8 +104,14 @@
       <div class="col-12">
         {#if pages[currentPageIndex]}
           {@const p = pages[currentPageIndex]}
-          <div class="well bg-white mb-3 p-0 border shadow-none" style="border-radius: var(--border-radius);">
-            <div class="standard-header" style="border-radius: var(--border-radius) var(--border-radius) 0 0;">
+          <div
+            class="well bg-white mb-3 p-0 border shadow-none"
+            style="border-radius: var(--border-radius);"
+          >
+            <div
+              class="standard-header"
+              style="border-radius: var(--border-radius) var(--border-radius) 0 0;"
+            >
               <div class="header-title d-flex align-items-center gap-4">
                 <span class="header-text"
                   >Page {p.page_number} / {pages.length}</span

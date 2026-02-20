@@ -141,10 +141,7 @@
   title="My Studies"
   description="Access your personal study hub and manage all subjects."
 >
-  <button
-    class="btn btn-primary"
-    onclick={openCreateModal}
-  >
+  <button class="btn btn-primary" onclick={openCreateModal}>
     <Plus size={16} /> Add Subject
   </button>
 </PageHeader>
@@ -187,10 +184,7 @@
         description="Get started by creating your first subject. You can then add lessons, upload recordings, and generate AI-powered study guides."
       >
         {#snippet action()}
-          <button
-            class="btn btn-success"
-            onclick={openCreateModal}
-          >
+          <button class="btn btn-success" onclick={openCreateModal}>
             Create My First Subject
           </button>
         {/snippet}
@@ -230,13 +224,10 @@
     />
 
     <div class="d-flex justify-content-end mt-4">
-      <button
-        type="submit"
-        class="btn btn-success px-4"
-        disabled={creating}
-      >
+      <button type="submit" class="btn btn-success px-4" disabled={creating}>
         {#if creating}
-          <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+          <span class="spinner-border spinner-border-sm me-2" role="status"
+          ></span>
         {/if}
         Create Subject
       </button>

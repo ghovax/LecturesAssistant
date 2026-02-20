@@ -307,9 +307,7 @@
                 Export
               {/if}
             </button>
-            <ul
-              class="dropdown-menu dropdown-menu-end shadow-none border"
-            >
+            <ul class="dropdown-menu dropdown-menu-end shadow-none border">
               <li>
                 <button
                   class="dropdown-item d-flex justify-content-between align-items-center"
@@ -363,9 +361,7 @@
         </div>
       {/if}
       <div class="d-flex align-items-center gap-2">
-        <span class="badge bg-dark"
-          >{capitalize(tool.type)} Material</span
-        >
+        <span class="badge bg-dark">{capitalize(tool.type)} Material</span>
       </div>
     </div>
   </header>

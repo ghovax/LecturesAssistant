@@ -5,17 +5,7 @@
   import { notifications } from "$lib/stores/notifications.svelte";
   import { goto } from "$app/navigation";
   import Tile from "$lib/components/Tile.svelte";
-  import {
-    Book,
-    Settings,
-    LogIn,
-    LogOut,
-    User,
-    HelpCircle,
-    Database,
-    Download,
-    Upload,
-  } from "lucide-svelte";
+  import { Download, Upload } from "lucide-svelte";
   import { ConfirmModal } from "$lib";
 
   async function handleLogout() {
@@ -193,94 +183,63 @@
     </div>
   </header>
 
-  <section class="scroll-blur">
-    <div class="section-header">
-      <span class="overline">Workspace</span>
-      <h2>Core Study Tools</h2>
-    </div>
+  <div class="link-tiles scroll-blur mb-4">
+    <Tile href="/exams" title="My Studies">
+      {#snippet description()}
+        Access subjects, lessons, and all generated materials.
+      {/snippet}
+    </Tile>
+    <Tile href="/settings" title="Preferences">
+      {#snippet description()}
+        Customize language, AI models, and interface.
+      {/snippet}
+    </Tile>
+  </div>
 
-    <div class="link-tiles mb-4">
-      <Tile href="/exams" icon="" title="My Studies">
+  <div class="link-tiles scroll-blur mb-5">
+    {#if !auth.user}
+      <Tile href="/login" title="Sign In">
         {#snippet description()}
-          Access subjects, lessons, and all generated materials.
+          Access your personal study hub.
         {/snippet}
       </Tile>
-      <Tile href="/settings" icon="" title="Preferences">
+    {:else}
+      <Tile onclick={handleLogout} title="Logout">
         {#snippet description()}
-          Customize language, AI models, and interface.
+          Securely sign out of your session.
         {/snippet}
       </Tile>
-    </div>
-  </section>
-
-  <div class="row g-4 scroll-blur mb-5">
-    <div class="col-lg-6">
-      <section class="h-100 mb-0">
-        <div class="section-header">
-          <span class="overline">Identity</span>
-          <h2>Account & Session</h2>
-        </div>
-        <div class="link-tiles">
-          {#if !auth.user}
-            <Tile href="/login" icon="" title="Sign In">
-              {#snippet description()}
-                Access your personal study hub.
-              {/snippet}
-            </Tile>
-          {:else}
-            <Tile onclick={handleLogout} icon="" title="Logout">
-              {#snippet description()}
-                Securely sign out of your session.
-              {/snippet}
-            </Tile>
-            {#if auth.user?.role === "admin"}
-              <Tile
-                icon=""
-                title="Workspace Backup"
-                class="restore-workspace-tile"
-              >
-                {#snippet description()}
-                  Export or restore your study library.
-                {/snippet}
-                {#snippet actions()}
-                  <button
-                    type="button"
-                    class="btn btn-link p-0 border-0 shadow-none"
-                    onclick={handleBackup}
-                    title="Export Workspace"
-                  >
-                    <Download size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-link text-danger p-0 border-0 shadow-none"
-                    onclick={triggerRestore}
-                    title="Restore Workspace"
-                  >
-                    <Upload size={18} />
-                  </button>
-                {/snippet}
-              </Tile>
-            {/if}
-          {/if}
-        </div>
-      </section>
-    </div>
-    <div class="col-lg-6">
-      <section class="h-100 mb-0">
-        <div class="section-header">
-          <span class="overline">Support</span>
-          <h2>Resources</h2>
-        </div>
-        <div class="link-tiles">
-          <Tile href="/help" icon="" title="Help & Credits">
-            {#snippet description()}
-              Features guide and acknowledgments.
-            {/snippet}
-          </Tile>
-        </div>
-      </section>
-    </div>
+      {#if auth.user?.role === "admin"}
+        <Tile title="Workspace Backup" class="restore-workspace-tile">
+          {#snippet description()}
+            Export or restore your study library.
+          {/snippet}
+          {#snippet actions()}
+            <button
+              type="button"
+              class="btn btn-link p-0 border-0 shadow-none"
+              onclick={handleBackup}
+              title="Export Workspace"
+            >
+              <Download size={18} />
+            </button>
+            <button
+              type="button"
+              class="btn btn-link text-danger p-0 border-0 shadow-none"
+              onclick={triggerRestore}
+              title="Restore Workspace"
+            >
+              <Upload size={18} />
+            </button>
+          {/snippet}
+        </Tile>
+      {/if}
+    {/if}
+    <Tile href="/help" title="Help">
+      {#snippet description()}
+        Features guide and how to use the assistant.
+      {/snippet}
+    </Tile>
   </div>
 
   <footer class="cozy-footer scroll-blur-light">
@@ -294,23 +253,12 @@
     color: var(--gray-800);
     max-width: 1300px;
     margin: 0 auto;
-    padding-bottom: 80px;
     -webkit-font-smoothing: antialiased;
   }
 
   .hero-section {
     padding: 80px 0 60px;
     text-align: left;
-  }
-
-  .overline {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--gray-500);
-    margin-bottom: 12px;
-    display: block;
   }
 
   h1 {
@@ -333,21 +281,6 @@
     color: var(--gray-600);
     line-height: 1.6;
     max-width: 560px;
-  }
-
-  section {
-    margin-bottom: 60px;
-  }
-
-  .section-header {
-    margin-bottom: 24px;
-
-    h2 {
-      font-size: 18px;
-      font-weight: 500;
-      color: var(--gray-900);
-      margin: 0;
-    }
   }
 
   .donate-btn-hero {

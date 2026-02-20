@@ -8,6 +8,7 @@
     LogOut,
     Sparkles,
     HelpCircle,
+    Github,
   } from "lucide-svelte";
   import { goto } from "$app/navigation";
   let isMenuOpen = $state(false);
@@ -63,6 +64,18 @@
       </li>
     </ul>
     <ul id="rightNav" class="navbar-nav ms-auto">
+      <li class="nav-item">
+        <a
+          class="nav-link px-2"
+          href="https://github.com/ghovax/LecturesAssistant"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="GitHub"
+        >
+          <span class="nav-icon" aria-hidden="true"><Github size={16} /></span>
+          <span class="nav-text">GitHub</span>
+        </a>
+      </li>
       <li class="nav-item">
         <a
           class="nav-link px-2"

@@ -7,11 +7,10 @@
     ShieldCheck,
     Download,
     Search,
-    Heart,
   } from "lucide-svelte";
 </script>
 
-<Breadcrumb items={[{ label: "Help & Credits", active: true }]} />
+<Breadcrumb items={[{ label: "Features", active: true }]} />
 
 <div class="row">
   <div class="col-md-6 mb-4">
@@ -132,55 +131,8 @@
   </div>
 </div>
 
-<div class="bg-white border mt-2 credits-card">
-  <div class="standard-header">
-    <div class="header-title">
-      <Heart class="text-orange" size={16} />
-      <span class="header-text">Acknowledgments</span>
-    </div>
-  </div>
-
-  <div class="p-4">
-    <div class="row g-4">
-      <div class="col-md-6">
-        <div class="p-4 border bg-light bg-opacity-10 h-100" style="border-radius: var(--border-radius);">
-          <h4 class="fw-bold mb-3">AI Foundations</h4>
-          <p class="text-muted">
-            Analysis and generation capabilities are powered by a hybrid
-            approach to inference:
-          </p>
-          <ul class="mb-0 text-muted">
-            <li class="mb-2">
-              <strong>OpenRouter</strong> — Seamless access to frontier cloud models.
-            </li>
-            <li>
-              <strong>Ollama</strong> — Private, secure local inference for sensitive content.
-            </li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="col-md-6">
-        <div class="p-4 border bg-light bg-opacity-10 h-100" style="border-radius: var(--border-radius);">
-          <h4 class="fw-bold mb-3">Design Inspiration</h4>
-          <p class="text-muted">
-            The visual language and core user experience were deeply inspired by
-            minimalist "craft" principles — a warm, direct interface applied to
-            the modern landscape of AI-assisted education.
-          </p>
-          <p class="mb-0 text-muted small">
-            Special thanks to the Svelte, Vite, and Bootstrap communities for
-            the tools that make development a joy.
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
 <style lang="scss">
-  .feature-card,
-  .credits-card {
+  .feature-card {
     border-radius: var(--border-radius);
   }
 </style>

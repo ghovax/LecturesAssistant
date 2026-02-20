@@ -57,6 +57,6 @@
   }
 
   .content {
-    padding: 0;
+    padding: 0 0 80px;
   }
 </style>

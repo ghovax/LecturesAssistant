@@ -9,44 +9,11 @@ Lectures Assistant is a high-fidelity, AI-powered platform designed to transform
 - **AI Reading Assistant**: An integrated chat interface that lets you ask questions, clarify concepts, and explore connections across all your lessons simultaneously.
 - **Professional Exports**: Export your materials to beautifully formatted PDF (via XeLaTeX), Word (Docx), or Markdown, complete with embedded cited images and QR codes for easy sharing.
 - **Cost Tracking**: Transparent monitoring of token usage and estimated USD costs for every AI-powered operation.
-- **Local & Cloud Privacy**: Choose between powerful cloud models (Claude, GPT, Gemini) or fully private local inference using Ollama.
+- **Local & Cloud Privacy**: Choose between powerful cloud models or fully private local inference using Ollama.
 
 ## 🚀 Quick Start
 
-### For Non-Technical Users (Recommended)
-
-The easiest way to run Lectures Assistant is using Docker Compose (included with Docker Desktop):
-
-1. **Download Docker Desktop** (if you haven't already):
-   - [Windows](https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe)
-   - [Mac](https://desktop.docker.com/mac/main/arm64/Docker.dmg)
-
-2. **Download Lectures Assistant**:
-   - Download [this folder](https://github.com/giovannigravili/LecturesAssistant/archive/refs/heads/main.zip) and extract it
-
-3. **Run it**:
-   - **Windows**: Double-click `run.bat` (or open Command Prompt in the folder and type `docker-compose up -d`)
-   - **Mac**: Open Terminal in the folder and type `docker-compose up -d`
-
-4. **Open your browser** to [http://localhost:3000](http://localhost:3000)
-
-**That's it!** The application will:
-
-- Download automatically (~900 MB on first run)
-- Start running in the background
-- Store all your data safely on your computer
-
-**Useful commands:**
-
-- Stop: `docker-compose down`
-- Start again: `docker-compose up -d`
-- View logs: `docker-compose logs -f`
-
----
-
-### Alternative: Single Command
-
-If you prefer not to download the folder, run this single command in any terminal:
+Lectures Assistant runs entirely through Docker. Make sure you have [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed, then run:
 
 ```bash
 docker run -d --name lectures-assistant -p 3000:3000 giovanni653/lectures-assistant:latest
@@ -54,15 +21,18 @@ docker run -d --name lectures-assistant -p 3000:3000 giovanni653/lectures-assist
 
 Then open [http://localhost:3000](http://localhost:3000) in your browser.
 
-**Commands:**
+**Useful commands:**
 
-- Stop: `docker stop lectures-assistant`
-- Start again: `docker start lectures-assistant`
-- Remove: `docker rm -f lectures-assistant`
+```bash
+docker stop lectures-assistant    # Stop
+docker start lectures-assistant   # Start again
+docker rm -f lectures-assistant   # Remove
+docker logs -f lectures-assistant # View logs
+```
 
-## 🛠️ Configuration
+## ⚙️ Configuration
 
-On your first run, you will be guided through a **Setup** process:
+On your first run you will be guided through a setup process:
 
 1. **Create an Admin Account**: Secure your local instance.
 2. **AI Provider**:
@@ -97,16 +67,18 @@ npm run dev
 
 ## 📂 Project Structure
 
-- `server/`: Go backend handles API, job queue, LLM routing, and file processing.
-- `website/`: SvelteKit frontend providing a minimalist, "craft" inspired user interface.
-- `prompts/`: A centralized repository of system prompts used for AI orchestration.
+- `server/`: Go backend handling the API, job queue, LLM routing, and file processing.
+- `website/`: SvelteKit frontend providing a minimalist, craft-inspired user interface.
+- `prompts/`: Centralized repository of system prompts used for AI orchestration.
 
 ## 📝 Troubleshooting
 
 **Port Conflicts:**
-By default, the server uses port `3000`. If this port is occupied, update `server.port` in `configuration.yaml`.
+By default the server uses port `3000`. Change the `-p` flag in the Docker command if this port is occupied (e.g. `-p 8080:3000`).
 
-**Dependency Errors:**
-If exports fail, ensure `pandoc` and `tectonic` are available in your system PATH. Docker versions include these automatically.
+**Export Failures:**
+The Docker image includes all required dependencies (Pandoc, Tectonic). If running outside Docker, ensure these are available in your system PATH.
+
+---
 
 Built with focus and care for students who value clarity and depth in their learning journey.

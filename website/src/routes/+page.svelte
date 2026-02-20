@@ -12,7 +12,6 @@
     LogOut,
     User,
     HelpCircle,
-    Heart,
     Database,
     Download,
     Upload,
@@ -274,14 +273,9 @@
           <h2>Resources</h2>
         </div>
         <div class="link-tiles">
-          <Tile href="/help" icon="" title="Help Guide">
+          <Tile href="/help" icon="" title="Help & Credits">
             {#snippet description()}
-              How to use the assistant effectively.
-            {/snippet}
-          </Tile>
-          <Tile href="/credits" icon="" title="Credits">
-            {#snippet description()}
-              System acknowledgments and contributors.
+              Features guide and acknowledgments.
             {/snippet}
           </Tile>
         </div>
@@ -397,6 +391,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0;
+    width: fit-content;
     background: transparent;
     margin-bottom: 2rem;
     border: 1px solid var(--gray-300);

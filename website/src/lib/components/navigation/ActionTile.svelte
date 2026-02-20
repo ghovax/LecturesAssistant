@@ -110,6 +110,7 @@
     background: #fff;
     border-radius: var(--border-radius);
     transition: all 0.2s ease;
+    min-height: v-bind(height);
 
     &:hover:not(.disabled) {
       background: #fafaf9;
@@ -143,7 +144,8 @@
   .action-tile-button {
     display: flex;
     flex-direction: column;
-    height: v-bind(height);
+    height: 100%;
+    min-height: v-bind(height);
     width: v-bind(width);
     padding: 20px;
     text-decoration: none;

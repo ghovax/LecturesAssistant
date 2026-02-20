@@ -30,8 +30,8 @@
         password,
         openrouter_api_key: apiKey,
       });
-      // The setup endpoint returns a token, we should use it
-      localStorage.setItem("session_token", data.token);
+      api.setToken(data.token);
+      await auth.check();
       goto("/exams");
     } catch (e: any) {
       error = e.message;

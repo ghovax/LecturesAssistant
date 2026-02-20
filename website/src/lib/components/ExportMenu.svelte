@@ -19,10 +19,33 @@
   }: Props = $props();
 
   let isOpen = $state(false);
+  let buttonElement: HTMLButtonElement | null = $state(null);
   let dropdownElement: HTMLDivElement | null = $state(null);
+  let dropdownStyle = $state("");
+
+  function openDropdown() {
+    if (buttonElement) {
+      const rect = buttonElement.getBoundingClientRect();
+      dropdownStyle = `top: ${rect.bottom + 4}px; right: ${window.innerWidth - rect.right}px;`;
+    }
+    isOpen = true;
+  }
+
+  function toggleDropdown() {
+    if (isOpen) {
+      isOpen = false;
+    } else {
+      openDropdown();
+    }
+  }
 
   function handleClickOutside(event: MouseEvent) {
-    if (dropdownElement && !dropdownElement.contains(event.target as Node)) {
+    if (
+      buttonElement &&
+      !buttonElement.contains(event.target as Node) &&
+      dropdownElement &&
+      !dropdownElement.contains(event.target as Node)
+    ) {
       isOpen = false;
     }
   }
@@ -35,8 +58,9 @@
   });
 </script>
 
-<div class="dropdown" bind:this={dropdownElement}>
+<div class="dropdown">
   <button
+    bind:this={buttonElement}
     class="btn btn-link {isCompleted
       ? 'text-orange'
       : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret"
@@ -45,13 +69,17 @@
     disabled={isExportingPDFWithImages ||
       isExportingPDFNoImages ||
       isExportingDocx}
-    onclick={() => (isOpen = !isOpen)}
+    onclick={toggleDropdown}
     aria-expanded={isOpen}
   >
     <Download size={16} />
   </button>
   {#if isOpen}
-    <ul class="dropdown-menu dropdown-menu-end show">
+    <ul
+      bind:this={dropdownElement}
+      class="dropdown-menu dropdown-menu-end show"
+      style={dropdownStyle}
+    >
       <li>
         <button
           class="dropdown-item d-flex justify-content-between align-items-center"
@@ -104,9 +132,7 @@
 <style lang="scss">
   .dropdown-menu.show {
     display: block;
-    position: absolute;
-    top: 125%;
-    right: 0;
+    position: fixed;
     z-index: 9999;
   }
 </style>

@@ -530,6 +530,7 @@ select.form-select {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
   padding: 0;
   background: #fff;
+  overflow: hidden;
 
   .dropdown-item {
     font-family: var(--font-primary);

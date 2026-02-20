@@ -375,7 +375,13 @@ func RegisterHandlers(
 					// Read image bytes to store in DB
 					imageData, readErr := os.ReadFile(currentPage.ImagePath)
 					if readErr != nil {
-						slog.Warn("Failed to read page image for DB storage", "path", currentPage.ImagePath, "error", readErr)
+						mutex.Lock()
+						if firstError == nil {
+							firstError = fmt.Errorf("failed to read page image for DB storage: %w (path: %s)", readErr, currentPage.ImagePath)
+						}
+						mutex.Unlock()
+						os.RemoveAll(outputDir)
+						return
 					}
 					// Store a logical path (just the filename) — not a disk path
 					logicalImagePath := filepath.Base(currentPage.ImagePath)

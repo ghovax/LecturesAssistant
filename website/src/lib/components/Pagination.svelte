@@ -63,3 +63,76 @@
     </ul>
   </nav>
 </div>
+
+<style lang="scss">
+  .pagination {
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    display: flex;
+    padding-left: 0;
+    list-style: none;
+
+    .page-item {
+      .page-link {
+        border-radius: 0;
+        border: 1px solid var(--gray-300);
+        margin: 0;
+        color: var(--gray-700);
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 2.5rem;
+        height: 2.5rem;
+        padding: 0 0.75rem;
+        font-size: 0.9rem;
+        transition: all 0.2s ease;
+        text-decoration: none;
+
+        &:hover {
+          background: var(--gray-100);
+          border-color: var(--gray-400);
+          color: var(--gray-900);
+        }
+
+        &:focus {
+          box-shadow: none;
+          background: var(--gray-100);
+          outline: none;
+        }
+      }
+
+      &.active .page-link {
+        background: var(--gray-900);
+        border-color: var(--gray-900);
+        color: var(--cream);
+      }
+
+      &.disabled .page-link {
+        background: var(--gray-100);
+        color: var(--gray-400);
+        cursor: not-allowed;
+        pointer-events: none;
+      }
+
+      &:first-child .page-link {
+        border-top-left-radius: var(--border-radius);
+        border-bottom-left-radius: var(--border-radius);
+      }
+
+      &:last-child .page-link {
+        border-top-right-radius: var(--border-radius);
+        border-bottom-right-radius: var(--border-radius);
+      }
+    }
+
+    &.pagination-sm {
+      .page-item .page-link {
+        min-width: 2rem;
+        height: 2rem;
+        font-size: 0.8rem;
+        padding: 0 0.5rem;
+      }
+    }
+  }
+</style>

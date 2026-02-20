@@ -104,8 +104,8 @@
       <div class="col-12">
         {#if pages[currentPageIndex]}
           {@const p = pages[currentPageIndex]}
-          <div class="well bg-white mb-3 p-0 border shadow-none">
-            <div class="standard-header">
+          <div class="well bg-white mb-3 p-0 border shadow-none" style="border-radius: var(--border-radius);">
+            <div class="standard-header" style="border-radius: var(--border-radius) var(--border-radius) 0 0;">
               <div class="header-title d-flex align-items-center gap-4">
                 <span class="header-text"
                   >Page {p.page_number} / {pages.length}</span
@@ -156,15 +156,16 @@
             <div class="p-4">
               <!-- Page Image -->
               <div
-                class="bg-light d-flex align-items-start justify-content-center p-3 mb-4 border text-center"
+                class="bg-light d-flex align-items-start justify-content-center p-3 mb-4 text-center"
+                style="border: 1px solid var(--gray-300); border-radius: var(--border-radius);"
               >
                 <img
                   src={api.getAuthenticatedMediaUrl(
                     `/documents/pages/image?document_id=${docId}&lecture_id=${lectureId}&page_number=${p.page_number}`,
                   )}
                   alt="Page {p.page_number}"
-                  class="img-fluid shadow-sm border"
-                  style="max-height: 80vh; width: auto;"
+                  class="img-fluid shadow-sm"
+                  style="max-height: 80vh; width: auto; border: 1px solid var(--gray-300); border-radius: var(--border-radius);"
                 />
               </div>
 

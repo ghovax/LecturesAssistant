@@ -4,9 +4,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
-	"os"
 	"strconv"
+	"time"
 
 	"lectures/internal/models"
 )
@@ -167,24 +168,55 @@ func (server *Server) handleGetPageImage(responseWriter http.ResponseWriter, req
 	lectureID := request.URL.Query().Get("lecture_id")
 	pageNumberString := request.URL.Query().Get("page_number")
 
+	slog.Info("Page image request", "document_id", documentID, "lecture_id", lectureID, "page_number", pageNumberString)
+
 	if documentID == "" || lectureID == "" || pageNumberString == "" {
 		server.writeError(responseWriter, http.StatusBadRequest, "VALIDATION_ERROR", "document_id, lecture_id and page_number are required", nil)
 		return
 	}
 
-	userID := server.getUserID(request)
+	// Try multiple token sources with validation (cookie -> header -> query param)
+	// This handles cases where old cookies exist but the current session uses a different token
+	sessionToken := server.getValidSessionToken(request)
+	if sessionToken == "" {
+		slog.Warn("Page image request without valid session token", "document_id", documentID, "lecture_id", lectureID)
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Authentication required", nil)
+		return
+	}
+
+	// Get user info from validated session
+	var userID string
+	var expiresAt time.Time
+	err := server.database.QueryRow("SELECT user_id, expires_at FROM auth_sessions WHERE id = ?", sessionToken).Scan(&userID, &expiresAt)
+	if err != nil {
+		slog.Warn("Invalid session token for page image", "document_id", documentID, "lecture_id", lectureID)
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Invalid session", nil)
+		return
+	}
+
+	if time.Now().After(expiresAt) {
+		slog.Warn("Expired session token for page image", "document_id", documentID, "lecture_id", lectureID)
+		server.writeError(responseWriter, http.StatusUnauthorized, "AUTHENTICATION_ERROR", "Session expired", nil)
+		return
+	}
 
 	// Verify document belongs to lecture and user
 	var exists bool
-	err := server.database.QueryRow(`
+	err = server.database.QueryRow(`
 		SELECT EXISTS(
-			SELECT 1 FROM reference_documents 
+			SELECT 1 FROM reference_documents
 			JOIN lectures ON reference_documents.lecture_id = lectures.id
 			JOIN exams ON lectures.exam_id = exams.id
 			WHERE reference_documents.id = ? AND reference_documents.lecture_id = ? AND exams.user_id = ?
 		)
 	`, documentID, lectureID, userID).Scan(&exists)
-	if err != nil || !exists {
+	if err != nil {
+		slog.Error("Database error checking document", "error", err, "document_id", documentID)
+		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to verify document", nil)
+		return
+	}
+	if !exists {
+		slog.Warn("Document not found or access denied", "document_id", documentID, "lecture_id", lectureID, "user_id", userID)
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Document not found in this lecture", nil)
 		return
 	}
@@ -200,16 +232,21 @@ func (server *Server) handleGetPageImage(responseWriter http.ResponseWriter, req
 	`, documentID, pageNumber).Scan(&imagePath, &imageData)
 
 	if err == sql.ErrNoRows {
+		slog.Warn("Page not found in database", "document_id", documentID, "page_number", pageNumber)
 		server.writeError(responseWriter, http.StatusNotFound, "NOT_FOUND", "Page not found", nil)
 		return
 	}
 	if err != nil {
+		slog.Error("Database error fetching page", "error", err, "document_id", documentID, "page_number", pageNumber)
 		server.writeError(responseWriter, http.StatusInternalServerError, "DATABASE_ERROR", "Failed to get page image", nil)
 		return
 	}
 
+	slog.Info("Page found", "document_id", documentID, "page_number", pageNumber, "image_path", imagePath, "image_data_size", len(imageData))
+
 	// Serve from DB BLOB if available (works after backup/restore)
 	if len(imageData) > 0 {
+		slog.Info("Serving image from database BLOB", "document_id", documentID, "page_number", pageNumber, "size_bytes", len(imageData))
 		responseWriter.Header().Set("Content-Type", "image/png")
 		responseWriter.Header().Set("Content-Length", fmt.Sprintf("%d", len(imageData)))
 		responseWriter.Header().Set("Cache-Control", "public, max-age=86400")
@@ -217,13 +254,9 @@ func (server *Server) handleGetPageImage(responseWriter http.ResponseWriter, req
 		return
 	}
 
-	// Fall back to disk file for legacy rows without image_data
-	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
-		server.writeError(responseWriter, http.StatusNotFound, "FILE_NOT_FOUND", "Image file not found on disk", nil)
-		return
-	}
-
-	http.ServeFile(responseWriter, request, imagePath)
+	// Image data not found in database
+	slog.Error("Image data is empty in database", "document_id", documentID, "page_number", pageNumber, "image_path", imagePath)
+	server.writeError(responseWriter, http.StatusNotFound, "IMAGE_NOT_FOUND", "Page image not found. The image may not have been processed or stored correctly.", nil)
 }
 
 // handleDeleteDocument deletes a specific reference document and its files

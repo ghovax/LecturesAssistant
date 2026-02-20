@@ -1,8 +1,10 @@
-// Enable rounded corners
+// Component-specific styles should be in their respective .svelte files.
+
+// Bootstrap Configuration
 $enable-rounded: true;
 @import "bootstrap/scss/bootstrap";
 
-// CSS Custom Properties (Design Tokens)
+// Design Tokens (CSS Custom Properties)
 :root {
   // Border Radius
   --border-radius: 4px;
@@ -10,7 +12,6 @@ $enable-rounded: true;
   // Typography
   --font-primary: "Manrope", sans-serif;
   --font-mono: "Menlo", monospace;
-  --font-mono-adjust: 0.5;
 
   // Neutral Colors (Warm Gray Scale)
   --cream: #f5f3f0;
@@ -430,7 +431,7 @@ select.form-select {
   }
 }
 
-// Card Components
+// Card Components (Shared)
 .card-container,
 .well {
   background: #fff;
@@ -521,68 +522,6 @@ select.form-select {
   }
 }
 
-// Tile Grid Layout
-.tile-grid,
-.link-tiles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0;
-  margin: 0;
-  background: #fff;
-  width: fit-content;
-  max-width: 100%;
-  overflow: hidden;
-  border-radius: var(--border-radius);
-
-  &.flex-column {
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 0;
-    margin: 0;
-
-    > .action-tile,
-    > .tile-wrapper,
-    .action-tile,
-    .tile-wrapper {
-      margin: 0;
-      width: 250px;
-      border-bottom: 1px solid var(--gray-300);
-      border-radius: 0 !important;
-
-      &:last-child {
-        border-bottom: none;
-      }
-
-      .action-tile-link,
-      .action-tile-button,
-      a,
-      button.tile-button {
-        width: 100%;
-      }
-    }
-  }
-
-  > .action-tile,
-  > .tile-wrapper,
-  .action-tile,
-  .tile-wrapper {
-    width: 320px;
-    border-right: 1px solid var(--gray-300);
-    border-radius: 0 !important;
-
-    &:nth-child(3n) {
-      border-right: none;
-    }
-  }
-}
-
-.action-tile {
-  .action-tile-link,
-  .action-tile-button {
-    height: 160px;
-  }
-}
-
 // Dropdowns
 .dropdown-menu {
   border-radius: var(--border-radius);
@@ -614,7 +553,7 @@ select.form-select {
   display: none !important;
 }
 
-// Prose Content (HTML from AI)
+// Prose Content (AI-generated HTML)
 .prose {
   font-size: 0.9rem;
   line-height: 1.7;
@@ -685,7 +624,7 @@ select.form-select {
   color: var(--gray-900);
 }
 
-// Utility Components
+// Utility Classes
 .filename {
   font-family: var(--font-mono);
   font-size-adjust: var(--font-mono-adjust);
@@ -710,7 +649,7 @@ samp {
   font-size-adjust: var(--font-mono-adjust);
 }
 
-// Spinner
+// Animations
 @keyframes spinner-rotation {
   0% {
     transform: rotate(0deg);
@@ -738,51 +677,9 @@ samp {
   color: var(--orange);
 }
 
-// Math
+// Math Elements
 math,
 .math {
   font-size: 1em;
   font-size-adjust: 0.53;
-}
-
-// Pagination
-.pagination {
-  border-radius: var(--border-radius);
-  overflow: hidden;
-
-  .page-item {
-    .page-link {
-      border-radius: 0;
-      border: 1px solid var(--gray-300);
-      margin: 0;
-      color: var(--gray-700);
-      background: #fff;
-
-      &:hover {
-        background: var(--gray-100);
-        border-color: var(--gray-400);
-      }
-    }
-
-    &.active .page-link {
-      background: var(--gray-900);
-      border-color: var(--gray-900);
-      color: var(--cream);
-    }
-
-    &.disabled .page-link {
-      background: var(--gray-100);
-      color: var(--gray-400);
-    }
-
-    &:first-child .page-link {
-      border-top-left-radius: var(--border-radius);
-      border-bottom-left-radius: var(--border-radius);
-    }
-
-    &:last-child .page-link {
-      border-top-right-radius: var(--border-radius);
-      border-bottom-right-radius: var(--border-radius);
-    }
-  }
 }

@@ -217,8 +217,13 @@ func (server *Server) setupRoutes() {
 	apiRouter.HandleFunc("/documents/details", server.handleGetDocument).Methods("GET")
 	apiRouter.HandleFunc("/documents", server.handleDeleteDocument).Methods("DELETE")
 	apiRouter.HandleFunc("/documents/pages", server.handleGetDocumentPages).Methods("GET")
-	apiRouter.HandleFunc("/documents/pages/image", server.handleGetPageImage).Methods("GET")
 	apiRouter.HandleFunc("/documents/pages/html", server.handleGetPageHTML).Methods("GET")
+
+	// WebSocket — registered on the public router (not apiRouter) because:
+	// Browsers always send cookies with image tag requests. If a stale HttpOnly cookie
+	// exists, authMiddleware rejects the request before handleGetPageImage (which does
+	// its own auth via getValidSessionToken) is ever reached.
+	server.router.HandleFunc("/api/documents/pages/image", server.handleGetPageImage).Methods("GET")
 
 	// Tools
 	apiRouter.HandleFunc("/tools", server.handleCreateTool).Methods("POST")
@@ -468,6 +473,41 @@ func (server *Server) getSessionToken(request *http.Request) string {
 		slog.Warn("Session token provided via query parameter - consider using cookies or Authorization header",
 			"path", request.URL.Path, "method", request.Method)
 		return token
+	}
+
+	return ""
+}
+
+// getValidSessionToken tries multiple token sources and validates each against the database
+// Returns the first valid token, or empty string if none are valid
+// Useful for image requests where old cookies may conflict with current session
+func (server *Server) getValidSessionToken(request *http.Request) string {
+	var tokensToTry []string
+
+	// 1. Try cookie first
+	cookie, err := request.Cookie("session_token")
+	if err == nil && cookie.Value != "" {
+		tokensToTry = append(tokensToTry, cookie.Value)
+	}
+
+	// 2. Try Authorization header
+	authHeader := request.Header.Get("Authorization")
+	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+		tokensToTry = append(tokensToTry, authHeader[7:])
+	}
+
+	// 3. Try query parameter
+	if token := request.URL.Query().Get("session_token"); token != "" {
+		tokensToTry = append(tokensToTry, token)
+	}
+
+	// Validate each token until we find a valid one
+	for _, token := range tokensToTry {
+		var expiresAt time.Time
+		err := server.database.QueryRow("SELECT expires_at FROM auth_sessions WHERE id = ?", token).Scan(&expiresAt)
+		if err == nil && time.Now().Before(expiresAt) {
+			return token
+		}
 	}
 
 	return ""

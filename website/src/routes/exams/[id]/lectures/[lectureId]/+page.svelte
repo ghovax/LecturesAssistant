@@ -297,18 +297,24 @@
 
   async function loadLectureData() {
     try {
-      const [lectureR, transcriptR, docsR, toolsR, mediaR] = await Promise.all([
+      const [lectureR, docsR, toolsR, mediaR] = await Promise.all([
         api.getLecture(lectureId!, examId!),
-        api.request("GET", `/transcripts/html?lecture_id=${lectureId}`),
         api.listDocuments(lectureId!),
         api.request("GET", `/tools?lecture_id=${lectureId}&exam_id=${examId}`),
         api.request("GET", `/media?lecture_id=${lectureId}`),
       ]);
       lecture = lectureR;
-      transcript = transcriptR;
       documents = docsR ?? [];
       tools = toolsR ?? [];
       mediaFiles = mediaR ?? [];
+
+      // Fetch transcript separately - it may not exist for document-only lectures
+      try {
+        transcript = await api.request("GET", `/transcripts/html?lecture_id=${lectureId}`);
+      } catch (e) {
+        // Transcript not found is OK for lectures without media
+        transcript = null;
+      }
 
       if (guideTool) {
         const htmlRes = await api.getToolHTML(guideTool.id, examId!);

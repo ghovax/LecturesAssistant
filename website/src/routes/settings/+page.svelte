@@ -115,7 +115,7 @@
               bind:value={settings.llm.model}
             />
             <div class="form-help-text">
-              Used for all tasks unless overridden below. Example: <code
+              Used for all tasks unless overridden below. Example: <code class=""
                 >google/gemini-3-flash-preview</code
               >
             </div>
@@ -136,7 +136,7 @@
           Leave empty to use the global default.
         </p>
         <div class="row g-4">
-          {#each [{ key: "recording_transcription", label: "Transcription Cleanup" }, { key: "documents_ingestion", label: "Document Analysis (OCR)" }, { key: "documents_matching", label: "Reference Triangulation" }, { key: "outline_creation", label: "Study Guide Outlining" }, { key: "content_generation", label: "Study Guide Writing" }, { key: "content_verification", label: "Accuracy Verification" }, { key: "content_polishing", label: "Footnote Polishing" }] as task}
+          {#each [{ key: "recording_transcription", label: "1. Transcription" }, { key: "documents_ingestion", label: "2. Document Analysis" }, { key: "documents_matching", label: "3. Reference Matching" }, { key: "outline_creation", label: "4. Outline Creation" }, { key: "content_generation", label: "5. Content Generation" }, { key: "content_verification", label: "6. Verification" }, { key: "content_polishing", label: "7. Polishing" }] as task}
             <div class="col-md-6">
               <label for="model-{task.key}" class="cozy-label"
                 >{task.label}</label

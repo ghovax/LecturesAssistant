@@ -10,8 +10,8 @@ $enable-rounded: true;
   --border-radius: 4px;
 
   // Typography
-  --font-primary: "Manrope", sans-serif;
-  --font-mono: "JetBrains Mono", "Menlo", monospace;
+  --font-primary: "IBM Plex Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
   --font-mono-size-factor: 0.95;
 
   // Neutral Colors (Warm Gray Scale)
@@ -168,15 +168,22 @@ body {
 }
 
 .form-help-text {
-  font-size: 0.75rem;
+  font-size: 0.8rem !important;
   color: var(--gray-500);
   margin-top: 0.5rem;
   display: block;
   line-height: 1.4;
 }
 
+.form-help-text code {
+  font-size: 0.8rem !important;
+  color: var(--gray-700);
+  background: var(--gray-100);
+  padding: 0.095rem 0.3rem;
+}
+
 .form-error-text {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--danger);
   margin-top: 0.5rem;
   display: block;

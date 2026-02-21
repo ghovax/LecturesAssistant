@@ -63,7 +63,7 @@
 
       {#if cost && cost > 0}
         <div class="action-tile-cost">
-          ${cost.toFixed(4)}
+          ${cost.toFixed(2)}
         </div>
       {/if}
     </a>
@@ -89,7 +89,7 @@
 
       {#if cost && cost > 0}
         <div class="action-tile-cost">
-          ${cost.toFixed(4)}
+          ${cost.toFixed(2)}
         </div>
       {/if}
     </button>

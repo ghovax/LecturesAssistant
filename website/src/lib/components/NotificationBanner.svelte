@@ -16,7 +16,7 @@
             <Info size={18} />
           {/if}
         </div>
-        <div class="message flex-grow-1 fw-bold small">
+        <div class="message flex-grow-1 small">
           {n.message}
           {#if n.action}
             <button
@@ -61,10 +61,10 @@
     padding: 0.75rem 1rem;
     border-radius: var(--border-radius);
     border-left: 0.25rem solid transparent;
+    border: 1px solid var(--gray-300) !important;
     background: #fff;
     color: #333;
     line-height: 1.2;
-    border: none !important;
     box-shadow:
       0 10px 30px rgba(0, 0, 0, 0.15),
       0 4px 10px rgba(0, 0, 0, 0.05);

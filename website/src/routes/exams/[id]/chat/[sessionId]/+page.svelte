@@ -350,16 +350,29 @@
                         class="text-muted small text-truncate ms-3 fw-normal"
                         style="opacity: 0.7; text-transform: none; font-style: italic; font-size: 0.9rem;"
                       >
-                        “{prevMsg.content}”
+                        "{prevMsg.content}"
                       </span>
                     {/if}
                   </div>
                   <div class="d-flex align-items-center gap-3">
+                    {#if msg.estimated_cost > 0}
+                      <span
+                        class="message-cost"
+                      >
+                        ${msg.estimated_cost.toFixed(2)}
+                      </span>
+                    {/if}
                     <span
                       class="text-muted small flex-shrink-0"
                       style="font-size: 0.85rem;"
                     >
                       {new Date(
+                        msg.created_at || Date.now(),
+                      ).toLocaleDateString([], {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                      {" "}{new Date(
                         msg.created_at || Date.now(),
                       ).toLocaleTimeString([], {
                         hour: "2-digit",
@@ -417,7 +430,7 @@
                 </div>
               </div>
               <div class="p-4 prose">
-                <p style="white-space: pre-wrap;">{streamingMessage}<span class="typing-cursor"></span></p>
+                <p style="white-space: pre-wrap;">{streamingMessage}<span class="streaming-dot-indicator"></span></p>
               </div>
             </div>
           {/if}
@@ -618,19 +631,33 @@
     50% { opacity: 0.3; }
   }
 
-  /* Typing cursor at end of streaming text */
-  .typing-cursor {
+  /* Streaming dot indicator */
+  .streaming-dot-indicator {
     display: inline-block;
-    width: 2px;
-    height: 1em;
+    width: 6px;
+    height: 6px;
     background: var(--orange);
-    margin-left: 1px;
-    vertical-align: text-bottom;
-    animation: cursor-blink 0.8s step-end infinite;
+    border-radius: 50%;
+    margin-left: 8px;
+    vertical-align: middle;
+    animation: dot-ping 1s ease-in-out infinite;
   }
 
-  @keyframes cursor-blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
+  @keyframes dot-ping {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.4;
+      transform: scale(0.8);
+    }
+  }
+
+  /* Message cost (matches tile cost styling) */
+  .message-cost {
+    font-size: calc(0.8rem * var(--font-mono-size-factor));
+    color: var(--gray-400);
+    font-family: var(--font-mono);
   }
 </style>

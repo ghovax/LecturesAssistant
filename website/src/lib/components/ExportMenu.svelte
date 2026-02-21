@@ -70,9 +70,6 @@
       : 'text-muted'} p-0 border-0 shadow-none dropdown-toggle no-caret"
     title="Export Options"
     aria-label="Export Options"
-    disabled={isExportingPDFWithImages ||
-      isExportingPDFNoImages ||
-      isExportingDocx}
     onclick={toggleDropdown}
     aria-expanded={isOpen}
   >
@@ -89,7 +86,7 @@
           <button
             class="dropdown-item d-flex align-items-center"
             onclick={() => {
-              onOpenPdf?.();
+              onOpenPdf();
               isOpen = false;
             }}
           >

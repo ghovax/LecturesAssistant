@@ -945,7 +945,7 @@
                       {isExportingPDFNoImages}
                       {isExportingDocx}
                       onExport={handleExportTranscript}
-                      onOpenPdf={lastExportPaths[lectureId] ? () => openExportPdf(lectureId) : undefined}
+                      onOpenPdf={lastExportPaths[lectureId!] ? () => openExportPdf(lectureId!) : undefined}
                       showImageOptions={false}
                     />
                   {/if}
@@ -1094,7 +1094,7 @@
                       {isExportingDocx}
                       onExport={(format: string, includeImages: boolean) =>
                         handleExportTool(guideTool.id, format, includeImages)}
-                      onOpenPdf={lastExportPaths[guideTool.id] ? () => openExportPdf(guideTool.id) : undefined}
+                      onOpenPdf={lastExportPaths[guideTool.id] ? () => openExportPdf(guideTool.id!) : undefined}
                     />
                   {/snippet}
                   {#snippet description()}
@@ -1194,7 +1194,7 @@
                       {isExportingDocx}
                       onExport={(format: string, includeImages: boolean) =>
                         handleExportDocument(doc.id, format, includeImages)}
-                      onOpenPdf={lastExportPaths[doc.id] ? () => openExportPdf(doc.id) : undefined}
+                      onOpenPdf={lastExportPaths[doc.id] ? () => openExportPdf(doc.id!) : undefined}
                     />
                   {/snippet}
                 </Tile>
@@ -1232,7 +1232,7 @@
                     {isExportingDocx}
                     onExport={(format: string, includeImages: boolean) =>
                       handleExportTool(guideTool.id, format, includeImages)}
-                    onOpenPdf={lastExportPaths[guideTool.id] ? () => openExportPdf(guideTool.id) : undefined}
+                    onOpenPdf={lastExportPaths[guideTool.id] ? () => openExportPdf(guideTool.id!) : undefined}
                   />
                 {/if}
                 <button
@@ -1344,7 +1344,7 @@
                     {isExportingPDFNoImages}
                     {isExportingDocx}
                     onExport={handleExportTranscript}
-                    onOpenPdf={lastExportPaths[lectureId] ? () => openExportPdf(lectureId) : undefined}
+                    onOpenPdf={lastExportPaths[lectureId!] ? () => openExportPdf(lectureId!) : undefined}
                     showImageOptions={false}
                   />
                 {/if}

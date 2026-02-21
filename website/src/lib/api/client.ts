@@ -14,16 +14,16 @@ export class APIClient {
     }
   }
 
-  getBaseUrl() {
+  getBaseUrl(): string {
     return this.baseUrl;
   }
 
-  getAuthenticatedMediaUrl(path: string) {
+  getAuthenticatedMediaUrl(path: string): string {
     const separator = path.includes("?") ? "&" : "?";
     return `${this.baseUrl}${path}${separator}session_token=${this.sessionToken}`;
   }
 
-  getExportViewUrl(filePath: string) {
+  getExportViewUrl(filePath: string): string {
     return this.getAuthenticatedMediaUrl(
       `/exports/download?path=${encodeURIComponent(filePath)}&view=true`,
     );

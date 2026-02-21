@@ -1651,7 +1651,6 @@
     gap: 0;
     background: transparent;
     overflow: hidden;
-    border: 1px solid var(--gray-300);
     border-radius: var(--border-radius);
     width: fit-content;
 
@@ -1665,21 +1664,24 @@
       width: 250px;
       min-height: 150px;
       border-right: 1px solid var(--gray-300);
-      border-bottom: 1px solid var(--gray-300);
       border-radius: 0 !important;
-      margin-right: -1px;
-      margin-bottom: -1px;
       position: relative;
-      z-index: 1;
+
+      &:last-child {
+        border-right: none;
+      }
     }
 
     &.flex-column :global(.action-tile),
     &.flex-column :global(.tile-wrapper) {
       width: auto;
       border-right: none;
-      margin-right: 0;
+      border-bottom: none;
+    }
+
+    /* Add bottom border to container for flex-column layout */
+    &.flex-column {
       border-bottom: 1px solid var(--gray-300);
-      margin-bottom: -1px;
     }
   }
 

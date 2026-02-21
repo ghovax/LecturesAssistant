@@ -331,8 +331,7 @@
     border-radius: var(--border-radius);
     overflow: hidden;
 
-    :global(.action-tile),
-    :global(.tile-wrapper) {
+    :global(.action-tile) {
       width: 250px;
       min-height: 150px;
       border-right: 1px solid var(--gray-300);

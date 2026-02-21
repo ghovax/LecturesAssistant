@@ -120,6 +120,8 @@
     background: transparent;
     border-bottom: 1px solid var(--gray-300);
     min-height: 60px;
+    padding-left: 20px !important;
+    padding-right: 20px !important;
   }
 
   .navbar-brand {
@@ -151,7 +153,6 @@
 
     &:hover {
       color: var(--gray-900) !important;
-      border-bottom-color: var(--orange);
     }
 
     .nav-icon {
@@ -162,7 +163,7 @@
     }
 
     &:hover .nav-icon {
-      color: var(--orange);
+      color: var(--gray-600);
     }
   }
 

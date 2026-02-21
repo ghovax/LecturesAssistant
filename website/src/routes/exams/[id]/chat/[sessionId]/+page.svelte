@@ -369,10 +369,10 @@
                       {new Date(
                         msg.created_at || Date.now(),
                       ).toLocaleDateString([], {
-                        month: "short",
+                        month: "long",
                         day: "numeric",
-                      })}
-                      {" "}{new Date(
+                      }) + ","}
+                      {new Date(
                         msg.created_at || Date.now(),
                       ).toLocaleTimeString([], {
                         hour: "2-digit",
@@ -509,10 +509,12 @@
     position: relative;
     width: 2.5rem;
     height: 1.25rem;
-    background: #eee;
-    border: 1px solid #ccc;
+    background: var(--gray-200);
+    border: 1px solid var(--gray-300);
+    border-radius: calc(var(--border-radius));
     flex-shrink: 0;
     transition: all 0.2s ease;
+    cursor: pointer;
   }
 
   .village-toggle::after {
@@ -523,7 +525,8 @@
     width: calc(1.25rem - 4px);
     height: calc(1.25rem - 4px);
     background: #fff;
-    box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+    border-radius: calc(var(--border-radius) * 0.5);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
     transition: all 0.2s ease;
   }
 
@@ -537,8 +540,8 @@
   }
 
   .village-toggle.is-locked.is-active {
-    background: rgba(234, 126, 12, 0.5);
-    border-color: rgba(234, 126, 12, 0.5);
+    background: var(--gray-300);
+    border-color: var(--gray-300);
     cursor: not-allowed;
   }
 
@@ -551,7 +554,7 @@
   }
 
   .village-toggle.is-locked::after {
-    background: rgba(255, 255, 255, 0.7);
+    background: var(--gray-100);
   }
 
   .chat-viewport {

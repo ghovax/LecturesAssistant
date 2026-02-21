@@ -52,6 +52,12 @@
     padding: 0 20px;
   }
 
+  /* Override Bootstrap container padding to match navbar */
+  .container-xl {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
   .content-wrapper {
     width: 100%;
   }

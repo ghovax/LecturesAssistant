@@ -59,22 +59,22 @@
           {/if}
 
           <div class="mb-4">
-            <label for="username" class="cozy-label">Desired Username</label>
+            <label for="username" class="custom-label">Desired Username</label>
             <input
               type="text"
               id="username"
-              class="form-control cozy-input"
+              class="form-control custom-input"
               bind:value={username}
               required
             />
           </div>
 
           <div class="mb-4">
-            <label for="password" class="cozy-label">Password</label>
+            <label for="password" class="custom-label">Password</label>
             <input
               type="password"
               id="password"
-              class="form-control cozy-input"
+              class="form-control custom-input"
               bind:value={password}
               required
               minlength="8"
@@ -85,13 +85,13 @@
           </div>
 
           <div class="mb-4">
-            <label for="confirmPassword" class="cozy-label"
+            <label for="confirmPassword" class="custom-label"
               >Confirm Password</label
             >
             <input
               type="password"
               id="confirmPassword"
-              class="form-control cozy-input"
+              class="form-control custom-input"
               bind:value={confirmPassword}
               required
             />

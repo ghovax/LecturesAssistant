@@ -18,7 +18,7 @@
   }: Props = $props();
 </script>
 
-<section class="cozy-section {className}">
+<section class="custom-section {className}">
   {#if overline || title || actions}
     <div class="section-header">
       <div class="section-title-group">
@@ -42,7 +42,7 @@
 </section>
 
 <style lang="scss">
-  .cozy-section {
+  .custom-section {
     margin-bottom: 60px;
 
     &:last-child {

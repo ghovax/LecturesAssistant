@@ -19,7 +19,7 @@
   }
 </script>
 
-<nav class="navbar navbar-expand-md cozy-navbar p-0">
+<nav class="navbar navbar-expand-md custom-navbar p-0">
   <!-- Brand and toggle get grouped for better mobile display -->
   <a class="navbar-brand px-0 py-0 me-4" href="/">
     Lectures<span class="text-orange">Assistant</span>
@@ -115,7 +115,7 @@
 </nav>
 
 <style lang="scss">
-  .cozy-navbar {
+  .custom-navbar {
     font-family: var(--font-primary);
     background: transparent;
     border-bottom: 1px solid var(--gray-300);

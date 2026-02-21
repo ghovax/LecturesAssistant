@@ -51,22 +51,22 @@
           {/if}
 
           <div class="form-field">
-            <label for="username" class="cozy-label">Username</label>
+            <label for="username" class="custom-label">Username</label>
             <input
               type="text"
               id="username"
-              class="form-control cozy-input"
+              class="form-control custom-input"
               bind:value={username}
               required
             />
           </div>
 
           <div class="form-field">
-            <label for="password" class="cozy-label">Password</label>
+            <label for="password" class="custom-label">Password</label>
             <input
               type="password"
               id="password"
-              class="form-control cozy-input"
+              class="form-control custom-input"
               bind:value={password}
               required
             />

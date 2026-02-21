@@ -95,22 +95,22 @@
 
           <div class="row">
             <div class="col-md-6 form-field">
-              <label for="username" class="cozy-label">Admin Username</label>
+              <label for="username" class="custom-label">Admin Username</label>
               <input
                 type="text"
                 id="username"
-                class="form-control cozy-input"
+                class="form-control custom-input"
                 bind:value={username}
                 required
               />
             </div>
 
             <div class="col-md-6 form-field">
-              <label for="password" class="cozy-label">Admin Password</label>
+              <label for="password" class="custom-label">Admin Password</label>
               <input
                 type="password"
                 id="password"
-                class="form-control cozy-input"
+                class="form-control custom-input"
                 bind:value={password}
                 required
                 minlength="8"
@@ -122,11 +122,11 @@
           </div>
 
           <div class="form-field">
-            <label for="apiKey" class="cozy-label">OpenRouter API Key</label>
+            <label for="apiKey" class="custom-label">OpenRouter API Key</label>
             <input
               type="password"
               id="apiKey"
-              class="form-control cozy-input"
+              class="form-control custom-input"
               bind:value={apiKey}
               required
             />

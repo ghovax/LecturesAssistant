@@ -132,7 +132,7 @@ body {
   display: block;
 }
 
-.cozy-label {
+.custom-label {
   font-family: var(--font-primary);
   font-size: 0.7rem;
   font-weight: 600;
@@ -248,8 +248,8 @@ select.form-select {
   }
 }
 
-// Cozy input additional styles
-.cozy-input {
+// Custom input additional styles
+.custom-input {
   &::placeholder {
     color: var(--gray-400);
   }

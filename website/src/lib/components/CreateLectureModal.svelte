@@ -164,11 +164,11 @@
         </div>
         <div class="row g-3">
           <div class="col-12">
-            <label for="lesson-title" class="cozy-label">Title</label>
+            <label for="lesson-title" class="custom-label">Title</label>
             <input
               id="lesson-title"
               type="text"
-              class="form-control cozy-input"
+              class="form-control custom-input"
               placeholder="e.g. Cellular Respiration"
               bind:value={title}
               required
@@ -176,12 +176,12 @@
             />
           </div>
           <div class="col-12">
-            <label for="lesson-desc" class="cozy-label"
+            <label for="lesson-desc" class="custom-label"
               >Description (Optional)</label
             >
             <textarea
               id="lesson-desc"
-              class="form-control cozy-input"
+              class="form-control custom-input"
               rows="3"
               placeholder="What is this lesson about?"
               bind:value={description}
@@ -190,12 +190,12 @@
             ></textarea>
           </div>
           <div class="col-md-6">
-            <label for="lesson-lang" class="cozy-label"
+            <label for="lesson-lang" class="custom-label"
               >Processing Language</label
             >
             <select
               id="lesson-lang"
-              class="form-select cozy-input"
+              class="form-select custom-input"
               bind:value={language}
               disabled={uploading}
             >

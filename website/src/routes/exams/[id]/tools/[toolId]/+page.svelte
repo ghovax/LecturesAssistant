@@ -462,8 +462,10 @@
       border-bottom: 1px solid var(--gray-300);
       width: 100%;
 
-      &:last-child {
-        border-bottom: none;
+      :global(.action-tile) {
+        width: 100%;
+        min-height: 150px;
+        border-radius: 0 !important;
       }
 
       :global(a),

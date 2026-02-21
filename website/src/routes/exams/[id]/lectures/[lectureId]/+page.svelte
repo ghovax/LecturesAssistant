@@ -1084,7 +1084,7 @@
               <div class="row g-4">
                 {#if mediaFiles.length > 0}
                   <div class="col-md-6">
-                    <div class="cozy-label">Recordings</div>
+                    <div class="custom-label">Recordings</div>
                     <ul class="list-unstyled mb-0">
                       {#each mediaFiles as media}
                         <li class="mb-2">
@@ -1099,7 +1099,7 @@
                 {/if}
                 {#if documents.length > 0}
                   <div class="col-md-6">
-                    <div class="cozy-label">Reference Files</div>
+                    <div class="custom-label">Reference Files</div>
                     <ul class="list-unstyled mb-0">
                       {#each documents as doc}
                         <li class="mb-2">
@@ -1246,7 +1246,7 @@
                         type="number"
                         min="1"
                         max={transcript?.segments?.length || 1}
-                        class="form-control cozy-input p-1 text-center no-spinner"
+                        class="form-control custom-input p-1 text-center no-spinner"
                         style="width: 45px; height: 1.75rem; font-size: 0.8rem;"
                         placeholder=""
                         oninput={(e) => {
@@ -1397,7 +1397,7 @@
                         type="number"
                         min="1"
                         max={selectedDocPages.length}
-                        class="form-control cozy-input p-1 text-center no-spinner"
+                        class="form-control custom-input p-1 text-center no-spinner"
                         style="width: 45px; height: 1.75rem; font-size: 0.8rem;"
                         placeholder=""
                         oninput={(e) => {
@@ -1558,10 +1558,10 @@
   onClose={() => (showCreateModal = false)}
 >
   <div class="form-field">
-    <label class="form-label cozy-label" for="tool-lang">Target Language</label>
+    <label class="form-label custom-label" for="tool-lang">Target Language</label>
     <select
       id="tool-lang"
-      class="form-select cozy-input"
+      class="form-select custom-input"
       bind:value={toolOptions.language_code}
     >
       <option value="en-US">English (US)</option>
@@ -1578,7 +1578,7 @@
   </div>
 
   <div class="form-field" style="margin-bottom: 0;">
-    <span class="form-label cozy-label">Level of Detail</span>
+    <span class="form-label custom-label">Level of Detail</span>
     <div class="d-flex gap-2 mt-3">
       {#each ["short", "medium", "long", "comprehensive"] as len}
         <button
@@ -1650,32 +1650,36 @@
     flex-wrap: wrap;
     gap: 0;
     background: transparent;
-    overflow: visible;
+    overflow: hidden;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--border-radius);
+    width: fit-content;
 
     &.flex-column {
       flex-direction: column;
-      overflow: visible;
+      width: auto;
     }
 
     :global(.action-tile),
     :global(.tile-wrapper) {
       width: 250px;
+      min-height: 150px;
       border-right: 1px solid var(--gray-300);
+      border-bottom: 1px solid var(--gray-300);
       border-radius: 0 !important;
-
-      &:last-child {
-        border-right: none;
-      }
+      margin-right: -1px;
+      margin-bottom: -1px;
+      position: relative;
+      z-index: 1;
     }
 
     &.flex-column :global(.action-tile),
     &.flex-column :global(.tile-wrapper) {
+      width: auto;
       border-right: none;
+      margin-right: 0;
       border-bottom: 1px solid var(--gray-300);
-
-      &:last-child {
-        border-bottom: none;
-      }
+      margin-bottom: -1px;
     }
   }
 

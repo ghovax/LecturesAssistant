@@ -126,7 +126,7 @@
                     type="number"
                     min="1"
                     max={pages.length}
-                    class="form-control cozy-input p-1 text-center no-spinner"
+                    class="form-control custom-input p-1 text-center no-spinner"
                     style="width: 50px; height: 1.75rem; font-size: 0.8rem;"
                     placeholder=""
                     oninput={(e) => {

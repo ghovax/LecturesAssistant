@@ -32,7 +32,7 @@
 
 <select
   {id}
-  class="form-select cozy-input {className}"
+  class="form-select custom-input {className}"
   bind:value
   {required}
   {disabled}

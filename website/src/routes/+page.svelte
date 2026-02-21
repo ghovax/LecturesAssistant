@@ -138,7 +138,7 @@
   });
 </script>
 
-<div class="cozy-homepage">
+<div class="custom-homepage">
   <ConfirmModal
     isOpen={confirmModal.isOpen}
     title={confirmModal.title}
@@ -242,13 +242,13 @@
     </Tile>
   </div>
 
-  <footer class="cozy-footer scroll-blur-light">
+  <footer class="custom-footer scroll-blur-light">
     <p>Built with craft principles for a focused learning experience.</p>
   </footer>
 </div>
 
 <style lang="scss">
-  .cozy-homepage {
+  .custom-homepage {
     font-family: var(--font-primary);
     color: var(--gray-800);
     max-width: 1300px;
@@ -334,6 +334,7 @@
     :global(.action-tile),
     :global(.tile-wrapper) {
       width: 250px;
+      min-height: 150px;
       border-right: 1px solid var(--gray-300);
       border-radius: 0 !important;
 
@@ -349,7 +350,7 @@
     }
   }
 
-  .cozy-footer {
+  .custom-footer {
     padding-top: 40px;
     border-top: 1px solid var(--gray-300);
     text-align: center;
@@ -407,11 +408,6 @@
 
     h1 {
       font-size: 2rem;
-    }
-
-    .cozy-homepage {
-      padding-left: 20px;
-      padding-right: 20px;
     }
   }
 </style>

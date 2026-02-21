@@ -306,7 +306,7 @@
           <div class="input-group dictionary-style mb-3">
             <input
               type="text"
-              class="form-control cozy-input"
+              class="form-control custom-input"
               placeholder={sending ? "Waiting for response..." : "Ask about your lectures or reference documents..."}
               bind:value={input}
               disabled={sending}

@@ -32,7 +32,7 @@
 
 <textarea
   {id}
-  class="form-control cozy-input {className}"
+  class="form-control custom-input {className}"
   bind:value
   {placeholder}
   {required}

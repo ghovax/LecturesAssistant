@@ -63,6 +63,6 @@
   }
 
   .content {
-    padding: 0 0 80px;
+    padding: 0 20px 80px;
   }
 </style>

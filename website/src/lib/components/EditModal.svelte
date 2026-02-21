@@ -18,21 +18,21 @@
 
 <Modal {title} isOpen={true} onClose={onCancel}>
   <div class="mb-4">
-    <label class="form-label cozy-label" for="edit-title">Title</label>
+    <label class="form-label custom-label" for="edit-title">Title</label>
     <input
       id="edit-title"
       type="text"
-      class="form-control cozy-input"
+      class="form-control custom-input"
       bind:value={newTitle}
       autofocus
     />
   </div>
 
   <div class="mb-0">
-    <label class="form-label cozy-label" for="edit-desc">Description</label>
+    <label class="form-label custom-label" for="edit-desc">Description</label>
     <textarea
       id="edit-desc"
-      class="form-control cozy-input"
+      class="form-control custom-input"
       rows="4"
       bind:value={newDescription}
     ></textarea>

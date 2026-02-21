@@ -78,10 +78,10 @@
       <div class="p-4">
         <div class="row g-4">
           <div class="col-md-6">
-            <label for="provider" class="cozy-label">AI Service Provider</label>
+            <label for="provider" class="custom-label">AI Service Provider</label>
             <select
               id="provider"
-              class="form-select cozy-input"
+              class="form-select custom-input"
               bind:value={settings.llm.provider}
             >
               <option value="openrouter">OpenRouter (Cloud)</option>
@@ -90,10 +90,10 @@
           </div>
 
           <div class="col-md-6">
-            <label for="language" class="cozy-label">Preferred Language</label>
+            <label for="language" class="custom-label">Preferred Language</label>
             <select
               id="language"
-              class="form-select cozy-input"
+              class="form-select custom-input"
               bind:value={settings.llm.language}
             >
               <option value="en-US">{getLanguageName("en-US")}</option>
@@ -107,11 +107,11 @@
           </div>
 
           <div class="col-12">
-            <label for="model" class="cozy-label">Global Default Model</label>
+            <label for="model" class="custom-label">Global Default Model</label>
             <input
               type="text"
               id="model"
-              class="form-control cozy-input"
+              class="form-control custom-input"
               bind:value={settings.llm.model}
             />
             <div class="form-help-text">
@@ -138,13 +138,13 @@
         <div class="row g-4">
           {#each [{ key: "recording_transcription", label: "1. Transcription" }, { key: "documents_ingestion", label: "2. Document Analysis" }, { key: "documents_matching", label: "3. Reference Matching" }, { key: "outline_creation", label: "4. Outline Creation" }, { key: "content_generation", label: "5. Content Generation" }, { key: "content_verification", label: "6. Verification" }, { key: "content_polishing", label: "7. Polishing" }] as task}
             <div class="col-md-6">
-              <label for="model-{task.key}" class="cozy-label"
+              <label for="model-{task.key}" class="custom-label"
                 >{task.label}</label
               >
               <input
                 type="text"
                 id="model-{task.key}"
-                class="form-control cozy-input"
+                class="form-control custom-input"
                 bind:value={settings.llm.models[task.key].model}
               />
             </div>
@@ -161,13 +161,13 @@
       </div>
       <div class="p-4">
         <div class="mb-0">
-          <label for="openrouterApiKey" class="cozy-label"
+          <label for="openrouterApiKey" class="custom-label"
             >OpenRouter API Key</label
           >
           <input
             type="password"
             id="openrouterApiKey"
-            class="form-control cozy-input"
+            class="form-control custom-input"
             bind:value={settings.providers.openrouter.api_key}
           />
         </div>
@@ -183,23 +183,23 @@
       <div class="p-4">
         <div class="row g-4">
           <div class="col-md-6">
-            <label for="maxCost" class="cozy-label"
+            <label for="maxCost" class="custom-label"
               >Max Cost Per Job (USD)</label
             >
             <input
               type="number"
               id="maxCost"
               step="0.01"
-              class="form-control cozy-input"
+              class="form-control custom-input"
               bind:value={settings.safety.maximum_cost_per_job}
             />
           </div>
           <div class="col-md-6">
-            <label for="maxRetries" class="cozy-label">Maximum Retries</label>
+            <label for="maxRetries" class="custom-label">Maximum Retries</label>
             <input
               type="number"
               id="maxRetries"
-              class="form-control cozy-input"
+              class="form-control custom-input"
               bind:value={settings.safety.maximum_retries}
             />
           </div>

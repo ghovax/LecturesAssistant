@@ -916,6 +916,7 @@
                       {isExportingPDFNoImages}
                       {isExportingDocx}
                       onExport={handleExportTranscript}
+                      showImageOptions={false}
                     />
                   {/if}
                 {/snippet}
@@ -1310,6 +1311,7 @@
                     {isExportingPDFNoImages}
                     {isExportingDocx}
                     onExport={handleExportTranscript}
+                    showImageOptions={false}
                   />
                 {/if}
                 <button

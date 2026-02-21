@@ -852,6 +852,7 @@ func RegisterHandlers(
 		}
 
 		// Parse include_images boolean (it might be a string "true" or a boolean true)
+		// Note: For transcript exports, this is ignored - transcripts are always exported as-is
 		includeImages := true
 		if len(payload.IncludeImages) > 0 {
 			rawStr := string(payload.IncludeImages)
@@ -861,6 +862,7 @@ func RegisterHandlers(
 		}
 
 		// 1. Handle Transcript Export
+		// Transcripts contain only text - no images to include/exclude
 		if payload.ToolID == "" && payload.DocumentID == "" && payload.LectureID != "" {
 			// Get lecture and transcript
 			var lecture models.Lecture

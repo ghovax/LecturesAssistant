@@ -8,6 +8,7 @@
     isExportingPDFNoImages: boolean;
     isExportingDocx: boolean;
     onExport: (format: string, includeImages: boolean) => void;
+    showImageOptions?: boolean;
   }
 
   let {
@@ -16,6 +17,7 @@
     isExportingPDFNoImages,
     isExportingDocx,
     onExport,
+    showImageOptions = true,
   }: Props = $props();
 
   let isOpen = $state(false);
@@ -80,36 +82,54 @@
       class="dropdown-menu dropdown-menu-end show"
       style={dropdownStyle}
     >
-      <li>
-        <button
-          class="dropdown-item d-flex justify-content-between align-items-center"
-          onclick={() => {
-            onExport("pdf", true);
-            isOpen = false;
-          }}
-          disabled={isExportingPDFWithImages}
-        >
-          Export PDF (with images)
-          {#if isExportingPDFWithImages}
-            <Loader2 size={14} class="spinner-animation ms-2" />
-          {/if}
-        </button>
-      </li>
-      <li>
-        <button
-          class="dropdown-item d-flex justify-content-between align-items-center"
-          onclick={() => {
-            onExport("pdf", false);
-            isOpen = false;
-          }}
-          disabled={isExportingPDFNoImages}
-        >
-          Export PDF (text only)
-          {#if isExportingPDFNoImages}
-            <Loader2 size={14} class="spinner-animation ms-2" />
-          {/if}
-        </button>
-      </li>
+      {#if showImageOptions}
+        <li>
+          <button
+            class="dropdown-item d-flex justify-content-between align-items-center"
+            onclick={() => {
+              onExport("pdf", true);
+              isOpen = false;
+            }}
+            disabled={isExportingPDFWithImages}
+          >
+            Export PDF (with images)
+            {#if isExportingPDFWithImages}
+              <Loader2 size={14} class="spinner-animation ms-2" />
+            {/if}
+          </button>
+        </li>
+        <li>
+          <button
+            class="dropdown-item d-flex justify-content-between align-items-center"
+            onclick={() => {
+              onExport("pdf", false);
+              isOpen = false;
+            }}
+            disabled={isExportingPDFNoImages}
+          >
+            Export PDF (text only)
+            {#if isExportingPDFNoImages}
+              <Loader2 size={14} class="spinner-animation ms-2" />
+            {/if}
+          </button>
+        </li>
+      {:else}
+        <li>
+          <button
+            class="dropdown-item d-flex justify-content-between align-items-center"
+            onclick={() => {
+              onExport("pdf", true);
+              isOpen = false;
+            }}
+            disabled={isExportingPDFWithImages || isExportingPDFNoImages}
+          >
+            Export PDF
+            {#if isExportingPDFWithImages || isExportingPDFNoImages}
+              <Loader2 size={14} class="spinner-animation ms-2" />
+            {/if}
+          </button>
+        </li>
+      {/if}
       <li>
         <button
           class="dropdown-item d-flex justify-content-between align-items-center"

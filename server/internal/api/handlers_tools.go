@@ -935,10 +935,14 @@ func (server *Server) handleDownloadExport(responseWriter http.ResponseWriter, r
 		return
 	}
 
-	// Set content-disposition to force download with original filename
+	// Set content-disposition: "inline" for in-browser viewing, "attachment" for download
 	fileName := filepath.Base(filePath)
 	encodedFileName := url.PathEscape(fileName)
-	responseWriter.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"; filename*=UTF-8''%s", fileName, encodedFileName))
+	disposition := "attachment"
+	if request.URL.Query().Get("view") == "true" {
+		disposition = "inline"
+	}
+	responseWriter.Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"; filename*=UTF-8''%s", disposition, fileName, encodedFileName))
 
 	// Set Content-Type based on extension
 	ext := strings.ToLower(filepath.Ext(fileName))

@@ -126,12 +126,9 @@
         if (result?.file_path) {
           lastExportPath = result.file_path;
           api.downloadExport(result.file_path).catch(() => {
-            const directUrl = api.getAuthenticatedMediaUrl(
-              `/exports/download?path=${encodeURIComponent(result.file_path)}`,
-            );
-            window.open(directUrl, "_blank");
+            window.open(api.getExportViewUrl(result.file_path), "_blank");
           });
-          notifications.success("Your export has been downloaded.");
+          notifications.success("Your export is ready.");
         }
       } catch (e) {
         console.error("Failed to parse job result for auto-download", e);
@@ -225,12 +222,14 @@
       await api.downloadExport(lastExportPath);
       notifications.success("Download started.");
     } catch (e: any) {
-      const directUrl = api.getAuthenticatedMediaUrl(
-        `/exports/download?path=${encodeURIComponent(lastExportPath)}`,
-      );
-      window.open(directUrl, "_blank");
+      window.open(api.getExportViewUrl(lastExportPath), "_blank");
       notifications.success("Opening export in new tab...");
     }
+  }
+
+  function handleOpenInNewTab() {
+    if (!lastExportPath) return;
+    window.open(api.getExportViewUrl(lastExportPath), "_blank");
   }
 
   async function handleExport(format: string, includeQRCode: boolean = true) {
@@ -289,6 +288,15 @@
           >
             <Download size={16} class="me-1" />
             Download
+          </button>
+          <button
+            class="btn btn-outline-secondary btn-sm"
+            onclick={handleOpenInNewTab}
+            disabled={!lastExportPath}
+            title="Open last exported file in a new tab"
+          >
+            <ExternalLink size={16} class="me-1" />
+            Open
           </button>
           <div class="btn-group">
             <button

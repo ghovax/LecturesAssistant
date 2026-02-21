@@ -47,6 +47,7 @@
   let downloadLock = new Set<string>(); // Strict lock for actual download trigger
   let isInitialJobsLoad = true;
   let exporting = $state<Record<string, boolean>>({}); // Track active exports: "resourceId:format" -> boolean
+  let lastExportPaths = $state<Record<string, string>>({}); // Track last export path per resource: "resourceId" -> file_path
 
   // Derived state for job status
   let transcriptJobRunning = $derived(
@@ -249,18 +250,24 @@
     ) {
       downloadLock.add(update.id);
       try {
+        const payload =
+          typeof update.payload === "string"
+            ? JSON.parse(update.payload)
+            : update.payload;
         const result =
           typeof update.result === "string"
             ? JSON.parse(update.result)
             : update.result;
         if (result?.file_path) {
+          const resourceId =
+            payload.tool_id || payload.document_id || payload.lecture_id;
+          if (resourceId) {
+            lastExportPaths[resourceId] = result.file_path;
+          }
           api.downloadExport(result.file_path).catch(() => {
-            const directUrl = api.getAuthenticatedMediaUrl(
-              `/exports/download?path=${encodeURIComponent(result.file_path)}`,
-            );
-            window.open(directUrl, "_blank");
+            window.open(api.getExportViewUrl(result.file_path), "_blank");
           });
-          notifications.success("Your export has been downloaded.");
+          notifications.success("Your export is ready.");
         }
       } catch (e) {
         console.error("Failed to parse job result for auto-download", e);
@@ -293,6 +300,15 @@
         // Mark existing completed exports as handled so they don't auto-download on load
         if (j.status === "COMPLETED" && j.type === "PUBLISH_MATERIAL") {
           handledJobIds.add(j.id);
+          // Track last export path per resource for "Open PDF" button
+          try {
+            const result = typeof j.result === "string" ? JSON.parse(j.result) : j.result;
+            const resourceId =
+              j.payload?.tool_id || j.payload?.document_id || j.payload?.lecture_id;
+            if (result?.file_path && resourceId) {
+              lastExportPaths[resourceId] = result.file_path;
+            }
+          } catch (e) {}
         }
         return j;
       });
@@ -585,8 +601,10 @@
     if (existingJob) {
       const res = JSON.parse(existingJob.result || "{}");
       if (res.file_path) {
-        api.downloadExport(res.file_path);
-        notifications.success("Your export has been downloaded.");
+        api.downloadExport(res.file_path).catch(() => {
+          window.open(api.getExportViewUrl(res.file_path), "_blank");
+        });
+        notifications.success("Your export is ready.");
         return;
       }
     }
@@ -633,8 +651,10 @@
     if (existingJob) {
       const res = JSON.parse(existingJob.result || "{}");
       if (res.file_path) {
-        api.downloadExport(res.file_path);
-        notifications.success("Your export has been downloaded.");
+        api.downloadExport(res.file_path).catch(() => {
+          window.open(api.getExportViewUrl(res.file_path), "_blank");
+        });
+        notifications.success("Your export is ready.");
         return;
       }
     }
@@ -682,8 +702,10 @@
     if (existingJob) {
       const res = JSON.parse(existingJob.result || "{}");
       if (res.file_path) {
-        api.downloadExport(res.file_path);
-        notifications.success("Your export has been downloaded.");
+        api.downloadExport(res.file_path).catch(() => {
+          window.open(api.getExportViewUrl(res.file_path), "_blank");
+        });
+        notifications.success("Your export is ready.");
         return;
       }
     }
@@ -709,6 +731,13 @@
           : `${toolId}:${format}`;
       exporting[exportKey] = false;
       notifications.error(e.message || e);
+    }
+  }
+
+  function openExportPdf(resourceId: string) {
+    const path = lastExportPaths[resourceId];
+    if (path) {
+      window.open(api.getExportViewUrl(path), "_blank");
     }
   }
 
@@ -916,6 +945,7 @@
                       {isExportingPDFNoImages}
                       {isExportingDocx}
                       onExport={handleExportTranscript}
+                      onOpenPdf={lastExportPaths[lectureId] ? () => openExportPdf(lectureId) : undefined}
                       showImageOptions={false}
                     />
                   {/if}
@@ -1064,6 +1094,7 @@
                       {isExportingDocx}
                       onExport={(format: string, includeImages: boolean) =>
                         handleExportTool(guideTool.id, format, includeImages)}
+                      onOpenPdf={lastExportPaths[guideTool.id] ? () => openExportPdf(guideTool.id) : undefined}
                     />
                   {/snippet}
                   {#snippet description()}
@@ -1163,6 +1194,7 @@
                       {isExportingDocx}
                       onExport={(format: string, includeImages: boolean) =>
                         handleExportDocument(doc.id, format, includeImages)}
+                      onOpenPdf={lastExportPaths[doc.id] ? () => openExportPdf(doc.id) : undefined}
                     />
                   {/snippet}
                 </Tile>
@@ -1200,6 +1232,7 @@
                     {isExportingDocx}
                     onExport={(format: string, includeImages: boolean) =>
                       handleExportTool(guideTool.id, format, includeImages)}
+                    onOpenPdf={lastExportPaths[guideTool.id] ? () => openExportPdf(guideTool.id) : undefined}
                   />
                 {/if}
                 <button
@@ -1311,6 +1344,7 @@
                     {isExportingPDFNoImages}
                     {isExportingDocx}
                     onExport={handleExportTranscript}
+                    onOpenPdf={lastExportPaths[lectureId] ? () => openExportPdf(lectureId) : undefined}
                     showImageOptions={false}
                   />
                 {/if}
@@ -1455,6 +1489,7 @@
                         format,
                         includeImages,
                       )}
+                    onOpenPdf={selectedDocId && lastExportPaths[selectedDocId] ? () => openExportPdf(selectedDocId!) : undefined}
                   />
                 {/if}
                 <button

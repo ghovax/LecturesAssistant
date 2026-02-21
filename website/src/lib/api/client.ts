@@ -23,6 +23,12 @@ export class APIClient {
     return `${this.baseUrl}${path}${separator}session_token=${this.sessionToken}`;
   }
 
+  getExportViewUrl(filePath: string) {
+    return this.getAuthenticatedMediaUrl(
+      `/exports/download?path=${encodeURIComponent(filePath)}&view=true`,
+    );
+  }
+
   setToken(token: string | null) {
     this.sessionToken = token;
     if (typeof window !== "undefined") {

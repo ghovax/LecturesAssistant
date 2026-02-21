@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Loader2, Download } from "lucide-svelte";
+  import { Loader2, Download, ExternalLink } from "lucide-svelte";
   import { onMount } from "svelte";
 
   interface Props {
@@ -8,6 +8,7 @@
     isExportingPDFNoImages: boolean;
     isExportingDocx: boolean;
     onExport: (format: string, includeImages: boolean) => void;
+    onOpenPdf?: () => void;
     showImageOptions?: boolean;
   }
 
@@ -17,6 +18,7 @@
     isExportingPDFNoImages,
     isExportingDocx,
     onExport,
+    onOpenPdf,
     showImageOptions = true,
   }: Props = $props();
 
@@ -82,6 +84,21 @@
       class="dropdown-menu dropdown-menu-end show"
       style={dropdownStyle}
     >
+      {#if onOpenPdf}
+        <li>
+          <button
+            class="dropdown-item d-flex align-items-center"
+            onclick={() => {
+              onOpenPdf?.();
+              isOpen = false;
+            }}
+          >
+            <ExternalLink size={14} class="me-2" />
+            Open PDF
+          </button>
+        </li>
+        <li><hr class="dropdown-divider" /></li>
+      {/if}
       {#if showImageOptions}
         <li>
           <button

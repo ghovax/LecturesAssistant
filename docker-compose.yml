@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: lectures-assistant:local
+    image: giovanni653/lectures-assistant:latest
     container_name: lectures-assistant
     ports:
       - "3000:3000"

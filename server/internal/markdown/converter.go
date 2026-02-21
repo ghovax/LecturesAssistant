@@ -190,35 +190,6 @@ func (converter *ExternalConverter) HTMLToPDF(htmlContent string, outputPath str
 		"-o", outputPath,
 	}
 
-	// Add font settings based on language
-	languageFontMap := map[string]struct {
-		mainfont   string
-		cjkOptions string
-	}{
-		"ja": {mainfont: "Noto Serif JP", cjkOptions: "AutoFakeBold"},
-		"ko": {mainfont: "Noto Serif KR", cjkOptions: "AutoFakeBold"},
-		"zh": {mainfont: "Noto Serif SC", cjkOptions: "AutoFakeBold"},
-		"ar": {mainfont: "Noto Serif Arabic", cjkOptions: ""},
-		"he": {mainfont: "Noto Serif Hebrew", cjkOptions: ""},
-		"th": {mainfont: "Noto Serif Thai", cjkOptions: ""},
-		"hi": {mainfont: "Noto Serif Devanagari", cjkOptions: ""},
-		"bn": {mainfont: "Noto Serif Bengali", cjkOptions: ""},
-		"ta": {mainfont: "Noto Serif Tamil", cjkOptions: ""},
-		"hy": {mainfont: "Noto Serif Armenian", cjkOptions: ""},
-		"ka": {mainfont: "Noto Serif Georgian", cjkOptions: ""},
-		"ru": {mainfont: "Noto Serif", cjkOptions: ""},
-		"tr": {mainfont: "Noto Serif", cjkOptions: ""},
-	}
-
-	if fontInfo, ok := languageFontMap[options.Language]; ok {
-		if fontInfo.mainfont != "" {
-			arguments = append(arguments, "-V", "mainfont="+fontInfo.mainfont)
-		}
-		if fontInfo.cjkOptions != "" {
-			arguments = append(arguments, "-V", "CJKoptions="+fontInfo.cjkOptions)
-		}
-	}
-
 	command := exec.Command(pandoc, arguments...)
 	command.Stdin = strings.NewReader(htmlContent)
 	var stderr bytes.Buffer
@@ -474,6 +445,21 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
+// findAvailableFont checks which fonts are installed on the system using fc-list
+// and returns the first matching candidate, or empty string if none found.
+func findAvailableFont(candidates []string) string {
+	for _, font := range candidates {
+		cmd := exec.Command("fc-list", font)
+		output, err := cmd.Output()
+		if err == nil && len(bytes.TrimSpace(output)) > 0 {
+			slog.Debug("Found CJK font", "font", font)
+			return font
+		}
+	}
+	slog.Warn("No CJK font found from candidates", "candidates", candidates)
+	return ""
+}
+
 func (converter *ExternalConverter) writeMetadataFile(path string, options ConversionOptions) error {
 	slog.Info("Preparing PDF metadata",
 		"language", options.Language,
@@ -484,14 +470,46 @@ func (converter *ExternalConverter) writeMetadataFile(path string, options Conve
 
 	var builder strings.Builder
 
+	// Normalize language code (e.g., "ja-JP" -> "ja")
+	normalizedLanguage := strings.ToLower(options.Language)
+	if idx := strings.Index(normalizedLanguage, "-"); idx != -1 {
+		normalizedLanguage = normalizedLanguage[:idx]
+	}
+
+	// CJK languages need special handling for XeLaTeX
+	cjkLanguages := map[string]bool{"ja": true, "ko": true, "zh": true}
+	isCJK := cjkLanguages[normalizedLanguage]
+
 	// Add the language for pandoc
-	fmt.Fprintf(&builder, "lang: \"%s\"\n", options.Language)
+	// For CJK languages, use the full language tag for proper rendering
+	if isCJK {
+		// Use BCP 47 tag for CJK (e.g., ja-JP, ko-KR, zh-CN)
+		fmt.Fprintf(&builder, "lang: \"%s\"\n", options.Language)
+	} else {
+		fmt.Fprintf(&builder, "lang: \"%s\"\n", options.Language)
+	}
 
 	// Add translated labels for the template
 	fmt.Fprintf(&builder, "course-title-label: \"%s\"\n", getI18nLabel(options.Language, "course_label"))
 	fmt.Fprintf(&builder, "abstract-title: \"%s\"\n", getI18nLabel(options.Language, "abstract"))
 	fmt.Fprintf(&builder, "audio-files-title: \"%s\"\n", getI18nLabel(options.Language, "audio_files"))
 	fmt.Fprintf(&builder, "reference-files-title: \"%s\"\n", getI18nLabel(options.Language, "reference_files"))
+
+	// Add font settings for CJK languages
+	if isCJK {
+		// Ordered list of font candidates per language (first available wins)
+		languageFontCandidates := map[string][]string{
+			"ja": {"Noto Serif JP", "Noto Serif CJK JP", "Hiragino Mincho ProN", "Noto Sans CJK JP"},
+			"ko": {"Noto Serif KR", "Noto Serif CJK KR", "Apple SD Gothic Neo", "Noto Sans CJK KR"},
+			"zh": {"Noto Serif SC", "Noto Serif CJK SC", "STSong", "Noto Sans CJK SC"},
+		}
+		if candidates, ok := languageFontCandidates[normalizedLanguage]; ok {
+			if font := findAvailableFont(candidates); font != "" {
+				fmt.Fprintf(&builder, "CJKmainfont: \"%s\"\n", font)
+				fmt.Fprintf(&builder, "CJKoptions: \"AutoFakeBold\"\n")
+			}
+		}
+	}
 
 	if options.CourseTitle != "" {
 		fmt.Fprintf(&builder, "course-title: \"%s\"\n", strings.ReplaceAll(options.CourseTitle, "\"", "\\\""))

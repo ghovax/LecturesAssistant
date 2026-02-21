@@ -40,6 +40,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-writer-nogui \
     libreoffice-impress-nogui \
     fontconfig \
+    fonts-noto-core \
+    fonts-noto-cjk \
+    fonts-noto-cjk-extra \
     ca-certificates \
     curl \
     tar \
@@ -61,6 +64,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl -sL "https://github.com/jgm/pandoc/archive/refs/tags/3.9.tar.gz" | tar -xz -C /tmp --strip-components=1 && \
     cp -r /tmp/data/templates/* /root/.local/share/pandoc/data/templates/ && \
     rm -rf /tmp/data && \
+    # Refresh font cache after installing fonts
+    fc-cache -fv && \
     apt-get purge -y curl && \
     apt-get autoremove -y && \
     apt-get clean && \

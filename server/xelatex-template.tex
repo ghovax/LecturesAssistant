@@ -24,6 +24,13 @@ $endif$
 \usepackage{eso-pic}
 % Ensure images don't exceed page width/height
 \setkeys{Gin}{width=\textwidth,height=0.8\textheight,keepaspectratio}
+
+% CJK Language Support (must be loaded before hyperref for proper linebreak handling)
+$if(CJKoptions)$
+\usepackage{xeCJK}
+\setCJKmainfont[$CJKoptions$]{$CJKmainfont$}
+$endif$
+
 % Hyperref setup
 \usepackage{hyperref}
 \hypersetup{

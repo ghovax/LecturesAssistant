@@ -505,8 +505,15 @@ func (converter *ExternalConverter) writeMetadataFile(path string, options Conve
 		}
 		if candidates, ok := languageFontCandidates[normalizedLanguage]; ok {
 			if font := findAvailableFont(candidates); font != "" {
-				fmt.Fprintf(&builder, "CJKmainfont: \"%s\"\n", font)
-				fmt.Fprintf(&builder, "CJKoptions: \"AutoFakeBold\"\n")
+				fmt.Fprintf(&builder, "header-includes:\n")
+				fmt.Fprintf(&builder, "  - |\n")
+				fmt.Fprintf(&builder, "    ```{=latex}\n")
+				fmt.Fprintf(&builder, "    \\newfontfamily\\cjkfont{%s}\n", font)
+				fmt.Fprintf(&builder, "    \\XeTeXlinebreaklocale \"%s\"\n", normalizedLanguage)
+				fmt.Fprintf(&builder, "    \\XeTeXlinebreakskip = 0pt plus 1pt\n")
+				fmt.Fprintf(&builder, "    \\usepackage{ucharclasses}\n")
+				fmt.Fprintf(&builder, "    \\setTransitionsForCJK{\\cjkfont}{\\rmfamily}\n")
+				fmt.Fprintf(&builder, "    ```\n")
 			}
 		}
 	}
